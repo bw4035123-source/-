@@ -97,12 +97,13 @@ def _split(text: str, limit: int = CHUNK_MAX) -> list[str]:
 
 
 def _merge_where(a: str, b: str) -> str:
-    ma, mb = re.match(r"(.*?)(\d+)(\D*)$", a), re.match(r"(.*?)(\d+)(\D*)$", b)
-    if ma and mb and ma.group(1) == mb.group(1) and "~" not in a:
-        return f"{ma.group(1)}{ma.group(2)}~{mb.group(2)}{mb.group(3)}"
-    if ma and mb and "~" in a:
-        return re.sub(r"~\d+", f"~{mb.group(2)}", a)
-    return a
+    """'문단 3' + '문단 7' → '문단 3~7'. 종류가 다르면(문단+표) '문단 3 외'."""
+    ma = re.match(r"(.*?)(\d+)(\D*)$", a.split("~")[0])
+    mb = re.match(r"(.*?)(\d+)(\D*)$", b.split("~")[0])
+    end = re.search(r"(\d+)(\D*)$", b)
+    if ma and mb and end and ma.group(1) == mb.group(1):
+        return f"{ma.group(1)}{ma.group(2)}~{end.group(1)}{end.group(2)}"
+    return a if a.endswith(" 외") else f"{a} 외"
 
 
 def make_chunks(segments, doc_id: str) -> list[dict]:

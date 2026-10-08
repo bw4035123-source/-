@@ -32,6 +32,7 @@ REQUIRED = [
     (("openpyxl",), "openpyxl>=3.1"),
     (("olefile",), "olefile>=0.46"),
     (("docx",), "python-docx>=1.1"),
+    (("hwpx",), "python-hwpx==6.8.0"),
 ]
 
 

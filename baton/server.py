@@ -13,7 +13,8 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, store
 from .draft import add_item, answer_question, build_draft, now, update_item
-from .export import to_baton, to_docx, to_html, to_ics, to_markdown
+from .export import handover_blocks, manual_blocks, to_baton, to_html, to_ics
+from .render import FORMATS
 from .ingest import ingest_folder, verify_originals
 from .llm import get_client, self_check
 from .parsers import SUPPORTED
@@ -63,7 +64,8 @@ def info():
     active = s["llm"]["active"]
     return {"version": __version__, "supported": SUPPORTED, "active_model": active,
             "active_label": s["llm"]["profiles"].get(active, {}).get("label", active),
-            "sample_available": os.path.isdir(config.SAMPLE_DIR), "org": s.get("org", {})}
+            "sample_available": os.path.isdir(config.SAMPLE_DIR), "org": s.get("org", {}),
+            "samples": {k: {"name": v[1], "from": v[2], "to": v[3], "base": v[4]} for k, v in config.SAMPLES.items() if os.path.isdir(v[0])}}
 
 
 # ───────────── 설정·모델
@@ -96,6 +98,22 @@ async def post_settings(req: Request):
     if "template" in body:
         config.save_template(body["template"])
     return get_settings()
+
+
+@app.post("/api/llm/models")
+async def llm_models(req: Request):
+    """연결한 서버에 실제 등록된 모델 이름 목록(저장 전 주소로도 조회 가능, 키는 보내지 않음)."""
+    from .llm import LLMError, OpenAICompatClient
+
+    b = await req.json()
+    base = (b.get("base_url") or "").strip()
+    if not base:
+        raise HTTPException(400, "서버 주소를 입력하세요")
+    client = OpenAICompatClient("list", {"type": b.get("type", "openai"), "base_url": base, "model": ""}, timeout=15)
+    try:
+        return {"models": client.models()}
+    except LLMError as e:
+        raise HTTPException(502, str(e))
 
 
 @app.post("/api/llm/check")
@@ -191,10 +209,14 @@ async def create_from_path(req: Request):
 
 @app.post("/api/projects/demo")
 async def create_demo(req: Request):
-    if not os.path.isdir(config.SAMPLE_DIR):
+    b = await req.json() if (await req.body()) else {}
+    sample = config.SAMPLES.get(b.get("sample") or "security")
+    if not sample or not os.path.isdir(sample[0]):
         raise HTTPException(404, "샘플 폴더가 없습니다(python sample_data/make_samples.py 실행)")
-    p = _new_project("정보보안·정보화예산 담당 인수인계(샘플)", "김바통 주무관", "이어달 주무관", "2026-05-11", "path",
-                     config.SAMPLE_DIR)
+    folder, name, frm, to, base, org, dept = sample
+    p = _new_project(name, frm, to, base, "path", folder)
+    p.update(org=org, dept=dept)
+    store.save(p)
     _start(_run_ingest, p["id"])
     return {"id": p["id"]}
 
@@ -375,25 +397,35 @@ async def handover(pid: str, req: Request):
 
 
 @app.get("/api/projects/{pid}/export")
-def export(pid: str, fmt: str = "docx"):
+def export(pid: str, fmt: str = "docx", doc: str = "handover"):
+    """doc: handover(인수인계서) | manual(후임자 업무매뉴얼), fmt: hwpx | docx | md | html | ics | baton"""
     p = _load(pid)
     if not p.get("draft"):
         raise HTTPException(400, "초안이 아직 없습니다")
-    base = f"인수인계서_{p.get('name', '')}"
+    name = p.get("name", "")
     if fmt == "ics":
-        data, mt, ext = to_ics(p).encode("utf-8"), "text/calendar; charset=utf-8", "ics"
-        base = f"업무달력_{p.get('name', '')}"
+        data, mt, fname = to_ics(p).encode("utf-8"), "text/calendar; charset=utf-8", f"업무달력_{name}.ics"
     elif fmt == "baton":
-        data, mt, ext = to_baton(p).encode("utf-8"), "application/json; charset=utf-8", "baton"
-        base = f"{p.get('name', '')}_{p.get('from_name', '')}"
-    elif fmt == "md":
-        data, mt, ext = to_markdown(p).encode("utf-8"), "text/markdown; charset=utf-8", "md"
+        data, mt, fname = to_baton(p).encode("utf-8"), "application/json; charset=utf-8", f"{name}_{p.get('from_name', '')}.baton"
     elif fmt == "html":
         return Response(to_html(p), media_type="text/html; charset=utf-8")
+    elif fmt in FORMATS:
+        blocks = manual_blocks(p) if doc == "manual" else handover_blocks(p)
+        fn, mt = FORMATS[fmt]
+        try:
+            data = fn(blocks)
+        except ImportError:
+            raise HTTPException(500, "한글(hwpx) 저장에 필요한 python-hwpx 가 설치되지 않았습니다. run.bat --reinstall 을 실행하거나 Word로 내려받으세요.")
+        fname = f"{'후임자_업무매뉴얼' if doc == 'manual' else '인수인계서'}_{name}.{fmt}"
     else:
-        data, mt, ext = to_docx(p), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+        raise HTTPException(400, f"지원하지 않는 형식: {fmt}")
+    store_audit = f"{doc}.{fmt}"
+    with store.lock(pid):
+        q = store.load(pid)
+        store.audit(q, "사용자", "내보내기", store_audit)
+        store.save(q)
     return Response(data, media_type=mt,
-                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(base + '.' + ext)}"})
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(fname)}"})
 
 
 @app.exception_handler(Exception)

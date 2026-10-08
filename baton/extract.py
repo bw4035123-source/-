@@ -91,8 +91,10 @@ _PART = {"초": "초", "초순": "초", "중": "중순", "중순": "중순", "�
 
 
 def _clean_title(s: str) -> str:
-    if " / " in s and ": " in s:  # 엑셀 행: 앞쪽 두 항목만
-        t = " / ".join(x.split(": ", 1)[-1] for x in s.split(" / ")[:2])
+    s = re.sub(r"^(\[[^\]]{1,20}\]\s*)+", "", s)  # 바통 파일의 '[매년 1월]' 같은 머리표 제거
+    if " / " in s and ": " in s:  # 표 행: 번호 칸을 빼고 앞쪽 두 항목만
+        fields = [x for x in s.split(" / ") if not re.match(r"^(연번|번호|순번|No\.?)\s*:", x, re.I)]
+        t = " / ".join(x.split(": ", 1)[-1] for x in fields[:2])
     else:
         t = re.sub(r"^\s*(\d{1,2}|[가-하])\.\s*", "", s)
     t = re.sub(r"\s+", " ", t).strip(" ,~:-·")
@@ -124,7 +126,8 @@ def find_dates(s: str) -> list[dict]:
         if free(m) and 1 <= mo <= 12:
             add(m, year=None, month=mo, day=None, part=_PART.get(m.group(2) or "", ""))
     if len(found) >= 2 and re.search(r"기간|~", s) and found[0].get("day") and found[1].get("day"):
-        found = [dict(found[-1], ends=True)]
+        # '2026.01.01~2026.12.31' 같은 기간은 끝나는 날만 남기고, 같은 문장의 다른 시기(예: 비고의 '11월 입찰')는 그대로 둔다
+        found = [dict(found[1], ends=True)] + found[2:]
     yearly = bool(RE_YEARLY.search(s))
     for f in found:
         f["recur"] = "yearly" if yearly else "once"
@@ -146,16 +149,20 @@ def find_dates(s: str) -> list[dict]:
 # ───────────────────────── 사람·기관 ─────────────────────────
 SURNAMES = set("김이박최정강조윤장임한오서신권황안송류유전홍고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반왕금육인맹제모탁국어은편용예경봉사부가복태목형피두감음빈동온호범좌팽승간상갈단견당화창")
 TITLES = "주무관|사무관|서기관|부이사관|이사관|팀장|과장|국장|계장|실장|부장|차장|대리|주임|선임|책임|연구원|연구관|센터장|소장|단장|원장|본부장|위원장|위원|교수|대표|이사|매니저|PM|PL"
-RE_PERSON = re.compile(r"(?<![가-힣])([가-힣]{2,3}?)\s?(" + TITLES + r")(?:님)?(?![가-힣]{2})")
+RE_PERSON = re.compile(r"(?<![가-힣])([가-힣]{2,3}?)\s?(" + TITLES + r")(?:님)?(?!인|점|[가-힣]{2})")
 ORG_SUFFIX = r"(?:과|팀|실|국|센터|본부|단|부|청|원|처|공단|공사|재단|위원회|구청|시청|군청|도청|협회|진흥원|연구원|㈜|\(주\))"
 RE_ORG_BEFORE = re.compile(r"((?:\(주\)|㈜)\s*[가-힣A-Za-z]{2,15}|[가-힣A-Za-z0-9]{1,15}" + ORG_SUFFIX + r")\s*(?:의\s*)?$")
 RE_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 RE_TEL = re.compile(r"(?<!\d)(0\d{1,2})[-.)\s]?(\d{3,4})[-.\s](\d{4})(?!\d)")
-NOT_NAMES = set("담당 업무 관련 해당 각 기관 소속 신임 전임 후임 우리 귀하 사업 예산 계약 보안 정보 시스템 위원회 협의 회의 총괄 실무 운영 기획 회계 감사 인사 총무 민원 행정 전산 정책".split())
+NOT_NAMES = set("""담당 업무 관련 해당 각 기관 소속 신임 전임 후임 우리 귀하 사업 예산 계약 보안 정보 시스템 위원회 협의 회의 총괄 실무 운영
+기획 회계 감사 인사 총무 민원 행정 전산 정책 현장 공사 정기 하자 전체 문화 경영 시설 안전 업체 구청 용역 대행 부재""".split())
 
 
 def _is_name(n: str) -> bool:
-    return len(n) >= 2 and n[0] in SURNAMES and n not in NOT_NAMES and not n.endswith(("은", "는", "을", "를", "이", "가", "의", "에", "과", "와", "도"))
+    # 조사로 끝나는 두 글자(예: '업무를')만 거른다. 세 글자 이름은 '정하은·김지은'처럼 은·이로 끝날 수 있음
+    if len(n) == 2 and n.endswith(("은", "는", "을", "를", "이", "가", "의", "에", "과", "와", "도")):
+        return False
+    return len(n) >= 2 and n[0] in SURNAMES and n not in NOT_NAMES
 
 
 # ───────────────────────── 현안·자원·노하우 ─────────────────────────
@@ -169,9 +176,66 @@ RE_SYSTEM = re.compile("|".join(re.escape(s) for s in sorted(SYSTEMS, key=len, r
 RE_PATH = re.compile(r"(?:[A-Z]:\\|\\\\)[^\s\"'<>|]+|(?:공유폴더|NAS|드라이브)\s*[>/\\][^\s,]+(?:\s*[>/\\]\s*[^\s,]+)*")
 RE_URL = re.compile(r"https?://[^\s)\]>\"']+")
 RE_RR = re.compile(r"담당\s*업무|주요\s*업무|업무\s*분장|분장|소관|담당자|R&R|역할")
+# 불확실한 표현: 전임자도 확신하지 못한 내용 → 확인 필요
+RE_HEDGE = re.compile(r"아마|알고\s*있음|로\s*알고|것\s*같|(?<![가-힣])듯|추정|\?|미정|불확실|기억\s*(으로|상)|정도로|일\s*수도")
+# 해야 할 일(의도)과 끝난 일(완료) – 기한 지남 판단용
+RE_INTENT = re.compile(r"예정|해야|필요|까지|할\s*것|요청|부탁|실시\s*예정|진행\s*예정")
+RE_DONE = re.compile(r"완료|했음|받음|마침|끝남|끝냄|제출함|보고함|적합\s*판정|실시\s*결과")
+# 연락처가 바뀌었다는 메모
+RE_CHANGED = re.compile(r"(번호|연락처|전화|휴대폰|메일|이메일)\S{0,3}\s*(바뀜|바뀌었|변경|새\s*번호|달라)")
+# 날짜가 서로 다르면 '충돌'로 볼 수 있는 사건 낱말(기한 표현이 없어도)
+EVENT_WORDS = ("착공", "준공", "개최", "공고", "입찰", "제출", "마감", "착수", "개통", "이전", "검사", "점검", "평가", "교육", "회의", "갱신", "계약", "만료")
+ROW_NAME = re.compile(r"^(이름|성명|담당자|업체\s*담당자?|담당|대표자?|성\s*명)$")
+ROW_ORG = re.compile(r"^(소속|업체명?|기관명?|부서|회사)$")
+ROW_TITLE = re.compile(r"^(직위|직급|직책|호칭)$")
+ROW_TEL = re.compile(r"(연락처|전화|휴대폰|핸드폰|내선|TEL)", re.I)
+ROW_MAIL = re.compile(r"(이메일|메일|e-?mail)", re.I)
+ROW_TOPIC = re.compile(r"(협의\s*업무|주요\s*업무|담당\s*업무|계약명|업무|구분|용건|비고)")
 
 
-RE_NOISE = re.compile(r"전결|대결|시행\s+\S+-\d+|접수\s+\S+-\d+|공개구분|관련입니다|호와\s*관련|우\s*\d{5}|팩스|담당자\s*:\s*$")
+def split_list(text: str) -> list[str]:
+    """쉼표·' / '로 나누되 괄호 안의 쉼표는 나누지 않는다: '보안 업무(점검, 교육), 예산' → 2개."""
+    out, buf, depth = [], "", 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth = max(0, depth - 1)
+        if depth == 0 and (ch == "," or text.startswith(" / ", i)):
+            out.append(buf)
+            buf = ""
+            i += 3 if text.startswith(" / ", i) else 1
+            continue
+        buf += ch
+        i += 1
+    out.append(buf)
+    return [x.strip() for x in out if x.strip()]
+
+
+def parse_row(s: str) -> dict | None:
+    """'머리글: 값 / 머리글: 값' 형태의 표 행을 사전으로."""
+    if " / " not in s or ": " not in s:
+        return None
+    out = {}
+    for part in s.split(" / "):
+        if ": " in part:
+            k, v = part.split(": ", 1)
+            out[k.strip()] = v.strip()
+    return out if len(out) >= 2 else None
+
+
+def predecessor_name(text: str) -> str:
+    """'김바통 주무관', '전임자_김도윤_업무폴더' 같은 문자열에서 사람 이름만."""
+    for tok in re.findall(r"[가-힣]{2,4}", text or ""):
+        tok = re.sub(r"(" + TITLES + r")$", "", tok)
+        if 2 <= len(tok) <= 3 and tok[0] in SURNAMES and tok not in ("전임자", "후임자", "업무폴", "업무") and _is_name(tok):
+            return tok
+    return ""
+
+
+RE_NOISE = re.compile(r"기준\)|문서번호|전결|대결|시행\s+\S+-\d+|접수\s+\S+-\d+|공개구분|관련입니다|호와\s*관련|우\s*\d{5}|팩스|담당자\s*:\s*$")
 
 
 def doc_titles(chunks: list[dict], docs: list[dict]) -> dict[str, str]:
@@ -193,7 +257,7 @@ def doc_titles(chunks: list[dict], docs: list[dict]) -> dict[str, str]:
     return out
 
 
-def extract(chunks: list[dict], docs: list[dict]) -> dict:
+def extract(chunks: list[dict], docs: list[dict], predecessor: str = "", base_date=None, root_name: str = "") -> dict:
     kind_of = {d["id"]: d.get("kind", "doc") for d in docs}
     doc_name = {d["id"]: d["file"] for d in docs}
     events, issues, resources, tips, rr = [], [], [], [], []
@@ -220,6 +284,12 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
     me_name = None
     if me_addr and me_addr in addr_name:
         me_name = re.sub(r"(" + TITLES + r")$", "", addr_name[me_addr])
+    # 화면에서 입력한 전임자 이름 → 폴더 이름(전임자_김도윤_…) → 메일 추정 순으로 '본인'을 정한다
+    hint = predecessor_name(predecessor) or (predecessor_name(root_name) if re.search(r"전임|인수인계|업무폴더", root_name or "") else "")
+    if hint:
+        me_name = hint
+        if not me_addr:
+            me_addr = next((a for a, n in addr_name.items() if n.startswith(hint)), None)
 
     def person(name: str) -> dict:
         p = people.get(name)
@@ -234,6 +304,8 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
             if not addr or addr == me_addr:
                 continue
             clean = re.sub(r"\s+", "", name or "")
+            if me_name and clean.startswith(me_name):
+                continue
             m = RE_PERSON.match(clean)
             nm, title = (m.group(1), m.group(2)) if m else (clean, "")
             if not nm or not re.fullmatch(r"[가-힣]{2,4}", nm):
@@ -261,8 +333,15 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
             body = s
 
             # 시기별 할 일
+            row_fields = parse_row(body)
             for dd in find_dates(body):
                 title = _clean_title(body)
+                if row_fields and not dd.get("ends") and dd["month"]:
+                    # 표 행: '계약명 – 비고(11월 중 입찰공고 필요)'처럼 날짜가 들어 있는 칸을 붙인다
+                    cell = next((v for k, v in row_fields.items() if re.search(rf"(?<!\d){dd['month']}\s*월|\.0?{dd['month']}\.", v)
+                                 and "기간" not in k), "")
+                    if cell:
+                        title = f"{title.split(' / ')[0]} – {cell}"
                 if len(title) < 4:
                     continue
                 key = (dd["month"], dd["day"], dd["recur"], title[:30])
@@ -274,7 +353,48 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
                     "year": dd["year"], "part": dd["part"], "recur": dd["recur"],
                     "deadline": bool(RE_DEADLINE.search(body)), "sources": [c["id"]], "kind": kind,
                     "doc_id": c["doc_id"], "heading": heading, "doc_title": titles.get(c["doc_id"], ""),
+                    "ends": bool(dd.get("ends")), "intent": bool(RE_INTENT.search(body)) and not RE_DONE.search(body),
                 })
+
+            row = parse_row(body)
+            # 표 행에서 사람(연락처 정리표, 계약 현황표, 추진 체계표 등)
+            if row:
+                name_val = next((v for k, v in row.items() if ROW_NAME.match(k)), "")
+                pm = RE_PERSON.search(name_val) if name_val else None
+                nm = pm.group(1) if pm else (name_val if re.fullmatch(r"[가-힣]{2,3}", name_val or "") else "")
+                if nm and _is_name(nm) and nm != me_name:
+                    p = person(nm)
+                    p["mentions"] += 1
+                    title = (pm.group(2) if pm else "") or next((v for k, v in row.items() if ROW_TITLE.match(k)), "")
+                    if title:
+                        p["titles"][title] += 2
+                    org = next((v for k, v in row.items() if ROW_ORG.match(k)), "")
+                    if not org and pm:
+                        om = RE_ORG_BEFORE.search(name_val[: pm.start()].strip() + " ")
+                        org = om.group(1) if om else name_val[: pm.start()].strip()
+                    if org:
+                        p["orgs"][org] += 3
+                    for k, v in row.items():
+                        if ROW_TEL.search(k):
+                            p["tels"].update("-".join(t) for t in RE_TEL.findall(v))
+                        if ROW_MAIL.search(k):
+                            p["emails"].update(RE_EMAIL.findall(v))
+                    for k, v in row.items():
+                        if ROW_TOPIC.search(k) and not ROW_NAME.match(k) and len(v) >= 3:
+                            for t in split_list(v):
+                                if len(t) >= 3:
+                                    p["topics"][t.strip()] += 5
+                    if len(p["contexts"]) < 4:
+                        p["contexts"].append({"text": s, "source": c["id"]})
+                    if c["id"] not in p["sources"]:
+                        p["sources"].insert(0, c["id"])
+                    p["files"].add(fname)
+
+            # 연락처가 바뀌었다는 메모
+            if RE_CHANGED.search(body):
+                for m in RE_PERSON.finditer(body):
+                    if _is_name(m.group(1)) and m.group(1) != me_name:
+                        person(m.group(1))["changed"] = {"text": s, "source": c["id"]}
 
             # 사람
             for m in RE_PERSON.finditer(body):
@@ -316,10 +436,22 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
 
             # 담당 업무(R&R)
             in_rr_file = bool(re.search(r"업무분장|분장표|담당업무|사무분장", fname))
-            mine = (me_name in body.split(" / ")[0] or (me_name in body and "감독" in body)) if me_name else ("담당" in body)
-            if (in_rr_file and mine) or (RE_RR.search(body) and kind not in ("mail", "data") and not in_rr_file):
-                if not any(bigram_sim(x["text"], s) > 0.8 for x in rr):
-                    rr.append({"id": f"W{len(rr) + 1:03d}", "text": s, "sources": [c["id"]], "kind": kind})
+            texts = []
+            if row and me_name and me_name in next((v for k, v in row.items() if ROW_NAME.match(k)), ""):
+                duty = next((v for k, v in row.items() if "업무" in k), "")
+                texts = [d for d in split_list(duty) if len(d) >= 3] if duty else [s]
+            elif in_rr_file:
+                if me_name and me_name in body and not row:
+                    texts = [s]
+                elif not me_name and "담당" in body:
+                    texts = [s]
+            elif row and me_name and me_name in body and re.search(r"감독|담당", body):
+                texts = [s]
+            elif not row and RE_RR.search(body) and kind not in ("mail", "data"):
+                texts = [s]
+            for t in texts:
+                if not any(bigram_sim(x["text"], t) > 0.8 for x in rr):
+                    rr.append({"id": f"W{len(rr) + 1:03d}", "text": t, "sources": [c["id"]], "kind": kind})
 
     issues = find_issues(chunks, kind_of, titles)
 
@@ -329,7 +461,8 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
         if p["mentions"] + p["mails"] == 0:
             continue
         bad = set(people) | {me_name or ""} | set(TITLES.split("|")) | {"참석", "드림", "안녕하세요", "주무관님"}
-        topics = [t for t, _ in p["topics"].most_common(10) if t not in bad and not re.match(r"^(RE|FW)\b", t)][:4]
+        topics = [t for t, _ in p["topics"].most_common(10) if t not in bad and not re.match(r"^(RE|FW)\b", t)
+                  and not any(n.startswith(t) for n in people)][:4]  # '문가'(문가은의 일부) 같은 이름 조각 제외
         plist.append({
             "id": f"P{len(plist) + 1:03d}", "name": p["name"],
             "title": p["titles"].most_common(1)[0][0] if p["titles"] else "",
@@ -337,14 +470,34 @@ def extract(chunks: list[dict], docs: list[dict]) -> dict:
             "emails": sorted(p["emails"]), "tels": sorted(p["tels"]),
             "weight": p["mentions"] + 2 * p["mails"], "mails": p["mails"], "mentions": p["mentions"],
             "topics": topics, "contexts": p["contexts"], "sources": p["sources"][:6], "files": sorted(p["files"]),
+            "changed": p.get("changed"),
         })
     plist.sort(key=lambda x: -x["weight"])
     for i, p in enumerate(plist, 1):
         p["id"] = f"P{i:03d}"
 
     conflicts = find_conflicts(events, chunks)
+    uncertain, seen_u = [], set()
+    for x in events + issues:
+        m = RE_HEDGE.search(x["text"])
+        if m and x["text"] not in seen_u:
+            seen_u.add(x["text"])
+            uncertain.append({"text": x["text"], "word": m.group(0), "sources": x["sources"], "kind": x["kind"]})
+    overdue = []
+    if base_date:
+        import datetime as _dt
+
+        for e in events:
+            if e["recur"] != "once" or not (e["year"] and e["month"] and e["day"]) or not e.get("intent") or e.get("ends"):
+                continue
+            try:
+                when = _dt.date(e["year"], e["month"], e["day"])
+            except ValueError:
+                continue
+            if when < base_date:
+                overdue.append({"text": e["text"], "date": when.isoformat(), "sources": e["sources"], "kind": e["kind"], "event": e["id"]})
     return {"events": events, "people": plist, "issues": issues, "resources": resources, "tips": tips, "rr": rr,
-            "conflicts": conflicts, "me": {"name": me_name, "email": me_addr}}
+            "conflicts": conflicts, "uncertain": uncertain, "overdue": overdue, "me": {"name": me_name, "email": me_addr}}
 
 
 def _shared_weight(ka: set[str], kb: set[str]) -> int:
@@ -394,7 +547,7 @@ def find_issues(chunks: list[dict], kind_of: dict, titles: dict) -> list[dict]:
 
 def find_conflicts(events: list[dict], chunks: list[dict]) -> list[dict]:
     """서로 다른 문서에서 같은 일로 보이는데 기한이 다른 경우 = 충돌(확인 필요)."""
-    dated = [e for e in events if e["month"] and e["day"] and e["deadline"]]
+    dated = [e for e in events if e["month"] and e["day"] and not e.get("ends") and e["recur"] != "monthly"]
     ctx = {e["id"]: keywords(" ".join([e["title"], e.get("heading", ""), e.get("doc_title", "")])) for e in dated}
     near = {e["id"]: keywords(" ".join([e["title"], e.get("heading", "")])) for e in dated}
     parent = {e["id"]: e["id"] for e in dated}
@@ -407,6 +560,10 @@ def find_conflicts(events: list[dict], chunks: list[dict]) -> list[dict]:
     for i, a in enumerate(dated):
         for b in dated[i + 1:]:
             if a["doc_id"] == b["doc_id"] or (a["month"], a["day"]) == (b["month"], b["day"]):
+                continue
+            # 둘 다 기한이거나, 같은 사건 낱말(착공·입찰공고 등)이 양쪽 문장에 있어야 같은 일로 본다
+            shared_event = [w for w in EVENT_WORDS if w in a["text"] and w in b["text"]]
+            if not (a["deadline"] and b["deadline"]) and not shared_event:
                 continue
             if a["year"] and b["year"] and a["year"] != b["year"]:
                 continue
@@ -428,7 +585,10 @@ def find_conflicts(events: list[dict], chunks: list[dict]) -> list[dict]:
         variants = []
         for e in sorted(members, key=lambda e: (e["month"], e["day"])):
             variants.append({"event": e["id"], "date": fmt_date(e), "text": e["text"], "sources": e["sources"], "kind": e["kind"]})
-        out.append({"id": f"C{len(out) + 1:03d}", "topic": " ".join(sorted(common, key=len, reverse=True)[:3]),
+        ref = " ".join(e["text"] for e in members)
+        top = sorted(common, key=len, reverse=True)[:3]
+        top.sort(key=lambda w: ref.find(w) if w in ref else 999)  # 원문에 나온 순서대로(예: 냉난방기 교체공사)
+        out.append({"id": f"C{len(out) + 1:03d}", "topic": " ".join(top),
                     "variants": variants})
     return out[:20]
 

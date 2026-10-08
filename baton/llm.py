@@ -34,7 +34,46 @@ class OfflineClient:
         raise LLMError("오프라인 모드에서는 LLM을 호출하지 않습니다")
 
 
+# 행정안전부 AI 공통기반 지원(예정) 모델 계열. 앱 기능은 계열과 무관하고, 아래는 응답 차이를 흡수하기 위한 정보다.
+FAMILIES = [
+    {"key": "gemma", "name": "젬마(Gemma)", "maker": "Google", "match": r"gemma"},
+    {"key": "llama", "name": "라마(Llama)", "maker": "Meta", "match": r"llama"},
+    {"key": "gpt-oss", "name": "GPT-OSS", "maker": "OpenAI", "match": r"gpt-oss|gpt_oss", "reasoning": True},
+    {"key": "exaone", "name": "엑사원(EXAONE)", "maker": "LG AI연구원", "match": r"exaone"},
+    {"key": "hyperclovax", "name": "하이퍼클로바X(HyperCLOVA X)", "maker": "네이버", "match": r"hyperclova|hcx"},
+    {"key": "solar", "name": "솔라(Solar)", "maker": "업스테이지", "match": r"solar"},
+    {"key": "qwen", "name": "큐원(Qwen)", "maker": "Alibaba", "match": r"qwen", "reasoning": True},
+]
+RX_THINK = re.compile(r"<(think|thought|reasoning)>.*?</\1>\s*", re.S | re.I)
+RX_THINK_OPEN = re.compile(r"<(think|thought|reasoning)>.*\Z", re.S | re.I)  # 길이 제한으로 닫히지 않은 생각 과정
+
+
+def strip_think(text: str) -> str:
+    """추론형 모델의 생각 과정을 지운다. 닫히지 않은 생각 과정은 답이 아니므로 통째로 버린다."""
+    return RX_THINK_OPEN.sub("", RX_THINK.sub("", text or "")).strip()
+
+
+def family_of(model: str) -> dict | None:
+    m = (model or "").lower()
+    return next((f for f in FAMILIES if re.search(f["match"], m)), None)
+
+
+def _merge_system(messages: list[dict]) -> list[dict]:
+    """system 역할을 받지 않는 서버(일부 젬마 등): 지시문을 첫 사용자 메시지 앞에 합친다."""
+    sys_text = "\n".join(m["content"] for m in messages if m["role"] == "system")
+    rest = [dict(m) for m in messages if m["role"] != "system"]
+    for m in rest:
+        if m["role"] == "user":
+            m["content"] = sys_text + "\n\n" + m["content"]
+            break
+    else:
+        rest.insert(0, {"role": "user", "content": sys_text})
+    return rest
+
+
 class OpenAICompatClient:
+    """OpenAI 호환(/v1/chat/completions) 또는 Ollama 기본 API(/api/chat)."""
+
     available = True
 
     def __init__(self, name: str, profile: dict, timeout: int = 180):
@@ -45,40 +84,75 @@ class OpenAICompatClient:
         self.api_key = profile.get("api_key") or (os.environ.get(profile.get("api_key_env") or "", ""))
         self.timeout = timeout
         self.extra = profile.get("extra_body", {})
+        self.native_ollama = profile.get("type") == "ollama"
+        self.family = family_of(self.model)
 
-    def chat(self, messages: list[dict], max_tokens: int = 2048, temperature: float = 0.2) -> str:
-        body = {"model": self.model, "messages": messages, "temperature": temperature,
-                "max_tokens": max_tokens, "stream": False, **self.extra}
+    def _post(self, url: str, body: dict) -> dict:
         req = urllib.request.Request(
-            self.base_url + "/chat/completions",
-            data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json",
-                     **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {})},
-            method="POST",
-        )
-        ctx = ssl.create_default_context()
+            url, data=json.dumps(body).encode("utf-8"), method="POST",
+            headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {})})
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout, context=ctx) as r:
-                data = json.loads(r.read().decode("utf-8"))
+            with urllib.request.urlopen(req, timeout=self.timeout, context=ssl.create_default_context()) as r:
+                return json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", errors="ignore")[:300]
             raise LLMError(f"HTTP {e.code}: {detail}") from e
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
-            raise LLMError(f"연결 실패: {getattr(e, 'reason', e)}") from e
+            raise LLMError(f"연결 실패({self.base_url}): {getattr(e, 'reason', e)}") from e
+
+    def _once(self, messages: list[dict], max_tokens: int, temperature: float) -> tuple[str, str]:
+        if self.native_ollama:
+            data = self._post(self.base_url.removesuffix("/v1") + "/api/chat",
+                              {"model": self.model, "messages": messages, "stream": False,
+                               "options": {"temperature": temperature, "num_predict": max_tokens}})
+            return (data.get("message") or {}).get("content") or "", data.get("done_reason", "")
+        data = self._post(self.base_url + "/chat/completions",
+                          {"model": self.model, "messages": messages, "temperature": temperature,
+                           "max_tokens": max_tokens, "stream": False, **self.extra})
         try:
-            msg = data["choices"][0]["message"]
-            text = msg.get("content") or ""
+            ch = data["choices"][0]
+            return ch["message"].get("content") or "", ch.get("finish_reason") or ""
         except (KeyError, IndexError, TypeError) as e:
             raise LLMError(f"응답 형식 오류: {str(data)[:200]}") from e
-        # 추론형 모델(<think>…</think>)의 생각 과정은 제거
-        return re.sub(r"(?s)<think>.*?</think>", "", text).strip()
+
+    def chat(self, messages: list[dict], max_tokens: int = 2048, temperature: float = 0.2) -> str:
+        if self.family and self.family.get("reasoning"):
+            max_tokens = max(max_tokens, 1536)  # 추론형 모델은 생각 과정에도 토큰을 쓴다
+        try:
+            text, finish = self._once(messages, max_tokens, temperature)
+        except LLMError as e:
+            msg = str(e).lower()
+            if any(m["role"] == "system" for m in messages) and ("system" in msg or "http 400" in msg or "http 422" in msg):
+                messages = _merge_system(messages)
+                text, finish = self._once(messages, max_tokens, temperature)
+            else:
+                raise
+        if not strip_think(text) and (finish == "length" or text.strip()):
+            # 생각만 하다 길이 제한에 걸려 답이 빈 경우: 한도를 늘려 한 번 더
+            text, finish = self._once(messages, min(max_tokens * 4, 8192), temperature)
+        return strip_think(text)
+
+    def models(self) -> list[str]:
+        """서버에 실제 등록된 모델 이름(OpenAI 호환 /models, Ollama /api/tags)."""
+        urls = ([] if self.native_ollama else [self.base_url + "/models"]) + [self.base_url.removesuffix("/v1") + "/api/tags"]
+        last = ""
+        for url in urls:
+            try:
+                req = urllib.request.Request(url, headers={"Authorization": f"Bearer {self.api_key}"} if self.api_key else {})
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    data = json.loads(r.read().decode("utf-8"))
+                names = [m.get("id") for m in data.get("data", [])] or [m.get("name") for m in data.get("models", [])]
+                return [n for n in names if n]
+            except Exception as e:  # 다음 경로 시도
+                last = str(e)
+        raise LLMError(f"모델 목록을 받지 못했습니다({self.base_url}): {last}")
 
 
 def get_client(name: str | None = None):
     s = load_settings()
     name = name or s["llm"].get("active", "offline")
     prof = s["llm"]["profiles"].get(name)
-    if not prof or prof.get("type") == "offline":
+    if not prof or prof.get("type") not in ("openai", "ollama"):
         return OfflineClient(name, prof)
     return OpenAICompatClient(name, prof, timeout=int(s["llm"].get("timeout_sec", 180)))
 
@@ -140,6 +214,8 @@ def self_check(name: str) -> dict:
     res = {"profile": name, "tests": [], "ok": False}
     client = get_client(name)
     res["label"] = client.label
+    fam = getattr(client, "family", None)
+    res["family"] = f"{fam['name']} · {fam['maker']}" if fam else ""
     if not client.available:
         res["tests"].append({"name": "규칙엔진", "ok": True, "detail": "LLM 없이 동작(기본 기능 보장)"})
         res["ok"] = True

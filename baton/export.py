@@ -72,27 +72,162 @@ def _item_text(it: dict) -> str:
     return t
 
 
-def to_markdown(project: dict) -> str:
+def _fn(nums) -> str:
+    return "".join(f"[{n}]" for n in nums)
+
+
+def handover_blocks(project: dict) -> list:
+    """인수인계서: 표 위주로(일정·현안·연락망), 모든 줄에 근거 번호와 끝에 근거 목록."""
     secs, refs = _collect(project)
-    out = [f"# {project.get('title') or '업무 인수인계서'} – {project.get('name', '')}", ""]
-    out += ["| 구분 | 내용 |", "|---|---|"] + [f"| {k} | {v} |" for k, v in _meta_rows(project)] + [""]
+    B = [("title", f"{project.get('title') or '업무 인수인계서'} – {project.get('name', '')}"),
+         ("table", ["구분", "내용"], [[k, v] for k, v in _meta_rows(project)], [1, 3])]
     for s, items in secs:
-        out.append(f"## {s['title']}")
+        B.append(("h1", s["title"]))
         if not items:
-            out.append("- (해당 없음)")
-        for it, nums in items:
-            foot = "".join(f"[^{n}]" for n in nums)
-            out.append(f"- [{TRUST_LABEL[it['trust']]}·{STATUS_LABEL.get(it['status'], '')}] {_item_text(it)}{foot}")
-        out.append("")
+            B.append(("p", "(해당 없음)"))
+            continue
+        kind = s["kind"]
+        if kind == "calendar":
+            rows = []
+            for it, nums in items:
+                m = re.match(r"^\[([^\]]*)\]\s*(.*)$", it["text"])
+                when, what = (m.group(1), m.group(2)) if m else ("", it["text"])
+                rows.append([when, what + (" (기한)" if it["meta"].get("deadline") else ""), TRUST_LABEL[it["trust"]], _fn(nums)])
+            B.append(("table", ["시기", "할 일", "근거 성격", "근거"], rows, [2, 7, 1.3, 1.2]))
+        elif kind == "issues":
+            rows = [[_item_text(it).split(" → 다음 할 일")[0], it["meta"].get("status", ""), it["meta"].get("next", ""), _fn(nums)]
+                    for it, nums in items]
+            B.append(("table", ["현안", "상태", "다음 할 일", "근거"], rows, [6, 1.2, 2.5, 1.2]))
+        elif kind == "people":
+            rows = []
+            for it, nums in items:
+                t = it["text"]
+                who, _, rest = t.partition(" – 관련: ")
+                topic, _, contact = rest.partition(" / 연락: ")
+                if not rest:
+                    who, _, contact = t.partition(" / 연락: ")
+                rows.append([who, topic, contact, _fn(nums)])
+            B.append(("table", ["이름·소속", "관련 업무", "연락처", "근거"], rows, [3, 4, 3, 1.2]))
+        else:
+            for it, nums in items:
+                B.append(("bullet", f"[{TRUST_LABEL[it['trust']]}] {_item_text(it)} {_fn(nums)}".strip()))
     qs = [q for q in project["draft"]["questions"] if q.get("answer")]
     if qs:
-        out.append("## 부록. 전임자 인터뷰 기록")
-        for q in qs:
-            out += [f"- **Q.** {q['q']}", f"  - **A.** {q['answer']} ({q.get('answered_at', '')})"]
-        out.append("")
-    out.append("## 근거 목록")
-    out += [f"[^{n}]: {sid} – {label}" for n, sid, label in refs]
-    return "\n".join(out) + "\n"
+        B.append(("h1", "부록. 전임자 인터뷰 기록"))
+        B.append(("table", ["질문", "전임자 답변"], [[q["q"], q["answer"]] for q in qs], [1, 1]))
+    B.append(("h1", "근거 목록"))
+    B.append(("table", ["번호", "근거(파일 · 위치)"], [[f"[{n}]", f"{sid} – {label}"] for n, sid, label in refs], [1, 9]))
+    h = project.get("handover", {})
+    B.append(("h1", "인계·인수 확인"))
+    B.append(("table", ["구분", "성명", "확인 일시"], [["전임자", project.get("from_name", ""), h.get("from_signed_at", "")],
+                                                    ["후임자", project.get("to_name", ""), h.get("to_signed_at", "")]], [1, 2, 2]))
+    B.append(("note", "※ 업무바통으로 자료에서 자동 작성한 뒤 전임자가 검수했습니다. 근거 번호는 원본 파일의 위치를 가리킵니다."))
+    return B
+
+
+GLOSSARY = {
+    "온나라": "정부 업무관리(전자결재·문서관리) 시스템",
+    "e호조": "지방자치단체 지방재정관리시스템(예산 편성·집행·회계)",
+    "이호조": "지방자치단체 지방재정관리시스템(예산 편성·집행·회계)",
+    "디브레인": "중앙부처 국가재정관리시스템(dBrain+)",
+    "나라장터": "조달청 국가종합전자조달시스템(입찰·계약)",
+    "새올": "시·군·구 행정정보시스템",
+    "인사랑": "지방공무원 인사·급여 시스템",
+    "e-사람": "중앙부처 인사·복무 시스템",
+    "문서24": "기관 밖으로 공문을 주고받는 전자문서 유통 서비스",
+    "GPKI": "행정전자서명 인증서(공무원 업무용 인증서)",
+    "전결": "결재권자를 대신해 위임받은 사람이 최종 결재하는 것",
+    "기안": "결재받기 위해 문서를 처음 작성하는 것",
+    "수준진단": "개인정보보호 관리수준진단: 기관의 개인정보 관리 실태를 지표로 평가하는 제도",
+    "관리실태 평가": "국가정보원 등이 실시하는 기관 정보보안 관리 실태 평가",
+    "보안점검의 날": "매월 정해진 날 PC·문서 보안을 일제히 점검하는 날",
+    "웹 접근성": "장애인·고령자도 홈페이지를 이용할 수 있게 하는 기준(인증 유효기간 있음)",
+    "하자보수": "공사·용역 완료 후 정해진 기간 동안 결함을 고쳐 주는 의무",
+    "착공": "공사를 시작함",
+    "준공": "공사를 마침",
+    "입찰공고": "계약 상대를 경쟁으로 정하기 위해 내는 공고",
+    "수의계약": "경쟁 없이 특정 업체와 맺는 계약(금액·사유 제한)",
+    "예산요구서": "다음 연도 예산을 예산부서에 요청하는 문서",
+    "해빙기": "얼었던 땅이 녹는 2~3월(지반·축대 안전점검 시기)",
+    "정기점검": "정해진 주기마다 하는 법정·계약상 점검",
+    "R&R": "역할과 책임(Role & Responsibility), 업무분장",
+}
+
+
+def manual_blocks(project: dict) -> list:
+    """후임자 업무매뉴얼: 첫 주 할 일, 12개월 일정, 기한순 현안, 연락망, 노하우, 용어 풀이."""
+    import datetime as dt
+
+    from .plan import make_plan
+
+    d = project["draft"]
+    live = lambda items: [i for i in items if i["status"] not in ("deleted", "unsupported")]  # noqa: E731
+    secs = {s["kind"]: s for s in d["sections"]}
+    base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
+    plan = make_plan(d, project["docs"], base, horizon=60)
+    to = project.get("to_name") or "후임자"
+    B = [("title", f"후임자 업무매뉴얼 – {project.get('name', '')}"),
+         ("p", f"**{to}** 님을 위해 {project.get('from_name') or '전임자'}의 업무 자료와 인터뷰 답변으로 만든 매뉴얼입니다. 기준일: {base}"),
+         ("h1", "1. 담당 업무 한눈에")]
+    B += [("bullet", it["text"]) for it in live(secs.get("overview", {}).get("items", []))] or [("p", "(업무분장 자료 없음)")]
+
+    B.append(("h1", "2. 첫 주에 할 일"))
+    for w in plan["week1"]:
+        B.append(("bullet", f"[{w['type']}] {w['title']}" + (f" – {w['hint']}" if w.get("hint") else "")))
+    soon = [t for t in plan["timeline"] if t["dday"] <= 30]
+    if soon:
+        B.append(("h2", "30일 안에 다가오는 일정"))
+        B.append(("table", ["D-day", "날짜", "할 일"],
+                  [[f"D-{t['dday']}", t["date"] + (" (대략)" if t["approx"] else ""), re.sub(r"^\[[^\]]*\]\s*", "", t["title"])]
+                   for t in soon], [1, 2, 7]))
+
+    B.append(("h1", "3. 월별 업무 달력"))
+    cal = live(secs.get("calendar", {}).get("items", []))
+    rows = []
+    routine = [re.sub(r"^\[[^\]]*\]\s*", "", i["text"]) for i in cal if i["meta"].get("recur") in ("monthly", "quarterly")]
+    if routine:
+        rows.append(["매월·분기", "\n".join(routine)])
+    for mth in range(1, 13):
+        its = sorted((i for i in cal if i["meta"].get("month") == mth and i["meta"].get("recur") not in ("monthly", "quarterly")),
+                     key=lambda i: i["meta"].get("day") or 15)
+        if its:
+            rows.append([f"{mth}월", "\n".join(("★ " if i["meta"].get("deadline") else "") + i["text"] for i in its)])
+    B.append(("table", ["시기", "할 일 (★ 기한)"], rows, [1, 8]) if rows else ("p", "(일정 없음)"))
+
+    B.append(("h1", "4. 진행 중인 현안"))
+    iss = live(secs.get("issues", {}).get("items", []))
+    B.append(("table", ["현안", "상태", "다음 할 일"],
+              [[i["text"], i["meta"].get("status", ""), i["meta"].get("next", "")] for i in iss], [6, 1, 3]) if iss else ("p", "(없음)"))
+
+    B.append(("h1", "5. 연락망"))
+    ppl = live(secs.get("people", {}).get("items", []))
+    B += [("bullet", i["text"]) for i in ppl] or [("p", "(없음)")]
+
+    B.append(("h1", "6. 자료·시스템과 노하우"))
+    for i in live(secs.get("resources", {}).get("items", [])) + live(secs.get("tips", {}).get("items", [])):
+        B.append(("bullet", i["text"]))
+    for q in d["questions"]:
+        if q.get("answer") and q.get("type") in ("tacit", "llm", "successor"):
+            B.append(("bullet", f"(전임자 구술) {q['q']} → {q['answer']}"))
+
+    chk = [i for i in live(secs.get("checks", {}).get("items", [])) if not i["meta"].get("resolved")]
+    if chk:
+        B.append(("h1", "7. 아직 확인이 필요한 것"))
+        B += [("bullet", i["text"]) for i in chk]
+
+    corpus = " ".join(c["text"] for c in project["chunks"])
+    terms = [(t, v) for t, v in GLOSSARY.items() if t in corpus]
+    if terms:
+        B.append(("h1", "8. 용어 풀이"))
+        B.append(("table", ["용어", "뜻"], [[t, v] for t, v in terms], [1, 4]))
+    B.append(("note", "※ 업무바통이 인수인계 자료로 자동 작성했습니다. 날짜·연락처는 근거 원문으로 한 번 더 확인하세요."))
+    return B
+
+
+def to_markdown(project: dict) -> str:
+    from .render import to_md
+
+    return to_md(handover_blocks(project)).decode("utf-8")
 
 
 def to_html(project: dict) -> str:
@@ -121,60 +256,6 @@ li{{margin:4px 0}}sup{{color:#1f3a8a}}.tag{{font-size:11px;border-radius:4px;pad
 .mail{{background:#dbeafe}}.oral{{background:#ede9fe}}.refs{{font-size:12px;color:#444}}.sign{{margin-top:32px}}dt{{font-weight:bold;margin-top:8px}}
 @media print{{body{{margin:0}}}}</style></head><body>
 <h1>{e(project.get('title') or '업무 인수인계서')} – {e(project.get('name', ''))}</h1><table>{rows}</table>{''.join(body)}{sign}</body></html>"""
-
-
-def to_docx(project: dict) -> bytes:
-    from docx import Document
-    from docx.oxml.ns import qn
-    from docx.shared import Pt, RGBColor
-
-    secs, refs = _collect(project)
-    doc = Document()
-    st = doc.styles["Normal"]
-    st.font.name = "맑은 고딕"
-    st.element.rPr.rFonts.set(qn("w:eastAsia"), "맑은 고딕")
-    st.font.size = Pt(10.5)
-    doc.add_heading(f"{project.get('title') or '업무 인수인계서'} – {project.get('name', '')}", 0)
-    meta = _meta_rows(project)
-    t = doc.add_table(rows=len(meta), cols=2)
-    t.style = "Table Grid"
-    for r, (k, v) in enumerate(meta):
-        t.cell(r, 0).text, t.cell(r, 1).text = k, str(v)
-    for s, items in secs:
-        doc.add_heading(s["title"], 1)
-        if not items:
-            doc.add_paragraph("(해당 없음)", style="List Bullet")
-        for it, nums in items:
-            p = doc.add_paragraph(style="List Bullet")
-            tag = p.add_run(f"[{TRUST_LABEL[it['trust']]}] ")
-            tag.font.color.rgb = RGBColor(0x1F, 0x3A, 0x8A)
-            tag.font.size = Pt(9)
-            p.add_run(_item_text(it))
-            if nums:
-                sup = p.add_run("".join(f"[{n}]" for n in nums))
-                sup.font.superscript = True
-    qs = [q for q in project["draft"]["questions"] if q.get("answer")]
-    if qs:
-        doc.add_heading("부록. 전임자 인터뷰 기록", 1)
-        for q in qs:
-            doc.add_paragraph(f"Q. {q['q']}").runs[0].bold = True
-            doc.add_paragraph(f"A. {q['answer']}")
-    doc.add_heading("근거 목록", 1)
-    for n, sid, label in refs:
-        p = doc.add_paragraph(f"[{n}] {sid} – {label}")
-        p.runs[0].font.size = Pt(8.5)
-    h = project.get("handover", {})
-    doc.add_heading("인계·인수 확인", 1)
-    t = doc.add_table(rows=2, cols=3)
-    t.style = "Table Grid"
-    for c, v in enumerate(["구분", "성명", "확인 일시"]):
-        t.cell(0, c).text = v
-    t.cell(1, 0).text = "전임자 / 후임자"
-    t.cell(1, 1).text = f"{project.get('from_name', '')} / {project.get('to_name', '')}"
-    t.cell(1, 2).text = f"{h.get('from_signed_at', '')} / {h.get('to_signed_at', '')}"
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
 
 
 # ───────────── 내 일정으로 내보내기(.ics): Outlook·그룹웨어·휴대폰 달력에 반복 일정으로 등록

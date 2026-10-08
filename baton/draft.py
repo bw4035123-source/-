@@ -6,6 +6,7 @@ LLM 응답의 출처 ID는 실제 근거조각과 대조해 검증하며(환각 
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 
 from . import config
@@ -85,7 +86,10 @@ def rule_section(sec: dict, facts: dict, chunks: list[dict], chunk_kind: dict, i
             topics = ", ".join(p["topics"][:3])
             contact = ", ".join(p["emails"][:1] + p["tels"][:1])
             text = f"{who}{org}" + (f" – 관련: {topics}" if topics else "") + (f" / 연락: {contact}" if contact else "")
-            add(text, p["sources"], person=p["id"], name=p["name"])
+            if p.get("changed"):
+                text += " ※ 번호가 바뀌었다는 메모 있음 – 최신 연락처 확인 필요"
+            srcs = p["sources"] + ([p["changed"]["source"]] if p.get("changed") and p["changed"]["source"] not in p["sources"] else [])
+            add(text, srcs, person=p["id"], name=p["name"])
     elif kind == "resources":
         for f in facts["resources"]:
             add(f["text"], f["sources"], systems=f["systems"], paths=f["paths"])
@@ -103,12 +107,22 @@ def rule_section(sec: dict, facts: dict, chunks: list[dict], chunk_kind: dict, i
                     parts[-1][1].append(label)
             desc = " vs ".join(f"{d}({'·'.join(ls)})" for d, ls in parts)
             srcs = sorted({s for v in c["variants"] for s in v["sources"]})
-            add(f"[자료 간 불일치] ‘{c['topic']}’ 기한이 서로 다름: {desc}", srcs, conflict=c["id"], type="conflict")
+            add(f"[자료 간 불일치] ‘{c['topic']}’ 날짜가 서로 다름: {desc}", srcs, conflict=c["id"], type="conflict")
+        for f in facts.get("overdue", []):
+            add(f"[기한 지남] {f['text']} – 기한 {f['date']}이 인수인계 기준일보다 앞섭니다. 처리 여부를 확인하세요.",
+                f["sources"], type="overdue")
+        for p in facts["people"]:
+            if p.get("changed"):
+                add(f"[연락처 변경] {p['name']} {p['title']}: “{p['changed']['text'][:60]}” – 공식 자료의 번호({', '.join(p['tels']) or '없음'})와 다를 수 있음",
+                    [p["changed"]["source"]] + p["sources"][:2], type="contact")
+        for f in facts.get("uncertain", []):
+            add(f"[불확실] ‘{f['word']}’ 같은 표현이 있음: {f['text']}", f["sources"], type="uncertain")
         for f in facts["issues"]:
-            if not f["has_next"]:
+            if not f["has_next"] and f["text"] not in {u["text"] for u in facts.get("uncertain", [])}:
                 add(f"[결론 미정] {f['text']}", f["sources"], type="open")
+        uncertain_texts = {u["text"] for u in facts.get("uncertain", [])}
         for f in facts["tips"]:
-            if f["kind"] == "memo" and re.search(r"\d|까지|반드시|꼭", f["text"]):
+            if f["kind"] == "memo" and f["text"] not in uncertain_texts and re.search(r"\d|까지|반드시|꼭", f["text"]):
                 add(f"[개인 메모에만 있음] {f['text']}", f["sources"], type="memo_only")
     elif kind == "custom":
         kws = sec.get("keywords") or list(keywords(sec.get("title", "") + " " + sec.get("guide", "")))
@@ -205,8 +219,20 @@ def rule_questions(sections: dict, facts: dict) -> list[dict]:
     for c in facts["conflicts"]:
         dates = sorted({v["date"] for v in c["variants"]})
         srcs = sorted({s for v in c["variants"] for s in v["sources"]})
-        add(f"‘{c['topic']}’ 기한이 자료마다 다릅니다({', '.join(dates)}). 실제로 지켜야 할 기한과 그 이유는 무엇인가요?",
-            "자료 간 날짜 불일치", "calendar", srcs, "conflict", f"‘{c['topic']}’ 기한")
+        add(f"‘{c['topic']}’ 날짜가 자료마다 다릅니다({', '.join(dates)}). 실제 날짜와 그 이유는 무엇인가요?",
+            "자료 간 날짜 불일치", "calendar", srcs, "conflict", f"‘{c['topic']}’ 날짜")
+    for f in facts.get("overdue", []):
+        short = f["text"][:60] + ("…" if len(f["text"]) > 60 else "")
+        add(f"‘{short}’ – 기한({f['date']})이 지났습니다. 처리됐나요? 아직이면 후임자가 무엇을 해야 하나요?",
+            "인수인계 기준일 기준으로 기한이 지난 일", "issues", f["sources"], "overdue", short)
+    for p in facts["people"]:
+        if p.get("changed"):
+            add(f"{p['name']} {p['title']}의 연락처가 바뀌었다는 메모가 있습니다. 지금 연락할 수 있는 번호(업무용)는 무엇인가요?",
+                "연락처 변경 메모(개인 휴대전화는 자동으로 가려짐)", "people", [p["changed"]["source"]], "person", f"{p['name']} {p['title']} 연락처")
+    for f in facts.get("uncertain", [])[:4]:
+        short = f["text"][:60] + ("…" if len(f["text"]) > 60 else "")
+        add(f"‘{short}’ – ‘{f['word']}’라고 적혀 있습니다. 확정된 내용은 무엇인가요?",
+            "불확실한 표현", "calendar" if re.search(r"\d+\s*월|\d+/\d+", f["text"]) else "issues", f["sources"], "uncertain", short)
     for f in facts["issues"]:
         if f["status"] in ("대기", "보류") or not f["has_next"]:
             short = f["text"][:60] + ("…" if len(f["text"]) > 60 else "")
@@ -250,7 +276,14 @@ def build_draft(project: dict, client, progress=lambda msg, frac: None) -> dict:
     secs_cfg = [s for s in template["sections"] if s.get("enabled", True)]
 
     progress("규칙엔진으로 일정·사람·현안 추출 중", 0.05)
-    facts = extract(chunks, docs)
+    base = None
+    if project.get("base_date"):
+        try:
+            base = dt.date.fromisoformat(project["base_date"])
+        except ValueError:
+            base = None
+    root_name = os.path.basename(str(project.get("source_path") or "").rstrip("/\\"))
+    facts = extract(chunks, docs, predecessor=project.get("from_name", ""), base_date=base, root_name=root_name)
     index = Index([(c["id"], f"{c['file']} {c['text']}") for c in chunks])
     warnings, sections = [], []
     use_llm = client.available

@@ -73,6 +73,25 @@ HWPX_PARAS = [
 
 
 def make_hwpx():
+    """python-hwpx 로 만든 진짜 한글 문서(한글 프로그램에서 열림). 없으면 최소 구조로 대체."""
+    out = path("02_계획", "2026년_정보보안_업무추진계획.hwpx")
+    try:
+        import warnings
+
+        from hwpx import HwpxDocument
+
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        doc = HwpxDocument.new()
+        bold = doc.ensure_run_style(bold=True, size=15)
+        doc.paragraphs[0].add_run(HWPX_PARAS[0], char_pr_id_ref=bold)
+        for t in HWPX_PARAS[1:]:
+            doc.add_paragraph(t)
+        with open(out, "wb") as f:
+            f.write(doc.to_bytes())
+        return
+    except ImportError:
+        pass
+
     def p(t, i):
         t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         return (f'<hp:p id="{i}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
@@ -82,19 +101,8 @@ def make_hwpx():
                '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
                'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
                + "".join(p(t, i) for i, t in enumerate(HWPX_PARAS)) + "</hs:sec>")
-    container = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                 '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container">'
-                 '<ocf:rootfiles><ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
-                 '</ocf:rootfiles></ocf:container>')
-    hpf = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-           '<opf:package xmlns:opf="http://www.idpf.org/2007/opf/" version="" unique-identifier="" id="">'
-           '<opf:metadata><opf:title>2026년 정보보안 업무 추진계획</opf:title></opf:metadata>'
-           '<opf:manifest><opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/></opf:manifest>'
-           '<opf:spine><opf:itemref idref="section0" linear="yes"/></opf:spine></opf:package>')
-    with zipfile.ZipFile(path("02_계획", "2026년_정보보안_업무추진계획.hwpx"), "w") as z:
+    with zipfile.ZipFile(out, "w") as z:
         z.writestr(zipfile.ZipInfo("mimetype"), "application/hwp+zip")
-        z.writestr("META-INF/container.xml", container, zipfile.ZIP_DEFLATED)
-        z.writestr("Contents/content.hpf", hpf, zipfile.ZIP_DEFLATED)
         z.writestr("Contents/section0.xml", section, zipfile.ZIP_DEFLATED)
         z.writestr("Preview/PrvText.txt", "\n".join(HWPX_PARAS), zipfile.ZIP_DEFLATED)
 

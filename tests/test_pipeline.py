@@ -141,6 +141,19 @@ class TestLLMPath(unittest.TestCase):
         self.assertEqual(r["mode"], "llm")
         self.assertTrue(r["sources"])
 
+    def test_model_family_quirks(self):
+        """젬마(system 거부)·엑사원(생각 태그)·GPT-OSS(생각만 하다 빈 답)·Ollama 기본 API 모두 같은 결과."""
+        port = self.srv.server_address[1]
+        s = config.load_settings()
+        for name, model, typ in [("q-gemma", "gemma3:4b", "openai"), ("q-exaone", "exaone3.5:7.8b", "openai"),
+                                 ("q-gptoss", "gpt-oss:20b", "openai"), ("q-ollama", "gemma3:4b", "ollama")]:
+            s["llm"]["profiles"][name] = {"type": typ, "base_url": f"http://127.0.0.1:{port}/v1", "model": model}
+        config.save_settings(s)
+        for name in ("q-gemma", "q-exaone", "q-gptoss", "q-ollama"):
+            r = self_check(name)
+            self.assertTrue(r["ok"], (name, r))
+        self.assertIn("exaone3.5:7.8b", get_client("q-exaone").models())
+
     def test_llm_down_falls_back(self):
         s = config.load_settings()
         s["llm"]["profiles"]["dead"] = {"type": "openai", "base_url": "http://127.0.0.1:9/v1", "model": "x"}
@@ -180,6 +193,70 @@ class TestCreativeFeatures(unittest.TestCase):
         relay = [d for d in r["docs"] if d["kind"] == "relay"]
         self.assertEqual(len(relay), 1)
         self.assertEqual(relay[0]["info"]["lineage"][0]["name"], "박선배 주무관")
+
+
+FACILITY = os.path.join(ROOT, "sample_data", "전임자_김도윤_업무폴더")
+
+
+class TestFacilitySample(unittest.TestCase):
+    """다른 기관·업무(시설관리)의 모의자료로 규칙엔진이 한 샘플에만 맞춰져 있지 않은지 확인."""
+
+    @classmethod
+    def setUpClass(cls):
+        r = ingest_folder(FACILITY)
+        cls.p = {"id": "00000000", "docs": r["docs"], "chunks": r["chunks"], "from_name": "", "base_date": "2026-10-08",
+                 "source_path": FACILITY}
+        cls.p["draft"] = build_draft(cls.p, OfflineClient())
+        cls.f = cls.p["draft"]["facts"]
+
+    def test_predecessor_from_folder_and_duties(self):
+        self.assertEqual(self.f["me"]["name"], "김도윤")
+        duties = [i["text"] for i in self.f["rr"]]
+        self.assertIn("수영장 수질관리 및 결과 보고", duties)
+        self.assertIn("안전점검(해빙기·정기·우기·동절기) 계획 및 시행", duties)  # 괄호 안 쉼표·가운뎃점에서 나누지 않음
+
+    def test_people_from_tables(self):
+        ppl = {x["name"]: x for x in self.f["people"]}
+        self.assertNotIn("김도윤", ppl)
+        self.assertEqual((ppl["정하은"]["title"], ppl["정하은"]["org"]), ("주임", "기관 경영지원팀"))
+        self.assertIn("02-000-1830", ppl["정민재"]["tels"])
+        self.assertTrue(ppl["정민재"]["changed"])
+        self.assertNotIn("현장", ppl)  # '현장 대리인'은 사람이 아님
+
+    def test_checks(self):
+        conf = {v["date"] for c in self.f["conflicts"] for v in c["variants"]}
+        self.assertTrue(any("27" in d for d in conf) and any("3일" in d for d in conf), conf)  # 착공일 10/27 ↔ 11/3
+        self.assertEqual([o["date"] for o in self.f["overdue"]], ["2026-10-06"])
+        self.assertTrue({"아마", "미정"} <= {u["word"] for u in self.f["uncertain"]})
+
+    def test_month_and_people_questions(self):
+        a = ask(self.p, "11월에 할 일 알려줘", OfflineClient())
+        self.assertEqual(a["mode"], "calendar")
+        self.assertIn("입찰공고", a["answer"])
+        a = ask(self.p, "정민재 연락처", OfflineClient())
+        self.assertIn("02-000-1830", a["answer"])
+        self.assertIn("바뀌었다", a["answer"])
+        a = ask(self.p, "냉난방기 공사 누구랑 협의해?", OfflineClient())
+        self.assertIn("오세영", a["answer"])
+
+    def test_exports_hwpx_docx_md(self):
+        from baton.export import handover_blocks, manual_blocks
+        from baton.parsers import parse_file
+        from baton.render import FORMATS
+
+        p = dict(self.p, name="시설", to_name="이서연")
+        d = tempfile.mkdtemp()
+        for doc, blocks in (("handover", handover_blocks(p)), ("manual", manual_blocks(p))):
+            for fmt, (fn, _) in FORMATS.items():
+                path = os.path.join(d, f"{doc}.{fmt}")
+                with open(path, "wb") as f:
+                    f.write(fn(blocks))
+                segs, _ = parse_file(path)
+                text = " ".join(x.text for x in segs)
+                self.assertIn("정민재", text, (doc, fmt))
+        man = " ".join(str(b[1]) for b in manual_blocks(p))
+        self.assertIn("용어 풀이", man)
+        self.assertIn("첫 주에 할 일", man)
 
 
 class TestServer(unittest.TestCase):

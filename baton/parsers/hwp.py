@@ -109,6 +109,23 @@ def parse_hwpx(path: str):
             # 표 안의 문단처럼 중첩된 hp:p 도 각각 하나의 문단으로 취급
             def walk(el, buf):
                 tag = _local(el.tag)
+                if tag == "tbl":  # 표는 '머리글: 값' 행 문장으로
+                    from .sheet import table_rows
+
+                    rows = []
+                    for tr in (x for x in el.iter() if _local(x.tag) == "tr"):
+                        cells = []
+                        for tc in (x for x in tr if _local(x.tag) == "tc"):
+                            paras = []
+                            for p in (x for x in tc.iter() if _local(x.tag) == "p"):
+                                txt = "".join(t.text or "" for t in p.iter() if _local(t.tag) == "t")
+                                if txt.strip():
+                                    paras.append(txt.strip())
+                            cells.append(", ".join(paras))
+                        rows.append(cells)
+                    titles, lines, _, _ = table_rows(rows)
+                    paragraphs.extend(titles + lines)
+                    return
                 if tag == "p":
                     mine: list[str] = []
                     for child in el:

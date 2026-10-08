@@ -38,15 +38,62 @@ def respond(messages: list[dict]) -> str:
     if "후임자의 질문" in user:
         if "주차" in user:
             return "자료에서 찾을 수 없습니다."
-        return f"관련 내용은 근거에 있습니다 [{first}]."
+        # 근거 블록에서 질문과 가장 많이 겹치는 줄을 골라 인용(실제 모델 흉내)
+        q = user.rsplit("질문:", 1)[-1].split("\n")[0]
+        words = {w[:2] for w in re.findall(r"[가-힣]{2,}", q) if w not in ("언제까지", "어디로", "해야")}
+        best, best_id, score = "", first, -1
+        cur = first
+        evidence = user.rsplit("[근거]", 1)[-1].rsplit("질문:", 1)[0]
+        for line in evidence.split("\n"):
+            m = re.match(r"\[([SQ]\d{3,4})", line)
+            if m:
+                cur = m.group(1)
+                continue
+            sc = sum(1 for w in words if w in line)
+            if sc > score and len(line) > 8 and not line.startswith(("제목", "보낸사람", "받는사람", "날짜", "참조")):
+                best, best_id, score = line.strip(), cur, sc
+        return f"{best} [{best_id}]"
     return "[]"
 
 
+def _send(handler, code, obj):
+    out = json.dumps(obj).encode()
+    handler.send_response(code)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(out)))
+    handler.end_headers()
+    handler.wfile.write(out)
+
+
 class Handler(BaseHTTPRequestHandler):
+    """모델 이름으로 계열별 응답 차이를 흉내 낸다.
+    - gemma*: system 역할을 거부(400)
+    - exaone*: 답 앞에 <thought>…</thought>
+    - gpt-oss*: 토큰 한도가 작으면 생각만 하다 빈 답(finish_reason=length)
+    """
+
+    def do_GET(self):
+        if self.path.endswith("/models"):
+            return _send(self, 200, {"data": [{"id": "gemma3:4b"}, {"id": "exaone3.5:7.8b"}, {"id": "gpt-oss:20b"}]})
+        if self.path.endswith("/api/tags"):
+            return _send(self, 200, {"models": [{"name": "gemma3:4b"}]})
+        _send(self, 404, {"error": "not found"})
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        content = respond(body["messages"])
-        out = json.dumps({"choices": [{"message": {"role": "assistant", "content": content}}]}).encode()
+        model = body.get("model", "")
+        msgs = body["messages"]
+        if model.startswith("gemma") and any(m["role"] == "system" for m in msgs):
+            return _send(self, 400, {"error": "System role not supported"})
+        content = respond(msgs)
+        finish = "stop"
+        if model.startswith("exaone"):
+            content = "<thought>자료를 살펴보면…</thought>\n" + content
+        if model.startswith("gpt-oss") and body.get("max_tokens", 0) < 4000:
+            content, finish = "<think>먼저 근거를 하나씩 따져 보면", "length"
+        if self.path.endswith("/api/chat"):
+            return _send(self, 200, {"message": {"role": "assistant", "content": content}, "done_reason": finish})
+        out = json.dumps({"choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": finish}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(out)))

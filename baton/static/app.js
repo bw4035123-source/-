@@ -143,7 +143,12 @@ async function viewHome() {
     folder: h("div", {}, h("div", { class: "drop" }, h("p", { class: "small" }, "전임자 업무 폴더를 통째로 선택하세요. 한글·PDF·엑셀·워드·메일(eml)·메모가 섞여 있어도 됩니다."),
       h("button", { class: "btn", onclick: () => fileInput.click() }, "📁 폴더 선택"), fileInput, fileInfo)),
     path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(원본은 읽기만 하고 복사하지 않음)"), pathInput),
-    demo: h("div", { class: "alert info" }, "가상 기관 ‘가상시 스마트정보과’ 전임자의 모의 업무 폴더(공문 PDF, 계획 HWPX, 사무분장 엑셀, 회의록, 메일 4통, 개인 메모)로 바로 체험합니다."),
+    demo: h("div", {},
+      h("label", { class: "check" }, h("input", { type: "radio", name: "sample", value: "security", checked: true }),
+        h("div", {}, h("b", {}, "정보보안·정보화예산 담당 (가상시 스마트정보과)"), h("div", { class: "tiny muted" }, "공문 PDF·계획 HWPX·사무분장 엑셀·회의록·메일 4통·개인 메모·이전 담당자 바통 파일"))),
+      h("label", { class: "check" }, h("input", { type: "radio", name: "sample", value: "facility" }),
+        h("div", {}, h("b", {}, "체육센터 시설관리 담당 (공공기관 시설운영팀)"), h("div", { class: "tiny muted" }, "안전점검 계획 HWPX·수질검사 PDF·용역 계약 엑셀·업무분장 워드·연락처·메일·메모 – 착공일 충돌·바뀐 연락처·기한 지남 포함"))),
+      h("p", { class: "tiny muted" }, "모든 인물·기관·연락처는 가상입니다.")),
   };
   const paneBox = h("div", {}, panes.folder);
   const modeBtns = [["folder", "📁 폴더 올리기"], ["path", "🖥 PC 경로"], ["demo", "✨ 샘플로 체험"]].map(([k, label]) =>
@@ -155,7 +160,7 @@ async function viewHome() {
     startBtn.disabled = true;
     try {
       let res;
-      if (mode === "demo") res = await api("/api/projects/demo", { method: "POST" });
+      if (mode === "demo") res = await api("/api/projects/demo", { method: "POST", json: { sample: (document.querySelector("input[name=sample]:checked") || {}).value || "security" } });
       else if (mode === "path") {
         if (!pathInput.value.trim()) { toast("폴더 경로를 입력하세요"); return; }
         res = await api("/api/projects/path", { method: "POST", json: { ...meta, path: pathInput.value.trim() } });
@@ -483,7 +488,14 @@ function tabAsk(el, p) {
   const input = h("input", { placeholder: "예) 수준진단 증빙은 어디에 모아 뒀어요?" });
   const sends = h("button", { class: "btn primary", onclick: () => send() }, "질문");
   input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) send(); });
-  const ideas = ["이번 달 기한이 있는 일은?", "예산 요구서 양식은 어디서 받아?", "보안점검의 날은 어떻게 진행해?", "홈페이지 장애 나면 누구에게 연락해?", "수준진단 증빙은 어디에 있어?"];
+  // 추천 질문은 지금 인수인계 자료에 맞춰 만든다
+  const nextMonth = (new Date(p.base_date).getMonth() + 1) % 12 + 1;
+  const ppl = (p.draft.facts && p.draft.facts.people) || [];
+  const topic = ppl.find((x) => x.topics && x.topics[0] && x.topics[0].length >= 4);
+  const ideas = ["이번 달 기한이 있는 일은?", `${nextMonth}월에 할 일 알려줘`,
+    ppl[0] ? `${ppl[0].name} 연락처` : null,
+    topic ? `${topic.topics[0].replace(/^\[[^\]]*\]\s*/, "").slice(0, 14)} 누구랑 협의해?` : null,
+    "양식이나 자료는 어디에 있어?", "가장 주의해야 할 점은?"].filter(Boolean);
   const who = (p.from_name || "전임자").replace(/\s*(주무관|사무관|서기관|팀장|과장|님)$/, "");
   const avatar = () => h("div", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI" }, "🎭");
   for (const log of (p.qa_log || []).slice(-6)) addPair(log.q, log);
@@ -491,8 +503,10 @@ function tabAsk(el, p) {
     `안녕하세요, ${who}의 업무 자료와 인터뷰 답변으로만 답하는 AI 분신이에요. 제 자료에 없는 건 지어내지 않고, 진짜 ${who} 님께 질문을 넘겨 드릴게요.`)));
   function addPair(q, res) {
     chat.append(h("div", { class: "msg me" }, q));
-    const intro = res.found ? (res.mode === "calendar" ? "제 업무 달력을 보면요," : "제 자료에 이렇게 남아 있어요.") : `그건 제 자료에 없어요. 진짜 ${who} 님께 물어봐야 해요.`;
-    const body = res.found ? res.answer.replace(/^자료에서 찾은 관련 내용입니다\.\n?/, "") : "";
+    const intro = !res.found ? `그건 제 자료에 없어요. 진짜 ${who} 님께 물어봐야 해요.`
+      : res.mode === "calendar" ? "제 업무 달력을 보면요," : res.mode === "people" ? "제 연락망에 이렇게 남아 있어요." : "제 자료에 이렇게 남아 있어요.";
+    // 엔진 답의 첫 안내 줄(‘…찾았습니다’, ‘…할 일입니다’)은 분신 말투로 바꿨으므로 뺀다
+    const body = res.found ? res.answer.replace(/^(자료에서 찾은 관련 내용입니다\.|연락망에서 찾았습니다\.|\d+월에 할 일입니다\.)\n?/, "") : "";
     const ai = h("div", { class: "msg ai" }, h("b", {}, `AI ${who}`), h("span", { class: "tiny muted" }, " · 근거 기반 답변"), h("br"), intro, body ? "\n" + body : "", h("div", {}, srcChips(res.sources, q)));
     const row = h("div", { class: "msg-row" }, avatar(), ai);
     if (!res.found) ai.append(h("div", { style: "margin-top:8px" }, h("button", { class: "btn sm", onclick: async (e) => {
@@ -526,7 +540,9 @@ async function tabPlan(el, p) {
   const check = (id, title, hint, sources) => h("label", { class: "check" },
     h("input", { type: "checkbox", checked: !!done[id], onchange: (e) => { done[id] = e.target.checked; store.set(key, done); } }),
     h("div", {}, h("div", {}, title), hint ? h("div", { class: "tiny muted" }, hint) : null, h("div", {}, srcChips(sources, title))));
-  add(el, h("div", { class: "alert info" }, `📅 기준일 ${plan.base} 부터 60일 안에 다가오는 일정과 첫 주에 할 일을 정리했습니다. 체크 표시는 이 브라우저에 저장됩니다.`),
+  add(el, h("div", { class: "alert info row between" }, h("span", {}, `📅 기준일 ${plan.base} 부터 60일 안에 다가오는 일정과 첫 주에 할 일입니다. 체크 표시는 이 브라우저에 저장됩니다.`),
+      h("span", { class: "row" }, h("a", { class: "btn primary sm", href: `/api/projects/${p.id}/export?fmt=hwpx&doc=manual` }, "📘 업무매뉴얼 한글로 받기"),
+        h("a", { class: "btn sm", href: `/api/projects/${p.id}/export?fmt=docx&doc=manual` }, "Word"))),
     h("div", { class: "grid g2" },
       h("div", { class: "card" }, h("h2", {}, "다가오는 일정"),
         plan.timeline.length ? h("div", { class: "tl" }, plan.timeline.map((t) => h("div", { class: "tl-item" + (t.deadline ? " deadline" : "") },
@@ -575,11 +591,18 @@ function tabHandover(el, p) {
           hd.to_signed_at ? h("button", { class: "btn sm", onclick: () => sign("to", true) }, "수령 취소") : h("button", { class: "btn ok sm", disabled: !hd.from_signed_at, onclick: () => sign("to") }, "인수인계서 수령"))),
       both ? h("div", { class: "alert ok" }, "✅ 인계·인수가 모두 확인되었습니다. 아래에서 인수인계서를 내려받아 결재에 첨부하세요.") : null),
     h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "인수인계서 내보내기"),
-      h("p", { class: "small muted" }, "삭제·근거없음 항목은 빠지고, 모든 문장에 근거 각주와 출처 목록이 붙습니다. Word 파일은 한글에서도 열립니다."),
+      h("p", { class: "small muted" }, "삭제·근거없음 항목은 빠지고 모든 줄에 근거 번호와 출처 목록이 붙습니다. 업무매뉴얼은 첫 주 할 일·월별 달력·기한순 현안·연락망·노하우·용어 풀이를 담습니다."),
       h("div", { class: "row" },
-        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=docx` }, "📄 Word(.docx)"),
-        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=html`, target: "_blank" }, "🖨 인쇄용 화면(PDF 저장)"),
-        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md` }, "⬇ Markdown"),
+        h("b", { style: "min-width:120px" }, "인수인계서"),
+        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx` }, "📄 한글(.hwpx)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=docx` }, "Word(.docx)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=html`, target: "_blank" }, "🖨 인쇄(PDF 저장)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md` }, "Markdown")),
+      h("div", { class: "row", style: "margin-top:8px" },
+        h("b", { style: "min-width:120px" }, "후임자 업무매뉴얼"),
+        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx&doc=manual` }, "📘 한글(.hwpx)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=docx&doc=manual` }, "Word(.docx)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md&doc=manual` }, "Markdown"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=ics` }, "📅 업무 달력(.ics)"))),
     h("div", { class: "card relay-card", style: "margin-top:14px" }, h("h2", {}, "🧬 다음 주자를 위한 바통 파일"),
       h("p", { class: "small muted" }, `${p.to_name || "후임자"} 님도 언젠가 이 업무를 넘기게 됩니다. 검수된 내용과 인터뷰 답변을 .baton 파일로 저장해 두면, 다음 인수인계 때 자료 폴더에 넣기만 해도 근거로 이어지고 담당자 계보가 쌓입니다.`),
@@ -607,8 +630,19 @@ async function viewSettings() {
       h("td", {}, h("b", {}, pr.label || name), h("div", { class: "tiny muted" }, name)),
       h("td", {}, pr.type === "offline" ? h("span", { class: "muted small" }, "LLM 없이 규칙엔진만 사용") :
         h("div", { class: "grid", style: "gap:4px" },
-          fields.base_url = h("input", { value: pr.base_url || "", placeholder: "http://localhost:11434/v1" }),
-          fields.model = h("input", { value: pr.model || "", placeholder: "모델 이름" }),
+          h("div", { class: "row", style: "flex-wrap:nowrap" },
+            fields.type = h("select", { style: "width:auto", title: "연결 방식" },
+              h("option", { value: "openai", selected: pr.type !== "ollama" }, "OpenAI 호환"), h("option", { value: "ollama", selected: pr.type === "ollama" }, "Ollama 기본")),
+            fields.base_url = h("input", { value: pr.base_url || "", placeholder: "http://localhost:11434/v1" })),
+          h("div", { class: "row", style: "flex-wrap:nowrap" },
+            fields.model = h("input", { value: pr.model || "", placeholder: "모델 이름", list: "ml-" + name }),
+            h("datalist", { id: "ml-" + name }),
+            h("button", { class: "btn sm", title: "서버에 실제 등록된 모델 이름 불러오기", onclick: async (e) => {
+              const r = await api("/api/llm/models", { method: "POST", json: { base_url: fields.base_url.value, type: fields.type.value } });
+              const dl = document.getElementById("ml-" + name); dl.replaceChildren(...r.models.map((m) => h("option", { value: m })));
+              toast(`모델 ${r.models.length}개: ${r.models.slice(0, 6).join(", ")}${r.models.length > 6 ? " …" : ""}`, 4000);
+              fields.model.focus();
+            } }, "목록")),
           keys[name] = h("input", { type: "password", placeholder: pr.has_key ? "API 키 저장됨(바꾸려면 입력)" : (pr.api_key_env ? `API 키 또는 환경변수 ${pr.api_key_env}` : "API 키(로컬 모델은 비워 둠)") }))),
       h("td", {}, h("button", { class: "btn sm", onclick: () => check([name]) }, "자가진단")));
     tr._fields = fields; tr._name = name;
@@ -619,7 +653,7 @@ async function viewSettings() {
     const prof = {};
     for (const tr of rows) {
       const pr = { ...profiles[tr._name] }; delete pr.has_key;
-      if (tr._fields.base_url) { pr.base_url = tr._fields.base_url.value.trim(); pr.model = tr._fields.model.value.trim(); }
+      if (tr._fields.base_url) { pr.base_url = tr._fields.base_url.value.trim(); pr.model = tr._fields.model.value.trim(); pr.type = tr._fields.type.value; }
       if (keys[tr._name] && keys[tr._name].value) pr.api_key = keys[tr._name].value;
       prof[tr._name] = pr;
     }
@@ -633,7 +667,7 @@ async function viewSettings() {
     results.replaceChildren(h("div", { class: "muted" }, h("span", { class: "spin" }), ` ${names.length}개 모델 진단 중… (모델이 크면 1~2분 걸릴 수 있음)`));
     const res = await api("/api/llm/check", { method: "POST", json: { profiles: names } });
     results.replaceChildren(h("table", { class: "tbl" }, h("tr", {}, h("th", {}, "모델"), h("th", {}, "결과"), h("th", {}, "세부 시험")),
-      res.results.map((x) => h("tr", {}, h("td", {}, x.label || x.profile), h("td", {}, x.ok ? h("span", { class: "ok-t" }, "✔ 정상") : h("span", { class: "bad-t" }, "✖ 실패")),
+      res.results.map((x) => h("tr", {}, h("td", {}, x.label || x.profile, x.family ? h("div", { class: "tiny muted" }, x.family) : null), h("td", {}, x.ok ? h("span", { class: "ok-t" }, "✔ 정상") : h("span", { class: "bad-t" }, "✖ 실패")),
         h("td", { class: "small" }, x.tests.map((t) => h("div", {}, t.ok ? "✔ " : "✖ ", h("b", {}, t.name), t.sec != null ? ` (${t.sec}초) ` : " ", h("span", { class: "muted" }, t.detail))))))),
       h("p", { class: "tiny muted" }, `진단 시각 ${res.at} – 이 표를 캡처하면 ‘2종 이상 모델 정상 구동’ 입증 자료로 쓸 수 있습니다.`));
   }

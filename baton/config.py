@@ -16,6 +16,13 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.environ.get("BATON_CONFIG_DIR", os.path.join(BASE, "config"))
 WORKSPACE = os.environ.get("BATON_WORKSPACE", os.path.join(BASE, "workspace"))
 SAMPLE_DIR = os.path.join(BASE, "sample_data", "전임자_업무폴더")
+# 체험용 모의자료(가상 기관·인물). key: (폴더, 업무명, 전임자, 후임자, 기준일, 기관, 부서)
+SAMPLES = {
+    "security": (SAMPLE_DIR, "정보보안·정보화예산 담당 인수인계(샘플)", "김바통 주무관", "이어달 주무관", "2026-05-11",
+                 "가상시", "스마트정보과"),
+    "facility": (os.path.join(BASE, "sample_data", "전임자_김도윤_업무폴더"), "체육센터 시설관리 담당 인수인계(샘플)",
+                 "김도윤 주임", "이서연 주임", "2026-10-08", "공공기관", "시설운영팀"),
+}
 
 _lock = threading.Lock()
 

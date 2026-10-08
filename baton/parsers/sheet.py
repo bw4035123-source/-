@@ -22,26 +22,44 @@ def _fmt(v) -> str:
     return str(v).strip()
 
 
+def table_rows(rows: list[list[str]]) -> tuple[list[str], list[str], int, int]:
+    """표의 머리글 행을 찾아 (앞쪽 제목 줄들, 행 문장들, 머리글 행 번호, 첫 자료 행 번호)를 돌려준다.
+
+    '2026년 계약 현황' 같은 제목 행이 맨 위에 있어도, 칸이 가장 많이 채워진 앞쪽 행을 머리글로 본다.
+    각 자료 행은 '머리글: 값 / 머리글: 값' 문장으로 바꿔 AI·규칙엔진이 표를 이해하기 쉽게 한다.
+    """
+    rows = [[(c or "").strip() for c in r] for r in rows]
+    width = max((sum(1 for c in r if c) for r in rows), default=0)
+    hi = None
+    for i, r in enumerate(rows[:6]):
+        filled = sum(1 for c in r if c)
+        if filled >= max(2, round(width * 0.6)) and i + 1 < len(rows):
+            hi = i
+            break
+    if hi is None:
+        return [], [" | ".join(c for c in r if c) for r in rows if any(r)], 0, 1
+    titles = [" ".join(c for c in r if c) for r in rows[:hi] if any(r)]
+    header = rows[hi]
+    lines = []
+    for r in rows[hi + 1:]:
+        if not any(r):
+            continue
+        pairs = [f"{header[j] if j < len(header) and header[j] else f'열{j + 1}'}: {c}" for j, c in enumerate(r) if c]
+        lines.append(" / ".join(pairs))
+    return titles, lines, hi + 1, hi + 2
+
+
 def _rows_to_segments(rows: list[list[str]], label: str):
     rows = [r for r in rows if any(c for c in r)]
     if not rows:
         return []
-    header = rows[0]
-    has_header = sum(1 for c in header if c) >= max(2, len(header) // 2) and len(rows) > 1
-    body = rows[1:] if has_header else rows
+    titles, lines, _, first = table_rows(rows)
     segs = []
-    start_no = 2 if has_header else 1
-    for k in range(0, len(body), ROWS_PER_SEG):
-        chunk = body[k:k + ROWS_PER_SEG]
-        lines = []
-        for r in chunk:
-            if has_header:
-                pairs = [f"{h or f'열{j + 1}'}: {c}" for j, (h, c) in enumerate(zip(header + [""] * len(r), r)) if c]
-                lines.append(" / ".join(pairs))
-            else:
-                lines.append(" | ".join(c for c in r if c))
-        a, b = start_no + k, start_no + k + len(chunk) - 1
-        segs.append(("\n".join(lines), f"{label} {a}~{b}행", {}))
+    for k in range(0, len(lines), ROWS_PER_SEG):
+        part = lines[k:k + ROWS_PER_SEG]
+        head = "\n".join(titles) + "\n" if titles and k == 0 else ""
+        a, b = first + k, first + k + len(part) - 1
+        segs.append((head + "\n".join(part), f"{label} {a}~{b}행", {}))
     return segs
 
 
