@@ -37,7 +37,7 @@ async function api(path, opts = {}) {
   const r = await fetch(path, o);
   const ct = r.headers.get("content-type") || "";
   const data = ct.includes("json") ? await r.json() : await r.text();
-  if (!r.ok) { const m = (data && data.detail) || r.statusText; toast("⚠ " + m, 4000); throw new Error(m); }
+  if (!r.ok) { const m = (data && data.detail) || r.statusText; toast(m, 4000); throw new Error(m); }
   return data;
 }
 const store = {
@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 async function loadInfo() {
   S.info = await api("/api/info");
-  $("#modelBadge").textContent = "🤖 " + S.info.active_label;
+  $("#modelBadge").textContent = "분석 모델: " + S.info.active_label;
 }
 function route() {
   clearInterval(S.poll);
@@ -122,7 +122,7 @@ function closeDrawer() { const d = $("#drawer"); d.classList.remove("open"); d.s
 function srcChips(sources, hint) {
   const idx = (S.project && S.project.chunk_index) || {};
   return (sources || []).map((sid) => {
-    if (sid.startsWith("Q")) return h("button", { class: "src", onclick: () => openSource(sid, hint), title: "전임자 인터뷰 답변" }, "🎙 ", h("span", {}, "전임자 구술 " + sid));
+    if (sid.startsWith("Q")) return h("button", { class: "src", onclick: () => openSource(sid, hint), title: "전임자 인터뷰 답변" }, h("span", {}, "전임자 구술 " + sid));
     const c = idx[sid]; if (!c) return null;
     const k = KIND[c[2]] || ["", ""];
     return h("button", { class: "src", title: `${c[0]} · ${c[1]}`, onclick: () => openSource(sid, hint) },
@@ -131,21 +131,7 @@ function srcChips(sources, hint) {
 }
 function trustBadge(t) { const x = TRUST[t] || TRUST.none; return h("span", { class: "badge " + x[1] }, x[0]); }
 
-// ───────────── 한국적 장식: 기와 지붕 선, 도장, 절기
-function roof() {
-  // 처마 곡선(가운데가 낮고 양끝이 들린 선)과 수막새(둥근 기와 끝), 그 아래 단청 띠
-  const curve = (x) => 10 + 22 * (1 - Math.pow((x - 300) / 300, 2));
-  const tiles = [];
-  for (let x = 14; x < 600; x += 22) {
-    const y = curve(x) + 6;
-    tiles.push(svg("circle", { cx: x, cy: y, r: 6, fill: "#3b342c" }), svg("circle", { cx: x, cy: y, r: 2.6, fill: "none", stroke: "#cdbf9f", "stroke-width": 1 }));
-  }
-  return svg("svg", { class: "roof", viewBox: "0 0 600 54", preserveAspectRatio: "none", "aria-hidden": "true" },
-    svg("path", { d: "M0 10 Q300 54 600 10 L600 0 L0 0 Z", fill: "#2a2520" }),
-    tiles,
-    svg("path", { d: "M0 22 Q300 66 600 22", fill: "none", stroke: "#b23a2e", "stroke-width": 2.5 }),
-    svg("path", { d: "M0 26 Q300 70 600 26", fill: "none", stroke: "#2f6f62", "stroke-width": 2 }));
-}
+// ───────────── 결재 도장, 절기
 function stamp(name, word, on) {
   // 결재 도장: 찍히면 붉은 원형 인장, 아니면 점선 '(인)'
   const nm = (name || "").replace(/\s*(주무관|사무관|서기관|주임|팀장|과장|대리|책임|실장)$/, "").slice(0, 3);
@@ -185,7 +171,7 @@ async function viewHome() {
   };
   const panes = {
     folder: h("div", {}, h("div", { class: "drop" }, h("p", { class: "small" }, "전임자 업무 폴더를 통째로 선택하세요. 한글·PDF·엑셀·워드·메일(eml)·메모가 섞여 있어도 됩니다."),
-      h("button", { class: "btn", onclick: () => fileInput.click() }, "📁 폴더 선택"), fileInput, fileInfo)),
+      h("button", { class: "btn", onclick: () => fileInput.click() }, "폴더 선택"), fileInput, fileInfo)),
     path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(원본은 읽기만 하고 복사하지 않음)"), pathInput),
     docsys: h("div", {},
       h("p", { class: "small muted" }, "기관 문서관리시스템(온나라 등) API에서 전임자의 문서를 받아옵니다. 지금은 시연용 모의 문서시스템에 연결합니다(실제 구축 시 주소만 바꿈)."),
@@ -200,9 +186,9 @@ async function viewHome() {
       h("p", { class: "tiny muted" }, "모든 인물·기관·연락처는 가상입니다.")),
   };
   const paneBox = h("div", {}, panes.folder);
-  const modeBtns = [["folder", "📁 폴더 올리기"], ["path", "🖥 PC 경로"], ["docsys", "🗂 문서시스템 연계"], ["demo", "✨ 샘플로 체험"]].map(([k, label]) =>
+  const modeBtns = [["folder", "폴더 올리기"], ["path", "PC 폴더 경로"], ["docsys", "문서시스템 연계"], ["demo", "샘플 자료"]].map(([k, label]) =>
     h("button", { class: "tab" + (k === mode ? " on" : ""), onclick: (e) => { mode = k; paneBox.replaceChildren(panes[k]); modeBtns.forEach((b) => b.classList.remove("on")); e.target.classList.add("on"); } }, label));
-  const startBtn = h("button", { class: "btn primary", onclick: start }, "바통 받을 준비 시작 →");
+  const startBtn = h("button", { class: "btn primary", onclick: start }, "인수인계 시작");
 
   async function start() {
     const meta = { name: form.name.value.trim(), from_name: form.from.value.trim(), to_name: form.to.value.trim(), base_date: form.date.value };
@@ -229,15 +215,14 @@ async function viewHome() {
         });
       }
       location.hash = `#/p/${res.id}/docs`;
-    } catch (e) { toast("⚠ " + e.message, 4000); } finally { startBtn.disabled = false; }
+    } catch (e) { toast(e.message, 4000); } finally { startBtn.disabled = false; }
   }
 
   mount(
     h("section", { class: "hero" },
       h("div", { class: "card" },
-        roof(),
         h("span", { class: "badge t-official" }, "2026 공공 AI 대전환 챌린지 · 세션2 과제① 업무바통"),
-        h("h1", {}, "인사발령 났나요? 폴더째 넣으면 인수인계가 시작됩니다"),
+        h("h1", {}, "업무 자료 폴더로 인수인계서 초안을 만듭니다"),
         h("p", { class: "lead" }, "흩어진 한글·PDF·엑셀·메일·메모를 읽어 ‘언제 무엇을, 누구와’ 해야 하는지 출처와 함께 정리하고, 문서에 없는 전임자의 노하우까지 인터뷰로 끌어냅니다."),
         h("div", { class: "steps" },
           h("div", { class: "step" }, h("b", {}, "① 자료 넣기"), h("span", { class: "small" }, "폴더째 투입 · 원본은 읽기만")),
@@ -329,8 +314,8 @@ function tabDocs(el, p) {
     for (const [k, v] of Object.entries(r.settings.llm.profiles)) models.append(h("option", { value: k, selected: k === r.settings.llm.active }, v.label || k));
   });
   add(el, 
-    integ.ok ? h("div", { class: "alert ok" }, `🔒 원본 보호 확인: 분석한 ${integ.checked}개 파일의 지문(SHA-256)이 처리 전후 동일합니다 (${integ.at}). 산출물은 별도 작업 폴더에만 저장됩니다.`)
-      : h("div", { class: "alert bad" }, "⚠ 원본 변경 감지: " + (integ.changed || []).join(", ")),
+    integ.ok ? h("div", { class: "alert ok" }, `원본 보호 확인: 분석한 ${integ.checked}개 파일의 지문(SHA-256)이 처리 전후 동일합니다 (${integ.at}). 산출물은 별도 작업 폴더에만 저장됩니다.`)
+      : h("div", { class: "alert bad" }, "원본 변경 감지: " + (integ.changed || []).join(", ")),
     (p.lineage || []).length ? lineageCard(p) : null,
     h("div", { class: "grid g4" },
       stat(p.docs.length, "분석한 파일"), stat(Object.keys(p.chunk_index).length, "근거조각"),
@@ -341,7 +326,7 @@ function tabDocs(el, p) {
         h("div", { class: "row" }, models, h("button", { class: "btn", onclick: async () => {
           if (!confirm("지금까지 검수·인터뷰한 내용이 새 초안으로 바뀝니다. 다시 만들까요?")) return;
           await api(`/api/projects/${p.id}/draft`, { method: "POST", json: { profile: models.value } }); route();
-        } }, "↻ 이 모델로 초안 다시 만들기"))),
+        } }, "이 모델로 초안 다시 만들기"))),
       h("table", { class: "tbl" },
         h("tr", {}, h("th", {}, "성격"), h("th", {}, "파일"), h("th", {}, "요약"), h("th", {}, "조각"), h("th", {}, "가림"), h("th", {}, "")),
         p.docs.map((d) => h("tr", {},
@@ -358,7 +343,7 @@ function tabDocs(el, p) {
 function lineageCard(p) {
   const chain = [...(p.lineage || []).map((g) => g.name), p.from_name || "전임자", p.to_name || "후임자"].filter((x, i, a) => x && a.indexOf(x) === i);
   if (chain.length <= 2 && !(p.lineage || []).length) return null;
-  return h("div", { class: "card", style: "margin-top:14px" }, h("h3", {}, "🧬 이 업무의 바통 계보"),
+  return h("div", { class: "card", style: "margin-top:14px" }, h("h3", {}, "이 업무의 담당자 이력"),
     h("div", { class: "lineage" }, chain.map((n, i) => [i ? h("span", { class: "arrow" }, "→") : null,
       h("span", { class: "gen" + (i === chain.length - 1 ? " now" : "") }, h("small", {}, `${i + 1}대`), n)])),
     h("p", { class: "tiny muted" }, "이전 담당자들이 남긴 바통 파일의 내용이 ‘이전 인수인계’ 근거로 함께 쓰였습니다."));
@@ -396,7 +381,7 @@ function tabReview(el, p) {
     h("div", { class: "card", style: "margin-bottom:14px" },
       h("div", { class: "row between" }, h("b", {}, `전임자 검수 진행률 ${live.length ? Math.round(100 * done / live.length) : 0}%`), h("span", { class: "small muted" }, `${done}/${live.length} 항목 확인`)),
       h("div", { class: "progress", style: "margin-top:6px" }, h("i", { style: `width:${live.length ? 100 * done / live.length : 0}%` })),
-      h("p", { class: "small muted", style: "margin:8px 0 0" }, "각 문장 아래의 출처를 눌러 원문을 확인한 뒤 ✔ 확인, 고칠 내용은 ✏ 수정하세요. 근거가 없는 AI 문장(빨간색)은 확인해야만 인수인계서에 들어갑니다.")),
+      h("p", { class: "small muted", style: "margin:8px 0 0" }, "각 문장 아래의 출처를 눌러 원문을 확인한 뒤 [확인]을 누르고, 고칠 내용은 [수정]하세요. 근거가 없는 AI 문장(빨간색)은 확인해야만 인수인계서에 들어갑니다.")),
     d.sections.map((s) => sectionCard(s, p)));
   add(el, h("div", { class: "layout" }, toc, main));
 }
@@ -434,9 +419,9 @@ function itemRow(it, p) {
         meta.type === "missing" ? h("span", { class: "badge sev-하" }, "누락 점검") : trustBadge(it.status === "unsupported" ? "none" : it.trust), extra),
       h("div", {}, srcChips(it.sources, it.text))),
     h("div", { class: "acts" },
-      it.status !== "verified" && it.status !== "deleted" ? h("button", { class: "btn sm", title: "확인", onclick: () => patch({ status: "verified" }) }, "✔") : null,
-      it.status !== "deleted" ? h("button", { class: "btn sm", title: "수정", onclick: edit }, "✏") : null,
-      it.status === "deleted" ? h("button", { class: "btn sm", onclick: () => patch({ status: "ai" }) }, "복구") : h("button", { class: "btn sm", title: "삭제", onclick: () => patch({ status: "deleted" }) }, "🗑")));
+      it.status !== "verified" && it.status !== "deleted" ? h("button", { class: "btn sm", title: "확인", onclick: () => patch({ status: "verified" }) }, "확인") : null,
+      it.status !== "deleted" ? h("button", { class: "btn sm", title: "수정", onclick: edit }, "수정") : null,
+      it.status === "deleted" ? h("button", { class: "btn sm", onclick: () => patch({ status: "ai" }) }, "복구") : h("button", { class: "btn sm", title: "삭제", onclick: () => patch({ status: "deleted" }) }, "삭제")));
   async function patch(b) { await api(`/api/projects/${p.id}/items/${it.id}`, { method: "PATCH", json: b }); route(); }
   function edit() {
     const ta = h("textarea", {}, it.text);
@@ -480,7 +465,7 @@ function tabChecks(el, p) {
               h("div", { class: "grow" }, h("span", { class: "badge sev-" + (it.meta.severity || "중") }, it.meta.severity || "중"), " ",
                 h("span", {}, it.text.replace(/^\[[^\]]*\]\s*/, "")), h("div", {}, srcChips(it.sources, it.text)))),
             it.meta.resolved
-              ? h("div", { class: "alert ok", style: "margin:8px 0 0" }, "✔ 처리 완료", it.meta.resolved !== "처리 완료" ? " – " + it.meta.resolved : "", h("span", { class: "tiny muted" }, `  ${it.meta.resolved_at || ""}`),
+              ? h("div", { class: "alert ok", style: "margin:8px 0 0" }, "처리 완료", it.meta.resolved !== "처리 완료" ? " – " + it.meta.resolved : "", h("span", { class: "tiny muted" }, `  ${it.meta.resolved_at || ""}`),
                 h("button", { class: "btn sm", style: "margin-left:8px", onclick: async () => { await api(`/api/projects/${p.id}/items/${it.id}`, { method: "PATCH", json: { status: "ai", unresolve: true } }); route(); } }, "되돌리기"))
               : h("div", { class: "row", style: "margin-top:8px;flex-wrap:nowrap" }, h("div", { class: "grow" }, note),
                 q ? h("a", { class: "btn sm", href: `#/p/${p.id}/interview`, title: q.q }, "인터뷰로 묻기") : null,
@@ -496,7 +481,7 @@ function tabInterview(el, p) {
   const qs = p.draft.questions;
   const answered = qs.filter((q) => q.status === "answered").length;
   add(el, 
-    h("div", { class: "alert info" }, "📝 문서만으로는 알 수 없는 것들을 AI가 골라 물어봅니다. 답변은 ‘전임자 구술’ 근거로 인수인계서에 자동 반영되고, 후임자 질문에도 활용됩니다."),
+    h("div", { class: "alert info" }, "문서만으로는 알 수 없는 것들을 AI가 골라 물어봅니다. 답변은 ‘전임자 구술’ 근거로 인수인계서에 자동 반영되고, 후임자 질문에도 활용됩니다."),
     h("div", { class: "row between", style: "margin-bottom:10px" }, h("b", {}, `답변 ${answered}/${qs.length}`),
       h("div", { class: "progress grow", style: "max-width:300px" }, h("i", { style: `width:${qs.length ? 100 * answered / qs.length : 0}%` }))),
     qs.slice().sort((a, b) => (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1)).map((q) => {
@@ -508,7 +493,7 @@ function tabInterview(el, p) {
         q.why ? h("div", { class: "why" }, "왜 묻나요? " + q.why) : null,
         h("div", {}, srcChips(q.sources, q.q)),
         q.status === "answered"
-          ? h("div", { class: "alert ok", style: "margin:10px 0 0" }, "🎙 ", q.answer, h("div", { class: "tiny" }, `${q.answered_at} 반영됨 → ${q.item_id || ""}`))
+          ? h("div", { class: "alert ok", style: "margin:10px 0 0" }, q.answer, h("div", { class: "tiny" }, `${q.answered_at} 반영됨 → ${q.item_id || ""}`))
           : h("div", { style: "margin-top:8px" }, ta, h("div", { class: "row", style: "justify-content:flex-end;margin-top:6px" },
             h("button", { class: "btn primary sm", onclick: async () => {
               if (!ta.value.trim()) return toast("답변을 입력하세요");
@@ -531,7 +516,7 @@ function tabCalendar(el, p) {
     const m = it.meta || {};
     const past = ["지난 일", "완료"].includes(m.timing);
     return h("span", { class: "chip" + (m.deadline && !past ? " deadline" : "") + (m.recur === "yearly" ? " yearly" : "") + (past ? " past" : ""), title: it.text, onclick: () => it.sources[0] && openSource(it.sources[0], it.text) },
-      m.recur === "yearly" ? "🔁 " : "", m.day ? `${m.day}일 ` : (m.part ? `${m.part} ` : ""), it.text.replace(/^\[[^\]]*\]\s*/, "").slice(0, 60),
+      m.recur === "yearly" && !/^\s*매년/.test(it.text.replace(/^\[[^\]]*\]\s*/, "")) ? "매년 " : "", m.day ? `${m.day}일 ` : (m.part ? `${m.part} ` : ""), it.text.replace(/^\[[^\]]*\]\s*/, "").slice(0, 60),
       m.timing ? h("em", { class: "timing-" + m.timing.replace(/\s/g, "") }, m.timing) : null);
   }
   function draw() {
@@ -540,16 +525,16 @@ function tabCalendar(el, p) {
     const months = Array.from({ length: 12 }, (_, k) => list.filter((i) => i.meta && i.meta.month === k + 1 && !["monthly", "quarterly"].includes(i.meta.recur)));
     const oral = list.filter((i) => !i.meta || (!i.meta.month && !["monthly", "quarterly"].includes(i.meta.recur)));
     grid.replaceChildren(...[
-      h("div", { class: "card", style: "margin-bottom:12px" }, h("h3", {}, "🔄 매월·매분기 반복"), routine.length ? routine.map(chip) : h("span", { class: "muted small" }, "없음")),
+      h("div", { class: "card", style: "margin-bottom:12px" }, h("h3", {}, "매월·매분기 반복 업무"), routine.length ? routine.map(chip) : h("span", { class: "muted small" }, "없음")),
       h("div", { class: "cal" }, months.map((ms, k) => h("div", { class: "month" + (base.getMonth() === k ? " now" : "") },
         h("h3", {}, h("span", {}, `${k + 1}월 `, h("span", { class: "jeolgi" }, JEOLGI[k])), base.getMonth() === k ? h("span", { class: "badge t-none" }, "기준월") : h("span", { class: "tiny muted" }, ms.length ? `${ms.length}건` : "")),
         ms.sort((a, b) => (a.meta.day || 15) - (b.meta.day || 15)).map(chip)))),
-      oral.length ? h("div", { class: "card", style: "margin-top:12px" }, h("h3", {}, "🎙 전임자가 알려준 시기 정보"), oral.map((i) => h("div", { class: "small" }, "• " + i.text))) : null].filter(Boolean));
+      oral.length ? h("div", { class: "card", style: "margin-top:12px" }, h("h3", {}, "전임자가 알려준 시기 정보"), oral.map((i) => h("div", { class: "small" }, "• " + i.text))) : null].filter(Boolean));
   }
   draw();
   add(el, h("div", { class: "row between", style: "margin-bottom:10px" },
-    h("div", { class: "legend" }, h("span", { class: "chip deadline", style: "display:inline-block" }, "기한"), h("span", { class: "chip yearly", style: "display:inline-block" }, "🔁 매년"), h("span", { class: "chip", style: "display:inline-block" }, "일반 일정")),
-    h("div", { class: "row" }, toggle, h("a", { class: "btn primary sm", href: `/api/projects/${p.id}/export?fmt=ics`, title: "Outlook·그룹웨어·휴대폰 달력에서 가져오기" }, "📅 내 일정으로 내보내기(.ics)"))), grid,
+    h("div", { class: "legend" }, h("span", { class: "chip deadline", style: "display:inline-block" }, "기한"), h("span", { class: "chip yearly", style: "display:inline-block" }, "매년"), h("span", { class: "chip", style: "display:inline-block" }, "일반 일정")),
+    h("div", { class: "row" }, toggle, h("a", { class: "btn primary sm", href: `/api/projects/${p.id}/export?fmt=ics`, title: "Outlook·그룹웨어·휴대폰 달력에서 가져오기" }, "일정 내보내기(.ics)"))), grid,
     h("p", { class: "tiny muted" }, "내보낸 일정은 매월·매년 반복으로 등록되고, 기한 3일 전에 알림이 울립니다. 각 일정 설명에 근거 파일이 적혀 있습니다."));
 }
 
@@ -570,7 +555,7 @@ function tabMap(el, p) {
   });
   const map = svg("svg", { class: "map", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "협업 지도" },
     nodes.map((n) => svg("line", { x1: cx, y1: cy, x2: n.x, y2: n.y, stroke: n.color, "stroke-opacity": 0.35, "stroke-width": 1 + 5 * (n.weight / maxW) })),
-    svg("circle", { cx, cy, r: 36, fill: "#2a2520", stroke: "#d9a441", "stroke-width": 3 }),
+    svg("circle", { cx, cy, r: 36, fill: "#1f4e79" }),
     svg("text", { x: cx, y: cy + 5, "text-anchor": "middle", fill: "#fff", "font-size": 14, "font-weight": 700 }, "나(후임자)"),
     nodes.map((n) => svg("g", { class: "node", onclick: () => showPerson(n) },
       svg("circle", { cx: n.x, cy: n.y, r: n.size, fill: n.color, "fill-opacity": 0.9 }),
@@ -624,8 +609,8 @@ function tabAsk(el, p) {
     const ai = h("div", { class: "msg ai" }, h("b", {}, `AI ${who}`), h("span", { class: "tiny muted" }, " · 근거 기반 답변"), h("br"), intro, body ? "\n" + body : "", h("div", {}, srcChips(res.sources, q)));
     const row = h("div", { class: "msg-row" }, avatar(), ai);
     if (!res.found) ai.append(h("div", { style: "margin-top:8px" }, h("button", { class: "btn sm", onclick: async (e) => {
-      await api(`/api/projects/${p.id}/questions`, { method: "POST", json: { q } }); e.target.disabled = true; e.target.textContent = "✓ 전임자에게 보냈어요(③ 인터뷰에 표시)";
-    } }, `🙋 진짜 ${who} 님께 이 질문 보내기`)));
+      await api(`/api/projects/${p.id}/questions`, { method: "POST", json: { q } }); e.target.disabled = true; e.target.textContent = "전임자에게 보냈습니다(④ 암묵지 인터뷰에 표시)";
+    } }, `전임자(${who})에게 이 질문 보내기`)));
     chat.append(row); chat.scrollTop = chat.scrollHeight;
   }
   async function send(text) {
@@ -640,10 +625,10 @@ function tabAsk(el, p) {
   add(el, h("div", { class: "grid", style: "grid-template-columns:minmax(0,2fr) minmax(0,1fr)" },
     h("div", { class: "card" }, chat, h("div", { class: "suggest" }, ideas.map((t) => h("button", { class: "btn sm", onclick: () => send(t) }, t))),
       h("div", { class: "row" }, h("div", { class: "grow" }, input), sends)),
-    h("div", { class: "card" }, h("h3", {}, "🙋 전임자에게 보낸 질문"),
+    h("div", { class: "card" }, h("h3", {}, "전임자에게 보낸 질문"),
       mine.length ? mine.map((q) => h("div", { class: "small", style: "margin-bottom:8px" }, h("b", {}, "Q. "), q.q,
         q.answer ? h("div", { class: "alert ok", style: "margin:4px 0" }, "A. " + q.answer) : h("div", { class: "tiny muted" }, "답변 대기 중")))
-        : h("div", { class: "small muted" }, "자료로 답을 못 찾으면 여기에 쌓이고, 전임자의 ③ 인터뷰 화면에 나타납니다."))));
+        : h("div", { class: "small muted" }, "자료로 답을 못 찾으면 여기에 쌓이고, 전임자의 ④ 암묵지 인터뷰 화면에 나타납니다."))));
 }
 
 // ⑦ 첫 30일
@@ -664,7 +649,7 @@ async function tabPlan(el, p) {
   };
   add(el, h("div", { class: "card", style: "margin-bottom:14px" },
       h("div", { class: "row between" },
-        h("div", {}, h("h2", { style: "margin:0" }, "📘 후임자 맞춤형 업무매뉴얼"),
+        h("div", {}, h("h2", { style: "margin:0" }, "후임자 맞춤형 업무매뉴얼"),
           h("div", { class: "small muted" }, "착임일부터 12개월 일정, 기한 순 현안(D-day), 꼭 알아둘 연락처, 노하우를 담습니다. 처음 맡는 업무면 용어 풀이도 넣습니다.")),
         h("div", { class: "row" },
           h("label", { class: "small" }, "착임일 ", startIn),
@@ -672,7 +657,7 @@ async function tabPlan(el, p) {
       h("div", { class: "row", style: "margin-top:10px;justify-content:flex-end" },
         h("button", { class: "btn primary", onclick: dl("hwpx") }, "한글(HWPX)로 만들기"), h("button", { class: "btn", onclick: dl("docx") }, "워드(DOCX)"),
         h("button", { class: "btn", onclick: dl("md") }, "마크다운"))),
-    h("div", { class: "alert info" }, `📅 기준일 ${plan.base} 부터 60일 안에 다가오는 일정과 첫 주에 할 일입니다. 체크 표시는 이 브라우저에 저장됩니다.`),
+    h("div", { class: "alert info" }, `기준일 ${plan.base}부터 60일 안에 다가오는 일정과 첫 주에 할 일입니다. 체크 표시는 이 브라우저에 저장됩니다.`),
     h("div", { class: "grid g2" },
       h("div", { class: "card" }, h("h2", {}, "다가오는 일정"),
         plan.timeline.length ? h("div", { class: "tl" }, plan.timeline.map((t) => h("div", { class: "tl-item" + (t.deadline ? " deadline" : "") },
@@ -703,8 +688,7 @@ function tabHandover(el, p) {
   };
   const both = hd.from_signed_at && hd.to_signed_at;
   const baton = h("div", { class: "baton" + (both ? " go" : "") }, svg("svg", { viewBox: "0 0 48 24", width: 48, height: 24 },
-    svg("rect", { x: 2, y: 6, width: 44, height: 12, rx: 6, fill: "#1f4e79" }), svg("rect", { x: 18, y: 6, width: 12, height: 12, fill: "#b23a2e" }),
-    svg("rect", { x: 14, y: 6, width: 3, height: 12, fill: "#d9a441" }), svg("rect", { x: 31, y: 6, width: 3, height: 12, fill: "#d9a441" })));
+    svg("rect", { x: 2, y: 7, width: 44, height: 10, rx: 5, fill: "#1f4e79" })));
   add(el, 
     h("div", { class: "grid g4" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
       stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
@@ -720,24 +704,24 @@ function tabHandover(el, p) {
         h("div", { class: "runner" + (hd.to_signed_at ? " signed" : "") }, stamp(p.to_name, "인수", !!hd.to_signed_at), h("div", { class: "tiny muted" }, "후임자"), h("b", {}, p.to_name || "후임자"),
           h("div", { class: "tiny muted" }, hd.to_signed_at ? `수령 ${hd.to_signed_at}` : "인수 전"),
           hd.to_signed_at ? h("button", { class: "btn sm", onclick: () => sign("to", true) }, "수령 취소") : h("button", { class: "btn ok sm", disabled: !hd.from_signed_at, onclick: () => sign("to") }, "인수인계서 수령"))),
-      both ? h("div", { class: "alert ok" }, "✅ 인계·인수가 모두 확인되었습니다. 아래에서 인수인계서를 내려받아 결재에 첨부하세요.") : null),
+      both ? h("div", { class: "alert ok" }, "인계·인수가 모두 확인되었습니다. 아래에서 인수인계서를 내려받아 결재에 첨부하세요.") : null),
     h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "인수인계서 내보내기"),
       h("p", { class: "small muted" }, "삭제·근거없음 항목은 빠지고 모든 줄에 근거 번호와 출처 목록이 붙습니다. 업무매뉴얼은 첫 주 할 일·월별 달력·기한순 현안·연락망·노하우·용어 풀이를 담습니다."),
       h("div", { class: "row" },
         h("b", { style: "min-width:120px" }, "인수인계서"),
-        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx` }, "📄 한글(.hwpx)"),
+        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx` }, "한글(.hwpx)"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=docx` }, "Word(.docx)"),
-        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=html`, target: "_blank" }, "🖨 인쇄(PDF 저장)"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=html`, target: "_blank" }, "인쇄(PDF 저장)"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md` }, "Markdown")),
       h("div", { class: "row", style: "margin-top:8px" },
         h("b", { style: "min-width:120px" }, "후임자 업무매뉴얼"),
-        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx&doc=manual` }, "📘 한글(.hwpx)"),
+        h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=hwpx&doc=manual` }, "한글(.hwpx)"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=docx&doc=manual` }, "Word(.docx)"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md&doc=manual` }, "Markdown"),
-        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=ics` }, "📅 업무 달력(.ics)"))),
-    h("div", { class: "card relay-card", style: "margin-top:14px" }, h("h2", {}, "🧬 다음 주자를 위한 바통 파일"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=ics` }, "업무 달력(.ics)"))),
+    h("div", { class: "card relay-card", style: "margin-top:14px" }, h("h2", {}, "다음 담당자를 위한 바통 파일"),
       h("p", { class: "small muted" }, `${p.to_name || "후임자"} 님도 언젠가 이 업무를 넘기게 됩니다. 검수된 내용과 인터뷰 답변을 .baton 파일로 저장해 두면, 다음 인수인계 때 자료 폴더에 넣기만 해도 근거로 이어지고 담당자 계보가 쌓입니다.`),
-      h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=baton` }, "🧬 바통 파일(.baton) 내려받기")),
+      h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=baton` }, "바통 파일(.baton) 내려받기")),
     h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "처리 이력"),
       h("table", { class: "tbl" }, h("tr", {}, h("th", {}, "일시"), h("th", {}, "누가"), h("th", {}, "무엇을"), h("th", {}, "대상")),
         (p.audit || []).slice(-25).reverse().map((a) => h("tr", {}, h("td", { class: "small" }, a.at), h("td", {}, a.who), h("td", {}, a.action), h("td", { class: "small muted" }, a.detail))))),

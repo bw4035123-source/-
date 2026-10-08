@@ -3,31 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>업무바통 – AI 인수인계 도우미</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect x='2' y='2' width='44' height='44' rx='6' fill='%23c0392b'/><text x='24' y='33' font-size='24' font-weight='800' text-anchor='middle' fill='white'>통</text></svg>">
+<title>업무바통 – 인수인계 지원</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect x='2' y='2' width='44' height='44' rx='6' fill='%23b0362a'/><text x='24' y='33' font-size='24' font-weight='800' text-anchor='middle' fill='white'>통</text></svg>">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="#/" title="처음 화면">
-    <svg class="seal" viewBox="0 0 48 48" width="40" height="40" aria-hidden="true">
-      <rect x="2" y="2" width="44" height="44" rx="5" fill="#c0392b"/>
-      <rect x="5" y="5" width="38" height="38" rx="3" fill="none" stroke="#fbe3dc" stroke-width="1.6"/>
-      <g fill="#fff6ee" font-family="Nanum Myeongjo,바탕,Batang,AppleMyungjo,serif" font-weight="800" font-size="17" text-anchor="middle">
+    <svg class="seal" viewBox="0 0 48 48" width="38" height="38" aria-hidden="true">
+      <rect x="2" y="2" width="44" height="44" rx="4" fill="#b0362a"/>
+      <rect x="5.5" y="5.5" width="37" height="37" rx="2" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1"/>
+      <g fill="#fff" font-family="Nanum Myeongjo,바탕,Batang,AppleMyungjo,serif" font-weight="800" font-size="17" text-anchor="middle">
         <text x="24" y="22">바</text><text x="24" y="39">통</text>
       </g>
     </svg>
-    <span><b>업무바통</b><small>전임자의 경험을 후임자에게, 끊김 없이</small></span>
+    <span><b>업무바통</b><small>전임자의 업무를 후임자에게 빠짐없이 넘겨주는 인수인계 지원 도구</small></span>
   </a>
   <div class="topbar-right">
-    <span id="modelBadge" class="badge model" title="사용 중인 AI 모델(설정에서 교체)"></span>
-    <a class="btn ghost" href="#/settings">⚙ 설정</a>
+    <span id="modelBadge" class="badge model" title="사용 중인 분석 모델(설정에서 변경)"></span>
+    <a class="btn ghost" href="#/settings">설정</a>
   </div>
 </header>
 <main id="app" aria-live="polite"></main>
-<footer class="foot">이어달리기처럼, 일은 끊기지 않고 이어집니다 · 업무바통</footer>
+<footer class="foot">업무바통 · 원본 자료는 읽기만 하며, 작업 결과는 이 PC의 작업 폴더(workspace)에 따로 저장됩니다</footer>
 <aside id="drawer" class="drawer" aria-hidden="true">
-  <div class="drawer-head"><b id="drawerTitle">근거 원문</b><button class="btn ghost" id="drawerClose" aria-label="닫기">✕</button></div>
+  <div class="drawer-head"><b id="drawerTitle">근거 원문</b><button class="btn ghost" id="drawerClose" aria-label="닫기">닫기</button></div>
   <div id="drawerBody" class="drawer-body"></div>
 </aside>
 <div id="toast" class="toast" role="status"></div>
