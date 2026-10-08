@@ -1,0 +1,60 @@
+{
+  "org": {
+    "name": "가상시",
+    "dept": "스마트정보과",
+    "handover_rule": "인사이동 시 전임자는 인수인계서를 작성하여 부서장 확인 후 후임자에게 인계"
+  },
+  "llm": {
+    "active": "offline",
+    "timeout_sec": 180,
+    "max_context_chars": 9000,
+    "profiles": {
+      "offline": {
+        "type": "offline",
+        "label": "오프라인 규칙엔진 (LLM 없이 동작)"
+      },
+      "ollama-gemma": {
+        "type": "openai",
+        "label": "Gemma 3 (Ollama, 로컬)",
+        "base_url": "http://localhost:11434/v1",
+        "model": "gemma3:12b",
+        "api_key_env": ""
+      },
+      "ollama-exaone": {
+        "type": "openai",
+        "label": "EXAONE 3.5 (Ollama, 로컬)",
+        "base_url": "http://localhost:11434/v1",
+        "model": "exaone3.5:7.8b",
+        "api_key_env": ""
+      },
+      "ollama-llama": {
+        "type": "openai",
+        "label": "Llama 3.1 (Ollama, 로컬)",
+        "base_url": "http://localhost:11434/v1",
+        "model": "llama3.1:8b",
+        "api_key_env": ""
+      },
+      "vllm-gpt-oss": {
+        "type": "openai",
+        "label": "GPT-OSS 20B (vLLM 등 OpenAI 호환 서버)",
+        "base_url": "http://localhost:8000/v1",
+        "model": "openai/gpt-oss-20b",
+        "api_key_env": ""
+      },
+      "hyperclova-x": {
+        "type": "openai",
+        "label": "HyperCLOVA X (CLOVA Studio OpenAI 호환 API)",
+        "base_url": "https://clovastudio.stream.ntruss.com/v1/openai",
+        "model": "HCX-005",
+        "api_key_env": "CLOVA_STUDIO_API_KEY"
+      },
+      "solar": {
+        "type": "openai",
+        "label": "Solar (Upstage API)",
+        "base_url": "https://api.upstage.ai/v1",
+        "model": "solar-pro2",
+        "api_key_env": "UPSTAGE_API_KEY"
+      }
+    }
+  }
+}

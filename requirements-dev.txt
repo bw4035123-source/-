@@ -1,0 +1,3 @@
+-r requirements.txt
+httpx>=0.27        # 시험(TestClient)용
+reportlab>=4.0     # 모의데이터 PDF 생성용

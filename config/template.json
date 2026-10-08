@@ -1,0 +1,22 @@
+{
+  "title": "업무 인수인계서",
+  "sections": [
+    {"id": "overview", "kind": "overview", "title": "1. 담당 업무 개요(R&R)", "enabled": true,
+     "guide": "전임자가 맡았던 업무 범위와 비중, 대체 담당자"},
+    {"id": "calendar", "kind": "calendar", "title": "2. 시기별 할 일(연간 업무 달력)", "enabled": true,
+     "guide": "매월·매분기·매년 반복되는 일과 기한이 정해진 일"},
+    {"id": "issues", "kind": "issues", "title": "3. 진행 중인 현안", "enabled": true,
+     "guide": "현재 상태, 다음에 할 일, 기한"},
+    {"id": "people", "kind": "people", "title": "4. 협의할 사람·기관", "enabled": true,
+     "guide": "누구와 어떤 일로 연락하는지, 연락 방법"},
+    {"id": "resources", "kind": "resources", "title": "5. 자료·시스템 위치", "enabled": true,
+     "guide": "업무 시스템, 공유폴더 경로, 주요 문서"},
+    {"id": "tips", "kind": "tips", "title": "6. 노하우·주의사항", "enabled": true,
+     "guide": "문서에 잘 남지 않는 실무 요령, 반려·실수 사례"},
+    {"id": "checks", "kind": "checks", "title": "7. 확인이 필요한 사항", "enabled": true,
+     "guide": "자료 간 충돌, 결론이 없는 협의, 개인 메모에만 있는 내용"},
+    {"id": "custom_budget", "kind": "custom", "title": "8. 예산·계약 현황", "enabled": true,
+     "guide": "기관별로 자유롭게 추가하는 항목 예시: 키워드로 관련 근거를 모아 정리",
+     "keywords": ["예산", "계약", "용역", "집행", "견적", "금액"]}
+  ]
+}

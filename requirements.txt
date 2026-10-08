@@ -1,0 +1,10 @@
+# 업무바통 실행에 필요한 패키지(모두 오픈소스, 상용 라이선스 제약 없음)
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
+pypdf>=4.0
+openpyxl>=3.1
+olefile>=0.46
+python-docx>=1.1
+# 선택: Outlook .msg 메일을 읽으려면 아래 주석 해제
+# extract-msg>=0.48
