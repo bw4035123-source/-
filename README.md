@@ -15,24 +15,45 @@
 
 ## 바로 실행
 
-```
-python run.py
-```
-이 한 줄이면 됩니다. 처음 실행할 때 필요한 패키지를 **자동으로 설치**하고, 브라우저가 `http://127.0.0.1:8765`로 열립니다.
-
 | 환경 | 방법 |
 |---|---|
-| Windows | `실행.bat` 더블클릭 (또는 명령창에서 `py run.py`) |
-| macOS / Linux | `./run.sh` (또는 `python3 run.py`) |
-| 다른 방법 | `python -m baton` |
-| 환경 점검 | `python run.py --check` – 파이썬 버전·패키지·작업 폴더를 확인 |
-| 폐쇄망 | 인터넷 PC에서 `pip download -r requirements.txt -d wheels` 후 `wheels` 폴더를 함께 옮기면 인터넷 없이 자동 설치 |
+| **Windows** | `run.bat` 더블클릭 (`실행.bat`도 같음) |
+| macOS / Linux | `./run.sh` |
+| 직접 실행 | `python run.py` (부족한 라이브러리는 자동 설치) |
 
-- 필요 환경: Python 3.10 이상(3.11·3.12·3.13에서 시험), 최신 브라우저(Edge·Chrome·Whale)
-- 자동 설치 동작: 현재 파이썬에 설치 → 막혀 있으면(관리형 시스템 파이썬 등) 폴더 안에 전용 `.venv`를 만들어 설치 후 다시 실행
-- 8765번 포트가 사용 중이면 다음 빈 포트로 자동 실행합니다. 옵션: `--port`, `--model`, `--no-browser`, `--no-install`
+처음 실행하면 아래 과정을 **자동으로** 진행하고, 두 번째부터는 바로 시작합니다.
+
+1. **실제로 동작하는 Python 3.10 이상 찾기** – PATH의 `python` → `py` 런처(3.13~3.10) → 기본 설치 폴더 순으로 찾고, 실행하면 스토어가 열리는 *Microsoft Store 가짜 python.exe*는 시험 실행으로 걸러 냅니다.
+2. **전용 실행 환경(`.venv`) 만들기** – PC의 다른 프로그램과 섞이지 않게 폴더 안에 따로 만듭니다. 손상되었거나 파이썬을 바꾼 경우 스스로 다시 만듭니다.
+3. **라이브러리 설치** – `requirements.txt`가 바뀌었을 때만 설치(설치 기록 `.venv/requirements.stamp`). `wheels` 폴더가 있으면 인터넷 없이 설치합니다.
+4. **실행** – 브라우저가 `http://127.0.0.1:8765`로 열립니다. 포트가 사용 중이면 다음 빈 포트를 씁니다.
+
+| 옵션 | 설명 |
+|---|---|
+| `run.bat --check` | 파이썬·라이브러리·작업 폴더 점검만 하고 종료 |
+| `run.bat --reinstall` | 실행 환경을 지우고 처음부터 다시 설치(문제가 생겼을 때) |
+| `run.bat --model ollama-exaone` | 사용할 AI 모델 프로필 지정 |
+| `run.bat --port 9000` | 포트 변경 |
+
+- 필요 환경: Windows 10/11 · macOS · Linux, Python 3.10 이상(3.11·3.12·3.13에서 시험), Edge·Chrome·Whale
 - 처음 화면에서 **‘✨ 샘플로 체험’**을 누르면 모의데이터(`sample_data/전임자_업무폴더`)로 전 과정을 바로 볼 수 있습니다.
 - **LLM이 없어도 동작**합니다(규칙엔진 모드). AI 모델을 연결하면 문장 정리, 현안 통합, 인터뷰 질문, 질의응답 품질이 올라갑니다.
+
+### 인터넷이 막힌 PC
+1. 인터넷이 되는 Windows PC에서 `오프라인_설치파일_만들기.bat` 실행 → `wheels` 폴더에 64비트 Windows용 설치 파일(Python 3.10~3.13 모두)이 내려받아집니다.
+   - macOS/Linux에서 직접 받을 때: `pip download -r requirements.txt -d wheels --only-binary=:all: --platform win_amd64 --python-version 311` (대상 PC의 파이썬 버전에 맞춰 반복)
+2. 업무바통 폴더를 **`wheels` 폴더 포함 통째로** 인터넷이 막힌 PC로 옮깁니다.
+3. `run.bat` 실행 → “wheels 폴더에서 설치합니다(인터넷 불필요)”가 표시되며 설치됩니다.
+- Python 설치 파일(python.org의 Windows installer)도 함께 옮겨 먼저 설치해 두세요.
+
+### 문제 해결
+| 증상 | 해결 |
+|---|---|
+| “Python 3.10 이상을 찾지 못했습니다” | python.org에서 설치, 첫 화면 **“Add python.exe to PATH”** 체크 후 다시 실행 |
+| “실행 환경을 만들지 못했습니다” | 바탕화면·문서처럼 쓰기 가능한 폴더에 압축을 풀고 실행(백신 예외 필요할 수 있음) |
+| 라이브러리 설치 실패 | 인터넷/프록시 확인, 또는 위 ‘인터넷이 막힌 PC’ 방법 |
+| 그 밖의 오류 | `run.bat --reinstall`, 상태 확인은 `run.bat --check` |
+| 브라우저가 안 열림 | 검은 창에 표시된 주소(`http://127.0.0.1:8765`)를 직접 입력 |
 
 ## 주요 기능
 
@@ -85,7 +106,11 @@ OpenAI 호환 Chat Completions API를 쓰는 모든 모델을 연결할 수 있�
 
 ## 폴더 구조
 ```
-run.py                 실행 진입점
+run.bat / 실행.bat      Windows 실행기(파이썬 찾기·전용 환경·설치·실행)
+run.sh                 macOS/Linux 실행기(같은 흐름)
+오프라인_설치파일_만들기.bat  인터넷이 막힌 PC용 wheels 준비
+tools/find_python.bat  실제 동작하는 Python 3.10+ 찾기(공용)
+run.py                 실행 진입점(환경 점검·자동 설치·포트 자동 선택)
 baton/
   parsers/             HWP·HWPX·PDF·엑셀·워드·PPT·메일·텍스트 파서(원본 읽기 전용)
   ingest.py            폴더 탐색, 원본 해시, 민감정보 가림, 근거조각 생성, 문서 성격 분류
