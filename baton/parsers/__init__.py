@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from . import office, hwp, mail, pdf, sheet, text
+from . import office, hwp, mail, pdf, relay, sheet, text
 
 
 @dataclass
@@ -32,6 +32,7 @@ PARSERS = {
     ".txt": text.parse_text,
     ".md": text.parse_text,
     ".log": text.parse_text,
+    ".baton": relay.parse_baton,
 }
 
 SUPPORTED = sorted(PARSERS)

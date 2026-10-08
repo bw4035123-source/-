@@ -13,12 +13,14 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__, config, store
 from .draft import add_item, answer_question, build_draft, now, update_item
-from .export import to_docx, to_html, to_markdown
+from .export import to_baton, to_docx, to_html, to_ics, to_markdown
 from .ingest import ingest_folder, verify_originals
 from .llm import get_client, self_check
 from .parsers import SUPPORTED
 from .plan import make_plan
 from .qa import ask
+from .quiz import make_quiz
+from .risk import compute_risk
 
 app = FastAPI(title="업무바통", version=__version__)
 STATIC = os.path.join(os.path.dirname(__file__), "static")
@@ -48,6 +50,7 @@ def _view(p: dict) -> dict:
     v = {k: val for k, val in p.items() if k not in ("chunks",)}
     v["chunk_index"] = {c["id"]: [c["file"], c["where"], c["kind"]] for c in p["chunks"]}
     v["job"] = JOBS.get(p["id"], {})
+    v["risk"] = compute_risk(p) if p.get("draft") else None
     return v
 
 
@@ -138,6 +141,13 @@ def _run_ingest(pid: str, then_draft: bool = True):
         res = ingest_folder(root, progress=lambda i, n, f: _job(pid, step=f"자료 읽는 중 ({i}/{n}) {f}", frac=0.3 * i / max(n, 1)))
         p.update(docs=res["docs"], chunks=res["chunks"], skipped=res["skipped"], stage="ingested")
         p["integrity"] = verify_originals(root, res["docs"])
+        # 지식 릴레이: 자료 속 바통 파일의 계보를 이어받는다
+        lineage = []
+        for d in res["docs"]:
+            for g in d.get("info", {}).get("lineage", []):
+                if g not in lineage:
+                    lineage.append(g)
+        p["lineage"] = lineage
         store.audit(p, "시스템", "자료 투입", f"{len(res['docs'])}개 파일, 근거조각 {len(res['chunks'])}개")
         store.save(p)
         if then_draft and res["chunks"]:
@@ -158,6 +168,7 @@ def _run_draft(pid: str, offset: float = 0.0, profile: str | None = None):
         with store.lock(pid):
             p = store.load(pid)
             p["draft"], p["stage"] = draft, "review"
+            p["risk_initial"] = compute_risk(p)["score"]
             p["integrity"] = verify_originals(_source_root(p), p["docs"])
             store.audit(p, "시스템", "초안 생성", f"{draft['generated_by']} / 항목 {sum(len(s['items']) for s in draft['sections'])}개")
             store.save(p)
@@ -334,6 +345,28 @@ async def post_ask(pid: str, req: Request):
     return res
 
 
+@app.get("/api/projects/{pid}/quiz")
+def get_quiz(pid: str):
+    p = _load(pid)
+    if not p.get("draft"):
+        raise HTTPException(400, "초안이 아직 없습니다")
+    qs = make_quiz(p["draft"], n=8)
+    return {"questions": qs, "history": p.get("rehearsal", [])}
+
+
+@app.post("/api/projects/{pid}/quiz")
+async def post_quiz(pid: str, req: Request):
+    b = await req.json()
+    with store.lock(pid):
+        p = _load(pid)
+        rec = {"at": now(), "correct": int(b.get("correct", 0)), "total": int(b.get("total", 0)),
+               "missed": [str(x) for x in b.get("missed", [])][:20]}
+        p.setdefault("rehearsal", []).append(rec)
+        store.audit(p, "후임자", "인수 리허설", f"{rec['correct']}/{rec['total']}")
+        store.save(p)
+    return rec
+
+
 @app.get("/api/projects/{pid}/plan")
 def get_plan(pid: str):
     p = _load(pid)
@@ -373,7 +406,13 @@ def export(pid: str, fmt: str = "docx"):
     if not p.get("draft"):
         raise HTTPException(400, "초안이 아직 없습니다")
     base = f"인수인계서_{p.get('name', '')}"
-    if fmt == "md":
+    if fmt == "ics":
+        data, mt, ext = to_ics(p).encode("utf-8"), "text/calendar; charset=utf-8", "ics"
+        base = f"업무달력_{p.get('name', '')}"
+    elif fmt == "baton":
+        data, mt, ext = to_baton(p).encode("utf-8"), "application/json; charset=utf-8", "baton"
+        base = f"{p.get('name', '')}_{p.get('from_name', '')}"
+    elif fmt == "md":
         data, mt, ext = to_markdown(p).encode("utf-8"), "text/markdown; charset=utf-8", "md"
     elif fmt == "html":
         return Response(to_html(p), media_type="text/html; charset=utf-8")

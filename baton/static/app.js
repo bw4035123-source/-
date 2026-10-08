@@ -49,7 +49,7 @@ const TRUST = {
   official: ["공식문서", "t-official", "#16a34a"], doc: ["일반문서", "t-doc", "#64748b"], mail: ["메일", "t-mail", "#0284c7"],
   memo: ["개인메모", "t-memo", "#d97706"], oral: ["전임자 구술", "t-oral", "#7c3aed"], none: ["근거 없음", "t-none", "#dc2626"],
 };
-const KIND = { official: ["공식문서", "t-official"], data: ["데이터·대장", "t-data"], doc: ["일반문서", "t-doc"], mail: ["메일", "t-mail"], memo: ["개인메모", "t-memo"], oral: ["전임자 구술", "t-oral"] };
+const KIND = { official: ["공식문서", "t-official"], data: ["데이터·대장", "t-data"], doc: ["일반문서", "t-doc"], mail: ["메일", "t-mail"], memo: ["개인메모", "t-memo"], oral: ["전임자 구술", "t-oral"], relay: ["이전 인수인계", "t-oral"] };
 const STATUS = { verified: "확인됨", edited: "수정됨", ai: "검수 전", deleted: "삭제", unsupported: "근거 없음" };
 const ORIGIN = { rule: "규칙엔진", llm: "AI 작성", interview: "인터뷰 답변", manual: "직접 추가" };
 const QTYPE = { conflict: ["자료 불일치", "t-none"], open: ["결론 없는 협의", "t-memo"], person: ["협의 상대", "t-mail"], tacit: ["숨은 노하우", "t-oral"], llm: ["AI 질문", "t-official"], successor: ["후임자 질문", "t-mail"] };
@@ -214,7 +214,7 @@ async function viewHome() {
 const TABS = [
   ["docs", "① 자료", "전임자"], ["review", "② 초안 검수", "전임자"], ["interview", "③ 암묵지 인터뷰", "전임자"],
   ["calendar", "④ 업무 달력", "후임자"], ["map", "⑤ 협업 지도", "후임자"], ["ask", "⑥ 질문하기", "후임자"], ["plan", "⑦ 첫 30일", "후임자"],
-  ["handover", "⑧ 바통 터치", "함께"],
+  ["rehearsal", "⑧ 인수 리허설", "후임자"], ["handover", "⑨ 바통 터치", "함께"],
 ];
 async function viewProject(pid, tab) {
   const p = await api(`/api/projects/${pid}`);
@@ -254,10 +254,81 @@ async function viewProject(pid, tab) {
     return out;
   }));
   const body = h("div");
-  mount(head, tabs, body);
-  const views = { docs: tabDocs, review: tabReview, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, handover: tabHandover };
+  mount(head, riskBar(p), tabs, body);
+  const views = { docs: tabDocs, review: tabReview, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, rehearsal: tabRehearsal, handover: tabHandover };
   await (views[tab] || tabDocs)(body, p);
 }
+// ───────────── 바통 낙하 위험도(모든 탭 상단)
+const RISK_COLOR = { 안전: "var(--ok)", 주의: "var(--warn)", 위험: "var(--bad)" };
+function gauge(score, level, size = 76) {
+  const r = 30, c = 2 * Math.PI * r, col = RISK_COLOR[level] || "var(--brand)";
+  return svg("svg", { viewBox: "0 0 76 76", width: size, height: size, role: "img", "aria-label": `위험도 ${score}점` },
+    svg("circle", { cx: 38, cy: 38, r, fill: "none", stroke: "#e2e8f0", "stroke-width": 9 }),
+    svg("circle", { cx: 38, cy: 38, r, fill: "none", stroke: col, "stroke-width": 9, "stroke-linecap": "round",
+      "stroke-dasharray": `${(c * score) / 100} ${c}`, transform: "rotate(-90 38 38)", style: "transition:stroke-dasharray .8s" }),
+    svg("text", { x: 38, y: 44, "text-anchor": "middle", "font-size": 20, "font-weight": 800, fill: "#0f172a" }, score));
+}
+function riskBar(p) {
+  const r = p.risk;
+  if (!r || r.score == null) return null;
+  const open = store.get("risk.open", false);
+  const init = p.risk_initial;
+  const detail = h("div", { class: "risk-detail", style: open ? "" : "display:none" },
+    r.factors.map((f) => h("a", { class: "risk-f", href: `#/p/${p.id}/${f.tab}` },
+      h("div", { class: "row between" }, h("b", {}, f.label), h("span", { class: "small muted" }, f.value)),
+      h("div", { class: "progress", style: "height:6px;margin:4px 0" }, h("i", { style: `width:${(100 * f.points) / f.max}%;background:${f.points / f.max > 0.6 ? "var(--bad)" : f.points / f.max > 0.3 ? "var(--warn)" : "var(--ok)"}` })),
+      h("div", { class: "tiny muted" }, `${f.points}/${f.max}점 · ${f.hint}`))));
+  const toggle = h("button", { class: "btn sm", onclick: () => { const o = detail.style.display === "none"; detail.style.display = o ? "" : "none"; toggle.textContent = o ? "접기" : "왜 이 점수?"; store.set("risk.open", o); } }, open ? "접기" : "왜 이 점수?");
+  return h("div", { class: "card risk", style: "margin:12px 0 0" },
+    h("div", { class: "row", style: "gap:14px;flex-wrap:nowrap" }, gauge(r.score, r.level),
+      h("div", { class: "grow" },
+        h("div", { class: "row" }, h("b", { style: "font-size:16px" }, "바통 낙하 위험도"), h("span", { class: "badge", style: `background:${RISK_COLOR[r.level]};color:#fff` }, r.level),
+          init != null && init !== r.score ? h("span", { class: "small", style: `color:${r.score < init ? "var(--ok)" : "var(--bad)"};font-weight:700` }, `초안 직후 ${init}점 → 지금 ${r.score}점 (${r.score < init ? "▼" : "▲"}${Math.abs(init - r.score)})`) : null),
+        h("div", { class: "small muted" }, "지금 인수인계가 끊기면 후임자가 일을 놓칠 위험. 인터뷰에 답하고 불일치를 풀고 검수할수록 내려갑니다."),
+        h("div", { class: "small", style: "margin-top:2px" }, "가장 큰 요인: ", h("b", {}, r.factors[0].label), ` (${r.factors[0].value}) – ${r.factors[0].hint}`)),
+      toggle),
+    detail);
+}
+
+// ⑧ 인수 리허설
+async function tabRehearsal(el, p) {
+  const { questions: qs, history } = await api(`/api/projects/${p.id}/quiz`);
+  if (!qs.length) return add(el, h("div", { class: "empty" }, "문제를 만들 만큼 확정된 내용이 아직 없습니다. 전임자 검수를 먼저 진행하세요."));
+  let idx = 0, correct = 0;
+  const missed = [];
+  const box = h("div", { class: "card quiz" });
+  const last = history.length ? history[history.length - 1] : null;
+  function show() {
+    if (idx >= qs.length) return finish();
+    const q = qs[idx];
+    const fb = h("div");
+    const opts = h("div", { class: "grid", style: "gap:8px;margin-top:12px" }, q.options.map((o, i) =>
+      h("button", { class: "btn opt", onclick: (e) => pick(i, e.currentTarget) }, o)));
+    function pick(i, btn) {
+      opts.querySelectorAll("button").forEach((b, k) => { b.disabled = true; if (k === q.answer) b.classList.add("right"); });
+      const ok = i === q.answer;
+      if (ok) correct++; else { btn.classList.add("wrong"); missed.push(q.item); }
+      fb.replaceChildren(h("div", { class: "alert " + (ok ? "ok" : "warn"), style: "margin-top:12px" }, ok ? "정답! " : `정답은 ‘${q.options[q.answer]}’ – `, "근거를 확인해 보세요 ", h("span", {}, srcChips(q.sources, q.q))),
+        h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn primary", onclick: () => { idx++; show(); } }, idx + 1 < qs.length ? "다음 문제 →" : "결과 보기")));
+    }
+    box.replaceChildren(h("div", { class: "row between" }, h("span", { class: "badge t-mail" }, `${q.type} 문제`), h("span", { class: "small muted" }, `${idx + 1} / ${qs.length}`)),
+      h("div", { class: "progress", style: "margin:8px 0 12px" }, h("i", { style: `width:${(100 * idx) / qs.length}%` })),
+      h("div", { style: "font-size:17px;font-weight:700;white-space:pre-wrap" }, q.q), opts, fb);
+  }
+  async function finish() {
+    const pct = Math.round((100 * correct) / qs.length);
+    await api(`/api/projects/${p.id}/quiz`, { method: "POST", json: { correct, total: qs.length, missed } });
+    box.replaceChildren(h("div", { style: "text-align:center;padding:10px" },
+      h("div", { style: "font-size:44px" }, pct >= 80 ? "🏅" : pct >= 50 ? "🏃" : "📚"),
+      h("div", { class: "stat" }, `인수 준비도 ${pct}%`), h("p", { class: "muted" }, `${qs.length}문제 중 ${correct}개 정답`),
+      missed.length ? h("div", { class: "alert warn", style: "text-align:left" }, "다시 볼 항목: ", missed.join(", "), " – ② 초안 검수에서 해당 문장을 확인하세요.") : h("div", { class: "alert ok" }, "모두 맞혔습니다. 바통을 받을 준비가 됐어요!"),
+      h("button", { class: "btn", onclick: () => route() }, "새 문제로 다시 풀기")));
+  }
+  show();
+  add(el, h("div", { class: "alert info" }, "🧪 인수인계는 ‘전달’이 아니라 ‘이해’로 끝나야 합니다. 확정된 인수인계 내용으로 후임자용 확인 문제를 만들었어요(기한·담당자·현안 상태·노하우)."),
+    last ? h("div", { class: "small muted", style: "margin-bottom:8px" }, `지난 리허설: ${last.at} · ${last.correct}/${last.total} 정답`) : null, box);
+}
+
 async function refresh() { const p = await api(`/api/projects/${S.project.id}`); S.project = p; return p; }
 
 // ① 자료
@@ -274,6 +345,7 @@ function tabDocs(el, p) {
   add(el, 
     integ.ok ? h("div", { class: "alert ok" }, `🔒 원본 보호 확인: 분석한 ${integ.checked}개 파일의 지문(SHA-256)이 처리 전후 동일합니다 (${integ.at}). 산출물은 별도 작업 폴더에만 저장됩니다.`)
       : h("div", { class: "alert bad" }, "⚠ 원본 변경 감지: " + (integ.changed || []).join(", ")),
+    (p.lineage || []).length ? lineageCard(p) : null,
     h("div", { class: "grid g4" },
       stat(p.docs.length, "분석한 파일"), stat(Object.keys(p.chunk_index).length, "근거조각"),
       stat(masked, "가린 민감정보"), stat((p.draft.facts.conflicts || []).length, "자료 간 불일치")),
@@ -295,6 +367,14 @@ function tabDocs(el, p) {
       h("div", { class: "small muted" }, p.skipped.map((s) => `${s.file} (${s.reason})`).join(" · "))) : null,
     p.draft.warnings && p.draft.warnings.length ? h("div", { class: "alert warn", style: "margin-top:12px" }, p.draft.warnings.join(" / ")) : null,
     h("div", { class: "row", style: "justify-content:flex-end;margin-top:14px" }, h("a", { class: "btn primary", href: `#/p/${p.id}/review` }, "초안 검수하러 가기 →")));
+}
+function lineageCard(p) {
+  const chain = [...(p.lineage || []).map((g) => g.name), p.from_name || "전임자", p.to_name || "후임자"].filter((x, i, a) => x && a.indexOf(x) === i);
+  if (chain.length <= 2 && !(p.lineage || []).length) return null;
+  return h("div", { class: "card", style: "margin-top:14px" }, h("h3", {}, "🧬 이 업무의 바통 계보"),
+    h("div", { class: "lineage" }, chain.map((n, i) => [i ? h("span", { class: "arrow" }, "→") : null,
+      h("span", { class: "gen" + (i === chain.length - 1 ? " now" : "") }, h("small", {}, `${i + 1}대`), n)])),
+    h("p", { class: "tiny muted" }, "이전 담당자들이 남긴 바통 파일의 내용이 ‘이전 인수인계’ 근거로 함께 쓰였습니다."));
 }
 function stat(n, label) { return h("div", { class: "card" }, h("div", { class: "stat" }, n), h("div", { class: "small muted" }, label)); }
 
@@ -420,7 +500,9 @@ function tabCalendar(el, p) {
   }
   draw();
   add(el, h("div", { class: "row between", style: "margin-bottom:10px" },
-    h("div", { class: "legend" }, h("span", { class: "chip deadline", style: "display:inline-block" }, "기한"), h("span", { class: "chip yearly", style: "display:inline-block" }, "🔁 매년"), h("span", { class: "chip", style: "display:inline-block" }, "일반 일정")), toggle), grid);
+    h("div", { class: "legend" }, h("span", { class: "chip deadline", style: "display:inline-block" }, "기한"), h("span", { class: "chip yearly", style: "display:inline-block" }, "🔁 매년"), h("span", { class: "chip", style: "display:inline-block" }, "일반 일정")),
+    h("div", { class: "row" }, toggle, h("a", { class: "btn primary sm", href: `/api/projects/${p.id}/export?fmt=ics`, title: "Outlook·그룹웨어·휴대폰 달력에서 가져오기" }, "📅 내 일정으로 내보내기(.ics)"))), grid,
+    h("p", { class: "tiny muted" }, "내보낸 일정은 매월·매년 반복으로 등록되고, 기한 3일 전에 알림이 울립니다. 각 일정 설명에 근거 파일이 적혀 있습니다."));
 }
 
 // ⑤ 협업 지도
@@ -473,20 +555,26 @@ function tabAsk(el, p) {
   const sends = h("button", { class: "btn primary", onclick: () => send() }, "질문");
   input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) send(); });
   const ideas = ["이번 달 기한이 있는 일은?", "예산 요구서 양식은 어디서 받아?", "보안점검의 날은 어떻게 진행해?", "홈페이지 장애 나면 누구에게 연락해?", "수준진단 증빙은 어디에 있어?"];
+  const who = (p.from_name || "전임자").replace(/\s*(주무관|사무관|서기관|팀장|과장|님)$/, "");
+  const avatar = () => h("div", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI" }, "🎭");
   for (const log of (p.qa_log || []).slice(-6)) addPair(log.q, log);
-  if (!(p.qa_log || []).length) chat.append(h("div", { class: "msg ai" }, "안녕하세요! 전임자 자료와 인터뷰 답변을 근거로 답해 드려요. 자료에 없는 내용은 지어내지 않고, 전임자에게 바로 물어볼 수 있게 도와드립니다."));
+  if (!(p.qa_log || []).length) chat.append(h("div", { class: "msg-row" }, avatar(), h("div", { class: "msg ai" }, h("b", {}, `AI ${who}`), h("br"),
+    `안녕하세요, ${who}의 업무 자료와 인터뷰 답변으로만 답하는 AI 분신이에요. 제 자료에 없는 건 지어내지 않고, 진짜 ${who} 님께 질문을 넘겨 드릴게요.`)));
   function addPair(q, res) {
     chat.append(h("div", { class: "msg me" }, q));
-    const ai = h("div", { class: "msg ai" }, res.answer, h("div", {}, srcChips(res.sources, q)));
+    const intro = res.found ? (res.mode === "calendar" ? "제 업무 달력을 보면요," : "제 자료에 이렇게 남아 있어요.") : `그건 제 자료에 없어요. 진짜 ${who} 님께 물어봐야 해요.`;
+    const body = res.found ? res.answer.replace(/^자료에서 찾은 관련 내용입니다\.\n?/, "") : "";
+    const ai = h("div", { class: "msg ai" }, h("b", {}, `AI ${who}`), h("span", { class: "tiny muted" }, " · 근거 기반 답변"), h("br"), intro, body ? "\n" + body : "", h("div", {}, srcChips(res.sources, q)));
+    const row = h("div", { class: "msg-row" }, avatar(), ai);
     if (!res.found) ai.append(h("div", { style: "margin-top:8px" }, h("button", { class: "btn sm", onclick: async (e) => {
       await api(`/api/projects/${p.id}/questions`, { method: "POST", json: { q } }); e.target.disabled = true; e.target.textContent = "✓ 전임자에게 보냈어요(③ 인터뷰에 표시)";
-    } }, "🙋 전임자에게 이 질문 보내기")));
-    chat.append(ai); chat.scrollTop = chat.scrollHeight;
+    } }, `🙋 진짜 ${who} 님께 이 질문 보내기`)));
+    chat.append(row); chat.scrollTop = chat.scrollHeight;
   }
   async function send(text) {
     const q = (text || input.value).trim(); if (!q) return;
     input.value = ""; sends.disabled = true;
-    const wait = h("div", { class: "msg ai" }, h("span", { class: "spin" }), " 자료를 찾는 중…");
+    const wait = h("div", { class: "msg ai" }, h("span", { class: "spin" }), ` AI ${who}가 자료를 찾는 중…`);
     chat.append(wait);
     try { const res = await api(`/api/projects/${p.id}/ask`, { method: "POST", json: { question: q } }); wait.remove(); addPair(q, res); }
     catch { wait.remove(); } finally { sends.disabled = false; input.focus(); }
@@ -533,6 +621,7 @@ function tabHandover(el, p) {
   const conflicts = d.sections.flatMap((s) => s.items).filter((i) => i.meta && i.meta.type === "conflict");
   const resolved = conflicts.filter((i) => i.meta.resolved).length;
   const ready = verified / Math.max(1, live.length) >= 0.5;
+  const reh = (p.rehearsal || []).slice(-1)[0];
   const sign = async (role, cancel) => {
     await api(`/api/projects/${p.id}/handover`, { method: "POST", json: { role, cancel, name: role === "from" ? p.from_name : p.to_name } });
     if (!cancel && role === "to") toast("🏃 바통 터치 완료! 인수인계가 끝났습니다", 3500);
@@ -543,7 +632,9 @@ function tabHandover(el, p) {
     svg("rect", { x: 2, y: 6, width: 44, height: 12, rx: 6, fill: "#2563eb" }), svg("rect", { x: 18, y: 6, width: 12, height: 12, fill: "#f59e0b" })));
   add(el, 
     h("div", { class: "grid g4" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
-      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
+      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"),
+      stat(reh ? `${Math.round((100 * reh.correct) / Math.max(1, reh.total))}%` : "–", reh ? `후임자 인수 준비도 (리허설 ${reh.correct}/${reh.total})` : "인수 리허설 전")),
+    lineageCard(p),
     h("div", { class: "card", style: "margin-top:14px" },
       h("h2", {}, "바통 터치"),
       !ready ? h("div", { class: "alert warn" }, "검수율이 50% 미만입니다. 전임자 확인 전에 ② 초안 검수를 더 진행하는 것을 권장합니다.") : null,
@@ -561,7 +652,11 @@ function tabHandover(el, p) {
       h("div", { class: "row" },
         h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=docx` }, "📄 Word(.docx)"),
         h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=html`, target: "_blank" }, "🖨 인쇄용 화면(PDF 저장)"),
-        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md` }, "⬇ Markdown"))),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=md` }, "⬇ Markdown"),
+        h("a", { class: "btn", href: `/api/projects/${p.id}/export?fmt=ics` }, "📅 업무 달력(.ics)"))),
+    h("div", { class: "card relay-card", style: "margin-top:14px" }, h("h2", {}, "🧬 다음 주자를 위한 바통 파일"),
+      h("p", { class: "small muted" }, `${p.to_name || "후임자"} 님도 언젠가 이 업무를 넘기게 됩니다. 검수된 내용과 인터뷰 답변을 .baton 파일로 저장해 두면, 다음 인수인계 때 자료 폴더에 넣기만 해도 근거로 이어지고 담당자 계보가 쌓입니다.`),
+      h("a", { class: "btn primary", href: `/api/projects/${p.id}/export?fmt=baton` }, "🧬 바통 파일(.baton) 내려받기")),
     h("div", { class: "card", style: "margin-top:14px" }, h("h2", {}, "처리 이력"),
       h("table", { class: "tbl" }, h("tr", {}, h("th", {}, "일시"), h("th", {}, "누가"), h("th", {}, "무엇을"), h("th", {}, "대상")),
         (p.audit || []).slice(-25).reverse().map((a) => h("tr", {}, h("td", { class: "small" }, a.at), h("td", {}, a.who), h("td", {}, a.action), h("td", { class: "small muted" }, a.detail))))),

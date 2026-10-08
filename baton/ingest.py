@@ -17,9 +17,10 @@ KIND_LABEL = {
     "doc": "일반문서",
     "mail": "메일",
     "memo": "개인메모",
+    "relay": "이전 인수인계",
 }
 # 신뢰 등급(높을수록 공식 근거) – 공식 문서와 개인 메모를 구분해 표시하기 위함
-KIND_TRUST = {"official": 3, "data": 3, "doc": 2, "mail": 1, "memo": 0}
+KIND_TRUST = {"official": 3, "data": 3, "relay": 2, "doc": 2, "mail": 1, "memo": 0}
 
 _OFFICIAL_NAME = re.compile(r"공문|시행|계획|보고|결과|지침|규정|훈령|예규|조례|업무분장|분장표|매뉴얼|편람|협약|계약|회의록|대장|현황")
 _OFFICIAL_BODY = re.compile(r"수\s*신\s*[:：]?|시행\s*[가-힣]*\s*-?\d|문서번호|기\s*안\s*자|결\s*재|붙\s*임|끝\.")
@@ -54,6 +55,8 @@ def classify(rel: str, ext: str, text: str) -> str:
     name = os.path.basename(rel)
     if ext in (".eml", ".msg"):
         return "mail"
+    if ext == ".baton":
+        return "relay"
     if ext in (".txt", ".md"):
         return "memo"
     if ext in (".xlsx", ".xlsm", ".csv"):

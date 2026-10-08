@@ -150,6 +150,64 @@ class TestLLMPath(unittest.TestCase):
         self.assertTrue(all(s["mode"] == "rule" for s in d["sections"]))
 
 
+class TestCreativeFeatures(unittest.TestCase):
+    def _draft(self):
+        p = _project()
+        p["base_date"] = "2026-05-11"
+        p["draft"] = build_draft(p, OfflineClient())
+        return p
+
+    def test_risk_drops_when_work_done(self):
+        from baton.draft import update_item
+        from baton.risk import compute_risk
+
+        p = self._draft()
+        before = compute_risk(p)
+        self.assertGreaterEqual(before["score"], 60)
+        for q in p["draft"]["questions"]:
+            answer_question(p["draft"], q["id"], "확인했습니다. 다음 주 과장님 보고 예정")
+        for s in p["draft"]["sections"]:
+            for it in s["items"]:
+                if it["status"] == "ai":
+                    update_item(p["draft"], it["id"], status="verified")
+        after = compute_risk(p)
+        self.assertLess(after["score"], before["score"] - 40)
+
+    def test_quiz_answers_are_correct(self):
+        from baton.quiz import make_quiz
+
+        qs = make_quiz(self._draft()["draft"], n=8, seed=1)
+        self.assertGreaterEqual(len(qs), 6)
+        self.assertGreaterEqual(len({q["type"] for q in qs}), 3)
+        for q in qs:
+            self.assertTrue(0 <= q["answer"] < len(q["options"]))
+            self.assertEqual(len(set(q["options"])), len(q["options"]))
+
+    def test_ics_and_relay_roundtrip(self):
+        from baton.export import to_baton, to_ics
+
+        p = self._draft()
+        p.update(id="00000000", name="시험", from_name="김바통", to_name="이어달")
+        ics = to_ics(p)
+        self.assertIn("RRULE:FREQ=MONTHLY;BYMONTHDAY=10", ics)
+        self.assertIn("RRULE:FREQ=YEARLY", ics)
+        for it in p["draft"]["sections"][0]["items"]:
+            it["status"] = "verified"
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "넘김.baton"), "w", encoding="utf-8") as f:
+            f.write(to_baton(p))
+        r = ingest_folder(d)
+        self.assertEqual(r["docs"][0]["kind"], "relay")
+        names = [g["name"] for g in r["docs"][0]["info"]["lineage"]]
+        self.assertEqual(names, ["김바통"])
+
+    def test_sample_has_relay_generation(self):
+        r = ingest_folder(SAMPLE)
+        relay = [d for d in r["docs"] if d["kind"] == "relay"]
+        self.assertEqual(len(relay), 1)
+        self.assertEqual(relay[0]["info"]["lineage"][0]["name"], "박선배 주무관")
+
+
 class TestServer(unittest.TestCase):
     def test_end_to_end(self):
         from fastapi.testclient import TestClient

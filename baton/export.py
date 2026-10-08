@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import html
 import io
+import re
 
 from .ingest import KIND_LABEL
 
@@ -174,3 +175,79 @@ def to_docx(project: dict) -> bytes:
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+# ───────────── 내 일정으로 내보내기(.ics): Outlook·그룹웨어·휴대폰 달력에 반복 일정으로 등록
+def to_ics(project: dict) -> str:
+    import datetime as dt
+
+    from .plan import PART_DAY, _next_date
+
+    base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
+    sec = next((s for s in project["draft"]["sections"] if s["kind"] == "calendar"), {"items": []})
+    chunk_map = {c["id"]: c for c in project["chunks"]}
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    def esc(s: str) -> str:
+        for a, b in (("\\", "\\\\"), (";", "\\;"), (",", "\\,"), ("\n", "\\n")):
+            s = s.replace(a, b)
+        return s
+
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//업무바통//인수인계 업무 달력//KO", "CALSCALE:GREGORIAN",
+             f"X-WR-CALNAME:{esc('업무바통 – ' + project.get('name', ''))}"]
+    for it in sec["items"]:
+        m = it.get("meta") or {}
+        if it["status"] in ("deleted", "unsupported") or not m.get("recur"):
+            continue
+        rrule = ""
+        if m["recur"] == "quarterly":
+            start, rrule = base.replace(day=min(base.day, 28)), "FREQ=MONTHLY;INTERVAL=3"
+        else:
+            start = _next_date(m, base)
+            if not start:
+                continue
+            if m["recur"] == "monthly":
+                rrule = f"FREQ=MONTHLY;BYMONTHDAY={m.get('day') or PART_DAY.get(m.get('part', ''), 15)}"
+            elif m["recur"] == "yearly":
+                rrule = "FREQ=YEARLY"
+        title = re.sub(r"^\[[^\]]*\]\s*", "", it["text"])
+        src = "; ".join(f"{chunk_map[s]['file']} · {chunk_map[s]['where']}" for s in it["sources"] if s in chunk_map)
+        lines += ["BEGIN:VEVENT", f"UID:{project['id']}-{it['id']}@baton", f"DTSTAMP:{stamp}",
+                  f"DTSTART;VALUE=DATE:{start:%Y%m%d}", f"DTEND;VALUE=DATE:{start + dt.timedelta(days=1):%Y%m%d}",
+                  f"SUMMARY:{esc(('[기한] ' if m.get('deadline') else '') + title[:120])}",
+                  f"DESCRIPTION:{esc('근거: ' + src + (' / 날짜는 대략(초·중순·말)' if not m.get('day') else ''))}"]
+        if rrule:
+            lines.append(f"RRULE:{rrule}")
+        if m.get("deadline"):
+            lines += ["BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-P3D", f"DESCRIPTION:{esc('3일 전: ' + title[:60])}", "END:VALARM"]
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+# ───────────── 바통 파일(.baton): 다음 담당자에게 이어지는 지식 릴레이
+def to_baton(project: dict) -> str:
+    import datetime as dt
+    import json
+
+    d = project["draft"]
+    keep = ("verified", "edited")
+    sections = []
+    for s in d["sections"]:
+        items = [{"text": _item_text(i), "trust": i["trust"]} for i in s["items"]
+                 if i["status"] in keep and s["kind"] != "checks"]
+        if items:
+            sections.append({"kind": s["kind"], "title": s["title"], "items": items})
+    lineage = list(project.get("lineage", []))
+    lineage.append({"name": project.get("from_name", ""), "handed_to": project.get("to_name", ""),
+                    "date": project.get("base_date", ""), "work": project.get("name", "")})
+    data = {
+        "format": "baton/1",
+        "meta": {k: project.get(k, "") for k in ("name", "org", "dept", "from_name", "to_name", "base_date")},
+        "lineage": lineage,
+        "sections": sections,
+        "interview": [{"q": q["q"], "a": q["answer"]} for q in d["questions"] if q.get("answer")],
+        "exported_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "note": "검수(확인·수정)된 항목과 인터뷰 답변만 담았습니다. 다음 인수인계 때 자료 폴더에 함께 넣으면 근거로 이어집니다.",
+    }
+    return json.dumps(data, ensure_ascii=False, indent=1)
