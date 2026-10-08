@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# 업무바통 실행(macOS/Linux)
-set -e
+# 업무바통 실행(macOS/Linux) – 필요한 패키지는 run.py가 자동 설치
 cd "$(dirname "$0")"
-[ -d .venv ] || python3 -m venv .venv
-. .venv/bin/activate
-if [ -d wheels ]; then pip install --no-index --find-links wheels -r requirements.txt -q; else pip install -r requirements.txt -q; fi
-python run.py "$@"
+exec python3 run.py "$@"

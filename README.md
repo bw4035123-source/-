@@ -15,14 +15,22 @@
 
 ## 바로 실행
 
+```
+python run.py
+```
+이 한 줄이면 됩니다. 처음 실행할 때 필요한 패키지를 **자동으로 설치**하고, 브라우저가 `http://127.0.0.1:8765`로 열립니다.
+
 | 환경 | 방법 |
 |---|---|
-| Windows | `실행.bat` 더블클릭 → 브라우저가 자동으로 열림 |
-| macOS / Linux | `./run.sh` |
-| 직접 | `pip install -r requirements.txt` → `python run.py` → http://127.0.0.1:8765 |
-| 폐쇄망 | 인터넷 PC에서 `pip download -r requirements.txt -d wheels` 후 폴더째 옮기면 `실행.bat`이 `wheels`에서 설치 |
+| Windows | `실행.bat` 더블클릭 (또는 명령창에서 `py run.py`) |
+| macOS / Linux | `./run.sh` (또는 `python3 run.py`) |
+| 다른 방법 | `python -m baton` |
+| 환경 점검 | `python run.py --check` – 파이썬 버전·패키지·작업 폴더를 확인 |
+| 폐쇄망 | 인터넷 PC에서 `pip download -r requirements.txt -d wheels` 후 `wheels` 폴더를 함께 옮기면 인터넷 없이 자동 설치 |
 
-- 필요 환경: Python 3.10 이상(3.11·3.13에서 시험함), 최신 브라우저(Edge·Chrome·Whale)
+- 필요 환경: Python 3.10 이상(3.11·3.12·3.13에서 시험), 최신 브라우저(Edge·Chrome·Whale)
+- 자동 설치 동작: 현재 파이썬에 설치 → 막혀 있으면(관리형 시스템 파이썬 등) 폴더 안에 전용 `.venv`를 만들어 설치 후 다시 실행
+- 8765번 포트가 사용 중이면 다음 빈 포트로 자동 실행합니다. 옵션: `--port`, `--model`, `--no-browser`, `--no-install`
 - 처음 화면에서 **‘✨ 샘플로 체험’**을 누르면 모의데이터(`sample_data/전임자_업무폴더`)로 전 과정을 바로 볼 수 있습니다.
 - **LLM이 없어도 동작**합니다(규칙엔진 모드). AI 모델을 연결하면 문장 정리, 현안 통합, 인터뷰 질문, 질의응답 품질이 올라갑니다.
 
