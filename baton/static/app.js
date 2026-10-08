@@ -46,8 +46,8 @@ const store = {
 };
 
 const TRUST = {
-  official: ["공식문서", "t-official", "#16a34a"], doc: ["일반문서", "t-doc", "#64748b"], mail: ["메일", "t-mail", "#0284c7"],
-  memo: ["개인메모", "t-memo", "#d97706"], oral: ["전임자 구술", "t-oral", "#7c3aed"], none: ["근거 없음", "t-none", "#dc2626"],
+  official: ["공식문서", "t-official", "#2f6f62"], doc: ["일반문서", "t-doc", "#8a7c66"], mail: ["메일", "t-mail", "#2b6a9a"],
+  memo: ["개인메모", "t-memo", "#b7791f"], oral: ["전임자 구술", "t-oral", "#6d3a6b"], none: ["근거 없음", "t-none", "#b23a2e"],
 };
 const KIND = { official: ["공식문서", "t-official"], data: ["데이터·대장", "t-data"], doc: ["일반문서", "t-doc"], mail: ["메일", "t-mail"], memo: ["개인메모", "t-memo"], oral: ["전임자 구술", "t-oral"], relay: ["이전 인수인계", "t-oral"] };
 const STATUS = { verified: "확인됨", edited: "수정됨", ai: "검수 전", deleted: "삭제", unsupported: "근거 없음" };
@@ -119,6 +119,36 @@ function srcChips(sources, hint) {
 }
 function trustBadge(t) { const x = TRUST[t] || TRUST.none; return h("span", { class: "badge " + x[1] }, x[0]); }
 
+// ───────────── 한국적 장식: 기와 지붕 선, 도장, 절기
+function roof() {
+  // 처마 곡선(가운데가 낮고 양끝이 들린 선)과 수막새(둥근 기와 끝), 그 아래 단청 띠
+  const curve = (x) => 10 + 22 * (1 - Math.pow((x - 300) / 300, 2));
+  const tiles = [];
+  for (let x = 14; x < 600; x += 22) {
+    const y = curve(x) + 6;
+    tiles.push(svg("circle", { cx: x, cy: y, r: 6, fill: "#3b342c" }), svg("circle", { cx: x, cy: y, r: 2.6, fill: "none", stroke: "#cdbf9f", "stroke-width": 1 }));
+  }
+  return svg("svg", { class: "roof", viewBox: "0 0 600 54", preserveAspectRatio: "none", "aria-hidden": "true" },
+    svg("path", { d: "M0 10 Q300 54 600 10 L600 0 L0 0 Z", fill: "#2a2520" }),
+    tiles,
+    svg("path", { d: "M0 22 Q300 66 600 22", fill: "none", stroke: "#b23a2e", "stroke-width": 2.5 }),
+    svg("path", { d: "M0 26 Q300 70 600 26", fill: "none", stroke: "#2f6f62", "stroke-width": 2 }));
+}
+function stamp(name, word, on) {
+  // 결재 도장: 찍히면 붉은 원형 인장, 아니면 점선 '(인)'
+  const nm = (name || "").replace(/\s*(주무관|사무관|서기관|주임|팀장|과장|대리|책임|실장)$/, "").slice(0, 3);
+  if (!on) return svg("svg", { class: "stamp", viewBox: "0 0 70 70", width: 64, height: 64 },
+    svg("circle", { cx: 35, cy: 35, r: 30, fill: "none", stroke: "#c9b896", "stroke-width": 2, "stroke-dasharray": "4 4" }),
+    svg("text", { x: 35, y: 41, "text-anchor": "middle", "font-size": 15, fill: "#a08e6d" }, "(인)"));
+  return svg("svg", { class: "stamp on", viewBox: "0 0 70 70", width: 64, height: 64 },
+    svg("circle", { cx: 35, cy: 35, r: 30, fill: "rgba(192,57,43,.06)", stroke: "#c0392b", "stroke-width": 3.5 }),
+    svg("circle", { cx: 35, cy: 35, r: 25, fill: "none", stroke: "#c0392b", "stroke-width": 1 }),
+    svg("text", { x: 35, y: nm.length > 2 ? 37 : 39, "text-anchor": "middle", "font-size": nm.length > 2 ? 15 : 18, "font-weight": 800, fill: "#c0392b",
+      "font-family": "Nanum Myeongjo,바탕,Batang,AppleMyungjo,serif" }, nm),
+    svg("text", { x: 35, y: 53, "text-anchor": "middle", "font-size": 9, fill: "#c0392b" }, word));
+}
+const JEOLGI = ["소한·대한", "입춘·우수", "경칩·춘분", "청명·곡우", "입하·소만", "망종·하지", "소서·대서", "입추·처서", "백로·추분", "한로·상강", "입동·소설", "대설·동지"];
+
 // ───────────── 처음 화면
 async function viewHome() {
   const list = await api("/api/projects");
@@ -185,9 +215,10 @@ async function viewHome() {
   mount(
     h("section", { class: "hero" },
       h("div", { class: "card" },
+        roof(),
         h("span", { class: "badge t-official" }, "2026 공공 AI 대전환 챌린지 · 세션2 과제① 업무바통"),
         h("h1", {}, "인사발령 났나요? 폴더째 넣으면 인수인계가 시작됩니다"),
-        h("p", { class: "muted" }, "흩어진 한글·PDF·엑셀·메일·메모를 읽어 ‘언제 무엇을, 누구와’ 해야 하는지 출처와 함께 정리하고, 문서에 없는 전임자의 노하우까지 인터뷰로 끌어냅니다."),
+        h("p", { class: "lead" }, "흩어진 한글·PDF·엑셀·메일·메모를 읽어 ‘언제 무엇을, 누구와’ 해야 하는지 출처와 함께 정리하고, 문서에 없는 전임자의 노하우까지 인터뷰로 끌어냅니다."),
         h("div", { class: "steps" },
           h("div", { class: "step" }, h("b", {}, "① 자료 넣기"), h("span", { class: "small" }, "폴더째 투입 · 원본은 읽기만")),
           h("div", { class: "step" }, h("b", {}, "② 전임자 검수"), h("span", { class: "small" }, "출처 확인 · 암묵지 인터뷰")),
@@ -428,7 +459,7 @@ function tabCalendar(el, p) {
     grid.replaceChildren(...[
       h("div", { class: "card", style: "margin-bottom:12px" }, h("h3", {}, "🔄 매월·매분기 반복"), routine.length ? routine.map(chip) : h("span", { class: "muted small" }, "없음")),
       h("div", { class: "cal" }, months.map((ms, k) => h("div", { class: "month" + (base.getMonth() === k ? " now" : "") },
-        h("h3", {}, h("span", {}, `${k + 1}월`), base.getMonth() === k ? h("span", { class: "badge t-mail" }, "기준월") : h("span", { class: "tiny muted" }, ms.length || "")),
+        h("h3", {}, h("span", {}, `${k + 1}월 `, h("span", { class: "jeolgi" }, JEOLGI[k])), base.getMonth() === k ? h("span", { class: "badge t-none" }, "기준월") : h("span", { class: "tiny muted" }, ms.length ? `${ms.length}건` : "")),
         ms.sort((a, b) => (a.meta.day || 15) - (b.meta.day || 15)).map(chip)))),
       oral.length ? h("div", { class: "card", style: "margin-top:12px" }, h("h3", {}, "🎙 전임자가 알려준 시기 정보"), oral.map((i) => h("div", { class: "small" }, "• " + i.text))) : null].filter(Boolean));
   }
@@ -447,7 +478,7 @@ function tabMap(el, p) {
   if (!people.length) return add(el, h("div", { class: "empty" }, "자료에서 협의 상대를 찾지 못했습니다."));
   const W = 640, H = 520, cx = W / 2, cy = H / 2;
   const orgs = [...new Set(people.map((x) => x.org || orgOf(x)))];
-  const palette = ["#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#64748b"];
+  const palette = ["#1f4e79", "#b23a2e", "#2f6f62", "#b7791f", "#6d3a6b", "#2b6a9a", "#8b6b3d", "#5a4c38"]; // 오방색 계열
   const maxW = Math.max(...people.map((x) => x.weight));
   const nodes = people.map((x, i) => {
     const ang = (2 * Math.PI * i) / people.length - Math.PI / 2;
@@ -456,12 +487,12 @@ function tabMap(el, p) {
   });
   const map = svg("svg", { class: "map", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "협업 지도" },
     nodes.map((n) => svg("line", { x1: cx, y1: cy, x2: n.x, y2: n.y, stroke: n.color, "stroke-opacity": 0.35, "stroke-width": 1 + 5 * (n.weight / maxW) })),
-    svg("circle", { cx, cy, r: 34, fill: "#0f172a" }),
+    svg("circle", { cx, cy, r: 36, fill: "#2a2520", stroke: "#d9a441", "stroke-width": 3 }),
     svg("text", { x: cx, y: cy + 5, "text-anchor": "middle", fill: "#fff", "font-size": 14, "font-weight": 700 }, "나(후임자)"),
     nodes.map((n) => svg("g", { class: "node", onclick: () => showPerson(n) },
       svg("circle", { cx: n.x, cy: n.y, r: n.size, fill: n.color, "fill-opacity": 0.9 }),
       svg("text", { x: n.x, y: n.y + 4, "text-anchor": "middle", fill: "#fff", "font-size": 12, "font-weight": 700 }, n.name),
-      svg("text", { x: n.x, y: n.y + n.size + 14, "text-anchor": "middle", fill: "#334155", "font-size": 11 }, [n.title, n.org].filter(Boolean).join(" · ").slice(0, 18)))));
+      svg("text", { x: n.x, y: n.y + n.size + 14, "text-anchor": "middle", fill: "#5a4c38", "font-size": 11 }, [n.title, n.org].filter(Boolean).join(" · ").slice(0, 18)))));
   function showPerson(n) {
     const item = sec && sec.items.find((i) => i.meta && i.meta.person === n.id);
     detail.replaceChildren(...[
@@ -497,7 +528,7 @@ function tabAsk(el, p) {
     topic ? `${topic.topics[0].replace(/^\[[^\]]*\]\s*/, "").slice(0, 14)} 누구랑 협의해?` : null,
     "양식이나 자료는 어디에 있어?", "가장 주의해야 할 점은?"].filter(Boolean);
   const who = (p.from_name || "전임자").replace(/\s*(주무관|사무관|서기관|팀장|과장|님)$/, "");
-  const avatar = () => h("div", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI" }, "🎭");
+  const avatar = () => h("div", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI 분신" }, who.slice(0, 1));
   for (const log of (p.qa_log || []).slice(-6)) addPair(log.q, log);
   if (!(p.qa_log || []).length) chat.append(h("div", { class: "msg-row" }, avatar(), h("div", { class: "msg ai" }, h("b", {}, `AI ${who}`), h("br"),
     `안녕하세요, ${who}의 업무 자료와 인터뷰 답변으로만 답하는 AI 분신이에요. 제 자료에 없는 건 지어내지 않고, 진짜 ${who} 님께 질문을 넘겨 드릴게요.`)));
@@ -568,12 +599,13 @@ function tabHandover(el, p) {
   const ready = verified / Math.max(1, live.length) >= 0.5;
   const sign = async (role, cancel) => {
     await api(`/api/projects/${p.id}/handover`, { method: "POST", json: { role, cancel, name: role === "from" ? p.from_name : p.to_name } });
-    if (!cancel && role === "to") toast("🏃 바통 터치 완료! 인수인계가 끝났습니다", 3500);
+    if (!cancel && role === "to") toast("바통 터치 완료! 인계·인수 도장이 모두 찍혔습니다", 3500);
     route();
   };
   const both = hd.from_signed_at && hd.to_signed_at;
   const baton = h("div", { class: "baton" + (both ? " go" : "") }, svg("svg", { viewBox: "0 0 48 24", width: 48, height: 24 },
-    svg("rect", { x: 2, y: 6, width: 44, height: 12, rx: 6, fill: "#2563eb" }), svg("rect", { x: 18, y: 6, width: 12, height: 12, fill: "#f59e0b" })));
+    svg("rect", { x: 2, y: 6, width: 44, height: 12, rx: 6, fill: "#1f4e79" }), svg("rect", { x: 18, y: 6, width: 12, height: 12, fill: "#b23a2e" }),
+    svg("rect", { x: 14, y: 6, width: 3, height: 12, fill: "#d9a441" }), svg("rect", { x: 31, y: 6, width: 3, height: 12, fill: "#d9a441" })));
   add(el, 
     h("div", { class: "grid g4" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
       stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
@@ -582,11 +614,11 @@ function tabHandover(el, p) {
       h("h2", {}, "바통 터치"),
       !ready ? h("div", { class: "alert warn" }, "검수율이 50% 미만입니다. 전임자 확인 전에 ② 초안 검수를 더 진행하는 것을 권장합니다.") : null,
       h("div", { class: "baton-stage" },
-        h("div", { class: "runner" + (hd.from_signed_at ? " signed" : "") }, h("div", { style: "font-size:30px" }, "🏃"), h("b", {}, p.from_name || "전임자"),
+        h("div", { class: "runner" + (hd.from_signed_at ? " signed" : "") }, stamp(p.from_name, "인계", !!hd.from_signed_at), h("div", { class: "tiny muted" }, "전임자"), h("b", {}, p.from_name || "전임자"),
           h("div", { class: "tiny muted" }, hd.from_signed_at ? `확인 ${hd.from_signed_at}` : "인계 전"),
           hd.from_signed_at ? h("button", { class: "btn sm", onclick: () => sign("from", true) }, "확인 취소") : h("button", { class: "btn primary sm", onclick: () => sign("from") }, "내용 확인 · 인계")),
         h("div", { class: "track" }, baton),
-        h("div", { class: "runner" + (hd.to_signed_at ? " signed" : "") }, h("div", { style: "font-size:30px;transform:scaleX(-1)" }, "🏃"), h("b", {}, p.to_name || "후임자"),
+        h("div", { class: "runner" + (hd.to_signed_at ? " signed" : "") }, stamp(p.to_name, "인수", !!hd.to_signed_at), h("div", { class: "tiny muted" }, "후임자"), h("b", {}, p.to_name || "후임자"),
           h("div", { class: "tiny muted" }, hd.to_signed_at ? `수령 ${hd.to_signed_at}` : "인수 전"),
           hd.to_signed_at ? h("button", { class: "btn sm", onclick: () => sign("to", true) }, "수령 취소") : h("button", { class: "btn ok sm", disabled: !hd.from_signed_at, onclick: () => sign("to") }, "인수인계서 수령"))),
       both ? h("div", { class: "alert ok" }, "✅ 인계·인수가 모두 확인되었습니다. 아래에서 인수인계서를 내려받아 결재에 첨부하세요.") : null),

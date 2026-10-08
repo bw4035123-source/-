@@ -249,13 +249,16 @@ def to_html(project: dict) -> str:
     sign = (f"<table class='sign'><tr><th>전임자</th><td>{e(project.get('from_name', ''))} {e(h.get('from_signed_at', ''))}</td>"
             f"<th>후임자</th><td>{e(project.get('to_name', ''))} {e(h.get('to_signed_at', ''))}</td></tr></table>")
     return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>{e(project.get('name', '인수인계서'))}</title>
-<style>body{{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;max-width:860px;margin:32px auto;padding:0 16px;line-height:1.6;color:#111}}
-h1{{font-size:24px;border-bottom:3px solid #1f3a8a;padding-bottom:8px}}h2{{font-size:17px;margin-top:28px;color:#1f3a8a}}
-table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #bbb;padding:6px 8px;font-size:14px;text-align:left}}th{{background:#eef2fb;width:150px}}
-li{{margin:4px 0}}sup{{color:#1f3a8a}}.tag{{font-size:11px;border-radius:4px;padding:1px 5px;background:#eee}}.official{{background:#dcfce7}}.memo{{background:#fef3c7}}
-.mail{{background:#dbeafe}}.oral{{background:#ede9fe}}.refs{{font-size:12px;color:#444}}.sign{{margin-top:32px}}dt{{font-weight:bold;margin-top:8px}}
+<style>body{{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;max-width:860px;margin:32px auto;padding:0 16px;line-height:1.7;color:#26221d}}
+h1,h2{{font-family:'Nanum Myeongjo','바탕',Batang,AppleMyungjo,serif}}
+h1{{font-size:25px;padding-bottom:10px;border-bottom:3px double #26221d;margin-bottom:6px}}
+.danchung{{height:6px;margin:0 0 18px;background:repeating-linear-gradient(90deg,#1f4e79 0 22px,#2f6f62 22px 30px,#d9a441 30px 36px,#b23a2e 36px 52px,#f4ead6 52px 56px)}}
+h2{{font-size:17px;margin-top:28px;color:#16385a;border-left:5px solid #b23a2e;padding-left:8px}}
+table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #bfae8a;padding:6px 8px;font-size:14px;text-align:left}}th{{background:#f3ead7;width:150px}}
+li{{margin:4px 0}}sup{{color:#b23a2e}}.tag{{font-size:11px;border-radius:3px;padding:1px 5px;background:#efe6d3}}.official{{background:#e1eee8}}.memo{{background:#f8ecd2}}
+.mail{{background:#e2edf5}}.oral{{background:#efe3ee}}.refs{{font-size:12px;color:#5a4c38}}.sign{{margin-top:32px}}dt{{font-weight:bold;margin-top:8px}}
 @media print{{body{{margin:0}}}}</style></head><body>
-<h1>{e(project.get('title') or '업무 인수인계서')} – {e(project.get('name', ''))}</h1><table>{rows}</table>{''.join(body)}{sign}</body></html>"""
+<h1>{e(project.get('title') or '업무 인수인계서')} – {e(project.get('name', ''))}</h1><div class="danchung"></div><table>{rows}</table>{''.join(body)}{sign}</body></html>"""
 
 
 # ───────────── 내 일정으로 내보내기(.ics): Outlook·그룹웨어·휴대폰 달력에 반복 일정으로 등록
