@@ -154,8 +154,29 @@ GLOSSARY = {
 }
 
 
-def manual_blocks(project: dict) -> list:
-    """후임자 업무매뉴얼: 첫 주 할 일, 12개월 일정, 기한순 현안, 연락망, 노하우, 용어 풀이."""
+def _due_date(meta: dict, start):
+    """현안 기한 정보 → 착임일 기준 실제 날짜(연도 없으면 착임일 이후 가장 가까운 해)."""
+    import datetime as dt
+
+    d = (meta or {}).get("due_meta")
+    if not d or not d.get("month"):
+        return None
+    day = d.get("day") or {"초": 5, "중순": 15, "말": 25}.get(d.get("part", ""), 28)
+    for y in ([d["year"]] if d.get("year") else [start.year, start.year + 1]):
+        try:
+            c = dt.date(y, d["month"], min(day, 28 if d["month"] == 2 else 30 if d["month"] in (4, 6, 9, 11) else 31))
+        except ValueError:
+            continue
+        if d.get("year") or c >= start - dt.timedelta(days=31):
+            return c
+    return None
+
+
+def manual_blocks(project: dict, start: str | None = None, level: str = "new") -> list:
+    """후임자 업무매뉴얼: 첫 주 할 일, 착임월부터 12개월 일정, 기한순 현안, 연락망, 노하우, (처음이면) 용어 풀이.
+
+    start: 착임일(없으면 인수인계 기준일), level: new(처음 맡는 업무) | exp(유사 업무 경험 있음)
+    """
     import datetime as dt
 
     from .plan import make_plan
@@ -163,17 +184,23 @@ def manual_blocks(project: dict) -> list:
     d = project["draft"]
     live = lambda items: [i for i in items if i["status"] not in ("deleted", "unsupported")]  # noqa: E731
     secs = {s["kind"]: s for s in d["sections"]}
-    base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
+    try:
+        base = dt.date.fromisoformat(start or project.get("base_date") or dt.date.today().isoformat())
+    except ValueError:
+        base = dt.date.today()
     plan = make_plan(d, project["docs"], base, horizon=60)
     to = project.get("to_name") or "후임자"
+    lv = "처음 맡는 업무 – 용어 풀이 포함" if level != "exp" else "유사 업무 경험 있음 – 기본 설명 생략"
     B = [("title", f"후임자 업무매뉴얼 – {project.get('name', '')}"),
-         ("p", f"**{to}** 님을 위해 {project.get('from_name') or '전임자'}의 업무 자료와 인터뷰 답변으로 만든 매뉴얼입니다. 기준일: {base}"),
+         ("p", f"**{to}** 님을 위해 {project.get('from_name') or '전임자'}의 업무 자료와 인터뷰 답변으로 만든 매뉴얼입니다."),
+         ("table", ["착임일", "경력", "전임자 확인"], [[str(base), lv, (project.get("handover") or {}).get("from_signed_at") or "확인 전 초안"]], [1, 2, 1]),
          ("h1", "1. 담당 업무 한눈에")]
     B += [("bullet", it["text"]) for it in live(secs.get("overview", {}).get("items", []))] or [("p", "(업무분장 자료 없음)")]
 
     B.append(("h1", "2. 첫 주에 할 일"))
     for w in plan["week1"]:
-        B.append(("bullet", f"[{w['type']}] {w['title']}" + (f" – {w['hint']}" if w.get("hint") else "")))
+        hint = w.get("hint") or ""
+        B.append(("bullet", f"[{w['type']}] {w['title']}" + (f" – {hint}" if hint and hint[:15] not in w["title"] else "")))
     soon = [t for t in plan["timeline"] if t["dday"] <= 30]
     if soon:
         B.append(("h2", "30일 안에 다가오는 일정"))
@@ -181,27 +208,38 @@ def manual_blocks(project: dict) -> list:
                   [[f"D-{t['dday']}", t["date"] + (" (대략)" if t["approx"] else ""), re.sub(r"^\[[^\]]*\]\s*", "", t["title"])]
                    for t in soon], [1, 2, 7]))
 
-    B.append(("h1", "3. 월별 업무 달력"))
+    B.append(("h1", "3. 착임월부터 12개월 일정"))
     cal = live(secs.get("calendar", {}).get("items", []))
     rows = []
     routine = [re.sub(r"^\[[^\]]*\]\s*", "", i["text"]) for i in cal if i["meta"].get("recur") in ("monthly", "quarterly")]
     if routine:
         rows.append(["매월·분기", "\n".join(routine)])
-    for mth in range(1, 13):
+    for mth in [(base.month - 1 + k) % 12 + 1 for k in range(12)]:
         its = sorted((i for i in cal if i["meta"].get("month") == mth and i["meta"].get("recur") not in ("monthly", "quarterly")),
                      key=lambda i: i["meta"].get("day") or 15)
         if its:
-            rows.append([f"{mth}월", "\n".join(("★ " if i["meta"].get("deadline") else "") + i["text"] for i in its)])
+            rows.append([f"{mth}월", "\n".join(("★ " if i["meta"].get("deadline") else "") + i["text"]
+                                                + (f" ({i['meta']['timing']})" if i["meta"].get("timing") else "") for i in its)])
     B.append(("table", ["시기", "할 일 (★ 기한)"], rows, [1, 8]) if rows else ("p", "(일정 없음)"))
 
-    B.append(("h1", "4. 진행 중인 현안"))
+    B.append(("h1", "4. 진행 중인 현안 (기한 순)"))
     iss = live(secs.get("issues", {}).get("items", []))
-    B.append(("table", ["현안", "상태", "다음 할 일"],
-              [[i["text"], i["meta"].get("status", ""), i["meta"].get("next", "")] for i in iss], [6, 1, 3]) if iss else ("p", "(없음)"))
+    dated = sorted(((_due_date(i["meta"], base), i) for i in iss), key=lambda x: (x[0] is None, x[0] or base))
+    rows = []
+    for when, i in dated:
+        left = "기한 없음" if not when else ("기한 지남" if when < base else f"D-{(when - base).days}")
+        rows.append([i["text"], i["meta"].get("status", ""), left, i["meta"].get("next", "")])
+    B.append(("table", ["현안", "상태", "남은 기간", "다음 할 일"], rows, [5, 1.2, 1.2, 3]) if rows else ("p", "(없음)"))
 
-    B.append(("h1", "5. 연락망"))
-    ppl = live(secs.get("people", {}).get("items", []))
-    B += [("bullet", i["text"]) for i in ppl] or [("p", "(없음)")]
+    B.append(("h1", "5. 꼭 알아둘 연락처"))
+    people = (d.get("facts") or {}).get("people", [])
+    if people:
+        B.append(("table", ["이름", "소속·직위", "연락처", "관련 업무"],
+                  [[p["name"], " ".join(x for x in (p.get("org"), p.get("title")) if x),
+                    ", ".join(p["tels"] + p["emails"]) + (" ※번호 변경 메모 있음" if p.get("changed") else ""), ", ".join(p["topics"][:3])]
+                   for p in people], [1.2, 2, 2.5, 3]))
+    else:
+        B.append(("p", "(없음)"))
 
     B.append(("h1", "6. 자료·시스템과 노하우"))
     for i in live(secs.get("resources", {}).get("items", [])) + live(secs.get("tips", {}).get("items", [])):
@@ -217,7 +255,7 @@ def manual_blocks(project: dict) -> list:
 
     corpus = " ".join(c["text"] for c in project["chunks"])
     terms = [(t, v) for t, v in GLOSSARY.items() if t in corpus]
-    if terms:
+    if terms and level != "exp":  # 유사 업무 경험자에게는 용어 풀이를 생략
         B.append(("h1", "8. 용어 풀이"))
         B.append(("table", ["용어", "뜻"], [[t, v] for t, v in terms], [1, 4]))
     B.append(("note", "※ 업무바통이 인수인계 자료로 자동 작성했습니다. 날짜·연락처는 근거 원문으로 한 번 더 확인하세요."))

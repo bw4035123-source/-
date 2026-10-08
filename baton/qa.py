@@ -125,8 +125,42 @@ def ask_people(project: dict, question: str) -> dict | None:
     return {"answer": "연락망에서 찾았습니다.\n" + "\n".join(lines), "sources": list(dict.fromkeys(srcs)), "found": True, "mode": "people"}
 
 
+RE_URGENT_Q = re.compile(r"급한|급하|시급|우선|먼저\s*(해야|할)|당장|밀린|지난\s*기한|기한\s*지난")
+
+
+def ask_urgent(project: dict, question: str) -> dict | None:
+    """'급한 현안 알려줘' → 기한 지남·불일치 + 기한이 가까운 현안 순."""
+    if not RE_URGENT_Q.search(question) or not project.get("draft"):
+        return None
+    import datetime as dt
+
+    from .export import _due_date
+
+    base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
+    secs = {s["kind"]: s for s in project["draft"]["sections"]}
+    lines, srcs = [], []
+    for it in _live(secs.get("checks", {}).get("items", [])):
+        if it["meta"].get("type") in ("overdue", "conflict", "contact") and not it["meta"].get("resolved"):
+            lines.append(f"• {it['text']}" + (f" [{it['sources'][0]}]" if it["sources"] else ""))
+            srcs += it["sources"][:1]
+    dated = []
+    for it in _live(secs.get("issues", {}).get("items", [])):
+        when = _due_date(it["meta"], base)
+        if when and (when - base).days <= 30:
+            dated.append((when, it))
+    for when, it in sorted(dated, key=lambda x: x[0]):
+        left = "기한 지남" if when < base else f"D-{(when - base).days}"
+        lines.append(f"• [{left}] {it['text']}" + (f" → {it['meta']['next']}" if it["meta"].get("next") and it["meta"]["next"] not in it["text"] else "")
+                     + f" [{it['sources'][0]}]")
+        srcs += it["sources"][:1]
+    if not lines:
+        return {"answer": f"기준일({base}) 기준으로 30일 안에 급한 현안은 자료에 없습니다.", "sources": [], "found": True, "mode": "calendar"}
+    return {"answer": f"기준일({base}) 기준으로 먼저 챙길 일입니다.\n" + "\n".join(lines[:10]),
+            "sources": list(dict.fromkeys(srcs)), "found": True, "mode": "calendar"}
+
+
 def ask(project: dict, question: str, client) -> dict:
-    for special in (ask_schedule, ask_month, ask_people):
+    for special in (ask_urgent, ask_schedule, ask_month, ask_people):
         res = special(project, question)
         if res:
             return res

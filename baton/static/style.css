@@ -86,11 +86,11 @@ label.f{display:block;font-size:13px;color:var(--muted);margin:8px 0 3px}
 
 /* ── 탭: 책갈피 */
 .tabs{display:flex;gap:2px;flex-wrap:wrap;margin:16px 0 18px;border-bottom:2px solid var(--line-strong)}
-.tab{border:1px solid transparent;border-bottom:0;background:none;padding:8px 13px;margin-bottom:-2px;cursor:pointer;color:var(--muted);font-weight:700;border-radius:4px 4px 0 0}
+.tab{border:1px solid transparent;border-bottom:0;background:none;padding:8px 7px;font-size:14px;white-space:nowrap;margin-bottom:-2px;cursor:pointer;color:var(--muted);font-weight:700;border-radius:4px 4px 0 0}
 .tab:hover{color:var(--ink);background:rgba(255,255,255,.5)}
 .tab.on{color:var(--brand-ink);background:var(--card);border-color:var(--line-strong);border-top:3px solid var(--seal)}
-.tab .cnt{font-size:11px;background:#ead9b5;border-radius:3px;padding:0 6px;margin-left:5px;color:#5a4c38}
-.role{font-size:11px;color:#a08e6d;align-self:center;margin:0 4px 0 10px;font-family:var(--serif)}
+.tab .cnt{font-size:11px;background:#ead9b5;border-radius:3px;padding:0 6px;margin-left:3px;color:#5a4c38}
+.role{font-size:11px;color:#a08e6d;align-self:center;margin:0 2px 0 6px;font-family:var(--serif)}
 .progress{height:8px;background:#ebe0c9;border-radius:2px;overflow:hidden}
 .progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--ok));transition:width .3s}
 
@@ -218,3 +218,16 @@ table.tbl th{color:#5a4c38;font-weight:700;font-size:13px;background:#f3ead7;bor
 
 footer.foot{max-width:1180px;margin:0 auto;padding:0 16px 30px;color:#a08e6d;font:12px var(--serif);text-align:center}
 @media print{body{background:#fff}.topbar,.tabs,.acts,.drawer,.btn{display:none!important}main{padding:0}.card::before{display:none}}
+
+/* ── 확인 필요·요약·달력 꼬리표 */
+.sev-상{background:var(--bad);color:#fff}.sev-중{background:var(--warn);color:#fff}.sev-하{background:#a08e6d;color:#fff}
+.check-item{padding:10px 4px;border-top:1px solid var(--line)}.check-item:first-of-type{border-top:0}
+.check-item.done{opacity:.85}
+.mini-stat{display:flex;flex-direction:column;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:4px;background:#fffaf0;color:var(--ink);text-decoration:none}
+.mini-stat b{font:800 26px/1.1 var(--serif);color:var(--brand-ink)}.mini-stat span{font-size:13px;color:var(--muted)}
+.mini-stat:hover{border-color:var(--seal)}
+.chip.past{opacity:.6}
+.chip em{font-style:normal;font-size:11px;margin-left:6px;padding:0 5px;border-radius:3px;background:#e9dfc8;color:#5a4c38}
+.badge.timing-기한지남,.chip em.timing-기한지남{background:var(--bad);color:#fff}
+.badge.timing-후속조치확인,.chip em.timing-후속조치확인{background:var(--warn-soft);color:#7a4f0d}
+.badge.timing-완료,.chip em.timing-완료{background:var(--ok-soft);color:#24574d}

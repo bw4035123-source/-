@@ -106,6 +106,18 @@ function highlight(el, text, words) {
   const re = new RegExp("(" + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "g");
   for (const part of text.split(re)) el.append(words.includes(part) ? h("mark", {}, part) : document.createTextNode(part));
 }
+async function openDoc(p, docId) {
+  const d = $("#drawer"), body = $("#drawerBody");
+  body.replaceChildren(h("div", { class: "muted" }, h("span", { class: "spin" }), " 불러오는 중"));
+  d.classList.add("open"); d.setAttribute("aria-hidden", "false");
+  const r = await api(`/api/projects/${p.id}/docs/${docId}`);
+  $("#drawerTitle").textContent = r.doc.file.split("/").pop();
+  body.replaceChildren(
+    h("dl", { class: "kv" }, h("dt", {}, "파일"), h("dd", {}, r.doc.file), h("dt", {}, "자료 성격"), h("dd", {}, r.doc.kind_label || ""),
+      h("dt", {}, "가린 민감정보"), h("dd", {}, `${r.doc.masked || 0}건`), h("dt", {}, "원본 지문"), h("dd", { class: "tiny muted" }, (r.doc.sha256 || "").slice(0, 24) + "…")),
+    ...r.chunks.map((c) => h("div", { style: "margin-bottom:10px" }, h("div", { class: "tiny muted" }, `${c.id} · ${c.where}`), h("div", { class: "quote" }, c.text))),
+    h("p", { class: "tiny muted" }, "※ 분석에 쓴 텍스트 그대로입니다(민감정보는 가림)."));
+}
 function closeDrawer() { const d = $("#drawer"); d.classList.remove("open"); d.setAttribute("aria-hidden", "true"); }
 function srcChips(sources, hint) {
   const idx = (S.project && S.project.chunk_index) || {};
@@ -162,6 +174,8 @@ async function viewHome() {
   let mode = "folder";
   const fileInput = h("input", { type: "file", webkitdirectory: true, multiple: true, style: "display:none" });
   const fileInfo = h("div", { class: "small muted" }, "선택된 폴더 없음");
+  const docsysUrl = h("input", { placeholder: "예) https://docs.기관.go.kr/api" });
+  const docsysOwner = h("input", { value: "김도윤", placeholder: "예) 김도윤" });
   const pathInput = h("input", { placeholder: "예) C:\\Users\\me\\Documents\\인수인계자료  또는  /home/me/업무" });
   const prog = h("div", { class: "progress", style: "display:none;margin-top:10px" }, h("i", { style: "width:0" }));
   fileInput.onchange = () => {
@@ -173,6 +187,11 @@ async function viewHome() {
     folder: h("div", {}, h("div", { class: "drop" }, h("p", { class: "small" }, "전임자 업무 폴더를 통째로 선택하세요. 한글·PDF·엑셀·워드·메일(eml)·메모가 섞여 있어도 됩니다."),
       h("button", { class: "btn", onclick: () => fileInput.click() }, "📁 폴더 선택"), fileInput, fileInfo)),
     path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(원본은 읽기만 하고 복사하지 않음)"), pathInput),
+    docsys: h("div", {},
+      h("p", { class: "small muted" }, "기관 문서관리시스템(온나라 등) API에서 전임자의 문서를 받아옵니다. 지금은 시연용 모의 문서시스템에 연결합니다(실제 구축 시 주소만 바꿈)."),
+      h("div", { class: "grid g2" },
+        h("div", {}, h("label", { class: "f" }, "문서시스템 주소(비우면 모의 API)"), docsysUrl),
+        h("div", {}, h("label", { class: "f" }, "문서 작성자(전임자)"), docsysOwner))),
     demo: h("div", {},
       h("label", { class: "check" }, h("input", { type: "radio", name: "sample", value: "security", checked: true }),
         h("div", {}, h("b", {}, "정보보안·정보화예산 담당 (가상시 스마트정보과)"), h("div", { class: "tiny muted" }, "공문 PDF·계획 HWPX·사무분장 엑셀·회의록·메일 4통·개인 메모·이전 담당자 바통 파일"))),
@@ -181,7 +200,7 @@ async function viewHome() {
       h("p", { class: "tiny muted" }, "모든 인물·기관·연락처는 가상입니다.")),
   };
   const paneBox = h("div", {}, panes.folder);
-  const modeBtns = [["folder", "📁 폴더 올리기"], ["path", "🖥 PC 경로"], ["demo", "✨ 샘플로 체험"]].map(([k, label]) =>
+  const modeBtns = [["folder", "📁 폴더 올리기"], ["path", "🖥 PC 경로"], ["docsys", "🗂 문서시스템 연계"], ["demo", "✨ 샘플로 체험"]].map(([k, label]) =>
     h("button", { class: "tab" + (k === mode ? " on" : ""), onclick: (e) => { mode = k; paneBox.replaceChildren(panes[k]); modeBtns.forEach((b) => b.classList.remove("on")); e.target.classList.add("on"); } }, label));
   const startBtn = h("button", { class: "btn primary", onclick: start }, "바통 받을 준비 시작 →");
 
@@ -190,7 +209,8 @@ async function viewHome() {
     startBtn.disabled = true;
     try {
       let res;
-      if (mode === "demo") res = await api("/api/projects/demo", { method: "POST", json: { sample: (document.querySelector("input[name=sample]:checked") || {}).value || "security" } });
+      if (mode === "docsys") res = await api("/api/projects/docsystem", { method: "POST", json: { ...meta, base_url: docsysUrl.value.trim(), owner: docsysOwner.value.trim() } });
+      else if (mode === "demo") res = await api("/api/projects/demo", { method: "POST", json: { sample: (document.querySelector("input[name=sample]:checked") || {}).value || "security" } });
       else if (mode === "path") {
         if (!pathInput.value.trim()) { toast("폴더 경로를 입력하세요"); return; }
         res = await api("/api/projects/path", { method: "POST", json: { ...meta, path: pathInput.value.trim() } });
@@ -248,9 +268,9 @@ async function viewHome() {
 
 // ───────────── 인수인계 건 화면
 const TABS = [
-  ["docs", "① 자료", "전임자"], ["review", "② 초안 검수", "전임자"], ["interview", "③ 암묵지 인터뷰", "전임자"],
-  ["calendar", "④ 업무 달력", "후임자"], ["map", "⑤ 협업 지도", "후임자"], ["ask", "⑥ 질문하기", "후임자"], ["plan", "⑦ 첫 30일", "후임자"],
-  ["handover", "⑧ 바통 터치", "함께"],
+  ["docs", "① 자료", "전임자"], ["review", "② 초안 검수", "전임자"], ["checks", "③ 확인 필요", "전임자"], ["interview", "④ 암묵지 인터뷰", "전임자"],
+  ["calendar", "⑤ 업무 달력", "후임자"], ["map", "⑥ 협업 지도", "후임자"], ["ask", "⑦ 질문하기", "후임자"], ["plan", "⑧ 첫 30일·매뉴얼", "후임자"],
+  ["handover", "⑨ 바통 터치", "함께"],
 ];
 async function viewProject(pid, tab) {
   const p = await api(`/api/projects/${pid}`);
@@ -281,7 +301,8 @@ async function viewProject(pid, tab) {
   const live = allItems.filter((i) => i.status !== "deleted");
   const verified = live.filter((i) => ["verified", "edited"].includes(i.status)).length;
   const openQ = d.questions.filter((q) => q.status === "open").length;
-  const counts = { review: `${verified}/${live.length}`, interview: openQ ? String(openQ) : "✓" };
+  const chk = (d.sections.find((s) => s.kind === "checks") || { items: [] }).items.filter((i) => i.status !== "deleted" && !(i.meta || {}).resolved);
+  const counts = { review: `${verified}/${live.length}`, checks: chk.length ? String(chk.length) : "✓", interview: openQ ? String(openQ) : "✓" };
   let lastRole = "";
   const tabs = h("nav", { class: "tabs" }, TABS.map(([k, label, role]) => {
     const out = [];
@@ -291,7 +312,7 @@ async function viewProject(pid, tab) {
   }));
   const body = h("div");
   mount(head, tabs, body);
-  const views = { docs: tabDocs, review: tabReview, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, handover: tabHandover };
+  const views = { docs: tabDocs, review: tabReview, checks: tabChecks, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, handover: tabHandover };
   await (views[tab] || tabDocs)(body, p);
 }
 async function refresh() { const p = await api(`/api/projects/${S.project.id}`); S.project = p; return p; }
@@ -322,12 +343,13 @@ function tabDocs(el, p) {
           await api(`/api/projects/${p.id}/draft`, { method: "POST", json: { profile: models.value } }); route();
         } }, "↻ 이 모델로 초안 다시 만들기"))),
       h("table", { class: "tbl" },
-        h("tr", {}, h("th", {}, "성격"), h("th", {}, "파일"), h("th", {}, "요약"), h("th", {}, "조각"), h("th", {}, "가림")),
+        h("tr", {}, h("th", {}, "성격"), h("th", {}, "파일"), h("th", {}, "요약"), h("th", {}, "조각"), h("th", {}, "가림"), h("th", {}, "")),
         p.docs.map((d) => h("tr", {},
           h("td", {}, h("span", { class: "badge " + (KIND[d.kind] || ["", "t-none"])[1] }, d.error ? "읽기 실패" : (KIND[d.kind] || [d.kind])[0])),
           h("td", {}, h("div", {}, d.file), h("div", { class: "tiny muted" }, `${(d.info && d.info.format) || d.ext} · ${Math.round(d.size / 1024)}KB · ${d.mtime}`)),
           h("td", { class: "small" }, d.error ? h("span", { class: "bad-t" }, d.error) : ((cards[d.id] && cards[d.id].summary) || d.preview || "").slice(0, 160)),
-          h("td", {}, d.n_chunks), h("td", {}, d.masked ? h("span", { class: "badge t-memo" }, d.masked) : "-"))))),
+          h("td", {}, d.n_chunks), h("td", {}, d.masked ? h("span", { class: "badge t-memo" }, d.masked) : "-"),
+          h("td", {}, d.n_chunks ? h("button", { class: "btn sm", onclick: () => openDoc(p, d.id) }, "내용 보기") : null))))),
     p.skipped && p.skipped.length ? h("div", { class: "card", style: "margin-top:12px" }, h("h3", {}, `제외된 파일 ${p.skipped.length}개`),
       h("div", { class: "small muted" }, p.skipped.map((s) => `${s.file} (${s.reason})`).join(" · "))) : null,
     p.draft.warnings && p.draft.warnings.length ? h("div", { class: "alert warn", style: "margin-top:12px" }, p.draft.warnings.join(" / ")) : null,
@@ -356,7 +378,21 @@ function tabReview(el, p) {
     }),
     h("hr", { style: "border:0;border-top:1px solid var(--line)" }),
     h("div", { class: "legend", style: "flex-direction:column;gap:4px" }, Object.values(TRUST).map((t) => h("span", {}, h("i", { class: "dot", style: `background:${t[2]}` }), " ", t[0]))));
-  const main = h("div", {},
+  const cnt = (k) => ((d.sections.find((s) => s.kind === k) || { items: [] }).items.filter((i) => i.status !== "deleted").length);
+  const kinds = {};
+  p.docs.forEach((x) => (kinds[x.kind_label || x.kind] = (kinds[x.kind_label || x.kind] || 0) + 1));
+  const who = (p.from_name || (d.facts.me && d.facts.me.name) || "전임자");
+  const summary = h("div", { class: "card", style: "margin-bottom:14px" },
+    h("div", { class: "grid g4", style: "grid-template-columns:repeat(5,minmax(0,1fr))" },
+      [["overview", "담당 업무"], ["calendar", "일정"], ["people", "연락처"], ["issues", "현안"], ["checks", "확인 필요"]].map(([k, l]) =>
+        h("a", { class: "mini-stat", href: k === "checks" ? `#/p/${p.id}/checks` : "javascript:void 0", onclick: k === "checks" ? null : () => { const e = document.getElementById("sec-" + k); if (e) e.scrollIntoView({ behavior: "smooth" }); } },
+          h("b", {}, cnt(k)), h("span", {}, l)))),
+    h("p", { class: "small", style: "margin:12px 0 6px" }, `${who}의 업무자료 ${p.docs.length}건(${Object.entries(kinds).map(([k, v]) => `${k} ${v}`).join(", ")})에서 담당 업무 ${cnt("overview")}건, 일정 ${cnt("calendar")}건, 연락처 ${cnt("people")}명, 현안 ${cnt("issues")}건을 찾았습니다. 확인이 필요한 사항은 ${cnt("checks")}건입니다.`),
+    h("div", { class: "row" }, h("span", { class: "small muted" }, "인수인계서 내려받기:"),
+      h("a", { class: "btn sm primary", href: `/api/projects/${p.id}/export?fmt=hwpx` }, "한글(HWPX)"),
+      h("a", { class: "btn sm", href: `/api/projects/${p.id}/export?fmt=docx` }, "워드(DOCX)"),
+      h("a", { class: "btn sm", href: `/api/projects/${p.id}/export?fmt=md` }, "마크다운")));
+  const main = h("div", {}, summary,
     h("div", { class: "card", style: "margin-bottom:14px" },
       h("div", { class: "row between" }, h("b", {}, `전임자 검수 진행률 ${live.length ? Math.round(100 * done / live.length) : 0}%`), h("span", { class: "small muted" }, `${done}/${live.length} 항목 확인`)),
       h("div", { class: "progress", style: "margin-top:6px" }, h("i", { style: `width:${live.length ? 100 * done / live.length : 0}%` })),
@@ -388,12 +424,14 @@ function itemRow(it, p) {
   if (meta.next) extra.push(h("span", { class: "badge t-memo" }, "다음 할 일: " + meta.next));
   if (meta.due) extra.push(h("span", { class: "badge t-none" }, "기한: " + meta.due));
   if (meta.resolved) extra.push(h("span", { class: "badge t-oral" }, "전임자 확인: " + meta.resolved));
+  if (meta.timing) extra.push(h("span", { class: "badge timing-" + meta.timing.replace(/\s/g, "") }, meta.timing));
   const related = (meta.related || []).length ? h("div", { class: "tiny muted" }, "관련: " + meta.related.map((r) => r.slice(0, 50)).join(" / ")) : null;
   const row = h("div", { class: `item ${it.status}` },
-    h("i", { class: "dot light", style: `background:${it.status === "unsupported" ? TRUST.none[2] : t[2]}`, title: t[0] }),
+    h("i", { class: "dot light", style: `background:${it.status === "unsupported" ? TRUST.none[2] : meta.type === "missing" ? "#a08e6d" : t[2]}`, title: t[0] }),
     h("div", { class: "body" }, text, related,
       h("div", { class: "row", style: "gap:4px;margin-top:2px" },
-        h("span", { class: "status s-" + it.status }, STATUS[it.status] || it.status), h("span", { class: "tiny muted" }, ORIGIN[it.origin] || ""), trustBadge(it.status === "unsupported" ? "none" : it.trust), extra),
+        h("span", { class: "status s-" + it.status }, STATUS[it.status] || it.status), h("span", { class: "tiny muted" }, ORIGIN[it.origin] || ""),
+        meta.type === "missing" ? h("span", { class: "badge sev-하" }, "누락 점검") : trustBadge(it.status === "unsupported" ? "none" : it.trust), extra),
       h("div", {}, srcChips(it.sources, it.text))),
     h("div", { class: "acts" },
       it.status !== "verified" && it.status !== "deleted" ? h("button", { class: "btn sm", title: "확인", onclick: () => patch({ status: "verified" }) }, "✔") : null,
@@ -410,7 +448,50 @@ function itemRow(it, p) {
   return row;
 }
 
-// ③ 암묵지 인터뷰
+// ③ 확인 필요: 충돌·기한 지남·연락처 변경·불확실·결론 미정·누락을 종류별로 모아 처리 메모와 함께 정리
+const CHECK_GROUPS = [
+  ["conflict", "충돌", "자료끼리 날짜·내용이 다름"], ["overdue", "기한 지남", "해야 할 일인데 기준일에 이미 지남"],
+  ["contact", "연락처 변경", "번호가 바뀌었다는 메모가 있음"], ["uncertain", "불확실", "‘아마·미정·~로 알고 있음’ 같은 표현"],
+  ["open", "결론 미정", "협의는 있는데 결론이 자료에 없음"], ["missing", "누락", "연락처·기한·일정 등이 빠짐"],
+  ["memo_only", "메모에만 있음", "공식 문서로 확인되지 않은 내용"],
+];
+function tabChecks(el, p) {
+  const sec = p.draft.sections.find((s) => s.kind === "checks");
+  if (!sec) return add(el, h("div", { class: "empty" }, "양식에서 ‘확인이 필요한 사항’ 항목이 꺼져 있습니다."));
+  const items = sec.items.filter((i) => i.status !== "deleted");
+  const left = items.filter((i) => !i.meta.resolved).length;
+  const qBySrc = (it) => p.draft.questions.find((q) => q.status === "open" && (q.sources || []).some((x) => it.sources.includes(x)));
+  add(el,
+    h("div", { class: "card", style: "margin-bottom:14px" },
+      h("div", { class: "row between" }, h("h2", { style: "margin:0" }, `확인이 필요한 사항 · ${left}건 남음`),
+        h("div", { class: "legend" }, ["상", "중", "하"].map((sv) => h("span", { class: "badge sev-" + sv }, `중요도 ${sv}`)))),
+      h("p", { class: "small muted", style: "margin:6px 0 0" }, "전임자가 떠나기 전에 정리해야 할 것들입니다. 확인한 내용을 적고 ‘처리 완료’를 누르면 인수인계서에 ‘전임자 확인’으로 남습니다.")),
+    CHECK_GROUPS.map(([type, label, desc]) => {
+      const list = items.filter((i) => (i.meta.type || "open") === type);
+      if (!list.length) return null;
+      return h("div", { class: "card sec" },
+        h("div", { class: "sec-head" }, h("div", {}, h("h2", { style: "margin:0" }, `${label} `, h("span", { class: "muted small" }, `${list.filter((i) => !i.meta.resolved).length}/${list.length}건`)),
+          h("div", { class: "tiny muted" }, desc))),
+        list.map((it) => {
+          const note = h("input", { placeholder: "처리 내용 (예: 담당 기관에 확인한 결과 ○월 ○일로 확정)" });
+          const q = qBySrc(it);
+          return h("div", { class: "check-item" + (it.meta.resolved ? " done" : "") },
+            h("div", { class: "row between", style: "flex-wrap:nowrap;align-items:flex-start" },
+              h("div", { class: "grow" }, h("span", { class: "badge sev-" + (it.meta.severity || "중") }, it.meta.severity || "중"), " ",
+                h("span", {}, it.text.replace(/^\[[^\]]*\]\s*/, "")), h("div", {}, srcChips(it.sources, it.text)))),
+            it.meta.resolved
+              ? h("div", { class: "alert ok", style: "margin:8px 0 0" }, "✔ 처리 완료", it.meta.resolved !== "처리 완료" ? " – " + it.meta.resolved : "", h("span", { class: "tiny muted" }, `  ${it.meta.resolved_at || ""}`),
+                h("button", { class: "btn sm", style: "margin-left:8px", onclick: async () => { await api(`/api/projects/${p.id}/items/${it.id}`, { method: "PATCH", json: { status: "ai", unresolve: true } }); route(); } }, "되돌리기"))
+              : h("div", { class: "row", style: "margin-top:8px;flex-wrap:nowrap" }, h("div", { class: "grow" }, note),
+                q ? h("a", { class: "btn sm", href: `#/p/${p.id}/interview`, title: q.q }, "인터뷰로 묻기") : null,
+                h("button", { class: "btn primary sm", onclick: async () => {
+                  await api(`/api/projects/${p.id}/items/${it.id}`, { method: "PATCH", json: { resolved: note.value } }); toast("처리 완료로 표시했습니다"); route();
+                } }, "처리 완료")));
+        }));
+    }));
+}
+
+// ④ 암묵지 인터뷰
 function tabInterview(el, p) {
   const qs = p.draft.questions;
   const answered = qs.filter((q) => q.status === "answered").length;
@@ -448,8 +529,10 @@ function tabCalendar(el, p) {
   const toggle = h("label", { class: "small" }, h("input", { type: "checkbox", checked: onlyDeadline, onchange: (e) => { onlyDeadline = e.target.checked; store.set("cal.deadline", onlyDeadline); draw(); } }), " 기한(마감)만 보기");
   function chip(it) {
     const m = it.meta || {};
-    return h("span", { class: "chip" + (m.deadline ? " deadline" : "") + (m.recur === "yearly" ? " yearly" : ""), title: it.text, onclick: () => it.sources[0] && openSource(it.sources[0], it.text) },
-      m.recur === "yearly" ? "🔁 " : "", m.day ? `${m.day}일 ` : (m.part ? `${m.part} ` : ""), it.text.replace(/^\[[^\]]*\]\s*/, "").slice(0, 60));
+    const past = ["지난 일", "완료"].includes(m.timing);
+    return h("span", { class: "chip" + (m.deadline && !past ? " deadline" : "") + (m.recur === "yearly" ? " yearly" : "") + (past ? " past" : ""), title: it.text, onclick: () => it.sources[0] && openSource(it.sources[0], it.text) },
+      m.recur === "yearly" ? "🔁 " : "", m.day ? `${m.day}일 ` : (m.part ? `${m.part} ` : ""), it.text.replace(/^\[[^\]]*\]\s*/, "").slice(0, 60),
+      m.timing ? h("em", { class: "timing-" + m.timing.replace(/\s/g, "") }, m.timing) : null);
   }
   function draw() {
     const list = items.filter((i) => !onlyDeadline || (i.meta && i.meta.deadline));
@@ -523,7 +606,7 @@ function tabAsk(el, p) {
   const nextMonth = (new Date(p.base_date).getMonth() + 1) % 12 + 1;
   const ppl = (p.draft.facts && p.draft.facts.people) || [];
   const topic = ppl.find((x) => x.topics && x.topics[0] && x.topics[0].length >= 4);
-  const ideas = ["이번 달 기한이 있는 일은?", `${nextMonth}월에 할 일 알려줘`,
+  const ideas = ["급한 현안 알려줘", "이번 달 기한이 있는 일은?", `${nextMonth}월에 할 일 알려줘`,
     ppl[0] ? `${ppl[0].name} 연락처` : null,
     topic ? `${topic.topics[0].replace(/^\[[^\]]*\]\s*/, "").slice(0, 14)} 누구랑 협의해?` : null,
     "양식이나 자료는 어디에 있어?", "가장 주의해야 할 점은?"].filter(Boolean);
@@ -571,9 +654,25 @@ async function tabPlan(el, p) {
   const check = (id, title, hint, sources) => h("label", { class: "check" },
     h("input", { type: "checkbox", checked: !!done[id], onchange: (e) => { done[id] = e.target.checked; store.set(key, done); } }),
     h("div", {}, h("div", {}, title), hint ? h("div", { class: "tiny muted" }, hint) : null, h("div", {}, srcChips(sources, title))));
-  add(el, h("div", { class: "alert info row between" }, h("span", {}, `📅 기준일 ${plan.base} 부터 60일 안에 다가오는 일정과 첫 주에 할 일입니다. 체크 표시는 이 브라우저에 저장됩니다.`),
-      h("span", { class: "row" }, h("a", { class: "btn primary sm", href: `/api/projects/${p.id}/export?fmt=hwpx&doc=manual` }, "📘 업무매뉴얼 한글로 받기"),
-        h("a", { class: "btn sm", href: `/api/projects/${p.id}/export?fmt=docx&doc=manual` }, "Word"))),
+  const startIn = h("input", { type: "date", value: store.get(`start.${p.id}`, p.base_date), style: "width:auto" });
+  const lvNew = h("input", { type: "radio", name: "lv", value: "new", checked: store.get(`lv.${p.id}`, "new") === "new" });
+  const lvExp = h("input", { type: "radio", name: "lv", value: "exp", checked: store.get(`lv.${p.id}`, "new") === "exp" });
+  const dl = (fmt) => () => {
+    const lv = lvExp.checked ? "exp" : "new";
+    store.set(`start.${p.id}`, startIn.value); store.set(`lv.${p.id}`, lv);
+    location.href = `/api/projects/${p.id}/export?fmt=${fmt}&doc=manual&start=${encodeURIComponent(startIn.value)}&level=${lv}`;
+  };
+  add(el, h("div", { class: "card", style: "margin-bottom:14px" },
+      h("div", { class: "row between" },
+        h("div", {}, h("h2", { style: "margin:0" }, "📘 후임자 맞춤형 업무매뉴얼"),
+          h("div", { class: "small muted" }, "착임일부터 12개월 일정, 기한 순 현안(D-day), 꼭 알아둘 연락처, 노하우를 담습니다. 처음 맡는 업무면 용어 풀이도 넣습니다.")),
+        h("div", { class: "row" },
+          h("label", { class: "small" }, "착임일 ", startIn),
+          h("label", { class: "small" }, lvNew, " 처음 맡는 업무"), h("label", { class: "small" }, lvExp, " 유사 업무 경험 있음"))),
+      h("div", { class: "row", style: "margin-top:10px;justify-content:flex-end" },
+        h("button", { class: "btn primary", onclick: dl("hwpx") }, "한글(HWPX)로 만들기"), h("button", { class: "btn", onclick: dl("docx") }, "워드(DOCX)"),
+        h("button", { class: "btn", onclick: dl("md") }, "마크다운"))),
+    h("div", { class: "alert info" }, `📅 기준일 ${plan.base} 부터 60일 안에 다가오는 일정과 첫 주에 할 일입니다. 체크 표시는 이 브라우저에 저장됩니다.`),
     h("div", { class: "grid g2" },
       h("div", { class: "card" }, h("h2", {}, "다가오는 일정"),
         plan.timeline.length ? h("div", { class: "tl" }, plan.timeline.map((t) => h("div", { class: "tl-item" + (t.deadline ? " deadline" : "") },

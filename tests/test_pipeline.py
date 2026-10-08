@@ -88,7 +88,8 @@ class TestOfflineDraft(unittest.TestCase):
         self.assertTrue(kinds["calendar"]["items"] and kinds["issues"]["items"] and kinds["tips"]["items"])
         for s in d["sections"]:
             for it in s["items"]:
-                self.assertTrue(it["sources"], it)  # 규칙엔진 항목은 모두 출처가 있어야 함
+                if it["meta"].get("type") != "missing":  # '누락'은 없는 것을 알리는 항목이라 출처가 없음
+                    self.assertTrue(it["sources"], it)  # 규칙엔진 항목은 모두 출처가 있어야 함
         q = next(q for q in d["questions"] if q["type"] == "conflict")
         answer_question(d, q["id"], "도 마감 5/22가 실제 기한")
         conflict_items = [i for i in kinds["checks"]["items"] if i["meta"].get("type") == "conflict"]
@@ -258,6 +259,39 @@ class TestFacilitySample(unittest.TestCase):
         self.assertIn("용어 풀이", man)
         self.assertIn("첫 주에 할 일", man)
 
+    def test_issue_fields_and_urgent(self):
+        iss = next(s for s in self.p["draft"]["sections"] if s["kind"] == "issues")["items"]
+        self.assertTrue(any(i["meta"].get("due") for i in iss))
+        self.assertTrue(any(i["meta"].get("next") for i in iss))
+        a = ask(self.p, "급한 현안 알려줘", OfflineClient())
+        self.assertEqual(a["mode"], "calendar")
+        self.assertIn("기한 지남", a["answer"])
+        self.assertIn("D-", a["answer"])
+        self.assertTrue(a["sources"])
+
+    def test_resolve_and_unresolve(self):
+        import copy
+
+        from baton.draft import update_item
+
+        d = copy.deepcopy(self.p["draft"])
+        chk = next(s for s in d["sections"] if s["kind"] == "checks")["items"][0]
+        update_item(d, chk["id"], resolved="")
+        self.assertEqual(chk["meta"]["resolved"], "처리 완료")
+        update_item(d, chk["id"], unresolve=True)
+        self.assertNotIn("resolved", chk["meta"])
+
+    def test_manual_level_and_start(self):
+        from baton.export import manual_blocks
+
+        p = dict(self.p, name="시설", to_name="이서연")
+        new = " ".join(str(b[1:]) for b in manual_blocks(p, start="2026-11-02", level="new"))
+        exp = " ".join(str(b[1:]) for b in manual_blocks(p, start="2026-11-02", level="exp"))
+        self.assertIn("용어 풀이", new)
+        self.assertNotIn("용어 풀이", exp)
+        self.assertIn("2026-11-02", new)
+        self.assertNotIn("재계약 필요 – 매월", new)  # 첫 주 할 일에 같은 설명 반복 없음
+
 
 class TestServer(unittest.TestCase):
     def test_end_to_end(self):
@@ -284,6 +318,42 @@ class TestServer(unittest.TestCase):
         self.assertIn("근거 목록", md)
         self.assertNotIn("Gasang!2026", json.dumps(c.get(f"/api/projects/{pid}/chunks/S0012").json(), ensure_ascii=False))
         self.assertEqual(c.get(f"/api/projects/{pid}/plan").status_code, 200)
+
+    def test_docsystem(self):
+        from fastapi.testclient import TestClient
+
+        from baton.server import app
+
+        import socket
+        import threading
+
+        import uvicorn
+
+        # 문서시스템 연계는 실제 HTTP로 목록·본문을 받아 오므로 이 테스트만 진짜 서버를 띄운다
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", 0))
+            port = sk.getsockname()[1]
+        srv = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
+        threading.Thread(target=srv.run, daemon=True).start()
+        self.addCleanup(setattr, srv, "should_exit", True)
+        for _ in range(50):
+            if srv.started:
+                break
+            time.sleep(0.1)
+        c = TestClient(app)
+        docs = c.get("/mock-docsystem/documents", params={"owner": "김도윤"}).json()["documents"]
+        self.assertGreaterEqual(len(docs), 8)
+        self.assertTrue(c.get(f"/mock-docsystem/documents/{docs[0]['id']}/content").json())
+        pid = c.post("/api/projects/docsystem", json={"base_url": f"http://127.0.0.1:{port}/mock-docsystem", "owner": "김도윤"}).json()["id"]
+        for _ in range(100):
+            if c.get(f"/api/projects/{pid}/job").json().get("state") in ("done", "error"):
+                break
+            time.sleep(0.2)
+        p = c.get(f"/api/projects/{pid}").json()
+        self.assertEqual(c.get(f"/api/projects/{pid}/job").json()["state"], "done")
+        self.assertEqual(p["from_name"], "김도윤")
+        self.assertGreaterEqual(len(p["docs"]), 8)
+        self.assertEqual(c.get(f"/api/projects/{pid}/docs/{p['docs'][0]['id']}").status_code, 200)
 
 
 if __name__ == "__main__":

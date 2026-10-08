@@ -362,13 +362,19 @@ def extract(chunks: list[dict], docs: list[dict], predecessor: str = "", base_da
                 name_val = next((v for k, v in row.items() if ROW_NAME.match(k)), "")
                 pm = RE_PERSON.search(name_val) if name_val else None
                 nm = pm.group(1) if pm else (name_val if re.fullmatch(r"[가-힣]{2,3}", name_val or "") else "")
+                rev = None if (pm or nm) else re.search(r"(\S*?)(" + TITLES + r")\s+([가-힣]{2,3})$", name_val or "")
+                if rev:  # '시설운영팀장 이정훈'처럼 직위가 이름 앞에 오는 경우
+                    nm = rev.group(3)
                 if nm and _is_name(nm) and nm != me_name:
                     p = person(nm)
                     p["mentions"] += 1
-                    title = (pm.group(2) if pm else "") or next((v for k, v in row.items() if ROW_TITLE.match(k)), "")
+                    title = (pm.group(2) if pm else (rev.group(2) if rev else "")) or next((v for k, v in row.items() if ROW_TITLE.match(k)), "")
                     if title:
                         p["titles"][title] += 2
                     org = next((v for k, v in row.items() if ROW_ORG.match(k)), "")
+                    if not org and rev and rev.group(1):
+                        # '시설운영팀장' → 소속 '시설운영팀' + 직위 '팀장'
+                        org = rev.group(1) + (rev.group(2)[0] if rev.group(2)[0] in "팀과국실" else "")
                     if not org and pm:
                         om = RE_ORG_BEFORE.search(name_val[: pm.start()].strip() + " ")
                         org = om.group(1) if om else name_val[: pm.start()].strip()
@@ -453,14 +459,17 @@ def extract(chunks: list[dict], docs: list[dict], predecessor: str = "", base_da
                 if not any(bigram_sim(x["text"], t) > 0.8 for x in rr):
                     rr.append({"id": f"W{len(rr) + 1:03d}", "text": t, "sources": [c["id"]], "kind": kind})
 
-    issues = find_issues(chunks, kind_of, titles)
+    sent_by_me = {d["id"] for d in mail_docs if me_addr and any(a == me_addr for _, a in d.get("info", {}).get("from", []))}
+    issues = find_issues(chunks, kind_of, titles, sent_by_me)
 
     # 사람 정리
     plist = []
     for p in people.values():
         if p["mentions"] + p["mails"] == 0:
             continue
-        bad = set(people) | {me_name or ""} | set(TITLES.split("|")) | {"참석", "드림", "안녕하세요", "주무관님"}
+        bad = set(people) | {me_name or ""} | set(TITLES.split("|")) | {"참석", "드림", "안녕하세요", "주무관님"} | {
+            "연락처", "구분", "업체명", "업체", "계약명", "이메일", "소속", "직위", "담당", "담당자", "비고", "연번", "진행상황",
+            "계약기간", "계약금액", "이름", "성명", "주요", "협의", "관련", "업체담당자"}
         topics = [t for t, _ in p["topics"].most_common(10) if t not in bad and not re.match(r"^(RE|FW)\b", t)
                   and not any(n.startswith(t) for n in people)][:4]  # '문가'(문가은의 일부) 같은 이름 조각 제외
         plist.append({
@@ -497,7 +506,8 @@ def extract(chunks: list[dict], docs: list[dict], predecessor: str = "", base_da
             if when < base_date:
                 overdue.append({"text": e["text"], "date": when.isoformat(), "sources": e["sources"], "kind": e["kind"], "event": e["id"]})
     return {"events": events, "people": plist, "issues": issues, "resources": resources, "tips": tips, "rr": rr,
-            "conflicts": conflicts, "uncertain": uncertain, "overdue": overdue, "me": {"name": me_name, "email": me_addr}}
+            "conflicts": conflicts, "uncertain": uncertain, "overdue": overdue, "me": {"name": me_name, "email": me_addr},
+            "base_date": base_date.isoformat() if base_date else ""}
 
 
 def _shared_weight(ka: set[str], kb: set[str]) -> int:
@@ -512,35 +522,93 @@ def _shared_weight(ka: set[str], kb: set[str]) -> int:
 _NUM_PREFIX = re.compile(r"^\s*(?:\d{1,2}|[가-하])\.\s*")
 
 
-def find_issues(chunks: list[dict], kind_of: dict, titles: dict) -> list[dict]:
-    """진행 중 현안: 문단(줄) 단위로 찾아 맥락을 살리고, 문서가 달라도 같은 사안이면 하나로 묶는다."""
+RE_REQUEST = re.compile(r"주시기\s*바랍니다|부탁드립니다|부탁드려요|요청드립니다|해\s*주십시오|하여\s*주십시오|검토하여\s*주|부탁\s*드립니다")
+RE_ACTION = re.compile(r"할\s*것|재확인|조치\s*필요|필요함|챙길\s*것|확인\s*바람")
+RE_NEXT_STRONG = re.compile(r"해야|필요|할\s*것|예정|요청|바랍니다|부탁|확인|협의")
+ROW_STATUS = re.compile(r"^(진행\s*상황|진행상태|상태|추진\s*현황|진행)$")
+ROW_NOTE = re.compile(r"^(비고|조치\s*사항|다음\s*할\s*일|향후\s*계획|메모)$")
+DONE_STATUS = re.compile(r"완료|종료|해지|취소")
+
+
+def _due_of(texts: list[str]) -> dict | None:
+    """현안 글에서 가장 이른 시기를 기한으로(연·월·일·초중말)."""
+    best = None
+    for t in texts:
+        for d in find_dates(t):
+            if d.get("ends") or not d["month"] or d["recur"] == "monthly":
+                continue
+            key = (d["year"] or 0, d["month"], d["day"] or 15)
+            if best is None or key < best[0]:
+                best = (key, d)
+    return best[1] if best else None
+
+
+def due_text(d: dict | None) -> str:
+    if not d:
+        return ""
+    if d.get("year") and d.get("day"):
+        return f"{d['year']}-{d['month']:02d}-{d['day']:02d}"
+    return f"{d['month']}월" + (f" {d['day']}일" if d.get("day") else (f" {d['part']}" if d.get("part") else ""))
+
+
+def find_issues(chunks: list[dict], kind_of: dict, titles: dict, sent_by_me: set | None = None) -> list[dict]:
+    """진행 중 현안: 문단(줄) 단위로 찾아 맥락을 살리고, 문서가 달라도 같은 사안이면 하나로 묶는다.
+
+    후보: ① 진행 중·대기·보류 같은 표현 ② 계약·사업 현황표에서 '완료'가 아닌 행 ③ 메일의 요청('~주시기 바랍니다')
+    ④ 공식문서의 조치 사항('~할 것'). 각 현안에 상태·다음 할 일·기한을 붙인다.
+    """
     cands = []
     for c in chunks:
         kind = kind_of.get(c["doc_id"], "doc")
         for raw in c["text"].split("\n"):
             line = _NUM_PREFIX.sub("", raw.strip(" \t-•·○◦▪■□●*>"))
-            if len(line) < 12 or line.startswith(("보낸사람", "받는사람", "참조", "날짜", "제목")) or not RE_ISSUE.search(line):
+            if len(line) < 12 or line.startswith(("보낸사람", "받는사람", "참조", "날짜", "제목")) or RE_NOISE.search(line):
                 continue
-            if len(line) > 220:
-                line = next((x for x in _split_line(line) if RE_ISSUE.search(x)), line[:220])
-            cands.append({"text": line, "sources": [c["id"]], "kind": kind,
-                          "ctx": keywords(line + " " + titles.get(c["doc_id"], "")), "near": keywords(line)})
+            row = parse_row(line)
+            cand = None
+            if row:
+                st = next((v for k, v in row.items() if ROW_STATUS.match(k)), "")
+                if st and not DONE_STATUS.search(st):
+                    name = next((v for k, v in row.items() if re.search(r"계약명|사업명|과제|건명|현안|업무", k)), "") or list(row.values())[1]
+                    note = next((v for k, v in row.items() if ROW_NOTE.match(k)), "")
+                    cand = {"text": f"{name}: {st}" + (f" – {note}" if note else ""), "status": st,
+                            "next": note if note and RE_NEXT_STRONG.search(note) else "", "texts": [note or ""], "title": name}
+            elif kind == "mail" and RE_REQUEST.search(line):
+                mine = c["doc_id"] in (sent_by_me or set())  # 전임자가 보낸 요청이면 상대 회신을 기다리는 중
+                cand = {"text": line, "status": "회신 대기" if mine else "요청 받음", "next": re.sub(r"\s*(주시기|부탁).*$", "", line).strip()[:80], "texts": [line]}
+            elif kind in ("official", "doc", "data") and RE_ACTION.search(line) and not RE_DONE.search(line):
+                cand = {"text": line, "status": "조치 필요", "next": line[:80], "texts": [line]}
+            elif RE_ISSUE.search(line):
+                if len(line) > 220:
+                    line = next((x for x in _split_line(line) if RE_ISSUE.search(x)), line[:220])
+                cand = {"text": line, "status": "", "next": "", "texts": [line]}
+            if cand:
+                cand.update(sources=[c["id"]], kind=kind, ctx=keywords(cand["text"] + " " + titles.get(c["doc_id"], "")),
+                            near=keywords(cand.get("title") or cand["text"]))
+                cands.append(cand)
     groups: list[list[dict]] = []
     for x in cands:
         g = next((g for g in groups if any(
             bigram_sim(x["text"], y["text"]) > 0.7 or
-            (_shared_weight(x["near"], y["ctx"]) >= 3 and _shared_weight(x["ctx"], y["ctx"]) >= 4) for y in g)), None)
+            (x["status"] not in ("요청 받음", "회신 대기", "조치 필요") and y["status"] not in ("요청 받음", "회신 대기", "조치 필요")
+             and _shared_weight(x["near"], y["ctx"]) >= 3 and _shared_weight(x["ctx"], y["ctx"]) >= 4) for y in g)), None)
         (g.append(x) if g else groups.append([x]))
     out = []
     for g in groups:
-        rep = max(g, key=lambda y: ({"official": 3, "data": 3, "doc": 2, "mail": 1, "memo": 0}.get(y["kind"], 0), len(y["text"])))
+        rep = max(g, key=lambda y: (bool(y.get("title")), {"official": 3, "data": 3, "doc": 2, "mail": 1, "memo": 0}.get(y["kind"], 0), len(y["text"])))
         body = " ".join(y["text"] for y in g)
-        status = ("보류" if re.search(r"보류|지연|차질", body) else
-                  "대기" if re.search(r"대기|회신|답변|아직|미정|결정\s*필요|결론", body) else "진행중")
+        status = next((y["status"] for y in g if y["status"]), "") or (
+            "보류" if re.search(r"보류|지연|차질", body) else
+            "대기" if re.search(r"대기|회신|답변|아직|미정|결정\s*필요|결론", body) else "진행중")
+        nxt = next((y["next"] for y in g if y["next"]), "")
+        if not nxt:
+            nxt = next((t for y in g for t in _split_line(y["text"]) if RE_NEXT_STRONG.search(t) and not re.search(r"아직|미정|결론\s*못", t)), "")
+        due = _due_of([t for y in g for t in [y["text"]] + y["texts"]])
         srcs = list(dict.fromkeys(s for y in g for s in y["sources"]))
         related = [y["text"] for y in g if y is not rep and bigram_sim(y["text"], rep["text"]) < 0.7]
         out.append({"id": f"I{len(out) + 1:03d}", "text": rep["text"], "status": status, "related": related,
-                    "has_next": bool(RE_NEXT.search(body)) and not re.search(r"아직|미정|결론\s*못", body),
+                    "next": nxt[:100], "due": due_text(due), "due_meta": due,
+                    "has_next": bool(nxt) and not re.search(r"아직|미정|결론\s*못", body),
                     "sources": srcs, "kind": rep["kind"], "kinds": sorted({y["kind"] for y in g})})
     return out
 

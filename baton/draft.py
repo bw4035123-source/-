@@ -62,6 +62,30 @@ def _dedupe_events(events: list[dict]) -> list[dict]:
     return out
 
 
+RE_DONE_T = re.compile(r"완료|했음|받음|마침|끝남|제출함|적합\s*판정|실시\s*결과")
+SEVERITY = {"conflict": "상", "contact": "상", "overdue": "상", "uncertain": "중", "open": "중", "missing": "하", "memo_only": "하"}
+
+
+def _timing(e: dict, base, overdue_ids: set) -> str:
+    """달력 꼬리표: 완료(끝난 일) / 기한 지남(해야 할 일인데 지남) / 지난 일 / 후속 조치(계약 종료 예정)."""
+    # 표 행이면 날짜가 든 칸(제목)만 보고, 앞으로 할 일('~할 것', '꼭', '예정')이 함께 있으면 끝난 일로 보지 않는다
+    seg = e["title"] if " / " in e["text"] else e["text"]
+    if RE_DONE_T.search(seg) and not re.search(r"할\s*것|볼\s*것|해야|필요|예정|꼭", seg):
+        return "완료"
+    if e["id"] in overdue_ids:
+        return "기한 지남"
+    if base and e["recur"] == "once" and e.get("year") and e.get("month"):
+        try:
+            when = dt.date(e["year"], e["month"], e.get("day") or 28)
+        except ValueError:
+            return ""
+        if when < base:
+            return "지난 일"
+        if e.get("ends"):
+            return "후속 조치 확인"
+    return ""
+
+
 def rule_section(sec: dict, facts: dict, chunks: list[dict], chunk_kind: dict, index: Index) -> list[dict]:
     sid, kind, items = sec["id"], sec["kind"], []
 
@@ -72,13 +96,15 @@ def rule_section(sec: dict, facts: dict, chunks: list[dict], chunk_kind: dict, i
         for f in facts["rr"]:
             add(f["text"], f["sources"])
     elif kind == "calendar":
+        base = dt.date.fromisoformat(facts["base_date"]) if facts.get("base_date") else None
+        overdue_ids = {o["event"] for o in facts.get("overdue", [])}
         for e in _dedupe_events(facts["events"]):
             add(f"[{fmt_date(e)}] {e['title']}", e["sources"], month=e["month"], day=e["day"], recur=e["recur"],
-                deadline=e["deadline"], part=e["part"], year=e["year"])
+                deadline=e["deadline"], part=e["part"], year=e["year"], timing=_timing(e, base, overdue_ids))
     elif kind == "issues":
         for f in facts["issues"]:
-            add(f["text"], f["sources"], status=f["status"], next="" if f["has_next"] else "전임자 확인 필요", due="",
-                related=f.get("related", []))
+            add(f["text"], f["sources"], status=f["status"], next=f.get("next") or ("" if f["has_next"] else "전임자 확인 필요"),
+                due=f.get("due", ""), due_meta=f.get("due_meta"), related=f.get("related", []))
     elif kind == "people":
         for p in facts["people"]:
             who = " ".join(x for x in [p["name"], p["title"]] if x)
@@ -120,10 +146,25 @@ def rule_section(sec: dict, facts: dict, chunks: list[dict], chunk_kind: dict, i
         for f in facts["issues"]:
             if not f["has_next"] and f["text"] not in {u["text"] for u in facts.get("uncertain", [])}:
                 add(f"[결론 미정] {f['text']}", f["sources"], type="open")
+        for p in facts["people"]:
+            if not p["tels"] and not p["emails"]:
+                add(f"[누락] {p['name']} {p['title']}의 연락처가 자료에 없습니다.", p["sources"][:2], type="missing")
+        no_due = [f for f in facts["issues"] if not f.get("due") and f["has_next"] and f["status"] not in ("보류", "대기")]
+        for f in no_due[:4]:
+            add(f"[누락] 현안 ‘{f['text'][:50]}’: 기한이 적혀 있지 않습니다.", f["sources"], type="missing")
+        months = {e["month"] for e in facts["events"] if e["month"] and e["recur"] != "monthly"}
+        empty = [m for m in range(1, 13) if m not in months]
+        if facts["events"] and empty:
+            add(f"[누락] 일정이 하나도 없는 달: {', '.join(f'{m}월' for m in empty)} – 빠진 정기 업무가 없는지 확인하세요.", [], type="missing")
+        for key, name in (("rr", "담당 업무"), ("events", "일정"), ("people", "협의할 사람"), ("issues", "진행 중 현안")):
+            if not facts[key]:
+                add(f"[누락] 자료에서 {name}을(를) 찾지 못했습니다. 전임자가 직접 보완해 주세요.", [], type="missing")
         uncertain_texts = {u["text"] for u in facts.get("uncertain", [])}
         for f in facts["tips"]:
             if f["kind"] == "memo" and f["text"] not in uncertain_texts and re.search(r"\d|까지|반드시|꼭", f["text"]):
                 add(f"[개인 메모에만 있음] {f['text']}", f["sources"], type="memo_only")
+        for it in items:
+            it["meta"]["severity"] = SEVERITY.get(it["meta"].get("type"), "중")
     elif kind == "custom":
         kws = sec.get("keywords") or list(keywords(sec.get("title", "") + " " + sec.get("guide", "")))
         seen: list[str] = []
@@ -348,11 +389,20 @@ def find_item(draft: dict, item_id: str):
     return None, None
 
 
-def update_item(draft: dict, item_id: str, text=None, status=None, who="전임자") -> dict:
+def update_item(draft: dict, item_id: str, text=None, status=None, who="전임자", resolved=None, unresolve=False) -> dict:
     sec, it = find_item(draft, item_id)
     if not it:
         raise KeyError(item_id)
     entry = {"at": now(), "by": who}
+    if unresolve:  # '확인 필요' 처리 되돌리기
+        it["meta"].pop("resolved", None)
+        it["meta"].pop("resolved_at", None)
+        entry["status"] = "처리 되돌림"
+    if resolved is not None:  # '확인 필요' 처리 완료(처리 내용 메모)
+        it["meta"]["resolved"] = resolved.strip() or "처리 완료"
+        it["meta"]["resolved_at"] = now()
+        entry["resolved"] = it["meta"]["resolved"]
+        status = status or "verified"
     if text is not None and text.strip() != it["text"]:
         entry["before"] = it["text"]
         it["text"] = text.strip()

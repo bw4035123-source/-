@@ -221,6 +221,84 @@ async def create_demo(req: Request):
     return {"id": p["id"]}
 
 
+# ───────────── 문서시스템 연계(모의 API)
+# 실제 구축 시 기관 문서관리시스템(온나라 등) API로 바꾸는 자리. 목록 조회 → 본문 내려받기 두 단계만 쓴다.
+def _mock_docs():
+    import hashlib
+
+    root = config.SAMPLES["facility"][0]
+    out = []
+    for d, _, files in os.walk(root):
+        for fn in sorted(files):
+            full = os.path.join(d, fn)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            out.append({"id": hashlib.sha1(rel.encode()).hexdigest()[:12], "title": fn, "folder": os.path.dirname(rel),
+                        "owner": "김도윤", "modified": dt.datetime.fromtimestamp(os.path.getmtime(full)).strftime("%Y-%m-%d %H:%M"),
+                        "size": os.path.getsize(full), "_path": full})
+    return out
+
+
+@app.get("/mock-docsystem/documents")
+def mock_doc_list(owner: str = ""):
+    docs = [d for d in _mock_docs() if not owner or owner in d["owner"]]
+    return {"documents": [{k: v for k, v in d.items() if not k.startswith("_")} for d in docs]}
+
+
+@app.get("/mock-docsystem/documents/{doc_id}/content")
+def mock_doc_content(doc_id: str):
+    import base64
+
+    d = next((x for x in _mock_docs() if x["id"] == doc_id), None)
+    if not d:
+        raise HTTPException(404, "문서 없음")
+    with open(d["_path"], "rb") as f:
+        return {"title": d["title"], "folder": d["folder"], "content_b64": base64.b64encode(f.read()).decode()}
+
+
+def _run_docsystem(pid: str, base: str, owner: str):
+    """문서시스템 API에서 목록을 받아 사본을 작업 폴더에 내려받은 뒤 일반 자료처럼 분석한다(원본 시스템은 읽기만)."""
+    import base64
+    import json as _json
+    import urllib.parse
+    import urllib.request
+
+    try:
+        _job(pid, state="running", step="문서시스템에서 목록 조회", frac=0.02, error="")
+        q = urllib.parse.urlencode({"owner": owner}) if owner else ""
+        with urllib.request.urlopen(f"{base.rstrip('/')}/documents?{q}", timeout=30) as r:
+            docs = _json.loads(r.read().decode("utf-8"))["documents"]
+        root = store.input_dir(pid)
+        for i, d in enumerate(docs, 1):
+            _job(pid, step=f"문서시스템에서 내려받는 중 ({i}/{len(docs)}) {d['title']}", frac=0.02 + 0.2 * i / max(1, len(docs)))
+            with urllib.request.urlopen(f"{base.rstrip('/')}/documents/{d['id']}/content", timeout=60) as r:
+                body = _json.loads(r.read().decode("utf-8"))
+            parts = [x for x in (d.get("folder", "") + "/" + d["title"]).replace("\\", "/").split("/") if x not in ("", ".", "..")]
+            dest = os.path.join(root, *parts)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "wb") as f:
+                f.write(base64.b64decode(body["content_b64"]))
+        p = store.load(pid)
+        store.audit(p, "시스템", "문서시스템 연계", f"{base} · {owner or '전체'} · {len(docs)}건")
+        store.save(p)
+        _run_ingest(pid)
+    except Exception as e:
+        traceback.print_exc()
+        _job(pid, state="error", error=f"문서시스템 연계 실패: {type(e).__name__}: {e}")
+
+
+@app.post("/api/projects/docsystem")
+async def create_from_docsystem(req: Request):
+    b = await req.json()
+    base = (b.get("base_url") or "").strip() or str(req.base_url).rstrip("/") + "/mock-docsystem"
+    owner = (b.get("owner") or "").strip()
+    p = _new_project(b.get("name") or f"{owner or '전임자'} 업무 인수인계", b.get("from_name") or owner, b.get("to_name", ""),
+                     b.get("base_date"), "upload")
+    p["source_desc"] = f"문서시스템 연계: {base}"
+    store.save(p)
+    _start(_run_docsystem, p["id"], base, owner)
+    return {"id": p["id"]}
+
+
 @app.post("/api/projects/upload")
 async def create_from_upload(files: list[UploadFile] = File(...), paths: list[str] = Form(...),
                              name: str = Form(""), from_name: str = Form(""), to_name: str = Form(""),
@@ -288,6 +366,17 @@ def chunk(pid: str, cid: str):
     return {**c, "doc": {k: doc.get(k) for k in ("file", "kind_label", "mtime", "sha256", "info")}}
 
 
+@app.get("/api/projects/{pid}/docs/{doc_id}")
+def doc_content(pid: str, doc_id: str):
+    """자료 목록의 '내용 보기': 그 파일에서 읽어 낸 근거조각 전체(민감정보 가림 후)."""
+    p = _load(pid)
+    d = next((x for x in p["docs"] if x["id"] == doc_id), None)
+    if not d:
+        raise HTTPException(404, "자료를 찾을 수 없습니다")
+    return {"doc": {k: d.get(k) for k in ("file", "kind_label", "mtime", "sha256", "masked", "info")},
+            "chunks": [{"id": c["id"], "where": c["where"], "text": c["text"]} for c in p["chunks"] if c["doc_id"] == doc_id]}
+
+
 # ───────────── 전임자 검수
 @app.patch("/api/projects/{pid}/items/{item_id}")
 async def patch_item(pid: str, item_id: str, req: Request):
@@ -295,7 +384,8 @@ async def patch_item(pid: str, item_id: str, req: Request):
     with store.lock(pid):
         p = _load(pid)
         try:
-            it = update_item(p["draft"], item_id, b.get("text"), b.get("status"), b.get("who", "전임자"))
+            it = update_item(p["draft"], item_id, b.get("text"), b.get("status"), b.get("who", "전임자"), b.get("resolved"),
+                             bool(b.get("unresolve")))
         except KeyError:
             raise HTTPException(404, "항목 없음")
         store.audit(p, b.get("who", "전임자"), f"항목 {b.get('status') or '수정'}", item_id)
@@ -397,7 +487,7 @@ async def handover(pid: str, req: Request):
 
 
 @app.get("/api/projects/{pid}/export")
-def export(pid: str, fmt: str = "docx", doc: str = "handover"):
+def export(pid: str, fmt: str = "docx", doc: str = "handover", start: str = "", level: str = "new"):
     """doc: handover(인수인계서) | manual(후임자 업무매뉴얼), fmt: hwpx | docx | md | html | ics | baton"""
     p = _load(pid)
     if not p.get("draft"):
@@ -410,7 +500,7 @@ def export(pid: str, fmt: str = "docx", doc: str = "handover"):
     elif fmt == "html":
         return Response(to_html(p), media_type="text/html; charset=utf-8")
     elif fmt in FORMATS:
-        blocks = manual_blocks(p) if doc == "manual" else handover_blocks(p)
+        blocks = manual_blocks(p, start or None, level) if doc == "manual" else handover_blocks(p)
         fn, mt = FORMATS[fmt]
         try:
             data = fn(blocks)

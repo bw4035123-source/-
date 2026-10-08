@@ -52,7 +52,8 @@ def make_plan(draft: dict, docs: list[dict], base: dt.date, horizon: int = 60) -
     week1 = []
     for it in live(secs.get("issues", {}).get("items", []))[:6]:
         st = it["meta"].get("status", "")
-        week1.append({"type": "현안", "title": it["text"], "hint": it["meta"].get("next") or st, "sources": it["sources"]})
+        hint = it["meta"].get("next") or st or ""
+        week1.append({"type": "현안", "title": it["text"], "hint": "" if hint[:15] in it["text"] else hint, "sources": it["sources"]})
     for it in live(secs.get("people", {}).get("items", []))[:5]:
         week1.append({"type": "인사", "title": it["text"], "hint": "인사·연락 채널 확인", "sources": it["sources"]})
     for q in draft.get("questions", []):
