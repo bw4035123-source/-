@@ -157,32 +157,6 @@ class TestCreativeFeatures(unittest.TestCase):
         p["draft"] = build_draft(p, OfflineClient())
         return p
 
-    def test_risk_drops_when_work_done(self):
-        from baton.draft import update_item
-        from baton.risk import compute_risk
-
-        p = self._draft()
-        before = compute_risk(p)
-        self.assertGreaterEqual(before["score"], 60)
-        for q in p["draft"]["questions"]:
-            answer_question(p["draft"], q["id"], "확인했습니다. 다음 주 과장님 보고 예정")
-        for s in p["draft"]["sections"]:
-            for it in s["items"]:
-                if it["status"] == "ai":
-                    update_item(p["draft"], it["id"], status="verified")
-        after = compute_risk(p)
-        self.assertLess(after["score"], before["score"] - 40)
-
-    def test_quiz_answers_are_correct(self):
-        from baton.quiz import make_quiz
-
-        qs = make_quiz(self._draft()["draft"], n=8, seed=1)
-        self.assertGreaterEqual(len(qs), 6)
-        self.assertGreaterEqual(len({q["type"] for q in qs}), 3)
-        for q in qs:
-            self.assertTrue(0 <= q["answer"] < len(q["options"]))
-            self.assertEqual(len(set(q["options"])), len(q["options"]))
-
     def test_ics_and_relay_roundtrip(self):
         from baton.export import to_baton, to_ics
 

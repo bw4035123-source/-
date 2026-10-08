@@ -19,8 +19,6 @@ from .llm import get_client, self_check
 from .parsers import SUPPORTED
 from .plan import make_plan
 from .qa import ask
-from .quiz import make_quiz
-from .risk import compute_risk
 
 app = FastAPI(title="업무바통", version=__version__)
 STATIC = os.path.join(os.path.dirname(__file__), "static")
@@ -50,7 +48,6 @@ def _view(p: dict) -> dict:
     v = {k: val for k, val in p.items() if k not in ("chunks",)}
     v["chunk_index"] = {c["id"]: [c["file"], c["where"], c["kind"]] for c in p["chunks"]}
     v["job"] = JOBS.get(p["id"], {})
-    v["risk"] = compute_risk(p) if p.get("draft") else None
     return v
 
 
@@ -168,7 +165,6 @@ def _run_draft(pid: str, offset: float = 0.0, profile: str | None = None):
         with store.lock(pid):
             p = store.load(pid)
             p["draft"], p["stage"] = draft, "review"
-            p["risk_initial"] = compute_risk(p)["score"]
             p["integrity"] = verify_originals(_source_root(p), p["docs"])
             store.audit(p, "시스템", "초안 생성", f"{draft['generated_by']} / 항목 {sum(len(s['items']) for s in draft['sections'])}개")
             store.save(p)
@@ -343,28 +339,6 @@ async def post_ask(pid: str, req: Request):
         p.setdefault("qa_log", []).append({"at": now(), "q": question, **res})
         store.save(p)
     return res
-
-
-@app.get("/api/projects/{pid}/quiz")
-def get_quiz(pid: str):
-    p = _load(pid)
-    if not p.get("draft"):
-        raise HTTPException(400, "초안이 아직 없습니다")
-    qs = make_quiz(p["draft"], n=8)
-    return {"questions": qs, "history": p.get("rehearsal", [])}
-
-
-@app.post("/api/projects/{pid}/quiz")
-async def post_quiz(pid: str, req: Request):
-    b = await req.json()
-    with store.lock(pid):
-        p = _load(pid)
-        rec = {"at": now(), "correct": int(b.get("correct", 0)), "total": int(b.get("total", 0)),
-               "missed": [str(x) for x in b.get("missed", [])][:20]}
-        p.setdefault("rehearsal", []).append(rec)
-        store.audit(p, "후임자", "인수 리허설", f"{rec['correct']}/{rec['total']}")
-        store.save(p)
-    return rec
 
 
 @app.get("/api/projects/{pid}/plan")

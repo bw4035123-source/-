@@ -214,7 +214,7 @@ async function viewHome() {
 const TABS = [
   ["docs", "① 자료", "전임자"], ["review", "② 초안 검수", "전임자"], ["interview", "③ 암묵지 인터뷰", "전임자"],
   ["calendar", "④ 업무 달력", "후임자"], ["map", "⑤ 협업 지도", "후임자"], ["ask", "⑥ 질문하기", "후임자"], ["plan", "⑦ 첫 30일", "후임자"],
-  ["rehearsal", "⑧ 인수 리허설", "후임자"], ["handover", "⑨ 바통 터치", "함께"],
+  ["handover", "⑧ 바통 터치", "함께"],
 ];
 async function viewProject(pid, tab) {
   const p = await api(`/api/projects/${pid}`);
@@ -254,81 +254,10 @@ async function viewProject(pid, tab) {
     return out;
   }));
   const body = h("div");
-  mount(head, riskBar(p), tabs, body);
-  const views = { docs: tabDocs, review: tabReview, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, rehearsal: tabRehearsal, handover: tabHandover };
+  mount(head, tabs, body);
+  const views = { docs: tabDocs, review: tabReview, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, handover: tabHandover };
   await (views[tab] || tabDocs)(body, p);
 }
-// ───────────── 바통 낙하 위험도(모든 탭 상단)
-const RISK_COLOR = { 안전: "var(--ok)", 주의: "var(--warn)", 위험: "var(--bad)" };
-function gauge(score, level, size = 76) {
-  const r = 30, c = 2 * Math.PI * r, col = RISK_COLOR[level] || "var(--brand)";
-  return svg("svg", { viewBox: "0 0 76 76", width: size, height: size, role: "img", "aria-label": `위험도 ${score}점` },
-    svg("circle", { cx: 38, cy: 38, r, fill: "none", stroke: "#e2e8f0", "stroke-width": 9 }),
-    svg("circle", { cx: 38, cy: 38, r, fill: "none", stroke: col, "stroke-width": 9, "stroke-linecap": "round",
-      "stroke-dasharray": `${(c * score) / 100} ${c}`, transform: "rotate(-90 38 38)", style: "transition:stroke-dasharray .8s" }),
-    svg("text", { x: 38, y: 44, "text-anchor": "middle", "font-size": 20, "font-weight": 800, fill: "#0f172a" }, score));
-}
-function riskBar(p) {
-  const r = p.risk;
-  if (!r || r.score == null) return null;
-  const open = store.get("risk.open", false);
-  const init = p.risk_initial;
-  const detail = h("div", { class: "risk-detail", style: open ? "" : "display:none" },
-    r.factors.map((f) => h("a", { class: "risk-f", href: `#/p/${p.id}/${f.tab}` },
-      h("div", { class: "row between" }, h("b", {}, f.label), h("span", { class: "small muted" }, f.value)),
-      h("div", { class: "progress", style: "height:6px;margin:4px 0" }, h("i", { style: `width:${(100 * f.points) / f.max}%;background:${f.points / f.max > 0.6 ? "var(--bad)" : f.points / f.max > 0.3 ? "var(--warn)" : "var(--ok)"}` })),
-      h("div", { class: "tiny muted" }, `${f.points}/${f.max}점 · ${f.hint}`))));
-  const toggle = h("button", { class: "btn sm", onclick: () => { const o = detail.style.display === "none"; detail.style.display = o ? "" : "none"; toggle.textContent = o ? "접기" : "왜 이 점수?"; store.set("risk.open", o); } }, open ? "접기" : "왜 이 점수?");
-  return h("div", { class: "card risk", style: "margin:12px 0 0" },
-    h("div", { class: "row", style: "gap:14px;flex-wrap:nowrap" }, gauge(r.score, r.level),
-      h("div", { class: "grow" },
-        h("div", { class: "row" }, h("b", { style: "font-size:16px" }, "바통 낙하 위험도"), h("span", { class: "badge", style: `background:${RISK_COLOR[r.level]};color:#fff` }, r.level),
-          init != null && init !== r.score ? h("span", { class: "small", style: `color:${r.score < init ? "var(--ok)" : "var(--bad)"};font-weight:700` }, `초안 직후 ${init}점 → 지금 ${r.score}점 (${r.score < init ? "▼" : "▲"}${Math.abs(init - r.score)})`) : null),
-        h("div", { class: "small muted" }, "지금 인수인계가 끊기면 후임자가 일을 놓칠 위험. 인터뷰에 답하고 불일치를 풀고 검수할수록 내려갑니다."),
-        h("div", { class: "small", style: "margin-top:2px" }, "가장 큰 요인: ", h("b", {}, r.factors[0].label), ` (${r.factors[0].value}) – ${r.factors[0].hint}`)),
-      toggle),
-    detail);
-}
-
-// ⑧ 인수 리허설
-async function tabRehearsal(el, p) {
-  const { questions: qs, history } = await api(`/api/projects/${p.id}/quiz`);
-  if (!qs.length) return add(el, h("div", { class: "empty" }, "문제를 만들 만큼 확정된 내용이 아직 없습니다. 전임자 검수를 먼저 진행하세요."));
-  let idx = 0, correct = 0;
-  const missed = [];
-  const box = h("div", { class: "card quiz" });
-  const last = history.length ? history[history.length - 1] : null;
-  function show() {
-    if (idx >= qs.length) return finish();
-    const q = qs[idx];
-    const fb = h("div");
-    const opts = h("div", { class: "grid", style: "gap:8px;margin-top:12px" }, q.options.map((o, i) =>
-      h("button", { class: "btn opt", onclick: (e) => pick(i, e.currentTarget) }, o)));
-    function pick(i, btn) {
-      opts.querySelectorAll("button").forEach((b, k) => { b.disabled = true; if (k === q.answer) b.classList.add("right"); });
-      const ok = i === q.answer;
-      if (ok) correct++; else { btn.classList.add("wrong"); missed.push(q.item); }
-      fb.replaceChildren(h("div", { class: "alert " + (ok ? "ok" : "warn"), style: "margin-top:12px" }, ok ? "정답! " : `정답은 ‘${q.options[q.answer]}’ – `, "근거를 확인해 보세요 ", h("span", {}, srcChips(q.sources, q.q))),
-        h("div", { class: "row", style: "justify-content:flex-end" }, h("button", { class: "btn primary", onclick: () => { idx++; show(); } }, idx + 1 < qs.length ? "다음 문제 →" : "결과 보기")));
-    }
-    box.replaceChildren(h("div", { class: "row between" }, h("span", { class: "badge t-mail" }, `${q.type} 문제`), h("span", { class: "small muted" }, `${idx + 1} / ${qs.length}`)),
-      h("div", { class: "progress", style: "margin:8px 0 12px" }, h("i", { style: `width:${(100 * idx) / qs.length}%` })),
-      h("div", { style: "font-size:17px;font-weight:700;white-space:pre-wrap" }, q.q), opts, fb);
-  }
-  async function finish() {
-    const pct = Math.round((100 * correct) / qs.length);
-    await api(`/api/projects/${p.id}/quiz`, { method: "POST", json: { correct, total: qs.length, missed } });
-    box.replaceChildren(h("div", { style: "text-align:center;padding:10px" },
-      h("div", { style: "font-size:44px" }, pct >= 80 ? "🏅" : pct >= 50 ? "🏃" : "📚"),
-      h("div", { class: "stat" }, `인수 준비도 ${pct}%`), h("p", { class: "muted" }, `${qs.length}문제 중 ${correct}개 정답`),
-      missed.length ? h("div", { class: "alert warn", style: "text-align:left" }, "다시 볼 항목: ", missed.join(", "), " – ② 초안 검수에서 해당 문장을 확인하세요.") : h("div", { class: "alert ok" }, "모두 맞혔습니다. 바통을 받을 준비가 됐어요!"),
-      h("button", { class: "btn", onclick: () => route() }, "새 문제로 다시 풀기")));
-  }
-  show();
-  add(el, h("div", { class: "alert info" }, "🧪 인수인계는 ‘전달’이 아니라 ‘이해’로 끝나야 합니다. 확정된 인수인계 내용으로 후임자용 확인 문제를 만들었어요(기한·담당자·현안 상태·노하우)."),
-    last ? h("div", { class: "small muted", style: "margin-bottom:8px" }, `지난 리허설: ${last.at} · ${last.correct}/${last.total} 정답`) : null, box);
-}
-
 async function refresh() { const p = await api(`/api/projects/${S.project.id}`); S.project = p; return p; }
 
 // ① 자료
@@ -621,7 +550,6 @@ function tabHandover(el, p) {
   const conflicts = d.sections.flatMap((s) => s.items).filter((i) => i.meta && i.meta.type === "conflict");
   const resolved = conflicts.filter((i) => i.meta.resolved).length;
   const ready = verified / Math.max(1, live.length) >= 0.5;
-  const reh = (p.rehearsal || []).slice(-1)[0];
   const sign = async (role, cancel) => {
     await api(`/api/projects/${p.id}/handover`, { method: "POST", json: { role, cancel, name: role === "from" ? p.from_name : p.to_name } });
     if (!cancel && role === "to") toast("🏃 바통 터치 완료! 인수인계가 끝났습니다", 3500);
@@ -632,8 +560,7 @@ function tabHandover(el, p) {
     svg("rect", { x: 2, y: 6, width: 44, height: 12, rx: 6, fill: "#2563eb" }), svg("rect", { x: 18, y: 6, width: 12, height: 12, fill: "#f59e0b" })));
   add(el, 
     h("div", { class: "grid g4" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
-      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"),
-      stat(reh ? `${Math.round((100 * reh.correct) / Math.max(1, reh.total))}%` : "–", reh ? `후임자 인수 준비도 (리허설 ${reh.correct}/${reh.total})` : "인수 리허설 전")),
+      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
     lineageCard(p),
     h("div", { class: "card", style: "margin-top:14px" },
       h("h2", {}, "바통 터치"),
