@@ -18,7 +18,7 @@
 | 환경 | 방법 |
 |---|---|
 | **Windows** | `run.bat` 더블클릭 (`실행.bat`도 같음) |
-| macOS / Linux | `./run.sh` |
+| macOS / Linux | `./run.sh` (안 되면 `bash run.sh`) |
 | 직접 실행 | `python run.py` (부족한 라이브러리는 자동 설치) |
 
 처음 실행하면 아래 과정을 **자동으로** 진행하고, 두 번째부터는 바로 시작합니다.
