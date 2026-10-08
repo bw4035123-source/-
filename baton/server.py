@@ -20,6 +20,7 @@ from .llm import get_client, self_check
 from .parsers import SUPPORTED
 from .plan import make_plan
 from .qa import ask
+from . import rehearsal
 
 app = FastAPI(title="업무바통", version=__version__)
 STATIC = os.path.join(os.path.dirname(__file__), "static")
@@ -49,6 +50,8 @@ def _view(p: dict) -> dict:
     v = {k: val for k, val in p.items() if k not in ("chunks",)}
     v["chunk_index"] = {c["id"]: [c["file"], c["where"], c["kind"]] for c in p["chunks"]}
     v["job"] = JOBS.get(p["id"], {})
+    rh = v.pop("rehearsal", None) or {}
+    v["readiness"] = rehearsal.readiness(p["draft"], rh.get("mastery", {})) if p.get("draft") else None
     return v
 
 
@@ -451,6 +454,62 @@ async def post_ask(pid: str, req: Request):
         p.setdefault("qa_log", []).append({"at": now(), "q": question, **res})
         store.save(p)
     return res
+
+
+# ───────────── 인수 리허설: 정답은 서버에만 두고 채점한다
+def _rh_status(p: dict) -> dict:
+    rh = p.get("rehearsal") or {}
+    return {"readiness": rehearsal.readiness(p["draft"], rh.get("mastery", {})),
+            "attempts": rh.get("attempts", [])[-10:], "open": bool(rh.get("open"))}
+
+
+@app.get("/api/projects/{pid}/rehearsal")
+def get_rehearsal(pid: str):
+    p = _load(pid)
+    if not p.get("draft"):
+        raise HTTPException(400, "초안이 아직 없습니다")
+    return _rh_status(p)
+
+
+@app.post("/api/projects/{pid}/rehearsal/start")
+def start_rehearsal(pid: str):
+    with store.lock(pid):
+        p = _load(pid)
+        if not p.get("draft"):
+            raise HTTPException(400, "초안이 아직 없습니다")
+        rh = p.setdefault("rehearsal", {"attempts": [], "mastery": {}})
+        rnd = rehearsal.make_round(p["draft"], rh.get("mastery", {}), n=10, seed=len(rh.get("attempts", [])) + 1)
+        if not rnd["questions"]:
+            raise HTTPException(400, "문제를 만들 수 있는 항목이 없습니다. 초안 검수에서 일정·연락처·현안·노하우를 확인해 주세요.")
+        rh["open"] = rnd
+        store.save(p)
+    return rehearsal.public(rnd)
+
+
+@app.post("/api/projects/{pid}/rehearsal/submit")
+async def submit_rehearsal(pid: str, req: Request):
+    b = await req.json()
+    answers = b.get("answers") if isinstance(b.get("answers"), dict) else {}
+    with store.lock(pid):
+        p = _load(pid)
+        rh = p.get("rehearsal") or {}
+        rnd = rh.get("open")
+        if not rnd:
+            raise HTTPException(400, "진행 중인 리허설이 없습니다. 새로 시작해 주세요.")
+        results = rehearsal.grade(rnd, answers)
+        at = now()
+        for r in results:
+            if r["chosen"] is not None:
+                rh.setdefault("mastery", {})[r["item"]] = {"ok": r["correct"], "at": at, "h": r["h"]}
+        good = sum(r["correct"] for r in results)
+        rh.setdefault("attempts", []).append({"at": at, "correct": good, "total": len(results),
+                                               "confirmed_only": rnd.get("confirmed_only", False)})
+        rh["open"] = None
+        p["rehearsal"] = rh
+        status = _rh_status(p)
+        store.audit(p, "후임자", "인수 리허설", f"{good}/{len(results)} · 준비도 {status['readiness']['pct']}%")
+        store.save(p)
+    return {"results": results, **status}
 
 
 @app.get("/api/projects/{pid}/plan")

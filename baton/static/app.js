@@ -255,7 +255,7 @@ async function viewHome() {
 const TABS = [
   ["docs", "① 자료", "전임자"], ["review", "② 초안 검수", "전임자"], ["checks", "③ 확인 필요", "전임자"], ["interview", "④ 암묵지 인터뷰", "전임자"],
   ["calendar", "⑤ 업무 달력", "후임자"], ["map", "⑥ 협업 지도", "후임자"], ["ask", "⑦ 질문하기", "후임자"], ["plan", "⑧ 첫 30일·매뉴얼", "후임자"],
-  ["handover", "⑨ 바통 터치", "함께"],
+  ["rehearsal", "⑨ 인수 리허설", "후임자"], ["handover", "⑩ 바통 터치", "함께"],
 ];
 async function viewProject(pid, tab) {
   const p = await api(`/api/projects/${pid}`);
@@ -287,7 +287,7 @@ async function viewProject(pid, tab) {
   const verified = live.filter((i) => ["verified", "edited"].includes(i.status)).length;
   const openQ = d.questions.filter((q) => q.status === "open").length;
   const chk = (d.sections.find((s) => s.kind === "checks") || { items: [] }).items.filter((i) => i.status !== "deleted" && !(i.meta || {}).resolved);
-  const counts = { review: `${verified}/${live.length}`, checks: chk.length ? String(chk.length) : "✓", interview: openQ ? String(openQ) : "✓" };
+  const counts = { rehearsal: p.readiness && p.readiness.tried ? `${p.readiness.pct}%` : "", review: `${verified}/${live.length}`, checks: chk.length ? String(chk.length) : "✓", interview: openQ ? String(openQ) : "✓" };
   let lastRole = "";
   const tabs = h("nav", { class: "tabs" }, TABS.map(([k, label, role]) => {
     const out = [];
@@ -297,7 +297,7 @@ async function viewProject(pid, tab) {
   }));
   const body = h("div");
   mount(head, tabs, body);
-  const views = { docs: tabDocs, review: tabReview, checks: tabChecks, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, handover: tabHandover };
+  const views = { docs: tabDocs, review: tabReview, checks: tabChecks, interview: tabInterview, calendar: tabCalendar, map: tabMap, ask: tabAsk, plan: tabPlan, rehearsal: tabRehearsal, handover: tabHandover };
   await (views[tab] || tabDocs)(body, p);
 }
 async function refresh() { const p = await api(`/api/projects/${S.project.id}`); S.project = p; return p; }
@@ -623,7 +623,9 @@ function tabAsk(el, p) {
   }
   const mine = p.draft.questions.filter((q) => q.asked_by === "successor");
   add(el, h("div", { class: "grid", style: "grid-template-columns:minmax(0,2fr) minmax(0,1fr)" },
-    h("div", { class: "card" }, chat, h("div", { class: "suggest" }, ideas.map((t) => h("button", { class: "btn sm", onclick: () => send(t) }, t))),
+    h("div", { class: "card" }, h("div", { class: "persona-note" }, h("b", {}, `AI ${who}`), h("span", { class: "badge t-memo" }, "실제 본인 아님"),
+        h("span", { class: "small muted" }, `${p.from_name || "전임자"} 본인이 아니라, 남긴 업무 자료와 인터뷰 답변으로만 답하는 AI입니다. 자료에 없는 질문은 진짜 ${who} 님께 넘깁니다.`)),
+      chat, h("div", { class: "suggest" }, ideas.map((t) => h("button", { class: "btn sm", onclick: () => send(t) }, t))),
       h("div", { class: "row" }, h("div", { class: "grow" }, input), sends)),
     h("div", { class: "card" }, h("h3", {}, "전임자에게 보낸 질문"),
       mine.length ? mine.map((q) => h("div", { class: "small", style: "margin-bottom:8px" }, h("b", {}, "Q. "), q.q,
@@ -672,7 +674,74 @@ async function tabPlan(el, p) {
           plan.reading.map((r, i) => check("d" + i, r.file, r.kind, []))))));
 }
 
-// ⑧ 바통 터치
+// ⑨ 인수 리허설: 확정된 내용으로 문제를 풀고 '인수 준비도'를 잰다(채점은 서버에서)
+async function tabRehearsal(el, p) {
+  const st = await api(`/api/projects/${p.id}/rehearsal`);
+  const box = h("div");
+  const who = p.to_name || "후임자";
+  function summary(s) {
+    const r = s.readiness, last = s.attempts[s.attempts.length - 1];
+    const rows = Object.entries(r.by_type).map(([label, x]) => h("div", { class: "rh-type" },
+      h("span", {}, label), h("div", { class: "progress grow" }, h("i", { style: `width:${x.pct}%` })), h("span", { class: "tiny muted" }, `${x.ok}/${x.total}`)));
+    return h("div", { class: "card rh-sum" },
+      h("div", { class: "rh-score" }, h("div", { class: "tiny muted" }, `${who}의 인수 준비도`), h("div", { class: "stat" }, `${r.pct}%`),
+        h("div", { class: "small muted" }, `출제할 수 있는 ${r.total}개 항목 중 ${r.ok}개 숙지`),
+        last ? h("div", { class: "tiny muted", style: "margin-top:4px" }, `최근 ${last.at} · ${last.correct}/${last.total} 정답`) : null),
+      h("div", { class: "grow" }, h("h3", {}, "분야별"), rows.length ? rows : h("div", { class: "small muted" }, "문제를 만들 수 있는 항목이 아직 없습니다.")));
+  }
+  function intro(s) {
+    return h("div", { class: "card", style: "margin-top:14px" },
+      h("h2", {}, "인수 리허설"),
+      h("p", { class: "small muted", style: "margin-top:0" }, "인수인계서에 담긴 기한·담당자·현안 상태·자료 위치·노하우를 10문제로 확인합니다. 틀린 문제는 근거 원문으로 바로 이어지고, 아직 못 맞힌 항목부터 다시 나옵니다. 준비도는 가장 최근에 맞힌 항목의 비율이며, 전임자가 항목을 고치면 그 항목은 다시 풀어야 합니다."),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: start }, s.attempts.length ? "다시 풀기(10문제)" : "리허설 시작(10문제)")),
+      s.attempts.length ? h("table", { class: "tbl", style: "margin-top:14px" },
+        h("tr", {}, h("th", {}, "회차"), h("th", {}, "일시"), h("th", {}, "정답"), h("th", {}, "출제 범위")),
+        s.attempts.map((a, i) => h("tr", {}, h("td", {}, `${i + 1}회`), h("td", {}, a.at), h("td", {}, `${a.correct}/${a.total}`),
+          h("td", { class: "small muted" }, a.confirmed_only ? "확정된 항목" : "검수 전 항목 포함")))) : null);
+  }
+  async function start() {
+    const rnd = await api(`/api/projects/${p.id}/rehearsal/start`, { method: "POST", json: {} });
+    const picks = {};
+    const cards = rnd.questions.map((q, i) => h("div", { class: "qcard" },
+      h("b", {}, `${i + 1}. ${q.type}`),
+      h("div", { class: "rh-q" }, q.q),
+      h("div", { class: "rh-opts" + (q.kind === "tip" ? " ox" : "") }, q.options.map((o, j) => h("label", { class: "rh-opt" },
+        h("input", { type: "radio", name: q.id, onchange: () => { picks[q.id] = j; done.textContent = `${Object.keys(picks).length}/${rnd.questions.length} 답함`; } }), h("span", {}, o))))));
+    const done = h("span", { class: "small muted" }, `0/${rnd.questions.length} 답함`);
+    const submit = h("button", { class: "btn primary", onclick: async () => {
+      submit.disabled = true;
+      try { const res = await api(`/api/projects/${p.id}/rehearsal/submit`, { method: "POST", json: { answers: picks } }); showResult(rnd, picks, res); }
+      finally { submit.disabled = false; }
+    } }, "채점하기");
+    box.replaceChildren(
+      !rnd.confirmed_only ? h("div", { class: "alert warn" }, "전임자가 확정(확인·수정)한 항목이 아직 적어 검수 전 내용으로 출제했습니다. 검수가 끝나면 확정된 내용으로만 출제합니다.") : null,
+      ...cards, h("div", { class: "row between", style: "margin-top:6px" }, done, submit));
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function showResult(rnd, picks, res) {
+    const good = res.results.filter((r) => r.correct).length;
+    const byId = Object.fromEntries(rnd.questions.map((q) => [q.id, q]));
+    const cards = res.results.map((r, i) => {
+      const q = byId[r.id];
+      return h("div", { class: "qcard " + (r.correct ? "rh-right" : "rh-wrong") },
+        h("div", { class: "row between" }, h("b", {}, `${i + 1}. ${r.type}`), h("span", { class: "badge " + (r.correct ? "t-official" : "t-none") }, r.correct ? "정답" : r.chosen == null ? "답 안 함" : "오답")),
+        h("div", { class: "rh-q" }, q.q),
+        !r.correct ? h("div", { class: "small" }, r.chosen != null ? `고른 답: ${q.options[r.chosen]} · ` : "", h("b", {}, `정답: ${r.answer_text}`)) : null,
+        h("div", { class: "small muted", style: "margin-top:4px" }, r.explain),
+        !r.correct ? h("div", { style: "margin-top:6px" }, h("span", { class: "tiny muted" }, "근거 원문: "), srcChips(r.sources),
+          h("a", { class: "btn sm", style: "margin-left:4px", href: `#/p/${p.id}/review` }, "인수인계서에서 보기")) : null);
+    });
+    box.replaceChildren(
+      h("div", { class: "alert " + (good === res.results.length ? "ok" : "info") }, `${res.results.length}문제 중 ${good}문제를 맞혔습니다. 인수 준비도 ${res.readiness.pct}%` + (good < res.results.length ? " · 틀린 문제는 근거 원문을 열어 확인하세요." : "")),
+      ...cards);
+    head.replaceChildren(summary(res), intro(res));
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const head = h("div", {}, summary(st), intro(st));
+  add(el, head, h("div", { style: "margin-top:14px" }, box));
+}
+
+// ⑩ 바통 터치
 function tabHandover(el, p) {
   const d = p.draft, hd = p.handover || {};
   const live = d.sections.flatMap((s) => s.items).filter((i) => !["deleted", "unsupported"].includes(i.status));
@@ -690,12 +759,14 @@ function tabHandover(el, p) {
   const baton = h("div", { class: "baton" + (both ? " go" : "") }, svg("svg", { viewBox: "0 0 48 24", width: 48, height: 24 },
     svg("rect", { x: 2, y: 7, width: 44, height: 10, rx: 5, fill: "#1f4e79" })));
   add(el, 
-    h("div", { class: "grid g4" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
-      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
+    h("div", { class: "grid g5" }, stat(`${Math.round(100 * verified / Math.max(1, live.length))}%`, `검수 완료 (${verified}/${live.length})`),
+      stat(`${qa}/${d.questions.length}`, "인터뷰 답변"), stat(`${resolved}/${conflicts.length}`, "불일치 해소"), stat(p.readiness && p.readiness.tried ? `${p.readiness.pct}%` : "미응시", "인수 준비도(리허설)"),
+      stat(p.integrity && p.integrity.ok ? "보존" : "확인 필요", "원본 무결성")),
     lineageCard(p),
     h("div", { class: "card", style: "margin-top:14px" },
       h("h2", {}, "바통 터치"),
       !ready ? h("div", { class: "alert warn" }, "검수율이 50% 미만입니다. 전임자 확인 전에 ② 초안 검수를 더 진행하는 것을 권장합니다.") : null,
+      hd.from_signed_at && !hd.to_signed_at && !(p.readiness && p.readiness.pct >= 60) ? h("div", { class: "alert info" }, "수령 전에 ⑨ 인수 리허설로 인수 준비도를 확인해 보세요(60% 이상 권장).", " ", h("a", { href: `#/p/${p.id}/rehearsal` }, "리허설 하러 가기")) : null,
       h("div", { class: "baton-stage" },
         h("div", { class: "runner" + (hd.from_signed_at ? " signed" : "") }, stamp(p.from_name, "인계", !!hd.from_signed_at), h("div", { class: "tiny muted" }, "전임자"), h("b", {}, p.from_name || "전임자"),
           h("div", { class: "tiny muted" }, hd.from_signed_at ? `확인 ${hd.from_signed_at}` : "인계 전"),

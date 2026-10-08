@@ -196,6 +196,101 @@ class TestCreativeFeatures(unittest.TestCase):
         self.assertEqual(relay[0]["info"]["lineage"][0]["name"], "박선배 주무관")
 
 
+class TestRehearsal(unittest.TestCase):
+    """인수 리허설: 정답 비공개, 서버 채점, 모호한 문제 제외, 준비도·수정 시 재확인."""
+
+    @classmethod
+    def setUpClass(cls):
+        p = _project()
+        p["base_date"] = "2026-05-11"
+        p["draft"] = build_draft(p, OfflineClient())
+        cls.draft = p["draft"]
+
+    def test_round_has_mixed_types_and_hidden_answers(self):
+        from baton import rehearsal as R
+
+        rnd = R.make_round(self.draft, {}, n=10, seed=1)
+        kinds = {q["kind"] for q in rnd["questions"]}
+        self.assertGreaterEqual(len(kinds), 4)
+        self.assertFalse(rnd["confirmed_only"])  # 아직 아무것도 확정하지 않음 → 검수 전 항목 포함 표시
+        pub = json.dumps(R.public(rnd), ensure_ascii=False)
+        for key in ('"answer"', '"explain"', '"sources"'):
+            self.assertNotIn(key, pub)
+
+    def test_no_ambiguous_questions(self):
+        from baton import rehearsal as R
+
+        qs, _ = R._candidates(self.draft, __import__("random").Random(3))
+        when = [q for q in qs if q["kind"] == "when"]
+        texts = [q["q"] for q in when]
+        self.assertEqual(len(texts), len(set(texts)))  # 같은 문장에서 답이 둘인 문제 없음
+        for q in qs:
+            if q["kind"] == "status":  # 대기·보류·회신 대기는 서로 오답 보기가 되지 않음
+                groups = [R.STATUS_GROUP[o] for o in q["options"]]
+                self.assertEqual(len(groups), len(set(groups)))
+            self.assertIn(q["answer"], q["options"])
+
+    def test_tip_false_statement(self):
+        import random
+
+        from baton import rehearsal as R
+
+        fake = R._falsify("작년 양식 쓰면 반려되니 꼭 새 양식 받을 것!", random.Random(0))
+        self.assertEqual(fake, "새 양식 쓰면 반려되니 꼭 작년 양식 받을 것!")
+        self.assertIsNone(R._falsify("담당자에게 확인할 것", random.Random(0)))
+
+    def test_confirmed_only_when_reviewed(self):
+        import copy
+
+        from baton import rehearsal as R
+
+        d = copy.deepcopy(self.draft)
+        for s in d["sections"]:
+            for it in s["items"]:
+                it["status"] = "verified" if s["kind"] in ("people", "issues") else it["status"]
+        rnd = R.make_round(d, {}, n=10, seed=1)
+        self.assertTrue(rnd["confirmed_only"])
+        self.assertEqual({q["kind"] for q in rnd["questions"]} - {"who", "status"}, set())
+
+    def test_server_grading_readiness_and_stale_after_edit(self):
+        from fastapi.testclient import TestClient
+
+        from baton.server import app
+
+        c = TestClient(app)
+        pid = c.post("/api/projects/demo").json()["id"]
+        for _ in range(100):
+            if c.get(f"/api/projects/{pid}/job").json().get("state") in ("done", "error"):
+                break
+            time.sleep(0.2)
+        self.assertEqual(c.post(f"/api/projects/{pid}/rehearsal/submit", json={"answers": {}}).status_code, 400)
+        rnd = c.post(f"/api/projects/{pid}/rehearsal/start", json={}).json()
+        from baton import store
+
+        # 정답 열쇠는 서버 저장본에만 있고, 화면용 정보(프로젝트 조회)로도 새지 않는다
+        key = {q["id"]: q["answer"] for q in store.load(pid)["rehearsal"]["open"]["questions"]}
+        view = c.get(f"/api/projects/{pid}").json()
+        self.assertNotIn("rehearsal", view)
+        self.assertNotIn(store.load(pid)["rehearsal"]["open"]["questions"][0]["explain"], json.dumps(view, ensure_ascii=False))
+        res = c.post(f"/api/projects/{pid}/rehearsal/submit", json={"answers": key}).json()
+        self.assertTrue(all(r["correct"] for r in res["results"]))
+        self.assertEqual(res["readiness"]["ok"], len(rnd["questions"]))
+        self.assertGreater(res["readiness"]["pct"], 0)
+        # 틀린 답에는 근거 원문이 붙는다
+        rnd2 = c.post(f"/api/projects/{pid}/rehearsal/start", json={}).json()
+        key2 = {q["id"]: q["answer"] for q in store.load(pid)["rehearsal"]["open"]["questions"]}
+        wrong = {k: (v + 1) % len(next(q for q in rnd2["questions"] if q["id"] == k)["options"]) for k, v in key2.items()}
+        res2 = c.post(f"/api/projects/{pid}/rehearsal/submit", json={"answers": wrong}).json()
+        self.assertTrue(all(not r["correct"] and r["sources"] for r in res2["results"]))
+        # 맞혔던 항목을 전임자가 고치면 그 항목은 다시 확인해야 한다
+        p = store.load(pid)
+        ok_item = next(i for i, m in p["rehearsal"]["mastery"].items() if m["ok"])
+        before = c.get(f"/api/projects/{pid}/rehearsal").json()["readiness"]["ok"]
+        c.patch(f"/api/projects/{pid}/items/{ok_item}", json={"text": "고친 내용 2026. 7. 1.까지 제출"})
+        after = c.get(f"/api/projects/{pid}/rehearsal").json()["readiness"]["ok"]
+        self.assertEqual(after, before - 1)
+
+
 FACILITY = os.path.join(ROOT, "sample_data", "전임자_김도윤_업무폴더")
 
 
