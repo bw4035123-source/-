@@ -113,7 +113,7 @@ app.py              웹 API (질문 넘기기·바통 파일·.ics 경로 포함
 engine.py           기능 로직
 qa.py               기능 로직
 report.py           기능 로직 (인수인계서·매뉴얼·바통 파일·.ics 만들기)
-static/             화면(HTML·JS, 외부 라이브러리 없음)
+static/             화면(HTML·JS·hanok.css 한국풍 테마·글꼴, 외부 라이브러리 없음)
 core/               공통 모듈: 문서 읽기(hwpx·hwp·docx·pptx·pdf·xlsx·eml·txt), 검색, 모델 연결, 문서 내보내기(hwpx·docx·md), 저장소, 웹 서버
 sample_data/        모의자료
 tools/              모델 검증 도구, 가짜 모델 서버, 모의자료 생성기
@@ -137,8 +137,9 @@ data/               작업 데이터·산출물 (실행 시 생성, 저장소에
 | openpyxl | 엑셀 읽기 | MIT |
 | olefile | 한글(HWP 5.0) 읽기 | BSD |
 | python-docx | 워드 문서 만들기 | MIT |
+| 나눔명조(Nanum Myeongjo) | 화면 제목 글꼴, `static/fonts/`에 함께 넣음(인터넷 없이도 같은 모양) | SIL OFL 1.1 (`static/fonts/OFL-NanumMyeongjo.txt`) |
 
-모두 `pip install`로 설치하며 저장소에 함께 넣지 않았습니다. 재배포가 제한되는 구성요소는 없습니다.
+라이브러리는 모두 `pip install`로 설치하며 저장소에 함께 넣지 않았습니다(글꼴만 함께 넣음, OFL은 재배포 허용). 재배포가 제한되는 구성요소는 없습니다.
 
 ## 알려진 한계
 

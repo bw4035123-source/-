@@ -187,7 +187,9 @@ function renderDraft() {
   sec.append(el("div", { class: "panel" },
     el("div", { class: "row" },
       el("h2", { style: { flex: 1, margin: 0 } }, H.title),
-      rv.confirmed ? el("span", { class: "tag ok" }, `전임자 확인 완료 · ${rv.by || ""} · ${rv.at || ""}`) : el("span", { class: "tag warn" }, "검토 중(초안)")),
+      rv.confirmed ? el("span", { class: "stamp", title: `전임자 확인 완료 · ${rv.by || ""} · ${rv.at || ""}`, role: "img", "aria-label": "전임자 확인 완료" },
+        el("b", {}, "확인"), el("small", {}, rv.by || "전임자"), el("small", {}, (rv.at || "").slice(0, 10).replace(/-/g, ".")))
+        : el("span", { class: "tag warn" }, "검토 중(초안)")),
     el("p", { class: "small muted" }, `전임자: ${d.predecessor || "-"} · 후임자: ${H.successor || "-"} · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
     el("div", { class: "grid3", style: { gridTemplateColumns: "repeat(6,1fr)" } },
       ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["확인 필요", open], ["후임자 질문 대기", waiting.length]]
@@ -269,6 +271,10 @@ function renderRelay() {
 const rv_confirmed = () => !!(H.review && H.review.confirmed);
 
 // ------------------------------------------------------------ 달력
+// 달마다 드는 24절기(대략의 시기 감각을 돕는 표시)
+const JEOLGI = { 1: "소한 · 대한", 2: "입춘 · 우수", 3: "경칩 · 춘분", 4: "청명 · 곡우", 5: "입하 · 소만", 6: "망종 · 하지",
+  7: "소서 · 대서", 8: "입추 · 처서", 9: "백로 · 추분", 10: "한로 · 상강", 11: "입동 · 소설", 12: "대설 · 동지" };
+const monthHead = m => el("h4", {}, `${m}월`, el("span", { class: "jg" }, JEOLGI[m]));
 function renderCalendar() {
   const sec = $("#tab-calendar");
   if (needH(sec)) return;
@@ -287,7 +293,7 @@ function renderCalendar() {
     el("b", {}, s.day ? `${s.day}일 ` : ""), s.task, (s.origin || []).every(o => o === "개인메모") ? el("span", { class: "tag warn" }, "메모") : null, schedTags(s));
   for (let m = 1; m <= 12; m++) {
     const its = items.filter(s => s.recurring !== "매월" && !later.includes(s) && (s.months || []).includes(m)).sort((a, b) => (a.day || 0) - (b.day || 0));
-    cal.append(el("div", { class: "m" + (m === nowM ? " now" : "") }, el("h4", {}, `${m}월`),
+    cal.append(el("div", { class: "m" + (m === nowM ? " now" : "") }, monthHead(m),
       its.length ? its.map(itemEl) : el("div", { class: "small muted" }, "일정 없음")));
   }
   sec.append(cal);
@@ -421,7 +427,7 @@ function setupManual() {
       H.review.confirmed ? null : el("p", { class: "tag warn" }, "전임자 확인 전 초안 기준입니다"),
       el("h3", {}, "1. 첫 주에 할 일"), el("ol", {}, m.week1.map(x => el("li", {}, x))),
       el("h3", {}, "2. 착임월부터 12개월 일정"),
-      el("div", { class: "cal" }, m.months.map(mo => el("div", { class: "m" }, el("h4", {}, `${mo.month}월`),
+      el("div", { class: "cal" }, m.months.map(mo => el("div", { class: "m" }, monthHead(mo.month),
         mo.items.length ? mo.items.map(s => el("div", { class: "it" }, (s.day ? s.day + "일 " : "") + s.task)) : el("div", { class: "small muted" }, "-")))),
       el("h3", {}, "3. 진행 중인 현안 (기한 순)"),
       el("table", { class: "t" }, el("tr", {}, el("th", {}, "현안"), el("th", {}, "남은 기간"), el("th", {}, "다음 할 일"), el("th", {}, "근거")),

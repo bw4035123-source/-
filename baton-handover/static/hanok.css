@@ -1,0 +1,242 @@
+/* 업무바통 테마: 한지·먹·쪽빛 ─ 공공기관 업무 화면에 맞게 절제한 한국풍.
+   색은 전통 안료에서 따왔다: 쪽(藍)·먹(墨)·인주(印朱)·황토·뇌록(磊綠). 단청·오방색은 가는 띠로만 쓴다.
+   제목 글꼴(나눔명조)은 static/fonts 에 함께 넣어 인터넷이 없어도 같은 모양으로 나온다(SIL OFL 1.1). */
+
+@font-face { font-family: "Baton Myeongjo"; font-weight: 700; font-display: swap;
+  src: url(/fonts/nanum-myeongjo-latin-700-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2190-2193, U+2212, U+2215; }
+@font-face { font-family: "Baton Myeongjo"; font-weight: 700; font-display: swap;
+  src: url(/fonts/nanum-myeongjo-korean-700-normal.woff2) format("woff2");
+  unicode-range: U+1100-11FF, U+3000-303F, U+3130-318F, U+A960-A97F, U+AC00-D7AF, U+D7B0-D7FF, U+FF00-FFEF, U+2460-24FF; }
+@font-face { font-family: "Baton Myeongjo"; font-weight: 800; font-display: swap;
+  src: url(/fonts/nanum-myeongjo-latin-800-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2190-2193, U+2212, U+2215; }
+@font-face { font-family: "Baton Myeongjo"; font-weight: 800; font-display: swap;
+  src: url(/fonts/nanum-myeongjo-korean-800-normal.woff2) format("woff2");
+  unicode-range: U+1100-11FF, U+3000-303F, U+3130-318F, U+A960-A97F, U+AC00-D7AF, U+D7B0-D7FF, U+FF00-FFEF, U+2460-24FF; }
+
+:root {
+  --hanji: #f6f1e6;      /* 한지 바탕 */
+  --hanji-2: #efe7d6;    /* 한지 그늘 */
+  --paper: #fffdf8;      /* 카드(새 한지) */
+  --muk: #24211d;        /* 먹 */
+  --muk-2: #3a3530;
+  --jjok: #1f3d68;       /* 쪽빛(남색) */
+  --jjok-2: #162d4f;
+  --jjok-soft: #e8edf4;
+  --inju: #b03a2e;       /* 인주(도장 주홍) */
+  --inju-soft: #f7e7e2;
+  --hwangto: #a8741c;    /* 황토 */
+  --hwangto-soft: #f6ecd9;
+  --noerok: #2f6a5f;     /* 뇌록(청록) */
+  --noerok-soft: #e4efeb;
+  --gunchung: #2b4a7c;   /* 군청 */
+  --jangdan: #a4452f;    /* 장단 */
+  --songhwa: #c9a043;    /* 송화 */
+
+  --bg: var(--hanji); --panel: var(--paper); --ink: var(--muk); --muted: #6a6257;
+  --line: #e6dccb; --line-strong: #d3c6af;
+  --brand: var(--jjok); --brand-strong: var(--jjok-2); --brand-soft: var(--jjok-soft);
+  --ok: var(--noerok); --ok-soft: var(--noerok-soft); --warn: #94600e; --warn-soft: var(--hwangto-soft);
+  --bad: var(--inju); --bad-soft: var(--inju-soft); --info-soft: var(--jjok-soft);
+  --radius: 10px; --radius-sm: 6px;
+  --shadow: 0 1px 0 rgba(70, 50, 20, .04), 0 8px 24px -12px rgba(70, 50, 20, .14);
+  --shadow-lg: 0 24px 64px rgba(40, 28, 10, .22);
+  --focus: 0 0 0 3px rgba(31, 61, 104, .28);
+  --serif: "Baton Myeongjo", "Nanum Myeongjo", "나눔명조", "Noto Serif KR", "Noto Serif CJK KR", "AppleMyungjo", "Batang", "바탕", serif;
+  --dancheong: repeating-linear-gradient(90deg,
+    var(--gunchung) 0 18px, #efe6d2 18px 20px, var(--jangdan) 20px 30px, #efe6d2 30px 32px,
+    var(--noerok) 32px 50px, #efe6d2 50px 52px, var(--songhwa) 52px 58px, #efe6d2 58px 60px);
+  --obang: linear-gradient(90deg, #2b4a7c 0 20%, #b03a2e 20% 40%, #c9a043 40% 60%, #efe6d2 60% 80%, #24211d 80% 100%);
+  --hanji-tex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .34 0 0 0 0 .22 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body { background: var(--hanji) var(--hanji-tex); color: var(--muk); }
+::selection { background: rgba(31, 61, 104, .16); }
+
+/* ── 맨 위: 먹색 띠 + 오방색 가는 선 ── */
+.gov-strip { background: var(--muk); color: rgba(246, 241, 230, .72); position: relative; }
+.gov-strip b { color: #f6f1e6; }
+.gov-strip::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 3px; background: var(--obang); opacity: .9; }
+.masthead { background: var(--paper); border-bottom: 1px solid var(--line); margin-top: 3px; }
+.masthead .ms-mark { background: var(--inju); border-radius: 4px; font-family: var(--serif); font-weight: 800; font-size: 11.5px;
+  letter-spacing: 0; box-shadow: inset 0 0 0 2px var(--inju), inset 0 0 0 3px rgba(255, 250, 240, .75); line-height: 1.05;
+  text-align: center; padding-top: 1px; }
+.masthead b { font-family: var(--serif); font-weight: 800; letter-spacing: 0; }
+
+/* ── 머리 영역: 창호 문살·처마선·낙관·단청 띠 ── */
+header.top { background: radial-gradient(120% 90% at 50% 0%, #fbf7ee 0%, var(--hanji) 70%) , var(--hanji); padding: 56px 24px 64px;
+  overflow: hidden; isolation: isolate; }
+header.top::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(96, 72, 36, .085) 0 1.5px, transparent 1.5px 38px),
+    repeating-linear-gradient(0deg, rgba(96, 72, 36, .085) 0 1.5px, transparent 1.5px 38px);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, rgba(0,0,0,.6) 9%, transparent 24%, transparent 76%, rgba(0,0,0,.6) 91%, #000 100%);
+          mask-image: linear-gradient(90deg, #000 0, rgba(0,0,0,.6) 9%, transparent 24%, transparent 76%, rgba(0,0,0,.6) 91%, #000 100%); }
+header.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 9px; background: var(--dancheong);
+  border-top: 1.5px solid var(--muk); border-bottom: 1.5px solid var(--muk); opacity: .92; }
+header.top .eave { width: min(560px, 82vw); height: auto; margin: 0 auto 6px; display: block; overflow: visible;
+  animation: rise .9s var(--ease) both; }
+header.top .eave path { fill: none; stroke: var(--muk); stroke-linecap: round; stroke-linejoin: round; }
+header.top .eave .rafters { stroke-width: 1.2; opacity: .5; }
+header.top .mark.seal { width: 66px; height: 66px; border-radius: 5px; background: var(--inju); margin-bottom: 18px;
+  box-shadow: inset 0 0 0 3px var(--inju), inset 0 0 0 4.5px rgba(255, 250, 240, .8), 0 10px 22px -10px rgba(176, 58, 46, .7);
+  transform: rotate(-3deg); color: #fbf4e6; font-family: var(--serif); font-weight: 800; font-size: 21px; line-height: 1.02;
+  display: grid; place-items: center; text-align: center; letter-spacing: 0; }
+header.top .eyebrow { color: var(--jjok); font-family: var(--serif); font-weight: 700; font-size: 15px; letter-spacing: .05em;
+  display: flex; align-items: center; justify-content: center; gap: 12px; }
+header.top .eyebrow::before, header.top .eyebrow::after { content: ""; width: 36px; height: 1px; background: currentColor; opacity: .5; }
+header.top h1 { font-family: var(--serif); font-weight: 800; font-size: 70px; letter-spacing: .04em; color: var(--muk);
+  line-height: 1.12; text-shadow: 0 1px 0 #fff; }
+header.top .sub { font-family: var(--serif); font-weight: 700; color: #5c5449; font-size: 21px; letter-spacing: .02em; margin-top: 14px; }
+header.top .highlights { margin-top: 42px; }
+header.top .highlights li { border-left: 1px solid var(--line-strong); padding: 0 30px; align-items: center; }
+header.top .highlights b { font-family: var(--serif); font-weight: 800; font-size: 16px; color: var(--muk); display: inline-flex; align-items: center; gap: 8px; }
+header.top .highlights b::before { content: ""; width: 7px; height: 7px; transform: rotate(45deg); background: var(--gunchung); flex: none; }
+header.top .highlights li:nth-child(2) b::before { background: var(--jangdan); }
+header.top .highlights li:nth-child(3) b::before { background: var(--noerok); }
+header.top .highlights li:nth-child(4) b::before { background: var(--songhwa); }
+header.top .highlights span { color: var(--muted); }
+header.top select, .llm-badge { background: var(--paper); border: 1px solid var(--line-strong); }
+.llm-badge.on::before { background: var(--noerok); }
+
+/* ── 탭: 쪽빛 먹줄 ── */
+nav.tabs { background: rgba(250, 246, 237, .92); border-bottom: 1px solid var(--line-strong); }
+nav.tabs.stuck { background: rgba(252, 249, 242, .94); }
+nav.tabs button { border-radius: 5px; color: #5f574c; }
+nav.tabs button:hover { background: rgba(96, 72, 36, .07); color: var(--muk); }
+nav.tabs button.on, nav.tabs .tab-ink { background: var(--jjok); }
+nav.tabs .nav-title { font-family: var(--serif); font-weight: 800; letter-spacing: .02em; }
+
+/* ── 카드·제목 ── */
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.panel:hover { box-shadow: 0 1px 0 rgba(70, 50, 20, .04), 0 14px 32px -14px rgba(70, 50, 20, .2); }
+.panel h2, .panel > h3:first-child, .panel > .row:first-child > h3:first-child, .modal h3 {
+  font-family: var(--serif); font-weight: 800; letter-spacing: .01em; }
+.panel h2 { font-size: 23px; display: flex; align-items: center; gap: 10px; }
+.panel h2::before { content: ""; width: 8px; height: 8px; transform: rotate(45deg); background: var(--inju); flex: none; }
+.panel h3 { font-family: var(--serif); font-weight: 700; font-size: 16.5px; letter-spacing: .01em; }
+.panel .panel { box-shadow: none; background: #fffefb; }
+
+/* ── 버튼·입력 ── */
+button, .btn { border-radius: 6px; background: var(--paper); border-color: var(--line-strong); }
+button:hover, .btn:hover { background: #faf5ea; border-color: #b9a988; }
+button.primary { background: var(--jjok); border-color: var(--jjok); color: #fbf7ee; letter-spacing: .01em;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .15) inset, 0 6px 14px -8px rgba(22, 45, 79, .7); }
+button.primary:hover { background: var(--jjok-2); border-color: var(--jjok-2); color: #fff; }
+button.danger { color: var(--inju); }
+input, textarea, select { background: #f8f3e9; border-radius: 6px; }
+input:hover:not(:focus), textarea:hover:not(:focus), select:hover:not(:focus) { background: #f3ecdf; }
+input:focus, textarea:focus, select:focus { background: #fffdf8; border-color: var(--jjok); }
+.row > label:has(> input[type="radio"]) { border-radius: 6px; background: var(--paper); }
+.row > label:has(> input[type="radio"]:checked) { background: var(--jjok); border-color: var(--jjok); color: #fbf7ee; }
+a, details summary { color: var(--jjok); }
+
+/* ── 표·칩·태그 ── */
+table.t th { background: #f5efe3; color: #5d554a; border-bottom: 1.5px solid var(--line-strong); }
+table.t tr:first-child th:first-child { border-top-left-radius: 6px; }
+table.t tr:first-child th:last-child { border-top-right-radius: 6px; }
+table.t tbody tr:hover td, table.t tr:hover td { background: #fcf8ef; }
+table.t td[contenteditable="true"] { background: #fffbf0; }
+table.t td[contenteditable="true"]:focus { box-shadow: inset 0 0 0 2px var(--jjok); background: #fff; }
+.chip { border-radius: 6px; background: var(--paper); border-color: var(--line-strong); color: #4a443c; }
+.chip:hover { border-color: var(--jjok); color: var(--jjok); }
+.tag { border-radius: 4px; font-weight: 700; }
+.tag.ok { background: var(--noerok-soft); color: var(--noerok); }
+.tag.warn { background: var(--hwangto-soft); color: var(--warn); }
+.tag.bad { background: var(--inju-soft); color: var(--inju); }
+.tag.info { background: var(--jjok-soft); color: var(--jjok); }
+.tag.gray { background: #efe9dd; color: var(--muted); }
+.empty { background: #faf6ec; border: 1px dashed var(--line-strong); }
+
+/* 숫자 카드: 단청 빛 가는 기둥 */
+.stat { background: #faf6ec; border: 1px solid var(--line); border-left: 4px solid var(--gunchung); border-radius: 6px; color: var(--muted); }
+.stat b { font-family: var(--serif); font-weight: 800; font-size: 36px; color: var(--muk); letter-spacing: .01em; }
+.stat:nth-child(2) { border-left-color: var(--jangdan); }
+.stat:nth-child(3) { border-left-color: var(--noerok); }
+.stat:nth-child(4) { border-left-color: var(--songhwa); }
+.stat:nth-child(5) { border-left-color: var(--inju); }
+.stat:nth-child(6) { border-left-color: var(--muk); }
+
+/* ── 알림·창·인용 ── */
+.toast { background: rgba(36, 33, 29, .94); border-radius: 6px; color: #f6f1e6; }
+.toast.err { background: rgba(176, 58, 46, .96); }
+.modal-bg { background: rgba(36, 28, 16, .36); }
+.modal { background: var(--paper); border-radius: var(--radius); border: 1px solid var(--line); }
+.quote { background: #f8f2e6; border-left: 3px solid var(--hwangto); border-radius: 0 6px 6px 0; }
+.quote.hit { background: #fbf0e3; border-left-color: var(--inju); }
+pre.doc { background: #faf6ec; border: 1px solid var(--line); }
+.drop { background: #faf6ec; border-color: #cbbb9e; border-radius: var(--radius); }
+.drop.over { background: var(--jjok-soft); border-color: var(--jjok); }
+.spinner { border-color: var(--line-strong); border-top-color: var(--jjok); }
+
+/* ── 대화: AI 분신은 낙관(도장) ── */
+.msg { border-radius: 14px; }
+.msg.me { background: var(--jjok); color: #fbf7ee; border-bottom-right-radius: 4px; }
+.msg.bot { background: #f8f3e8; border: 1px solid var(--line); border-top-left-radius: 4px; }
+.av-row { display: flex; gap: 10px; align-items: flex-start; }
+.avatar { flex: none; width: 38px; height: 38px; border-radius: 4px; display: grid; place-items: center;
+  background: var(--inju); color: #fbf4e6; font-family: var(--serif); font-weight: 800; font-size: 17px;
+  box-shadow: inset 0 0 0 2px var(--inju), inset 0 0 0 3px rgba(255, 250, 240, .75); transform: rotate(-3deg); }
+.av-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.av-head .avatar { width: 54px; height: 54px; font-size: 24px; }
+.av-head h2::before { display: none; }
+
+/* ── 지식 릴레이: 계보 명패 ── */
+.relay { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 12px 0 10px; }
+.relay .gen { position: relative; border: 1px solid var(--line-strong); border-radius: 6px; padding: 10px 18px 10px 16px;
+  background: linear-gradient(180deg, #fffdf8, #f8f1e3); font-size: 12.5px; color: var(--muted); min-width: 132px; }
+.relay .gen b { display: block; font-family: var(--serif); font-weight: 800; font-size: 17px; color: var(--muk); letter-spacing: .02em; }
+.relay .gen.now { border-color: var(--jjok); box-shadow: 0 0 0 3px rgba(31, 61, 104, .1); background: #fffdf8; }
+.relay .gen.now::after { content: "인계"; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px; border-radius: 50%;
+  border: 1.5px solid var(--inju); color: var(--inju); font-family: var(--serif); font-weight: 800; font-size: 10.5px;
+  display: grid; place-items: center; background: rgba(255, 253, 248, .9); transform: rotate(-12deg);
+  box-shadow: inset 0 0 0 2px #fffdf8, inset 0 0 0 3px var(--inju); }
+.relay .gen.next { border-style: dashed; background: transparent; }
+.relay .gen.next b { color: #8a8174; }
+.relay .arrow { align-self: center; width: 34px; height: 2px; background: var(--hwangto); position: relative; font-size: 0; margin: 0 4px; }
+.relay .arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--hwangto); border-right: 0; }
+
+/* ── 전임자 확인 도장 ── */
+.stamp { width: 82px; height: 82px; border-radius: 50%; border: 2.5px solid var(--inju); color: var(--inju); flex: none;
+  display: grid; place-content: center; text-align: center; transform: rotate(-12deg); line-height: 1.15;
+  box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4.5px var(--inju); background: rgba(255, 253, 248, .6);
+  font-family: var(--serif); animation: stamp .55s cubic-bezier(.2, 1.4, .4, 1) both; mix-blend-mode: multiply; }
+.stamp b { font-size: 22px; font-weight: 800; letter-spacing: .1em; }
+.stamp small { font-size: 9.5px; font-weight: 700; display: block; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+@keyframes stamp { 0% { opacity: 0; transform: rotate(-12deg) scale(1.9); } 60% { opacity: 1; transform: rotate(-12deg) scale(.94); } 100% { transform: rotate(-12deg) scale(1); } }
+
+/* ── 달력: 달마다 절기 ── */
+.cal .m { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; box-shadow: none; position: relative; overflow: hidden; }
+.cal .m h4 { font-family: var(--serif); font-weight: 800; font-size: 18px; display: flex; align-items: baseline; justify-content: space-between;
+  gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.cal .m h4 .jg { font-family: var(--serif); font-weight: 700; font-size: 12px; color: var(--hwangto); letter-spacing: .08em; }
+.cal .m.now { box-shadow: none; border-color: var(--inju); }
+.cal .m.now::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--inju); }
+.cal .m.now h4::after { content: "이번 달"; order: 1; font-family: inherit; font-size: 11px; color: var(--inju); }
+.cal .it { border-bottom: 1px dashed #ece3d2; }
+
+/* ── 바닥글: 먹 ── */
+.foot { background: var(--muk); color: rgba(246, 241, 230, .62); position: relative; margin-top: 24px; }
+.foot::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--obang); opacity: .9; }
+
+::-webkit-scrollbar-thumb { background: #d3c6af; border-color: var(--hanji); }
+
+@media (max-width: 900px) { header.top::before { display: none; } }
+@media (max-width: 700px) {
+  header.top { padding: 64px 16px 40px; }
+  header.top > select, header.top > .llm-badge { top: 14px; max-width: calc(50vw - 22px); overflow: hidden; text-overflow: ellipsis; }
+  header.top > select { left: 16px; }
+  header.top > .llm-badge { right: 16px; display: block; }
+  header.top .highlights li { border-left: 0; padding: 0; }
+  .grid2 > *, .grid3 > * { min-width: 0; }
+  table.t { display: block; overflow-x: auto; }
+  header.top h1 { font-size: 44px; }
+  header.top .sub { font-size: 16px; }
+  header.top .mark.seal { width: 52px; height: 52px; font-size: 16px; }
+  .relay .arrow { width: 16px; }
+  .relay .gen { min-width: 0; }
+}
+@media print {
+  body { background: #fff; }
+  header.top::after, .gov-strip::after, .foot::before { display: none; }
+}
