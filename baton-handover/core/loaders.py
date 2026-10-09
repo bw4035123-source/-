@@ -8,6 +8,7 @@ import email
 import email.policy
 import hashlib
 import io
+import json
 import re
 import struct
 import zipfile
@@ -16,7 +17,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
-SUPPORTED = {".hwpx", ".hwp", ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx", ".eml", ".txt", ".md", ".csv"}
+SUPPORTED = {".hwpx", ".hwp", ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx", ".eml", ".txt", ".md", ".csv", ".baton"}
 
 
 def skip_reason(ext):
@@ -407,6 +408,106 @@ def _read_eml(data, name):
     return out, [], meta
 
 
+# ---------------------------------------------------------------- 바통 파일(.baton): 지식 릴레이
+
+BATON_FORMAT = "baton-handover/1"
+BATON_SECTIONS = {"rnr": "담당업무", "schedule": "일정", "contacts": "연락처", "issues": "현안"}
+_BATON_FIELDS = {
+    "rnr": {"duty": str, "detail": str},
+    "schedule": {"task": str, "related": str, "action": str, "recurring": str, "when": str, "date": str,
+                 "months": list, "day": int, "year": int, "approx": bool},
+    "contacts": {"name": str, "title": str, "org": str, "phones": list, "emails": list, "topics": list},
+    "issues": {"title": str, "state": str, "next_action": str, "due": str, "topic": str},
+}
+_BATON_MAIN = {"rnr": "duty", "schedule": "task", "contacts": "name", "issues": "title"}
+
+
+def _baton_item(sec, raw):
+    """바통 파일의 항목을 정해진 필드·형식만 남겨 읽는다(손으로 고친 파일도 앱이 깨지지 않게)."""
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for k, typ in _BATON_FIELDS[sec].items():
+        v = raw.get(k)
+        if typ is str:
+            out[k] = str(v).strip() if v not in (None, "") else ""
+        elif typ is list:
+            out[k] = [str(x).strip() for x in (v if isinstance(v, list) else []) if str(x).strip()]
+        elif typ is int:
+            out[k] = int(v) if isinstance(v, (int, str)) and str(v).isdigit() else None
+        else:
+            out[k] = bool(v)
+    if sec == "schedule":
+        out["months"] = sorted({int(m) for m in out["months"] if m.isdigit() and 1 <= int(m) <= 12})
+        if out["day"] is not None and not 1 <= out["day"] <= 31:
+            out["day"] = None
+        if out["year"] is not None and not 2000 <= out["year"] <= 2100:
+            out["year"] = None
+        if not out["months"]:
+            return None
+        out["date"] = out["date"] if re.fullmatch(r"20\d{2}-\d{2}-\d{2}", out["date"]) else None
+    if not out[_BATON_MAIN[sec]]:
+        return None
+    return out
+
+
+def _baton_text(sec, it):
+    if sec == "rnr":
+        return f"[담당업무] {it['duty']}" + (f" — {it['detail']}" if it["detail"] else "")
+    if sec == "schedule":
+        when = "매월" if it["recurring"] == "매월" else ", ".join(f"{m}월" for m in it["months"])
+        when += f" {it['day']}일" if it["day"] else ""
+        return f"[일정] {when}{' (' + it['recurring'] + ')' if it['recurring'] and it['recurring'] != '매월' else ''}: {it['task']}"
+    if sec == "contacts":
+        return (f"[연락처] {it['name']} {it['title']} ({it['org'] or '-'}) {', '.join(it['phones'] + it['emails']) or '연락처 없음'}"
+                + (f" — {', '.join(it['topics'][:2])}" if it["topics"] else ""))
+    return (f"[현안] {it['title']} [{it['state'] or '-'}] 다음 할 일: {it['next_action'] or '-'} / 기한: {it['due'] or '-'}")
+
+
+def _read_baton(data, name):
+    """이전 담당자가 저장한 인수인계서(.baton)를 블록으로 읽고, 정리된 항목·계보·질의응답은 meta로 넘긴다."""
+    obj = json.loads(_decode(data))
+    if not isinstance(obj, dict) or obj.get("format") != BATON_FORMAT:
+        raise ValueError("업무바통 파일(.baton) 형식이 아닙니다")
+    as_list = lambda v: v if isinstance(v, list) else []
+    lineage = [{k: str(x.get(k) or "") for k in ("name", "handed_to", "date", "work")}
+               for x in as_list(obj.get("lineage")) if isinstance(x, dict) and x.get("name")]
+    holder = str(obj.get("holder") or (lineage[-1]["name"] if lineage else "") or "이전 담당자")
+    gen = len(lineage) or 1
+    out, items = [], []
+    chain = " → ".join(f"{i}대 {x['name']}" + (f"({x.get('date')})" if x.get("date") else "") for i, x in enumerate(lineage, 1))
+    out.append(("계보", f"업무 계보: {chain or holder} → {obj.get('handed_to') or '다음 담당자'} · {obj.get('work', '')}"))
+    sections = obj.get("sections") if isinstance(obj.get("sections"), dict) else {}
+    for sec, label in BATON_SECTIONS.items():
+        for i, raw in enumerate(as_list(sections.get(sec)), 1):
+            it = _baton_item(sec, raw)
+            if not it:
+                continue
+            since = raw.get("since") if isinstance(raw.get("since"), dict) else {}
+            since = ({"gen": int(since["gen"]), "name": str(since.get("name") or holder)}
+                     if str(since.get("gen", "")).isdigit() else {"gen": gen, "name": holder})
+            srcs = [s for s in as_list(raw.get("sources")) if isinstance(s, dict)][:2]
+            text = _baton_text(sec, it) + (" (근거: " + "; ".join(f"{s.get('file', '')} {s.get('loc', '')}".strip() for s in srcs) + ")" if srcs else "")
+            items.append({"section": sec, "item": it, "block": len(out), "since": since})
+            out.append((f"{label} {i}", text))
+    interview = []
+    for i, x in enumerate(as_list(obj.get("interview")), 1):
+        if isinstance(x, dict) and x.get("q") and x.get("a"):
+            x = {"q": str(x["q"]), "a": str(x["a"]), "by": str(x.get("by") or holder), "at": str(x.get("at") or "")}
+            interview.append(x)
+            out.append((f"질의응답 {i}", f"질문: {x['q']} / 답변({x['by']}): {x['a']}"))
+    notes = []
+    for i, x in enumerate(as_list(obj.get("notes")), 1):
+        if isinstance(x, dict) and x.get("text"):
+            x = {"text": str(x["text"]), "by": str(x.get("by") or holder), "at": str(x.get("at") or "")}
+            notes.append(x)
+            out.append((f"전임자 메모 {i}", f"{x['by']} 메모: {x['text']}"))
+    meta = {"title": f"{holder} 인수인계서(바통 파일)", "holder": holder, "handed_to": str(obj.get("handed_to") or ""),
+            "work": str(obj.get("work") or ""), "lineage": lineage, "baton_items": items,
+            "interview": interview, "notes": notes}
+    return out, [], meta
+
+
 READERS = {
     ".txt": _read_text, ".md": _read_text, ".csv": _read_csv,
     ".hwpx": _read_hwpx, ".hwp": _read_hwp, ".docx": _read_docx, ".pptx": _read_pptx,
@@ -421,8 +522,8 @@ def load_bytes(data, relpath):
     did = _doc_id(relpath)
     doc = Document(id=did, name=Path(relpath).name, relpath=relpath, ext=ext)
     try:
-        if ext == ".eml":
-            items, tables, meta = _read_eml(data, relpath)
+        if ext in (".eml", ".baton"):
+            items, tables, meta = (_read_eml if ext == ".eml" else _read_baton)(data, relpath)
             doc.meta.update(meta)
         elif ext in READERS:
             items, tables = READERS[ext](data, relpath)

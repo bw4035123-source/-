@@ -1,5 +1,7 @@
 """업무바통(인수인계) 웹 서버."""
 import base64
+import json
+import re
 import time
 import uuid
 from dataclasses import asdict
@@ -10,6 +12,7 @@ from core.config import Config
 from core.export import FORMATS, export
 from core.llm import LLM
 from core.server import App, HttpError, file_response
+from core.textutil import similarity
 from core.sources import DocSystemSource, LocalFolderSource, UploadSource
 from core.store import Store
 from core import webcommon
@@ -18,7 +21,7 @@ import engine
 import qa
 import report
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HERE = Path(__file__).resolve().parent
 SAMPLE = HERE / "sample_data" / "전임자_김도윤_업무폴더"
 
@@ -58,7 +61,9 @@ def list_handovers(req):
         h = store.read(f"handovers/{hid}/handover.json")
         if h:
             out.append({k: h.get(k) for k in ("id", "title", "created", "updated", "successor")}
-                       | {"predecessor": h["draft"].get("predecessor"), "confirmed": h.get("review", {}).get("confirmed", False)})
+                       | {"predecessor": h["draft"].get("predecessor"), "confirmed": h.get("review", {}).get("confirmed", False),
+                          "generation": len(h["draft"].get("lineage") or []) + 1,
+                          "open_questions": sum(1 for q in h.get("questions") or [] if q.get("status") == "대기")})
     out.sort(key=lambda x: x["created"], reverse=True)
     return {"handovers": out}
 
@@ -227,14 +232,74 @@ def history(req):
 
 @app.post("/api/handovers/<hid>/ask")
 def ask(req):
+    """AI 전임자 분신에게 묻기: 전임자 자료로만 1인칭으로 답하고, 자료에 없으면 found=False(실제 전임자에게 넘기기)."""
     h = load_h(req.params["hid"])
     q = (req.json.get("q") or "").strip()
     if not q:
         raise HttpError(400, "질문을 입력해 주세요")
+    name = h["draft"].get("predecessor") or "전임자"
+    log(h["id"], "AI 분신에게 질문", q)
+    # 실제 전임자가 이미 답한 질문이면 그 답을 먼저 (전임자 본인의 말)
+    best = max(report.answered_questions(h), key=lambda x: similarity(x["q"], q), default=None)
+    if best and similarity(best["q"], q) >= 0.5:
+        return {"answer": f"이 질문은 제가 직접 답해 두었어요 ({best.get('answered_at', '')[:10]}).\n{best['answer']}",
+                "sources": [{"block_id": f"qa-{best['id']}", "file": "전임자 답변", "loc": f"질문 답변 {best['id']}",
+                             "quote": f"질문: {best['q']} / 답변: {best['answer']}"[:160]}],
+                "items": [], "mode": "전임자 직접 답변", "found": True}
     blocks = store.read(f"handovers/{h['id']}/blocks.json", [])
-    res = qa.answer(h["draft"], blocks, q, llm)
-    log(h["id"], "후임자 질문", q)
+    res = qa.answer(h["draft"], blocks, q, llm, persona=name)
+    res = qa.persona_wrap(res, name)
+    res["related"] = next((x for x in h.get("questions") or [] if similarity(x["q"], q) >= 0.5), None)
     return res
+
+
+def _answer_block(h, qobj):
+    """전임자가 답한 질문을 원문 블록으로 보탠다: 이후 질문 답변의 근거가 되고, 원문 보기로 확인할 수 있다."""
+    path = f"handovers/{h['id']}/blocks.json"
+    blocks = [b for b in store.read(path, []) if b["id"] != f"qa-{qobj['id']}"]
+    blocks.append({"id": f"qa-{qobj['id']}", "doc_id": "qa", "file": "전임자 답변", "loc": f"질문 답변 {qobj['id']}",
+                   "text": f"질문: {qobj['q']} / 답변({h['draft'].get('predecessor') or '전임자'}): {qobj['answer']}"})
+    store.write(path, blocks)
+
+
+@app.post("/api/handovers/<hid>/questions")
+def forward_question(req):
+    """AI 분신이 답하지 못한 질문을 실제 전임자에게 넘긴다(전임자 검토 화면에 표시)."""
+    h = load_h(req.params["hid"])
+    q = (req.json.get("q") or "").strip()
+    if not q:
+        raise HttpError(400, "질문을 입력해 주세요")
+    qs = h.setdefault("questions", [])
+    same = next((x for x in qs if x["q"] == q), None)
+    if same:
+        return same
+    qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": req.json.get("by") or h.get("successor") or "후임자",
+            "asked_at": _now(), "status": "대기", "answer": ""}
+    qs.append(qobj)
+    save_h(h)
+    log(h["id"], "전임자에게 질문 넘김", q)
+    return qobj
+
+
+@app.get("/api/handovers/<hid>/questions")
+def list_questions(req):
+    return {"questions": load_h(req.params["hid"]).get("questions") or []}
+
+
+@app.post("/api/handovers/<hid>/questions/<qid>/answer")
+def answer_question(req):
+    h = load_h(req.params["hid"])
+    a = (req.json.get("answer") or "").strip()
+    if not a:
+        raise HttpError(400, "답변을 입력해 주세요")
+    for qobj in h.get("questions") or []:
+        if qobj["id"] == req.params["qid"]:
+            qobj.update(answer=a, status="답변", answered_at=_now())
+            save_h(h)
+            _answer_block(h, qobj)
+            log(h["id"], "전임자 답변", f"{qobj['q']} → {a}")
+            return qobj
+    raise HttpError(404, "질문을 찾을 수 없습니다")
 
 
 def _manual(h, body):
@@ -269,6 +334,46 @@ def export_doc(req):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
     return file_response(data, f"{name}.{fmt}", ctype)
+
+
+# ---------------------------------------------------------------- 지식 릴레이(.baton)·내 일정(.ics)
+
+def _fname(s):
+    return re.sub(r'[\\/:*?"<>|\s]+', "_", s or "").strip("_") or "업무"
+
+
+@app.post("/api/handovers/<hid>/baton")
+def export_baton(req):
+    """다음 담당자에게 넘길 바통 파일. 다음 인수인계 때 '자료 넣기'에 넣으면 이어받는다."""
+    h = load_h(req.params["hid"])
+    b = report.build_baton(h)
+    data = json.dumps(b, ensure_ascii=False, indent=1).encode("utf-8")
+    name = f"업무바통_{len(b['lineage'])}대_{_fname(b['holder'])}.baton"
+    out = store.path(f"handovers/{h['id']}/outputs/{name}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(data)
+    log(h["id"], "바통 파일 저장", f"{len(b['lineage'])}대 {b['holder']} → {b['handed_to'] or '다음 담당자'}")
+    return file_response(data, name, "application/json")
+
+
+@app.post("/api/handovers/<hid>/calendar")
+def export_calendar(req):
+    """연간 업무 달력을 .ics로: Outlook·그룹웨어 일정에 매월·매년 반복 일정으로 들어간다."""
+    h = load_h(req.params["hid"])
+    body = req.json or {}
+    try:
+        start = date.fromisoformat(body["start"]) if body.get("start") else date.today()
+    except ValueError:
+        raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+    data, info = report.build_ics(h, start)
+    if not info["events"]:
+        raise HttpError(400, "내보낼 일정이 없습니다. 연간 업무 달력에 일정이 있는지 확인해 주세요.")
+    name = f"업무달력_{_fname(h['draft'].get('predecessor') or '전임자')}.ics"
+    log(h["id"], "일정 내보내기(.ics)", f"{info['events']}건, 제외 {len(info['skipped'])}건")
+    res = file_response(data, name, "text/calendar; charset=utf-8")
+    res.headers["X-Events"] = str(info["events"])
+    res.headers["X-Skipped"] = str(len(info["skipped"]))
+    return res
 
 
 # ---------------------------------------------------------------- 문서시스템 API 연계(모의)

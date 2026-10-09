@@ -60,6 +60,35 @@ def check_baton(c):
         yield f"인수인계서 내보내기({fmt})", len(d) > 500
     m = c.call("POST", f"/api/handovers/{h['id']}/export/manual?fmt=hwpx", {}, raw=True)
     yield "업무 매뉴얼 내보내기", len(m) > 500
+    # AI 전임자 분신: 자료에 없으면 넘기기 → 전임자 답변 → 같은 질문엔 전임자 답
+    hid = h["id"]
+    a1 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "체육센터 대관료 감면 기준은?"})
+    yield "AI 분신: 자료에 없으면 지어내지 않음", a1["found"] is False and not a1["sources"]
+    q = c.call("POST", f"/api/handovers/{hid}/questions", {"q": "체육센터 대관료 감면 기준은?"})
+    c.call("POST", f"/api/handovers/{hid}/questions/{q['id']}/answer", {"answer": "국가유공자 50% 감면입니다."})
+    a2 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "체육센터 대관료 감면 기준 알려줘"})
+    yield "AI 분신: 전임자에게 넘긴 질문의 답으로 응답", a2["found"] and "50%" in a2["answer"]
+    a3 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "수질검사 부적합 나오면 어떻게 해?"})
+    yield "AI 분신: 1대 담당자의 질의응답까지 근거로", a3["found"] and "최선우" in a3["answer"]
+    # 지식 릴레이: 1대(모의 바통) → 2대 김도윤 → 3대
+    yield "지식 릴레이: 모의 바통 파일 이어받기", [x["name"] for x in h["draft"]["lineage"]] == ["최선우"] and \
+        any(it.get("carried") for it in s["schedule"])
+    b = c.call("POST", f"/api/handovers/{hid}/baton", {}, raw=True)
+    bj = json.loads(b)
+    yield f"바통 파일 저장({len(bj['lineage'])}대, 질의응답 {len(bj['interview'])}건)", len(bj["lineage"]) == 2 and len(bj["interview"]) == 2
+    import base64
+    h3 = c.call("POST", "/api/handovers", {"source": {"kind": "upload", "files": [
+        {"path": "인계/업무바통_2대_김도윤.baton", "b64": base64.b64encode(b).decode()},
+        {"path": "인계/메모.txt", "b64": base64.b64encode("2027년 3월 16일 상반기 정기 안전점검 착수".encode()).decode()}]},
+        "successor": "박다음"})
+    d3 = h3["draft"]
+    yield "3대 인수인계: 계보·항목·질의응답 이어받기", [x["name"] for x in d3["lineage"]] == ["최선우", "김도윤"] and \
+        len(d3["carried_interview"]) == 2 and sum(1 for k in d3["sections"] for it in d3["sections"][k] if it.get("carried")) > 10
+    # 내 일정으로 내보내기(.ics)
+    ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
+    yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \
+        "RRULE:FREQ=MONTHLY;BYMONTHDAY=10" in ics and "FREQ=YEARLY" in ics and \
+        all(len(x.encode("utf-8")) <= 75 for x in ics.split("\r\n"))
 
 
 def check_seomu(c):

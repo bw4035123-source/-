@@ -1,6 +1,9 @@
 """인수인계서·후임자 업무매뉴얼 문서 만들기 (한글·워드·마크다운 공통 블록)."""
+import calendar
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+
+from core.loaders import BATON_FORMAT, _BATON_FIELDS
 
 GLOSSARY = {
     "해빙기": "얼었던 땅이 녹는 2~3월. 지반 침하·균열 점검이 필요한 시기",
@@ -84,11 +87,209 @@ def handover_blocks(h):
               ("h1", "7. 인계 자료 목록"),
               ("table", ["자료", "종류", "요약"], [[x["relpath"], x.get("kind", ""), x.get("summary", "")] for x in d["docs"]], [3, 1, 4]),
               ("note", "※ 각 항목의 근거는 원문 파일과 위치를 표시한 것입니다. 이 문서는 업무바통 도구로 작성한 초안을 전임자가 검토한 결과입니다.")]
+    n = 8
+    qa = answered_questions(h)
+    if qa:
+        blocks.insert(-1, ("h1", f"{n}. 전임자 질의응답"))
+        blocks.insert(-1, ("table", ["질문(후임자)", "답변(전임자)", "답변일"], [[q["q"], q["answer"], q.get("answered_at", "")[:10]] for q in qa], [3, 4, 1]))
+        n += 1
     comments = rv.get("comments") or []
     if comments:
-        blocks.insert(-1, ("h1", "8. 전임자 메모"))
+        blocks.insert(-1, ("h1", f"{n}. 전임자 메모"))
         blocks.insert(-1, ("table", ["작성", "내용"], [[c.get("at", ""), c.get("text", "")] for c in comments], [1, 4]))
+        n += 1
+    lineage = d.get("lineage") or []
+    if lineage:
+        rows = [[f"{i}대", x.get("name", ""), x.get("handed_to", ""), x.get("date", "")] for i, x in enumerate(lineage, 1)]
+        rows.append([f"{len(lineage) + 1}대", d.get("predecessor") or "-", h.get("successor") or "-", "이번 인수인계"])
+        blocks.insert(-1, ("h1", f"{n}. 업무 계보(지식 릴레이)"))
+        blocks.insert(-1, ("table", ["세대", "담당자", "넘겨받은 사람", "인계일"], rows, [1, 2, 2, 2]))
     return blocks
+
+
+def answered_questions(h):
+    return [q for q in h.get("questions") or [] if q.get("status") == "답변" and q.get("answer")]
+
+
+# ---------------------------------------------------------------- 지식 릴레이: 바통 파일(.baton)
+
+def build_baton(h):
+    """다음 담당자가 '자료 넣기'에 그대로 넣으면 이어받는 인수인계서 파일.
+
+    정리된 항목(삭제 제외, 끝난 일회성 일정 제외)·근거·처음 기록된 세대, 앞 세대부터 쌓인 질의응답·메모,
+    담당자 계보를 담는다. 1대 → 2대 → 3대로 넘어갈수록 기관의 업무 지식이 쌓인다."""
+    d = h["draft"]
+    S = d["sections"]
+    holder = d.get("predecessor") or "전임자"
+    lineage = [dict(x) for x in d.get("lineage") or []]
+    lineage.append({"name": holder, "handed_to": h.get("successor") or "", "date": date.today().isoformat(),
+                    "work": h.get("title") or ""})
+    for i, x in enumerate(lineage, 1):
+        x["gen"] = i
+    me = {"gen": len(lineage), "name": holder}
+    sections = {}
+    for sec, fields in _BATON_FIELDS.items():
+        out = []
+        for it in live(S[sec]):
+            if sec == "schedule" and not it.get("recurring") and it.get("timing") in ("완료", "지난 일", "기한 지남"):
+                continue  # 이미 지난 일회성 일정은 다음 담당자에게 넘길 지식이 아니다
+            x = {k: it.get(k) for k in fields}
+            x.update(status=it.get("status", ""), since=it.get("carried") or me,
+                     sources=[{k: src.get(k, "") for k in ("file", "loc", "quote")} for src in it.get("sources", [])[:2]])
+            out.append(x)
+        sections[sec] = out
+    rv = h.get("review") or {}
+    interview = [dict(x) for x in d.get("carried_interview") or []]
+    interview += [{"q": q["q"], "a": q["answer"], "by": holder, "at": q.get("answered_at", "")} for q in answered_questions(h)]
+    notes = [dict(x) for x in d.get("carried_notes") or []]
+    notes += [{"text": c["text"], "by": holder, "at": c.get("at", "")} for c in rv.get("comments") or []]
+    notes += [{"text": f"확인 결과: {f['message']} → {f['note']}", "by": holder, "at": ""}
+              for f in d.get("flags", []) if f.get("resolved") and f.get("note")]
+    return {
+        "format": BATON_FORMAT,
+        "app": "업무바통",
+        "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "work": h.get("title") or "",
+        "holder": holder,
+        "handed_to": h.get("successor") or "",
+        "confirmed": bool(rv.get("confirmed")),
+        "lineage": lineage,
+        "sections": sections,
+        "interview": interview,
+        "notes": notes,
+        "note": "업무바통 '자료 넣기'에 이 파일을 함께 넣으면 다음 담당자가 이 내용을 근거로 이어받습니다.",
+    }
+
+
+# ---------------------------------------------------------------- 내 일정으로 내보내기(.ics)
+
+def _ics_escape(s):
+    return (str(s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+            .replace("\r\n", "\\n").replace("\n", "\\n"))
+
+
+def _ics_fold(line):
+    """RFC 5545: 한 줄은 75바이트 이하. 한글(UTF-8 3바이트)이 잘리지 않게 글자 단위로 접는다."""
+    out, cur, size = [], "", 0
+    for ch in line:
+        n = len(ch.encode("utf-8"))
+        if size + n > (75 if not out else 74):
+            out.append(cur)
+            cur, size = "", 0
+        cur += ch
+        size += n
+    out.append(cur)
+    return "\r\n ".join(out)
+
+
+def _clamp(y, m, d):
+    return date(y, m, min(d, calendar.monthrange(y, m)[1]))
+
+
+def _next_on(months, day, start):
+    """start 이후(당일 포함) 처음 오는 (months 중 한 달, day일). day가 그 달보다 크면 말일."""
+    for k in range(0, 25):
+        y, m = start.year + (start.month - 1 + k) // 12, (start.month - 1 + k) % 12 + 1
+        if m in months:
+            d = _clamp(y, m, day)
+            if d >= start:
+                return d
+    return None
+
+
+def build_ics(h, start=None):
+    """연간 업무 달력 → iCalendar(.ics). Outlook·그룹웨어 일정에 '가져오기'로 바로 넣는다.
+
+    - 매월 업무: 매월 반복(RRULE FREQ=MONTHLY), 말일 넘는 날짜는 말일(BYMONTHDAY=-1)
+    - 매년·매분기 업무: 해당 달에 매년 반복(RRULE FREQ=YEARLY;BYMONTH=…)
+    - 일회성 일정: 그 날짜 하루(이미 지난 일은 넣지 않음)
+    - 날짜(일)가 자료에 없으면 그 달 1일에 넣고 설명에 '날짜 확인 필요'를 적는다
+    - 알림: 매월 업무는 하루 전, 나머지는 일주일 전
+    반환: (ics 바이트, {"events": n, "skipped": [(할 일, 이유)]})"""
+    start = start or date.today()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    pred = h["draft"].get("predecessor") or "전임자"
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//업무바통//인수인계 업무 달력//KO", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH", f"X-WR-CALNAME:{_ics_escape('업무바통 - ' + (h.get('title') or pred + ' 업무'))}",
+             "X-WR-TIMEZONE:Asia/Seoul"]
+    events, skipped = 0, []
+    # 아직 확인되지 않은(충돌·불확실 등) 일정은 제목에 표시해 그대로 믿지 않게 한다
+    open_flags = {}
+    for f in h["draft"].get("flags", []):
+        if not f.get("resolved"):
+            for r in f.get("refs", []):
+                open_flags.setdefault(r, f)
+
+    def event(uid, day0, s, rrule="", alarm_days=7):
+        nonlocal events
+        approx = not s.get("day") or s.get("approx")
+        src = "; ".join(f"{x['file'].split('/')[-1]} {x['loc']}" for x in s.get("sources", [])[:2])
+        desc = [f"시기: {s.get('when') or _when(s)}"]
+        if s.get("related"):
+            desc.append(f"관련: {s['related']}")
+        if src:
+            desc.append(f"근거: {src}")
+        if approx:
+            desc.append("자료에 정확한 날짜가 없어 그 달 1일에 넣었습니다. 실제 날짜를 확인해 고쳐 주세요.")
+        flag = open_flags.get(s["id"])
+        if flag:
+            desc.append(f"확인 필요({flag['type']}): {flag['message']}")
+        desc.append(f"업무바통 인수인계({pred} → {h.get('successor') or '후임자'})에서 내보냄")
+        summary = re.sub(r"\s+", " ", s["task"]).strip()
+        if approx:
+            summary += " (날짜 확인)"
+        if flag:
+            summary = f"[확인 필요] {summary}"
+        ev = ["BEGIN:VEVENT", f"UID:{uid}@baton-handover", f"DTSTAMP:{stamp}",
+              f"DTSTART;VALUE=DATE:{day0:%Y%m%d}", f"DTEND;VALUE=DATE:{day0 + timedelta(days=1):%Y%m%d}",
+              f"SUMMARY:{_ics_escape(summary[:150])}", f"DESCRIPTION:{_ics_escape(chr(10).join(desc))}",
+              "CATEGORIES:업무바통,인수인계", "TRANSP:TRANSPARENT"]
+        if rrule:
+            ev.append(f"RRULE:{rrule}")
+        ev += ["BEGIN:VALARM", "ACTION:DISPLAY", f"DESCRIPTION:{_ics_escape(summary[:60])}",
+               f"TRIGGER:-P{alarm_days}D", "END:VALARM", "END:VEVENT"]
+        lines.extend(ev)
+        events += 1
+
+    for s in live(h["draft"]["sections"]["schedule"]):
+        months = sorted({int(m) for m in s.get("months") or [] if str(m).isdigit() and 1 <= int(m) <= 12})
+        if not months or not (s.get("task") or "").strip():
+            skipped.append((s.get("task") or "(할 일 없음)", "시기(월)가 없음"))
+            continue
+        day = s.get("day") or 1
+        rec = s.get("recurring") or ""
+        uid = f"{h['id']}-{s['id']}"
+        if rec == "매월":
+            first = _next_on(range(1, 13), day, start)
+            event(uid, first, s, f"FREQ=MONTHLY;BYMONTHDAY={day if day <= 28 else -1}", alarm_days=1)
+        elif rec in ("매년", "매분기"):
+            # BYMONTHDAY가 어떤 달에 없으면 그 달은 빠지므로 모든 달에 있는 날로 맞춘다
+            dd = min([day] + [calendar.monthrange(2027, m)[1] for m in months])  # 2월은 28일 기준
+            first = _next_on(months, dd, start)
+            event(uid, first, s, f"FREQ=YEARLY;BYMONTH={','.join(map(str, months))};BYMONTHDAY={dd}")
+        else:
+            if s.get("timing") in ("완료", "지난 일"):
+                skipped.append((s["task"], f"이미 지난 일({s['timing']})"))
+                continue
+            for m in months:
+                if s.get("date"):
+                    try:
+                        d0 = date.fromisoformat(s["date"])
+                    except ValueError:
+                        d0 = None
+                elif s.get("year"):
+                    d0 = _clamp(s["year"], m, day)
+                else:
+                    d0 = _next_on([m], day, start)  # 연도 없는 날짜: 착임일 뒤 처음 오는 그 달
+                if not d0 or d0 < start:
+                    skipped.append((s["task"], f"날짜({d0 or m}월)가 착임일({start.isoformat()}) 전"))
+                    continue
+                event(f"{uid}-{m}", d0, s)
+                if s.get("date"):
+                    break
+    lines.append("END:VCALENDAR")
+    data = "\r\n".join(_ics_fold(x) for x in lines) + "\r\n"
+    return data.encode("utf-8"), {"events": events, "skipped": skipped}
 
 
 def _parse_due(due, year):

@@ -45,6 +45,8 @@ def new_id(prefix):
 
 def classify(doc):
     path = doc.relpath
+    if doc.ext == ".baton":
+        return "이전 인수인계서"
     if doc.ext == ".eml":
         return "메일"
     if PERSONAL_PATH.search(path) or doc.ext in (".txt", ".md"):
@@ -197,7 +199,12 @@ class Extractor:
         self.kind = {d.id: classify(d) for d in self.docs}
         self.blocks = {b.id: b for d in self.docs for b in d.blocks}
         self.ref = {d.id: doc_date(d) or self.today for d in self.docs}
-        self.predecessor = predecessor or self.guess_predecessor()
+        # 지식 릴레이: 이전 담당자가 넘긴 바통 파일(.baton). 계보가 가장 긴 파일을 이어받는다
+        self.batons = [d for d in self.docs if d.ext == ".baton"]
+        last = max(self.batons, key=lambda d: len(d.meta.get("lineage") or []), default=None)
+        self.lineage = list(last.meta.get("lineage") or []) if last else []
+        # 바통을 받은 사람(handed_to)이 지금 넘기는 전임자다
+        self.predecessor = predecessor or (last.meta.get("handed_to") if last else "") or self.guess_predecessor()
         self.items = {"rnr": [], "schedule": [], "contacts": [], "issues": []}
 
     def guess_predecessor(self):
@@ -205,6 +212,8 @@ class Extractor:
         메일 받는 사람, 그다음 본문 언급 횟수. 협의 상대(팀장 등)가 많이 나와도 이기지 않게 한다."""
         cnt = Counter()
         for d in self.docs:
+            if d.ext == ".baton":
+                continue
             heads = [b.text for b in d.blocks[:2]] + [d.relpath]
             for h in heads:
                 for rx in (r"([가-힣]{2,4})\s*(?:[가-힣]{1,4}\s*)?(?:의\s*)?(?:업무\s*)?(?:인수인계|인계)",
@@ -388,8 +397,21 @@ class Extractor:
                     self.add("contacts", {"name": m.group(1), "title": "", "org": "", "phones": [],
                                           "emails": [m.group(2)], "topics": [topic]}, hb)
 
+    def from_baton(self):
+        """이전 인수인계서(.baton)의 정리된 항목을 그대로 이어받는다. 근거는 바통 파일의 해당 줄."""
+        handled = set()
+        for d in self.batons:
+            handled.update(b.id for b in d.blocks)
+            for x in d.meta.get("baton_items", []):
+                if not 0 <= x["block"] < len(d.blocks):
+                    continue
+                it = dict(x["item"], carried=x["since"])
+                self.add(x["section"], it, d.blocks[x["block"]])
+        return handled
+
     def run(self):
         handled = self.from_tables()
+        handled |= self.from_baton()
         self.from_text(handled)
         return self.items
 
@@ -448,6 +470,9 @@ def _merge_sources(dst, src):
     for o in src.get("origin", []):
         if o not in dst["origin"]:
             dst["origin"].append(o)
+    # 이전 담당자 때부터 있던 항목이면 처음 기록된 세대를 남긴다
+    if src.get("carried") and (not dst.get("carried") or src["carried"].get("gen", 99) < dst["carried"].get("gen", 99)):
+        dst["carried"] = src["carried"]
 
 
 def merge_contacts(items):
@@ -578,6 +603,13 @@ def build_flags(sections, kind_of_file, today=None):
                 continue
             seen_quotes.add(key)
             flag("불확실", f"'{label}': " + ", ".join(reasons) + ".", [it["id"]], it["sources"], "중" if m else "하")
+
+    # 불확실: 이전 담당자 때의 현안이 이번 자료에는 없음(이미 끝났을 수 있음)
+    for it in sections["issues"]:
+        if it.get("carried") and it["origin"] and all(o == "이전 인수인계서" for o in it["origin"]):
+            c = it["carried"]
+            flag("불확실", f"현안 '{it['title']}': {c.get('gen', '')}대 {c.get('name', '')} 때 넘겨받은 현안인데 이번 자료에는 없습니다. "
+                 "지금도 진행 중인지 확인해 주세요.", [it["id"]], it["sources"], "중")
 
     # 충돌: 같은 일(대상어+행위)인데 시기가 다름
     sch = sections["schedule"]
@@ -817,8 +849,8 @@ def llm_extract(llm, docs, predecessor, kind_of, refs=None):
     refs = refs or {}
     blocks = {b.id: b for d in docs for b in d.blocks}
     for d in docs:
-        if d.error or not d.blocks:
-            continue
+        if d.error or not d.blocks or d.ext == ".baton":
+            continue  # 바통 파일은 이미 정리된 항목이라 규칙으로 그대로 이어받는다
         windows, cur, size = [], [], 0
         for b in d.blocks:
             line = f"[{b.id}] {b.text}"
@@ -904,7 +936,8 @@ INTENT_RX = re.compile(r"예정|까지|필요|해야|할 것|바랍니다|부탁
 def apply_cadence(schedule, ex):
     """'정기'만 보고 매년으로 잡힌 일정: 같은 업무가 다른 곳에서 '매월'로 나오면 매월로 고친다.
     (예: 수질검사 보고서의 '다음 정기검사 10.6.' ↔ 계획서 '수영장 수질검사: 매월 10일까지')"""
-    monthly = [b for b in ex.blocks.values() if re.search(r"매월|매달", b.text)]
+    baton = {d.id for d in ex.batons}
+    monthly = [b for b in ex.blocks.values() if re.search(r"매월|매달", b.text) and b.doc_id not in baton]
     for it in schedule:
         if it.get("recurring") != "매년" or it.get("by") == "model":
             continue
@@ -960,6 +993,8 @@ def attach_notes(sections, ex):
     rnr = sections["rnr"]
     leftovers = []
     for d in ex.docs:
+        if d.ext == ".baton":
+            continue  # 바통 파일의 노하우는 이미 항목에 붙어서 넘어온다
         memo = ex.kind.get(d.id) == "개인메모"
         for b in d.blocks:
             if b.loc.startswith("머리글"):
@@ -1038,17 +1073,23 @@ def analyze(docs, predecessor="", llm=None, today=None):
     docs_info = []
     for d in docs:
         info = d.to_dict()
+        info["meta"] = {k: v for k, v in info["meta"].items() if k not in ("baton_items", "interview", "notes")}
         info["kind"] = ex.kind.get(d.id, "읽기 실패" if d.error else "참고자료")
         info["topic"] = doc_topic(d)
         info["summary"] = _doc_summary(d)
         docs_info.append(info)
     kinds = Counter(i["kind"] for i in docs_info)
+    relay = ""
+    if ex.lineage:
+        relay = (" " + " → ".join(f"{i}대 {x['name']}" for i, x in enumerate(ex.lineage, 1))
+                 + f"의 인수인계서(바통 파일)를 이어받아 {sum(1 for s in sections.values() for it in s if it.get('carried'))}개 항목을 넘겨받았습니다.")
     overview = (f"{ex.predecessor or '전임자'}의 업무자료 {len(docs_info)}건("
                 + ", ".join(f"{k} {v}" for k, v in kinds.items())
                 + f")에서 담당업무 {len(sections['rnr'])}건, 일정 {len(sections['schedule'])}건, "
                 f"연락처 {len(sections['contacts'])}명, 현안 {len(sections['issues'])}건을 찾았습니다. "
                 f"확인이 필요한 사항은 {len(flags)}건입니다."
-                + (f" 모델이 낸 항목 중 원문과 맞지 않는 {sum(f['count'] for f in filtered)}건은 버렸습니다." if filtered else ""))
+                + (f" 모델이 낸 항목 중 원문과 맞지 않는 {sum(f['count'] for f in filtered)}건은 버렸습니다." if filtered else "")
+                + relay)
     if llm is not None and llm.enabled:
         try:
             o = llm.json("공공기관 인수인계서의 '업무 개요'를 3문장 이내로 씁니다. 주어진 항목에 없는 내용은 쓰지 않습니다. 출력: {\"overview\":\"...\"}",
@@ -1068,6 +1109,10 @@ def analyze(docs, predecessor="", llm=None, today=None):
         "llm_errors": llm_errors,
         "filtered": filtered,
         "today": ex.today.isoformat(),
+        # 지식 릴레이: 앞 세대 계보와, 앞 세대가 남긴 질의응답·메모(다음 바통 파일에 그대로 이어 쓴다)
+        "lineage": ex.lineage,
+        "carried_interview": [x for d in ex.batons for x in d.meta.get("interview", [])],
+        "carried_notes": [x for d in ex.batons for x in d.meta.get("notes", [])],
     }
 
 

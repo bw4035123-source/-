@@ -159,7 +159,59 @@ def contacts_xlsx():
     return buf.getvalue()
 
 
+def relay_baton():
+    """지식 릴레이 시연용: 1대 담당자(최선우)가 2024년에 김도윤에게 넘긴 바통 파일."""
+    import json
+    src = lambda f, loc, q: [{"file": f, "loc": loc, "quote": q}]
+    since = {"gen": 1, "name": "최선우"}
+    data = {
+        "format": "baton-handover/1", "app": "업무바통", "exported_at": "2024-06-28 17:40",
+        "work": "시설운영팀 시설관리 업무", "holder": "최선우", "handed_to": "김도윤", "confirmed": True,
+        "lineage": [{"gen": 1, "name": "최선우", "handed_to": "김도윤", "date": "2024-07-01", "work": "시설운영팀 시설관리 업무"}],
+        "sections": {
+            "rnr": [
+                {"duty": "수영장 수질관리 및 결과 보고", "detail": "부적합 판정이 나오면 당일 염소 투입량을 조정하고 재검사를 의뢰",
+                 "status": "확인", "since": since, "sources": src("수질관리 업무노트.hwp", "문단 4", "부적합 시 당일 염소 투입량 조정 후 재검사 의뢰")},
+                {"duty": "시설 관련 민원 처리", "detail": "겨울철 샤워실 온수 민원이 몰리므로 11월에 보일러 점검을 먼저",
+                 "status": "확인", "since": since, "sources": src("민원 처리 대장 2023.xlsx", "민원!12행", "샤워실 온수 미지급 민원 (12~2월 집중)")},
+            ],
+            "schedule": [
+                {"task": "정기 안전점검 외부 전문기관 위탁 계약 체결(상·하반기 점검 대비)", "months": [1], "day": None,
+                 "recurring": "매년", "when": "매년 1월", "related": "정기 안전점검", "action": "계약", "status": "확인", "since": since,
+                 "sources": src("2024년 체육시설 안전점검 계획.hwpx", "문단 9", "정기 안전점검은 1월 중 외부 전문기관과 위탁계약 체결")},
+                {"task": "수영장 정기 휴장 기간 여과기·배관 점검", "months": [7], "day": None, "recurring": "매년",
+                 "when": "매년 7월(휴장 기간)", "related": "수영장", "action": "점검", "status": "확인", "since": since,
+                 "sources": src("수영장 운영 계획.docx", "문단 15", "7월 정기 휴장 기간 중 여과기 및 배관 점검")},
+                {"task": "수영장 수질검사 결과를 구청 체육진흥과에 제출", "months": list(range(1, 13)), "day": 10, "recurring": "매월",
+                 "when": "매월 10일", "related": "", "action": "제출", "status": "확인", "since": since,
+                 "sources": src("2024년 체육시설 안전점검 계획.hwpx", "문단 21", "수영장 수질검사: 매월 10일까지 결과 제출")},
+            ],
+            "contacts": [
+                {"name": "이정훈", "title": "팀장", "org": "시설운영팀", "phones": ["02-000-7710"], "emails": [],
+                 "topics": ["결재권자", "예산·계약 사전 협의"], "status": "확인", "since": since,
+                 "sources": src("시설운영팀 업무분장표.docx", "표1 2행", "팀장 이정훈 / 팀 업무 총괄·결재")},
+            ],
+            "issues": [
+                {"title": "주차장 바닥 균열 보수", "state": "예산 요구 중", "next_action": "2025년 예산 반영 결과를 보고 보수공사 발주",
+                 "due": "", "topic": "주차장", "status": "확인", "since": since,
+                 "sources": src("2025년 예산요구서(시설운영팀).xlsx", "요구!7행", "주차장 바닥 균열 보수 18,000천원")},
+            ],
+        },
+        "interview": [
+            {"q": "수질검사에서 부적합이 나오면 어떻게 하나요?",
+             "a": "당일 염소 투입량을 조정하고 보건환경연구원에 재검사를 의뢰하세요. 결과는 구청 체육진흥과에 바로 알리면 됩니다.",
+             "by": "최선우", "at": "2024-06-27 10:12"},
+        ],
+        "notes": [
+            {"text": "공유폴더 '안전점검' 폴더의 자체점검표 양식은 매년 1월에 바뀐 기준으로 고쳐 두세요.", "by": "최선우", "at": "2024-06-28 17:35"},
+        ],
+        "note": "업무바통 '자료 넣기'에 이 파일을 함께 넣으면 다음 담당자가 이 내용을 근거로 이어받습니다.",
+    }
+    return json.dumps(data, ensure_ascii=False, indent=1).encode("utf-8")
+
+
 def main():
+    w("00_이전인수인계/시설운영_1대_최선우.baton", relay_baton())
     w("01_공식문서/2026년 체육시설 안전점검 계획.hwpx", safety_plan())
     w("01_공식문서/2026년 시설 유지보수 용역 계약 현황.xlsx", contracts())
     w("01_공식문서/수영장 수질검사 결과 보고(2026년 9월).pdf", water_pdf())

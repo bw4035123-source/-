@@ -16,6 +16,24 @@ QA_SYSTEM = """당신은 인수인계를 받은 후임자의 질문에 답하는
 
 NOT_FOUND = "자료에서 찾지 못했습니다. 연락처 탭에서 관련 담당자에게 확인해 보세요."
 
+# AI 전임자 분신: 같은 근거·같은 검증으로 답하되 전임자 말투(1인칭)로, 모르면 실제 전임자에게 넘긴다
+PERSONA = """당신은 전임자 {name}의 'AI 분신'입니다. {name}이 남긴 업무자료만 근거로, {name} 본인이 후임자에게 말하듯 1인칭(저는, 제가)으로 친절하게 답합니다.
+자료에 없는 내용은 절대 지어내지 않습니다. 답이 자료에 없으면 found 를 false 로 하고, 실제 {name}에게 물어봐야 한다고 답합니다.
+"""
+PERSONA_JSON = """
+출력 JSON: {"answer": "답변", "used": [근거 번호들], "found": true 또는 false}"""
+
+
+def persona_wrap(res, name):
+    """규칙 기반 답변을 분신 말투로 바꾼다. 자료에서 못 찾으면 found=False (화면에서 '전임자에게 넘기기')."""
+    name = name or "전임자"
+    if not res.get("found", True):
+        res["answer"] = (f"그 내용은 제 자료에 없어요. 제가 지어내서 답하면 안 되니까, "
+                         f"진짜 {name} 님께 질문을 넘겨 드릴게요. 아래 버튼을 누르면 {name} 님 검토 화면에 질문이 올라가요.")
+    elif res.get("mode") == "규칙 기반":
+        res["answer"] = re.sub(r"^자료에서 찾은 내용입니다\.\n", f"제 자료에서 찾아봤어요. (근거를 누르면 원문이 보여요)\n", res["answer"])
+    return res
+
 # 질문에서 뜻을 더하지 않는 말
 STOP = {"누구", "누가", "누군", "누구야", "누구예요", "어디", "어디야", "언제", "언제야", "뭐", "뭐야", "뭔가", "무엇", "무슨",
         "어떻게", "어떤", "알려줘", "알려", "알려주세요", "있어", "있나", "있나요", "있어요", "있는", "해", "해요", "해야",
@@ -209,7 +227,7 @@ def retrieve(draft, blocks, q):
     return found, sents, "search"
 
 
-def answer(draft, blocks, q, llm=None):
+def answer(draft, blocks, q, llm=None, persona=None):
     q = q.strip()
     found_items, sents, how = retrieve(draft, blocks, q)
 
@@ -235,11 +253,15 @@ def answer(draft, blocks, q, llm=None):
     if llm is not None and llm.enabled and sources:
         ctx = "\n".join(f"[{i + 1}] ({s['file']} {s['loc']}) {s['quote']}" for i, s in enumerate(sources))
         extra = "\n".join(_item_text(*x) for x in found_items[:8])
+        system = (PERSONA.format(name=persona) + QA_SYSTEM + PERSONA_JSON) if persona else QA_SYSTEM
         try:
-            out = llm.json(QA_SYSTEM, f"[자료]\n{ctx}\n\n[정리된 인수인계 항목]\n{extra}\n\n[질문]\n{q}")
+            out = llm.json(system, f"[자료]\n{ctx}\n\n[정리된 인수인계 항목]\n{extra}\n\n[질문]\n{q}")
             used = [int(u) for u in out.get("used", []) if str(u).isdigit() and 1 <= int(u) <= len(sources)]
-            return {"answer": out.get("answer", "").strip(), "items": [dict(it, section=s) for s, it in found_items],
-                    "sources": [sources[u - 1] for u in used] or sources[:3], "mode": llm.label}
+            text = str(out.get("answer") or "").strip()
+            found = out.get("found") is not False and bool(text) and "찾지 못했" not in text
+            return {"answer": text, "items": [dict(it, section=s) for s, it in found_items],
+                    "sources": ([sources[u - 1] for u in used] or sources[:3]) if found else [], "mode": llm.label,
+                    "found": found}
         except Exception as e:
             fallback_note = f"(모델 응답 실패로 규칙 기반 답변: {e})"
 
@@ -271,4 +293,4 @@ def answer(draft, blocks, q, llm=None):
     if fallback_note:
         text += "\n" + fallback_note
     return {"answer": text, "items": [dict(it, section=s) for s, it in found_items], "sources": sources[:5],
-            "mode": "규칙 기반"}
+            "mode": "규칙 기반", "found": bool(lines)}
