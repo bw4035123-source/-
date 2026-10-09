@@ -11,6 +11,53 @@ const SEC = {
 };
 const STATUS_TAG = { "초안": "gray", "확인": "ok", "수정": "info", "추가": "info", "삭제": "bad" };
 
+// ------------------------------------------------------------ 개인정보 가림(기본 켬)
+// 화면에 나오는 사람 이름을 '김○윤'처럼 가린다. 화면 표시만 바꾸며, 저장 데이터·내려받는 공식 문서(한글·워드)는 그대로다.
+// 고칠 수 있는 칸(표 편집·답변 입력)은 누르는 동안만 원래 이름을 보여 주고, 가린 글자가 저장되는 일은 없다.
+let PRIVACY = true;
+try { PRIVACY = localStorage.getItem("baton:privacy") !== "off"; } catch (e) {}
+let NAMES_RX = null;
+const LIST_NAMES = new Set();
+function maskName(n) {
+  if (n.length <= 1) return n;
+  return n.length === 2 ? n[0] + "○" : n[0] + "○".repeat(n.length - 2) + n[n.length - 1];
+}
+function collectNames() {
+  const all = new Set(LIST_NAMES);
+  if (H) {
+    const d = H.draft;
+    [d.predecessor, H.successor, H.review && H.review.by,
+      ...(d.lineage || []).flatMap(x => [x.name, x.handed_to]),
+      ...d.sections.contacts.map(c => c.name),
+      ...(H.questions || []).map(q => q.asked_by),
+      ...(d.carried_interview || []).map(x => x.by), ...(d.carried_notes || []).map(x => x.by),
+      ...["rnr", "schedule", "contacts", "issues"].flatMap(k => d.sections[k].map(i => i.carried && i.carried.name))].forEach(n => n && all.add(n));
+  }
+  const names = [...all].filter(n => /^[가-힣]{2,4}$/.test(n)).sort((a, b) => b.length - a.length);
+  NAMES_RX = names.length ? new RegExp(names.join("|"), "g") : null;
+}
+const pv = t => (PRIVACY && NAMES_RX && t != null ? String(t).replace(NAMES_RX, maskName) : t);
+// 모든 화면 요소는 el()로 만들어지므로 여기서 한 번에 가린다(편집 칸·입력 칸은 제외)
+const rawEl = el;
+el = function (tag, attrs, ...kids) {
+  const editable = (attrs && attrs.contenteditable === "true") || tag === "textarea" || tag === "input";
+  if (editable) return rawEl(tag, attrs, ...kids);
+  const a = attrs && attrs.title ? { ...attrs, title: pv(attrs.title) } : attrs;
+  return rawEl(tag, a, ...kids.flat(Infinity).map(k => (typeof k === "string" || typeof k === "number") ? pv(String(k)) : k));
+};
+function setupPrivacy() {
+  const b = $("#pv-toggle");
+  const paint = () => { b.classList.toggle("on", PRIVACY); b.setAttribute("aria-pressed", String(PRIVACY));
+    b.title = PRIVACY ? "화면의 사람 이름을 가리고 있습니다(내려받는 문서는 원래 이름)" : "이름을 그대로 보여 주고 있습니다"; };
+  paint();
+  b.onclick = async () => {
+    PRIVACY = !PRIVACY;
+    try { localStorage.setItem("baton:privacy", PRIVACY ? "on" : "off"); } catch (e) {}
+    paint(); await refreshList(H && H.id);
+    toast(PRIVACY ? "화면의 이름을 가렸습니다" : "이름을 그대로 보여 줍니다");
+  };
+}
+
 // ------------------------------------------------------------ 자료 넣기
 function setupStart() {
   $$("input[name=src]").forEach(r => r.addEventListener("change", () => {
@@ -49,6 +96,8 @@ function setupStart() {
 
 async function refreshList(selectId) {
   const { handovers } = await api("GET", "/api/handovers");
+  handovers.forEach(h => h.predecessor && LIST_NAMES.add(h.predecessor));
+  collectNames();
   const sel = $("#cur-h");
   sel.innerHTML = "";
   if (!handovers.length) sel.append(el("option", { value: "" }, "인수인계 건 없음"));
@@ -73,13 +122,14 @@ async function refreshList(selectId) {
 
 async function select(id) {
   H = await api("GET", `/api/handovers/${id}`);
+  collectNames();
   $("#cur-h").value = id;
   $("#m-name").value = H.successor || "";
   renderAll();
 }
 const predName = () => (H && H.draft.predecessor) || "전임자";
 function renderAvatarHead() {
-  const n = predName();
+  const n = pv(predName());
   $("#ask-tab").textContent = `③ AI ${n}에게 묻기`;
   $("#av-init").textContent = n.slice(0, 1);
   $("#av-title").textContent = `AI ${n}에게 묻기`;
@@ -120,13 +170,20 @@ function renderSection(key) {
     const tr = el("tr", { style: it.status === "삭제" ? { opacity: .45, textDecoration: "line-through" } : {} });
     for (const c of S.cols) {
       const td = el("td", { contenteditable: H.review.confirmed ? null : "true" }, String(cellValue(it, c)));
+      const show = () => { td.textContent = pv(String(cellValue(it, c))); };
+      if (!H.review.confirmed) {
+        show();
+        td.addEventListener("focus", () => { td.textContent = String(cellValue(it, c)); });  // 고칠 때만 원래 글자
+      }
       td.addEventListener("blur", async () => {
         const nv = parseCell(c, td.textContent);
-        if (JSON.stringify(nv) === JSON.stringify(it[c.k] ?? (c.t === "list" || c.t === "months" ? [] : ""))) return;
+        if (JSON.stringify(nv) === JSON.stringify(it[c.k] ?? (c.t === "list" || c.t === "months" ? [] : ""))) return show();
         const upd = { id: it.id, [c.k]: nv };
         if (c.t === "months") upd.recurring = td.textContent.trim() === "매월" ? "매월" : (it.recurring === "매월" ? "" : it.recurring);
         const saved = await api("POST", `/api/handovers/${H.id}/item`, { section: key, item: upd });
         Object.assign(it, saved); tr.querySelector(".st").replaceWith(statusTag(it));
+        if (c.k === "name") collectNames();
+        show();
       });
       tr.append(td);
     }
@@ -379,7 +436,7 @@ function setupAsk() {
       const r = await api("POST", `/api/handovers/${H.id}/ask`, { q });
       const fwd = el("button", { class: "small" + (r.found ? "" : " primary"), onclick: async e => {
         const x = await api("POST", `/api/handovers/${H.id}/questions`, { q });
-        e.target.disabled = true; e.target.textContent = `✓ ${predName()} 님께 넘겼어요 (전임자 검토 화면에 표시)`;
+        e.target.disabled = true; e.target.textContent = `✓ ${pv(predName())} 님께 넘겼어요 (전임자 검토 화면에 표시)`;
         (H.questions = H.questions || []).some(y => y.id === x.id) || H.questions.push(x);
         renderMyQuestions(); renderDraft();
       } }, r.found ? `답이 부족하면 진짜 ${predName()} 님께 넘기기` : `진짜 ${predName()} 님께 질문 넘기기`);
@@ -452,7 +509,7 @@ async function renderHistory() {
 let goTab;
 function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); if (H) { renderAvatarHead(); renderMyQuestions(); } }
 document.addEventListener("DOMContentLoaded", async () => {
-  setupStart(); setupAsk(); setupManual();
+  setupStart(); setupAsk(); setupManual(); setupPrivacy();
   goTab = setupTabs(id => { if (id === "history") renderHistory(); });
   $("#cur-h").onchange = e => e.target.value && select(e.target.value);
   await refreshList();
