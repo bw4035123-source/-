@@ -187,8 +187,7 @@ function renderDraft() {
   sec.append(el("div", { class: "panel" },
     el("div", { class: "row" },
       el("h2", { style: { flex: 1, margin: 0 } }, H.title),
-      rv.confirmed ? el("span", { class: "stamp", title: `전임자 확인 완료 · ${rv.by || ""} · ${rv.at || ""}`, role: "img", "aria-label": "전임자 확인 완료" },
-        el("b", {}, "확인"), el("small", {}, rv.by || "전임자"), el("small", {}, (rv.at || "").slice(0, 10).replace(/-/g, ".")))
+      rv.confirmed ? el("span", { class: "done-badge", title: rv.at || "" }, `전임자 확인 완료 · ${rv.by || ""} · ${(rv.at || "").slice(0, 10).replace(/-/g, ".")}`)
         : el("span", { class: "tag warn" }, "검토 중(초안)")),
     el("p", { class: "small muted" }, `전임자: ${d.predecessor || "-"} · 후임자: ${H.successor || "-"} · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
     el("div", { class: "grid3", style: { gridTemplateColumns: "repeat(6,1fr)" } },
@@ -271,10 +270,7 @@ function renderRelay() {
 const rv_confirmed = () => !!(H.review && H.review.confirmed);
 
 // ------------------------------------------------------------ 달력
-// 달마다 드는 24절기(대략의 시기 감각을 돕는 표시)
-const JEOLGI = { 1: "소한 · 대한", 2: "입춘 · 우수", 3: "경칩 · 춘분", 4: "청명 · 곡우", 5: "입하 · 소만", 6: "망종 · 하지",
-  7: "소서 · 대서", 8: "입추 · 처서", 9: "백로 · 추분", 10: "한로 · 상강", 11: "입동 · 소설", 12: "대설 · 동지" };
-const monthHead = m => el("h4", {}, `${m}월`, el("span", { class: "jg" }, JEOLGI[m]));
+const monthHead = m => el("h4", {}, `${m}월`);
 function renderCalendar() {
   const sec = $("#tab-calendar");
   if (needH(sec)) return;
