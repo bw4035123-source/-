@@ -709,11 +709,176 @@ function newThread() {
   return m;
 }
 
+// ------------------------------------------------------------ 표준 인수인계서(필수 5대 영역)
+let FORM = null, FORM_SAVED = false, FORM_TIMER = null, FORM_HID = null;
+const AREAS = [
+  ["a1", "1. 담당 사무 개요 및 근거 법령"], ["a2", "2. 주요 추진 업무 및 연간 일정"], ["a3", "3. 예산 및 계약 현황"],
+  ["a4", "4. 미결 과제 및 유의 사항"], ["a5", "5. 보관 문서 및 주요 연락처"]];
+function formChanged() {
+  $("#form-state").textContent = "고치는 중…";
+  clearTimeout(FORM_TIMER);
+  FORM_TIMER = setTimeout(saveForm, 1200);  // 잠시 손을 멈추면 저장
+}
+async function saveForm() {
+  clearTimeout(FORM_TIMER);
+  const r = await api("POST", `/api/handovers/${H.id}/form`, { form: FORM });
+  FORM_SAVED = true;
+  const st = $("#form-state"); if (st) st.textContent = `저장됨 · ${r.updated}`;
+}
+function input(obj, key, attrs = {}) {
+  const tag = attrs.multiline ? "textarea" : "input";
+  const e = el(tag, { class: "wide", placeholder: attrs.placeholder || "", style: attrs.multiline ? { minHeight: attrs.h || "70px" } : {} });
+  e.value = obj[key] || "";
+  e.addEventListener("input", () => { obj[key] = e.value; formChanged(); });
+  return e;
+}
+function linesInput(obj, key, placeholder) {
+  const e = el("textarea", { class: "wide", placeholder, style: { minHeight: "90px" } });
+  e.value = (obj[key] || []).join("\n");
+  e.addEventListener("input", () => { obj[key] = e.value.split("\n").map(x => x.trim()).filter(Boolean); formChanged(); });
+  return e;
+}
+// 표 편집기: 칸마다 입력, 줄 추가·삭제
+function editTable(rows, cols, onAdd) {
+  const t = el("table", { class: "t form-t" });
+  const draw = () => {
+    t.innerHTML = "";
+    t.append(el("tr", {}, cols.map(c => el("th", { style: c.w ? { width: c.w } : {} }, c.l)), el("th", { style: { width: "44px" } }, "")));
+    rows.forEach((r, i) => t.append(el("tr", {}, cols.map(c => el("td", {}, input(r, c.k, { multiline: c.multi, h: "60px" }))),
+      el("td", {}, el("button", { class: "small danger", title: "이 줄 삭제", onclick: () => { rows.splice(i, 1); formChanged(); draw(); } }, "✕")))));
+  };
+  draw();
+  return el("div", { class: "form-t-wrap" }, t, el("button", { class: "small", style: { marginTop: "6px" }, onclick: () => {
+    const r = {}; cols.forEach(c => r[c.k] = ""); (onAdd || (x => x))(r); rows.push(r); formChanged(); draw(); } }, "+ 줄 추가"));
+}
+async function renderForm(force) {
+  const sec = $("#tab-form");
+  if (needH(sec)) return;
+  if (!FORM || FORM_HID !== H.id || force) {
+    const r = await api("GET", `/api/handovers/${H.id}/form`);
+    FORM = r.form; FORM_SAVED = r.saved; FORM_HID = H.id;
+    FORM.__updated = r.updated;
+  }
+  const f = FORM;
+  sec.innerHTML = "";
+  sec.append(el("div", { class: "panel" },
+    el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "표준 인수인계서"),
+      el("span", { id: "form-state", class: "small muted" }, FORM_SAVED ? `저장됨 · ${f.__updated || ""}` : "자료로 채운 초안 · 아직 저장 전"),
+      el("button", { class: "small", onclick: async () => {
+        if (!confirm("자료에서 다시 채울까요? 지금까지 고친 내용은 사라집니다.")) return;
+        const r = await api("POST", `/api/handovers/${H.id}/form/reset`, {}); FORM = r.form; FORM_SAVED = false; renderForm(); } }, "자료로 다시 채우기"),
+      el("button", { class: "primary small", onclick: () => saveForm().then(() => toast("저장했습니다")) }, "저장")),
+    el("p", { class: "small muted", style: { margin: "8px 0 12px" } },
+      "공공기관 인수인계서 필수 5대 영역입니다. 넣은 자료로 먼저 채워 두었으니 확인·수정만 하면 됩니다. 고치면 자동으로 저장되고, 한글(HWPX)·워드 서식으로 내려받습니다."),
+    el("div", { class: "row" }, el("span", { class: "small muted" }, "내려받기:"),
+      ["hwpx", "docx", "md"].map(fmt => el("button", { onclick: async () => { await saveForm(); download(`/api/handovers/${H.id}/export/form?fmt=${fmt}`, {}); } },
+        { hwpx: "한글(HWPX)", docx: "워드(DOCX)", md: "마크다운" }[fmt])))));
+  // 기본 정보
+  const m = f.meta;
+  sec.append(el("div", { class: "panel" }, el("h3", { style: { marginTop: 0 } }, "기본 정보"),
+    el("div", { class: "form-grid" }, [["org", "기관"], ["dept", "부서"], ["title", "업무명"], ["from", "인계자"], ["position", "인계자 직위"],
+      ["to", "인수자"], ["date", "인계일"], ["witness", "입회자"]].map(([k, l]) => el("label", { class: "fld" }, el("span", {}, l), input(m, k))))));
+  const area = (key, title, ...body) => el("details", { class: "panel form-area", open: true }, el("summary", {}, el("h2", { style: { display: "inline", margin: 0 } }, title)), ...body);
+  // 1. 담당 사무 개요 및 근거 법령
+  sec.append(area("a1", AREAS[0][1],
+    el("h3", {}, "가. 담당 사무 개요"), input(f.a1, "summary", { multiline: true, h: "100px" }),
+    el("h3", {}, "나. 담당 사무 (한 줄에 하나)"), linesInput(f.a1, "duties", "예) 예산 편성·집행 관리"),
+    el("h3", {}, "다. 근거 법령"),
+    el("p", { class: "small muted" }, "자료에 나온 법령 이름은 '자료 기재(확인 전)'로 넣어 두었습니다. '조문 찾기'로 국가법령정보센터의 현행 조문을 받아 오세요."),
+    lawRows(f.a1.laws), lawSearchBox()));
+  sec.append(area("a2", AREAS[1][1], editTable(f.a2.tasks, [{ k: "when", l: "시기", w: "18%" }, { k: "task", l: "업무" }, { k: "note", l: "비고", w: "22%" }])));
+  sec.append(area("a3", AREAS[2][1],
+    el("h3", {}, "가. 예산"), editTable(f.a3.budget, [{ k: "name", l: "사업명" }, { k: "amount", l: "예산액", w: "14%" }, { k: "spent", l: "집행액", w: "14%" }, { k: "note", l: "비고" }]),
+    el("h3", {}, "나. 계약(조달)"), editTable(f.a3.contracts, [{ k: "name", l: "계약명" }, { k: "vendor", l: "업체", w: "16%" }, { k: "period", l: "계약기간", w: "18%" }, { k: "amount", l: "금액", w: "13%" }, { k: "status", l: "진행 상황", w: "15%" }])));
+  sec.append(area("a4", AREAS[3][1],
+    el("h3", {}, "가. 미결 과제"), editTable(f.a4.issues, [{ k: "title", l: "과제" }, { k: "state", l: "현재 상태", w: "13%" }, { k: "next", l: "다음 조치" }, { k: "due", l: "기한", w: "12%" }]),
+    el("h3", {}, "나. 유의 사항 (한 줄에 하나)"), linesInput(f.a4, "cautions", "예) 착공일이 자료마다 다름: 업체 확인 필요")));
+  sec.append(area("a5", AREAS[4][1],
+    el("h3", {}, "가. 보관 문서"), editTable(f.a5.docs, [{ k: "name", l: "문서명" }, { k: "kind", l: "구분", w: "14%" }, { k: "where", l: "보관 위치" }]),
+    el("h3", {}, "나. 주요 연락처"), editTable(f.a5.contacts, [{ k: "name", l: "이름", w: "11%" }, { k: "org", l: "소속" }, { k: "title", l: "직위", w: "10%" }, { k: "phone", l: "연락처" }, { k: "topic", l: "관련 업무" }])));
+}
+// 근거 법령 목록: 조문을 받아 온 것은 '법령정보 확인', 자료에서 이름만 찾은 것은 '조문 찾기'
+function lawRows(laws) {
+  const box = el("div", { class: "law-rows" });
+  const draw = () => {
+    box.innerHTML = "";
+    if (!laws.length) box.append(el("div", { class: "empty" }, "아직 근거 법령이 없습니다. 아래에서 법령 이름으로 찾아 넣으세요."));
+    laws.forEach((x, i) => box.append(el("div", { class: "law-row" },
+      el("div", { class: "row", style: { gap: "6px" } },
+        el("b", {}, x.law), x.article ? el("span", {}, x.article + (x.title ? `(${x.title})` : "")) : null,
+        el("span", { class: "tag " + (x.verified ? "ok" : "warn") }, x.verified ? `법령정보 확인${x.enforce ? " · 시행 " + x.enforce : ""}` : "자료 기재(확인 전)"),
+        x.found_in ? el("span", { class: "small muted" }, `자료: ${x.found_in}`) : null,
+        el("span", { style: { flex: 1 } }),
+        x.link ? el("a", { href: x.link, target: "_blank", rel: "noopener", class: "small" }, "law.go.kr에서 보기") : null,
+        x.verified ? null : el("button", { class: "small", onclick: () => { const q = $("#law-q"); q.value = x.law; $("#law-art").value = x.article || ""; $("#law-go").click(); q.scrollIntoView({ block: "center" }); } }, "조문 찾기"),
+        el("button", { class: "small danger", onclick: () => { laws.splice(i, 1); formChanged(); draw(); } }, "✕")),
+      x.text ? el("div", { class: "law-text" }, x.text) : null)));
+  };
+  draw();
+  box._redraw = draw;
+  LAW_ROWS = box;
+  return box;
+}
+let LAW_ROWS = null;
+function lawSearchBox() {
+  const wrap = el("div", { class: "law-box" });
+  const status = el("div", { class: "small" });
+  const results = el("div", {});
+  const q = el("input", { id: "law-q", class: "wide", placeholder: "법령 이름 (예: 지방재정법, 공유재산 및 물품 관리법)" });
+  const art = el("input", { id: "law-art", placeholder: "조문(선택) 예: 제20조", style: { width: "160px" } });
+  const target = el("select", {}, [["law", "법령"], ["admrul", "행정규칙(훈령·예규·고시)"], ["ordin", "자치법규(조례·규칙)"]].map(([v, t]) => el("option", { value: v }, t)));
+  const go = el("button", { id: "law-go", class: "primary small", onclick: async () => {
+    results.innerHTML = ""; results.append(el("span", { class: "spinner" }));
+    try {
+      const r = await api("GET", `/api/law/search?q=${encodeURIComponent(q.value)}&target=${target.value}`);
+      results.innerHTML = "";
+      if (!r.items.length) return results.append(el("div", { class: "empty" }, "찾은 법령이 없습니다. 이름을 줄여서 찾아보세요."));
+      results.append(el("div", { class: "law-list" }, r.items.map(it => el("button", { class: "law-item", onclick: () => loadArticles(it, results, art.value) },
+        el("b", {}, it.name), el("span", { class: "small muted" }, [it.kind, it.dept, it.enforce && `시행 ${it.enforce}`].filter(Boolean).join(" · "))))));
+    } catch (e) { results.innerHTML = ""; }
+  } }, "찾기");
+  q.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); });
+  wrap.append(el("h3", { style: { marginTop: "18px" } }, "법령 찾아 넣기 (국가법령정보센터)"), status,
+    el("div", { class: "row", style: { marginTop: "6px" } }, target, q, art, go), results);
+  api("GET", "/api/law/status").then(st => {
+    if (st.configured) return status.append(el("span", { class: "tag ok" }, "법령 API 연결 설정됨"));
+    const oc = el("input", { placeholder: "인증값(OC)", style: { width: "180px" } });
+    status.append(el("div", { class: "law-setup" },
+      el("span", {}, "법령 API 인증값(OC)이 필요합니다. "), el("a", { href: "https://open.law.go.kr", target: "_blank", rel: "noopener" }, "open.law.go.kr"),
+      el("span", {}, "에서 'Open API 활용 신청' 후 받은 아이디(보통 신청 이메일의 @ 앞부분)를 넣으세요. "), oc,
+      el("button", { class: "small", onclick: async () => { await api("POST", "/api/law/config", { oc: oc.value }); status.innerHTML = ""; status.append(el("span", { class: "tag ok" }, "저장했습니다")); } }, "저장")));
+  });
+  return wrap;
+}
+async function loadArticles(it, box, want) {
+  box.innerHTML = ""; box.append(el("span", { class: "spinner" }));
+  let r;
+  try { r = await api("GET", `/api/law/articles?id=${encodeURIComponent(it.id)}&target=${it.target}`); } catch (e) { box.innerHTML = ""; return; }
+  const norm = s => (s || "").replace(/\s+/g, "");
+  const picks = new Set(r.articles.filter(a => want && norm(a.no) === norm(want)).map(a => a.no));
+  box.innerHTML = "";
+  const list = el("div", { class: "art-list" }, r.articles.map(a => {
+    const cb = el("input", { type: "checkbox" }); cb.checked = picks.has(a.no);
+    cb.addEventListener("change", () => cb.checked ? picks.add(a.no) : picks.delete(a.no));
+    return el("label", { class: "art" + (picks.has(a.no) ? " on" : "") }, cb, el("div", {}, el("b", {}, `${a.no}${a.title ? `(${a.title})` : ""}`), el("div", { class: "small muted art-text" }, a.text)));
+  }));
+  box.append(el("div", { class: "row" }, el("b", { style: { flex: 1 } }, `${r.name} · 조문 ${r.articles.length}개${r.enforce ? " · 시행 " + r.enforce : ""}`),
+    el("button", { class: "primary small", onclick: () => {
+      const chosen = r.articles.filter(a => picks.has(a.no));
+      if (!chosen.length) return toast("넣을 조문을 고르세요", true);
+      const laws = FORM.a1.laws;
+      // 자료에서 이름만 찾아 둔 같은 법령 줄은 확인된 조문으로 바꾼다
+      for (let i = laws.length - 1; i >= 0; i--) if (!laws[i].verified && norm(laws[i].law) === norm(r.name)) laws.splice(i, 1);
+      chosen.forEach(a => laws.push({ law: r.name, article: a.no, title: a.title, text: a.text, enforce: r.enforce, link: r.link + "/" + encodeURIComponent(a.no), verified: true, target: r.target, found_in: "" }));
+      formChanged(); LAW_ROWS && LAW_ROWS._redraw(); box.innerHTML = ""; toast(`${chosen.length}개 조문을 넣었습니다`);
+    } }, "고른 조문 넣기")), list);
+}
+
 let goTab;
 function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderTalk(); if (H) { renderAvatarHead(); renderMyQuestions(); } }
 document.addEventListener("DOMContentLoaded", async () => {
   setupStart(); setupAsk(); setupManual(); setupPrivacy();
-  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "talk") renderTalk(); });
+  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "talk") renderTalk(); if (id === "form") renderForm(); });
   $("#cur-h").onchange = e => e.target.value && select(e.target.value);
   await refreshList();
 });

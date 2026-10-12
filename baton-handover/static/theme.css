@@ -193,6 +193,36 @@ pre.doc { background: var(--fill-2); border: 1px solid var(--line); }
 .cov-card summary { cursor: pointer; color: var(--ink-2); list-style: revert; }
 .cov-card .chip { max-width: 100%; }
 
+/* ── 표준 인수인계서 ── */
+.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; }
+.form-grid .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.form-grid .fld input { width: 100%; }
+.form-area > summary { cursor: pointer; list-style: none; padding-bottom: 4px; color: var(--ink); }
+.law-box .row { flex-wrap: wrap; }
+.law-box .row > select { flex: 0 0 auto; width: auto; }
+.law-box .row > #law-q { flex: 1 1 260px; width: auto; min-width: 0; }
+.law-box .row > #law-art { flex: 0 0 150px; }
+.form-area > summary::-webkit-details-marker { display: none; }
+.form-area > summary::after { content: "접기"; float: right; font-size: 12.5px; color: var(--muted); }
+.form-area:not([open]) > summary::after { content: "펼치기"; }
+.form-t-wrap { overflow-x: auto; }
+table.form-t td { padding: 4px; }
+table.form-t input, table.form-t textarea { width: 100%; padding: 8px 10px; font-size: 14px; background: var(--fill-2); }
+table.form-t textarea { min-height: 40px; }
+.law-rows { display: flex; flex-direction: column; gap: 8px; }
+.law-row { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--fill-2); }
+.law-text { white-space: pre-wrap; font-size: 13.5px; color: var(--ink-2); margin-top: 8px; max-height: 180px; overflow: auto; }
+.law-box { border-top: 1px solid var(--line); margin-top: 16px; }
+.law-setup { background: var(--warn-soft); color: var(--ink-2); border-radius: 10px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.law-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.law-item { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; border-radius: 10px; }
+.art-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 420px; overflow: auto; }
+.art { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.art:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+.art input { margin-top: 3px; }
+.art-text { white-space: pre-wrap; max-height: 90px; overflow: hidden; }
+@media (max-width: 900px) { .form-grid { grid-template-columns: 1fr 1fr; } }
+
 /* ── 인수인계 순서도 ── */
 .flow { display: flex; align-items: stretch; gap: 0; margin: 16px 0 12px; overflow-x: auto; padding-bottom: 4px; }
 .flow .fstep { flex: 1 1 0; min-width: 118px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;

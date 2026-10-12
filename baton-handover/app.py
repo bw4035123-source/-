@@ -1,6 +1,7 @@
 """업무바통(인수인계) 웹 서버."""
 import base64
 import json
+import os
 import re
 import time
 import uuid
@@ -8,7 +9,7 @@ from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
-from core import loaders, ocr
+from core import lawapi, loaders, ocr
 from core.config import Config
 from core.export import FORMATS, export
 from core.llm import LLM
@@ -321,6 +322,80 @@ def answer_question(req):
     raise HttpError(404, "질문을 찾을 수 없습니다")
 
 
+# ---------------------------------------------------------------- 표준 인수인계서(필수 5대 영역) 입력 폼
+
+@app.get("/api/handovers/<hid>/form")
+def get_form(req):
+    """저장한 폼이 없으면 자료 분석 결과로 채운 초안을 돌려준다(저장 전)."""
+    h = load_h(req.params["hid"])
+    if h.get("form"):
+        return {"form": h["form"], "saved": True, "updated": h.get("form_updated", "")}
+    return {"form": report.prefill_form(h), "saved": False, "updated": ""}
+
+
+@app.post("/api/handovers/<hid>/form")
+def save_form(req):
+    h = load_h(req.params["hid"])
+    h["form"] = report.clean_form(req.json.get("form"))
+    h["form_updated"] = _now()
+    save_h(h)
+    log(h["id"], "표준 인수인계서 저장", "")
+    return {"form": h["form"], "saved": True, "updated": h["form_updated"]}
+
+
+@app.post("/api/handovers/<hid>/form/reset")
+def reset_form(req):
+    """자료에서 다시 채우기(저장한 내용은 지워짐)."""
+    h = load_h(req.params["hid"])
+    h.pop("form", None)
+    h.pop("form_updated", None)
+    save_h(h)
+    log(h["id"], "표준 인수인계서 다시 채우기", "")
+    return {"form": report.prefill_form(h), "saved": False, "updated": ""}
+
+
+# ---------------------------------------------------------------- 법령 검색(국가법령정보 공동활용 Open API)
+
+def _law():
+    oc = os.environ.get("LAW_OC") or (cfg.get("law") or {}).get("oc", "")
+    # 주소는 화면에서 바꿀 수 없고(다른 곳으로 요청이 새지 않게), 시험·내부 중계 서버용으로 환경변수로만 바꾼다
+    return lawapi.LawClient(oc, store, base=os.environ.get("LAW_API_BASE") or lawapi.BASE)
+
+
+@app.get("/api/law/status")
+def law_status(req):
+    c = _law()
+    return {"configured": c.configured, "from_env": bool(os.environ.get("LAW_OC")),
+            "guide": "open.law.go.kr → Open API → 활용 신청 → 승인 후 받은 OC(보통 신청 이메일의 @ 앞부분)를 넣으세요."}
+
+
+@app.post("/api/law/config")
+def law_config(req):
+    oc = str(req.json.get("oc") or "").strip()
+    if oc and not re.fullmatch(r"[A-Za-z0-9._-]{2,64}", oc):
+        raise HttpError(400, "인증값(OC)은 영문·숫자로 된 아이디여야 합니다(이메일 전체가 아니라 @ 앞부분)")
+    cfg.update_section("law", {"oc": oc}, {"oc"})
+    return law_status(req)
+
+
+@app.get("/api/law/search")
+def law_search(req):
+    try:
+        return {"items": _law().search(req.query.get("q", ""), req.query.get("target", "law"))}
+    except lawapi.LawError as e:
+        raise HttpError(400, str(e))
+
+
+@app.get("/api/law/articles")
+def law_articles(req):
+    try:
+        res = _law().articles(req.query.get("id", ""), req.query.get("target", "law"))
+    except lawapi.LawError as e:
+        raise HttpError(400, str(e))
+    res["link"] = lawapi.public_link(res["name"], res["target"])
+    return res
+
+
 # ---------------------------------------------------------------- 소통 창구: AI 답 확인·피드백·메시지
 # 후임자는 AI 분신의 답을 전임자에게 '확인 요청'하거나 의견·메시지를 남기고, 전임자는 확인·바로잡기·답장을 한다.
 # 전임자가 확인하거나 바로잡은 답은 '전임자 직접 답변'이 되어 같은 질문에 그대로 쓰이고, 인수인계서·바통 파일에도 남는다.
@@ -493,6 +568,9 @@ def export_doc(req):
     if req.params["what"] == "handover":
         blocks = report.handover_blocks(h)
         name = f"인수인계서_{h['draft'].get('predecessor', '')}"
+    elif req.params["what"] == "form":
+        blocks = report.form_blocks(h, h.get("form") or report.prefill_form(h))
+        name = f"업무인수인계서_{h['draft'].get('predecessor', '')}"
     elif req.params["what"] == "manual":
         m = _manual(h, req.json)
         blocks = report.manual_blocks(h, m)

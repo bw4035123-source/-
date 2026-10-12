@@ -528,3 +528,152 @@ def manual_blocks(h, m):
     if m["terms"]:
         b += [("h1", "7. 처음 보는 용어")] + [("table", ["용어", "뜻"], [[k, v] for k, v in m["terms"]], [1, 4])]
     return b
+
+
+# ---------------------------------------------------------------- 표준 인수인계서(필수 5대 영역)
+# 입력 폼을 표준화한다. 자료에서 찾은 내용으로 먼저 채우고(자동 작성), 사람이 고친 뒤 한글(HWPX) 서식으로 내려받는다.
+
+FORM_AREAS = [
+    ("a1", "1. 담당 사무 개요 및 근거 법령"),
+    ("a2", "2. 주요 추진 업무 및 연간 일정"),
+    ("a3", "3. 예산 및 계약 현황"),
+    ("a4", "4. 미결 과제 및 유의 사항"),
+    ("a5", "5. 보관 문서 및 주요 연락처"),
+]
+
+
+def prefill_form(h):
+    """분석 결과로 5대 영역을 채운다. 근거 법령은 자료에 나온 이름을 '확인 전' 후보로 넣고, 법령 검색으로 조문을 붙이게 한다."""
+    d = h["draft"]
+    S = d["sections"]
+    base_year = _base_year(h)
+    rv = h.get("review") or {}
+    team = next((c.get("org") for c in S["contacts"] if c.get("org") and re.search(r"(팀|과|실)$", c.get("org", ""))), "")
+    flags = [f for f in d.get("flags", []) if not f.get("resolved") and f["type"] in ("충돌", "불확실", "기한 지남")]
+    notes = [r.get("detail") for r in live(S["rnr"]) if r.get("detail")]
+    return {
+        "meta": {"org": "", "dept": team, "position": "", "from": d.get("predecessor") or "", "to": h.get("successor") or "",
+                 "date": date.today().isoformat(), "witness": rv.get("by") if rv.get("by") and rv.get("by") != d.get("predecessor") else "",
+                 "title": h.get("title") or ""},
+        "a1": {"summary": re.sub(r"\s+", " ", d.get("overview", "")).strip()[:1500],
+               "duties": [r["duty"] for r in live(S["rnr"])],
+               "laws": [{"law": m["name"], "article": m.get("article", ""), "title": "", "text": "", "enforce": "",
+                         "link": "", "verified": False, "found_in": f"{m['source']['file'].split('/')[-1]} {m['source']['loc']}"}
+                        for m in d.get("law_mentions", [])[:15]]},
+        "a2": {"tasks": [{"when": _when(s, base_year).replace(" [완료]", "").replace(" [지난 일]", ""), "task": s["task"],
+                          "note": "; ".join(x for x in (s.get("related", ""), s.get("timing", "")) if x)}
+                         for s in live(S["schedule"]) if s.get("timing") not in ("완료", "지난 일") or s.get("recurring")]},
+        "a3": {"budget": [{"name": x["name"], "amount": _won(x["amount"], x.get("unit")), "spent": _won(x.get("spent"), x.get("unit")), "note": x.get("status", "")}
+                          for x in d.get("ledger", []) if x["kind"] == "예산"],
+               "contracts": [{"name": x["name"], "vendor": x.get("vendor", ""), "period": x.get("period", ""),
+                              "amount": _won(x["amount"], x.get("unit")), "status": x.get("status", "")}
+                             for x in d.get("ledger", []) if x["kind"] == "계약"]},
+        "a4": {"issues": [{"title": i["title"], "state": i.get("state", ""), "next": i.get("next_action", ""), "due": i.get("due", "")}
+                          for i in live(S["issues"])],
+               "cautions": [f"[{f['type']}] {f['message']}" for f in flags[:10]] + notes[:5]},
+        "a5": {"docs": [{"name": x["relpath"].split("/")[-1], "kind": x.get("kind", ""), "where": x["relpath"]}
+                        for x in d.get("docs", []) if not x.get("error")],
+               "contacts": [{"name": c["name"], "org": c.get("org", ""), "title": c.get("title", ""),
+                             "phone": ", ".join(c.get("phones", []) + c.get("emails", [])), "topic": ", ".join(c.get("topics", [])[:2])}
+                            for c in live(S["contacts"])]},
+    }
+
+
+def _won(v, unit=""):
+    """금액 칸: 숫자면 천 단위 쉼표와 단위(원·천원)를 붙인다."""
+    s = str(v or "").strip()
+    if re.fullmatch(r"\d+(\.0+)?", s):
+        n = int(float(s))
+        u = "천원" if "천원" in (unit or "") else "백만원" if "백만원" in (unit or "") else "원"
+        return f"{n:,}{u}"
+    return s
+
+
+FORM_FIELDS = {
+    "a2.tasks": ["when", "task", "note"],
+    "a3.budget": ["name", "amount", "spent", "note"],
+    "a3.contracts": ["name", "vendor", "period", "amount", "status"],
+    "a4.issues": ["title", "state", "next", "due"],
+    "a5.docs": ["name", "kind", "where"],
+    "a5.contacts": ["name", "org", "title", "phone", "topic"],
+    "a1.laws": ["law", "article", "title", "text", "enforce", "link", "found_in"],
+}
+
+
+def clean_form(f):
+    """화면에서 보낸 폼을 정해진 칸만 남겨 저장(글자 수 상한)."""
+    t = lambda v, n=2000: str(v or "").strip()[:n]
+    f = f if isinstance(f, dict) else {}
+    meta = f.get("meta") if isinstance(f.get("meta"), dict) else {}
+    out = {"meta": {k: t(meta.get(k), 100) for k in ("org", "dept", "position", "from", "to", "date", "witness", "title")}}
+    for area in ("a1", "a2", "a3", "a4", "a5"):
+        out[area] = {}
+    a1 = f.get("a1") if isinstance(f.get("a1"), dict) else {}
+    out["a1"]["summary"] = t(a1.get("summary"), 4000)
+    out["a1"]["duties"] = [t(x, 300) for x in (a1.get("duties") or [])[:100] if t(x)]
+    a4 = f.get("a4") if isinstance(f.get("a4"), dict) else {}
+    out["a4"]["cautions"] = [t(x, 500) for x in (a4.get("cautions") or [])[:100] if t(x)]
+    for path, cols in FORM_FIELDS.items():
+        area, key = path.split(".")
+        src = f.get(area) if isinstance(f.get(area), dict) else {}
+        rows = src.get(key) if isinstance(src.get(key), list) else []
+        clean = []
+        for r in rows[:300]:
+            if not isinstance(r, dict):
+                continue
+            row = {c: t(r.get(c), 6000 if c == "text" else 500) for c in cols}
+            if path == "a1.laws":
+                row["verified"] = bool(r.get("verified"))
+                row["target"] = r.get("target") if r.get("target") in ("law", "admrul", "ordin") else "law"
+            if any(row.get(c) for c in cols):
+                clean.append(row)
+        out[area][key] = clean
+    return out
+
+
+def form_blocks(h, f):
+    """표준 인수인계서(필수 5대 영역) 문서 블록: 한글(HWPX)·워드·마크다운 공통."""
+    m = f["meta"]
+    title = "업무 인수인계서"
+    b = [("title", title),
+         ("table", ["구분", "내용", "구분", "내용"], [
+             ["기관", m.get("org") or "-", "부서", m.get("dept") or "-"],
+             ["인계자", m.get("from") or "-", "인수자", m.get("to") or "-"],
+             ["직위", m.get("position") or "-", "인계일", m.get("date") or "-"],
+             ["업무명", m.get("title") or "-", "입회자", m.get("witness") or "-"]], [1, 2, 1, 2])]
+    a1 = f["a1"]
+    b += [("h1", FORM_AREAS[0][1]), ("h2", "가. 담당 사무 개요"), ("p", a1.get("summary") or "-")]
+    if a1.get("duties"):
+        b += [("h2", "나. 담당 사무")] + [("bullet", x) for x in a1["duties"]]
+    laws = a1.get("laws") or []
+    b += [("h2", "다. 근거 법령")]
+    if laws:
+        b.append(("table", ["법령", "조문", "내용", "시행일·확인"],
+                  [[x["law"], " ".join(y for y in (x.get("article"), f"({x['title']})" if x.get("title") else "") if y),
+                    (x.get("text") or "(조문 미확인)")[:600], (x.get("enforce") or "") + (" · 법령정보 확인" if x.get("verified") else " · 자료 기재(확인 전)")]
+                   for x in laws], [2, 1, 6, 2]))
+        b.append(("note", "※ '법령정보 확인'은 국가법령정보센터(law.go.kr) Open API로 받아 온 현행 조문입니다."))
+    else:
+        b.append(("p", "-"))
+    rows = [[x["when"], x["task"], x["note"]] for x in f["a2"].get("tasks", [])]
+    b += [("h1", FORM_AREAS[1][1]), ("table", ["시기", "업무", "비고"], rows or [["-", "-", "-"]], [2, 5, 2])]
+    b += [("h1", FORM_AREAS[2][1]), ("h2", "가. 예산"),
+          ("table", ["사업명", "예산액", "집행액", "비고"], [[x["name"], x["amount"], x["spent"], x["note"]] for x in f["a3"].get("budget", [])] or [["-"] * 4], [3, 2, 2, 3]),
+          ("h2", "나. 계약(조달)"),
+          ("table", ["계약명", "업체", "계약기간", "금액", "진행 상황"],
+           [[x["name"], x["vendor"], x["period"], x["amount"], x["status"]] for x in f["a3"].get("contracts", [])] or [["-"] * 5], [3, 2, 2, 2, 2])]
+    b += [("h1", FORM_AREAS[3][1]), ("h2", "가. 미결 과제"),
+          ("table", ["과제", "현재 상태", "다음 조치", "기한"], [[x["title"], x["state"], x["next"], x["due"]] for x in f["a4"].get("issues", [])] or [["-"] * 4], [4, 1, 4, 1]),
+          ("h2", "나. 유의 사항")] + ([("bullet", x) for x in f["a4"].get("cautions", [])] or [("p", "-")])
+    b += [("h1", FORM_AREAS[4][1]), ("h2", "가. 보관 문서"),
+          ("table", ["문서명", "구분", "보관 위치"], [[x["name"], x["kind"], x["where"]] for x in f["a5"].get("docs", [])] or [["-"] * 3], [3, 1, 4]),
+          ("h2", "나. 주요 연락처"),
+          ("table", ["이름", "소속", "직위", "연락처", "관련 업무"],
+           [[x["name"], x["org"], x["title"], x["phone"], x["topic"]] for x in f["a5"].get("contacts", [])] or [["-"] * 5], [1, 2, 1, 2, 3])]
+    b += [("p", "위와 같이 업무를 인계·인수합니다."),
+          ("p", f"{m.get('date') or ''}"),
+          ("table", ["구분", "직위", "성명", "서명"], [
+              ["인계자", m.get("position") or "", m.get("from") or "", "(인)"],
+              ["인수자", "", m.get("to") or "", "(인)"],
+              ["입회자", "", m.get("witness") or "", "(인)"]], [1, 2, 2, 1])]
+    return b

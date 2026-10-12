@@ -78,6 +78,16 @@ class Config:
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+    def update_section(self, section, values, allowed):
+        """설정 한 묶음(예: law)을 바꾸고 config.json 에 저장한다."""
+        cur = self.data.setdefault(section, {})
+        for k, v in values.items():
+            if k in allowed:
+                cur[k] = v
+        saved = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
+        saved[section] = cur
+        self.path.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
+
     def update_llm(self, values):
         allowed = {"provider", "base_url", "model", "api_key_env", "temperature", "timeout", "vision"}
         for k, v in values.items():

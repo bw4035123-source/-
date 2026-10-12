@@ -208,6 +208,7 @@ class Extractor:
         # 바통을 받은 사람(handed_to)이 지금 넘기는 전임자다
         self.predecessor = predecessor or (last.meta.get("handed_to") if last else "") or self.guess_predecessor()
         self.items = {"rnr": [], "schedule": [], "contacts": [], "issues": []}
+        self.ledger = []  # 예산·계약 표의 행(표준 인수인계서 3영역): 사업·계약명, 금액, 기간, 업체, 상태
 
     def guess_predecessor(self):
         """전임자 추정: 제목·첫 줄의 '○○ 인계/인수인계 (이름)'·'담당 이름'에 큰 가중치,
@@ -261,12 +262,22 @@ class Extractor:
                 i_email = next((i for i, h in enumerate(header) if "메일" in h), None)
                 i_note = next((i for i, h in enumerate(header) if "비고" in h), None)
                 i_tpos = next((i for i, h in enumerate(header) if h in ("직위", "직급", "직책")), None)
+                i_amt = next((i for i, h in enumerate(header) if re.search(r"금액|예산액|계약액|예산$", h)), None)
+                i_spent = next((i for i, h in enumerate(header) if re.search(r"집행", h)), None)
+                i_vendor = next((i for i, h in enumerate(header) if re.search(r"업체|상대방|계약자|거래처", h) and "담당" not in h), None)
                 for row, loc in zip(t["rows"], t.get("row_locs", [])):
                     blk = locmap.get(loc)
                     if blk is None:
                         continue
                     cell = lambda i: (row[i] if i is not None and i < len(row) else "") or ""
                     title = cell(i_title)
+                    if title and i_amt is not None and blk is not None:
+                        self.ledger.append({
+                            "kind": "예산" if re.search(r"예산액|예산$", header[i_amt]) else "계약",
+                            "name": title, "amount": cell(i_amt), "spent": cell(i_spent), "vendor": cell(i_vendor),
+                            "period": cell(i_period), "status": cell(i_status) or cell(i_note),
+                            "unit": next((b.text for b in d.blocks[:3] if re.search(r"단위", b.text)), ""),
+                            "source": blk.cite()})
                     # 업무분장표
                     if i_duty is not None and i_name is not None and i_phone is None:
                         if self.predecessor and self.predecessor in cell(i_name):
@@ -1138,6 +1149,8 @@ def analyze(docs, predecessor="", llm=None, today=None):
         "today": ex.today.isoformat(),
         # 지식 릴레이: 앞 세대 계보와, 앞 세대가 남긴 질의응답·메모(다음 바통 파일에 그대로 이어 쓴다)
         "coverage": coverage,
+        "ledger": ex.ledger,
+        "law_mentions": law_mentions(ex),
         "lineage": ex.lineage,
         "carried_interview": [x for d in ex.batons for x in d.meta.get("interview", [])],
         "carried_notes": [x for d in ex.batons for x in d.meta.get("notes", [])],
@@ -1163,6 +1176,30 @@ _COVER_RX = {
     "budget": re.compile(r"예산|계약|집행|정산|입찰|발주|금액|\d[\d,]*\s*(원|천원|만원|백만원)"),
     "systems": re.compile(r"시스템|온나라|e\s*호조|나라장터|새올|인사랑|홈페이지|누리집|계정|공유\s*폴더|폴더에|경로|드라이브|NAS|\\\\|[A-Z]:\\"),
 }
+
+
+LAW_NAME_RX = re.compile(r"((?:[가-힣·]+\s){0,5}[가-힣·]*(?:법|법률|시행령|시행규칙|조례|훈령|예규|고시|규칙|지침|규정))(?=$|[^가-힣]|에|의\s|을|를|과\s|와\s|으로|로\s|상\s)(?:\s*제\s*(\d+)\s*조(?:의\s*\d+)?)?")
+LAW_STOP = re.compile(r"^(방법|해법|어법|문법|위법|불법|편법|합법|기법|용법|작법|공법|사법|입법|규정|지침|규칙|관련\s*규정|처리\s*지침|세부\s*지침|내부\s*규정)$")
+
+
+def law_mentions(ex):
+    """자료에 나온 법령·규정 이름(표준 인수인계서 1영역의 '근거 법령' 후보). 법령 검색 API로 조문을 붙일 수 있다."""
+    seen = {}
+    for b in ex.blocks.values():
+        for m in LAW_NAME_RX.finditer(b.text):
+            name = m.group(1).strip(" ,·:")
+            # 앞에 붙은 설명 말(관련 규정:, 근거, 및 …)과 문장 조각을 떼어 낸다: 법령 이름은 보통 마지막 쉼표·콜론 뒤
+            name = re.split(r"[,:：]\s*", name)[-1]
+            words = name.split()
+            cut = max((i for i, w in enumerate(words[:-1]) if re.search(r"(은|는|이|가|을|를|에서|으로|하여|하고)$", w)), default=-1)
+            name = " ".join(words[cut + 1:])
+            name = re.sub(r"^(?:(?:관련|근거|및|등|또는|따라|의한|위한|소관|해당|각종|현행|개정)\s+)+", "", name).strip()
+            if len(name) < 3 or LAW_STOP.match(name) or re.match(r"^\d", name):
+                continue
+            key = (name, m.group(2) or "")
+            if key not in seen:
+                seen[key] = {"name": name, "article": f"제{m.group(2)}조" if m.group(2) else "", "source": b.cite()}
+    return list(seen.values())[:30]
 
 
 def coverage_check(sections, ex):

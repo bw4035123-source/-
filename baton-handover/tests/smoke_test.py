@@ -148,6 +148,16 @@ def check_baton(c):
     g2 = c.call("POST", f"/api/handovers/{mh['id']}/gaps/ask", {})
     yield (f"충실도 점검({sum(v == '충분' for v in cov.values())}/7 충분) → 모자란 {g1['created']}개 영역 전임자에게 질문",
            len(cov) == 7 and mh["draft"]["predecessor"] == "박정우" and g1["created"] == sum(v != "충분" for v in cov.values()) and g2["created"] == 0)
+    # 표준 인수인계서(필수 5대 영역): 자료로 채우기 → 저장 → 한글 내보내기, 법령 API는 인증값 없으면 안내
+    fm = c.call("GET", f"/api/handovers/{mh['id']}/form")["form"]
+    sv = c.call("POST", f"/api/handovers/{mh['id']}/form", {"form": fm})
+    hw = c.call("POST", f"/api/handovers/{mh['id']}/export/form?fmt=hwpx", {}, raw=True)
+    import io, zipfile
+    sec = zipfile.ZipFile(io.BytesIO(hw)).read("Contents/section0.xml").decode("utf-8")
+    yield (f"표준 인수인계서(근거 법령 후보 {len(fm['a1']['laws'])}, 예산 {len(fm['a3']['budget'])}, 미결 {len(fm['a4']['issues'])})",
+           sv["saved"] and len(fm["a1"]["laws"]) >= 2 and len(fm["a3"]["budget"]) >= 3 and all(f"{n}." in sec for n in range(1, 6)) and "(인)" in sec)
+    yield "법령 검색: 인증값(OC) 없으면 신청 안내", c.status("GET", "/api/law/search?q=x") == 400 and \
+        c.status("POST", "/api/law/config", {"oc": "a@b.kr"}) == 400
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \
