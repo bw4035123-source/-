@@ -116,6 +116,12 @@ def delete_handover(req):
     return {"ok": True}
 
 
+@app.get("/api/handovers/<hid>/flow")
+def handover_flow(req):
+    """인수인계 순서도: 단계별 상태와 지금 할 일."""
+    return report.flow_steps(load_h(req.params["hid"]))
+
+
 @app.get("/api/handovers/<hid>/context")
 def block_context(req):
     blocks = store.read(f"handovers/{req.params['hid']}/blocks.json", [])
@@ -491,6 +497,8 @@ def export_baton(req):
     out = store.path(f"handovers/{h['id']}/outputs/{name}")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
+    h["baton_saved_at"] = _now()
+    save_h(h)
     log(h["id"], "바통 파일 저장", f"{len(b['lineage'])}대 {b['holder']} → {b['handed_to'] or '다음 담당자'}")
     return file_response(data, name, "application/json")
 

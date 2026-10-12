@@ -126,6 +126,16 @@ def check_baton(c):
     m = c.call("POST", f"/api/handovers/{hid}/threads/{m['id']}/reply", {"by": "전임자", "text": "네, 화요일 10시 어떠세요?"})
     md = c.call("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
     yield "소통 창구: 메시지·답장, 인수인계서에 소통 기록", len(m["messages"]) == 2 and "후임자와의 소통 기록" in md
+    # 인수인계 순서도: 단계 상태가 실제 진행에 맞게 바뀌는지, 문서에 들어가는지
+    f0 = c.call("GET", f"/api/handovers/{hid}/flow")
+    c.call("POST", f"/api/handovers/{hid}/review", {"confirmed": True, "by": "김도윤"})
+    f1 = c.call("GET", f"/api/handovers/{hid}/flow")
+    st = lambda f, k: next(x["status"] for x in f["steps"] if x["key"] == k)
+    md2 = c.call("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
+    man = c.call("POST", f"/api/handovers/{hid}/export/manual?fmt=md", {}, raw=True).decode("utf-8")
+    yield (f"인수인계 순서도({f1['done']}/{f1['total']}단계, 지금: {f1['current']})",
+           st(f0, "confirm") != "완료" and st(f1, "confirm") == "완료" and st(f1, "baton") == "완료"
+           and "인수인계 순서도" in md2 and "착임 후 순서도" in man)
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \

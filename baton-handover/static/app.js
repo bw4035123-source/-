@@ -275,6 +275,10 @@ function renderDraft() {
             if (open && !confirm(`확인 필요 사항이 ${open}건 남아 있습니다. 그래도 확인 완료할까요?`)) return;
             H = await api("POST", `/api/handovers/${H.id}/review`, { confirmed: true, by }); renderAll(); toast("전임자 확인을 완료했습니다. 후임자가 바로 활용할 수 있습니다.");
           } }, "전임자 확인 완료"))));
+  // 인수인계 순서도는 요약 카드 바로 아래(서버에서 단계 상태를 받아 채움)
+  const flowBox = el("div", { class: "panel flow-panel" }, el("span", { class: "spinner" }));
+  sec.children[0].after(flowBox);
+  renderFlow(flowBox);
   if (waiting.length || (H.questions || []).length) sec.append(renderInbox());
   sec.append(renderRelay());
   if (!rv.confirmed) sec.append(el("p", { class: "small muted" }, "표의 내용을 눌러 바로 고칠 수 있습니다. 맞는 항목은 '확인', 틀린 항목은 '삭제'를 누르세요. 근거 칩을 누르면 원문 위치가 보입니다."));
@@ -286,6 +290,25 @@ function renderDraft() {
       if (!memo.value.trim()) return;
       H = await api("POST", `/api/handovers/${H.id}/review`, { comment: memo.value.trim() }); renderDraft();
     } }, "메모 저장")));
+}
+
+// 인수인계 순서도: 단계마다 완료·진행 중·예정과 근거 숫자, 누르면 해당 화면으로
+async function renderFlow(box) {
+  const f = await api("GET", `/api/handovers/${H.id}/flow`);
+  const cls = { "완료": "done", "진행 중": "now", "예정": "todo" };
+  const steps = [];
+  f.steps.forEach((x, i) => {
+    steps.push(el("button", { class: "fstep " + cls[x.status], title: x.next || x.detail, onclick: () => goTab(x.tab) },
+      el("span", { class: "fno" }, x.status === "완료" ? "✓" : String(x.no)),
+      el("b", {}, x.name), el("span", { class: "fwho" }, x.who), el("span", { class: "fdetail" }, x.detail)));
+    if (i < f.steps.length - 1) steps.push(el("span", { class: "farrow" + (x.status === "완료" ? " done" : ""), "aria-hidden": "true" }));
+  });
+  box.innerHTML = "";
+  box.append(
+    el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "인수인계 순서도"),
+      el("span", { class: "tag " + (f.current ? "info" : "ok") }, `${f.done}/${f.total} 단계 완료`)),
+    el("div", { class: "flow" }, steps),
+    el("div", { class: "flow-next" }, el("b", {}, f.current ? "지금 할 일 " : "완료 "), f.next));
 }
 
 // 전임자 화면: AI 분신이 답하지 못해 후임자가 넘긴 질문에 답하기
@@ -328,7 +351,7 @@ function renderRelay() {
   const carried = ["rnr", "schedule", "contacts", "issues"].reduce((n, k) => n + d.sections[k].filter(i => i.carried && i.status !== "삭제").length, 0);
   return el("div", { class: "panel" },
     el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "지식 릴레이 · 업무 계보"),
-      el("button", { class: "primary", onclick: () => download(`/api/handovers/${H.id}/baton`, {}) }, "바통 파일로 저장(.baton)")),
+      el("button", { class: "primary", onclick: async () => { await download(`/api/handovers/${H.id}/baton`, {}); renderDraft(); } }, "바통 파일로 저장(.baton)")),
     el("div", { class: "relay" }, chain),
     el("p", { class: "small muted" }, lin.length
       ? `${lin.length}대까지의 인수인계서를 이어받아 ${carried}개 항목, 질의응답 ${(d.carried_interview || []).length}건, 메모 ${(d.carried_notes || []).length}건을 넘겨받았습니다. `
@@ -502,6 +525,10 @@ function setupManual() {
     const p = el("div", { class: "panel" }, el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, `${m.successor || "후임자"}님 업무매뉴얼`), exportButtons(`/api/handovers/${H.id}/export/manual`, () => body),
         el("button", { onclick: () => downloadIcs(body.start) }, "내 일정(.ics)")),
       H.review.confirmed ? null : el("p", { class: "tag warn" }, "전임자 확인 전 초안 기준입니다"),
+      el("h3", {}, "착임 후 순서도"),
+      el("div", { class: "flow" }, m.flow.flatMap((x, i) => [
+        el("div", { class: "fstep now" }, el("span", { class: "fno" }, String(i + 1)), el("b", {}, x.name), el("span", { class: "fwho" }, x.what), el("span", { class: "fdetail" }, x.detail)),
+        i < m.flow.length - 1 ? el("span", { class: "farrow", "aria-hidden": "true" }) : null])),
       el("h3", {}, "1. 첫 주에 할 일"), el("ol", {}, m.week1.map(x => el("li", {}, x))),
       el("h3", {}, "2. 착임월부터 12개월 일정"),
       el("div", { class: "cal" }, m.months.map(mo => el("div", { class: "m" }, monthHead(mo.month),

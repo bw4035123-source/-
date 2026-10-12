@@ -54,6 +54,93 @@ def live(items):
     return [i for i in items if i.get("status") != "삭제"]
 
 
+# ---------------------------------------------------------------- 인수인계 순서도
+
+DONE, NOW, TODO = "완료", "진행 중", "예정"
+MARK = {DONE: "✓", NOW: "▶", TODO: "○"}
+
+
+def flow_steps(h):
+    """인수인계 절차를 7단계 순서도로: 단계마다 상태(완료·진행 중·예정), 근거 숫자, 다음에 할 일, 화면 위치(tab).
+    고정된 그림이 아니라 이 인수인계 건이 실제로 어디까지 왔는지를 보여 준다."""
+    d = h["draft"]
+    S = d["sections"]
+    rv = h.get("review") or {}
+    items = [it for k in ("rnr", "schedule", "contacts", "issues") for it in live(S[k])]
+    reviewed = [it for it in items if it.get("status") in ("확인", "수정", "추가")]
+    flags = d.get("flags", [])
+    open_flags = [f for f in flags if not f.get("resolved")]
+    docs = d.get("docs", [])
+    failed = len(h.get("skipped") or [])
+    batons = sum(1 for x in docs if x.get("ext") == ".baton")
+    qs = h.get("questions") or []
+    ths = h.get("threads") or []
+    waiting = sum(1 for q in qs if q.get("status") == "대기") + sum(1 for t in ths if t.get("status") == "대기")
+    confirmed = bool(rv.get("confirmed"))
+    steps = [
+        {"key": "collect", "name": "자료 모으기", "who": "전임자", "tab": "docs", "status": DONE,
+         "detail": f"자료 {len(docs)}건" + (f" · 이전 바통 {batons}개" if batons else "") + (f" · 읽기 실패 {failed}건" if failed else ""),
+         "next": "읽지 못한 파일이 있으면 형식을 바꿔 다시 넣기" if failed else ""},
+        {"key": "draft", "name": "AI 초안", "who": "AI", "tab": "draft", "status": DONE,
+         "detail": f"업무 {len(live(S['rnr']))} · 일정 {len(live(S['schedule']))} · 연락처 {len(live(S['contacts']))} · 현안 {len(live(S['issues']))}",
+         "next": ""},
+        {"key": "review", "name": "전임자 검토", "who": "전임자", "tab": "draft",
+         "status": DONE if confirmed or (items and len(reviewed) == len(items)) else NOW,
+         "detail": f"검토한 항목 {len(reviewed)}/{len(items)}",
+         "next": "표에서 항목마다 '확인'·수정·삭제"},
+        {"key": "flags", "name": "확인 필요 정리", "who": "전임자", "tab": "flags",
+         "status": DONE if not open_flags else NOW,
+         "detail": f"처리 {len(flags) - len(open_flags)}/{len(flags)}건" if flags else "확인 필요 없음",
+         "next": f"충돌·누락·불확실 {len(open_flags)}건 처리" if open_flags else ""},
+        {"key": "confirm", "name": "확인 완료", "who": "전임자", "tab": "draft",
+         "status": DONE if confirmed else TODO,
+         "detail": f"{rv.get('by', '')} · {str(rv.get('at', ''))[:10]}" if confirmed else "전임자 확인 전(초안)",
+         "next": "'전임자 확인 완료' 누르기"},
+        {"key": "talk", "name": "후임자 질의·소통", "who": "후임자·전임자", "tab": "talk",
+         "status": NOW if waiting else (DONE if confirmed and (qs or ths) else TODO),
+         "detail": f"질문 {len(qs)} · 소통 {len(ths)}" + (f" · 답변 대기 {waiting}" if waiting else ""),
+         "next": f"답변 대기 {waiting}건 처리" if waiting else "AI 분신에게 묻고, 필요하면 전임자에게 확인 요청"},
+        {"key": "baton", "name": "바통 넘기기", "who": "전임자", "tab": "draft",
+         "status": DONE if h.get("baton_saved_at") else TODO,
+         "detail": f"바통 파일 저장 {str(h.get('baton_saved_at'))[:10]}" if h.get("baton_saved_at") else "다음 담당자용 .baton 미저장",
+         "next": "'바통 파일로 저장(.baton)'으로 다음 담당자에게 넘기기"},
+    ]
+    # 먼저 끝나야 할 단계가 남았으면 뒤 단계는 '예정'으로 둔다(확인 완료는 검토·정리 뒤)
+    if steps[4]["status"] == TODO and (steps[2]["status"] == DONE and steps[3]["status"] == DONE):
+        steps[4]["status"] = NOW
+    current = next((x for x in steps if x["status"] != DONE), None)
+    for i, x in enumerate(steps, 1):
+        x["no"] = i
+        x["mark"] = MARK[x["status"]]
+    return {"steps": steps, "current": current["key"] if current else None,
+            "next": (current["next"] if current else "인수인계를 모두 마쳤습니다."),
+            "done": sum(1 for x in steps if x["status"] == DONE), "total": len(steps)}
+
+
+def flow_blocks(flow, title="인수인계 순서도"):
+    """문서용 순서도: 가로 한 줄 표(단계 → 단계)로 그려 한글·워드·마크다운 어디서나 같은 모양이 나온다."""
+    st = flow["steps"]
+    header = [f"{x['no']}. {x['name']}" + (" →" if i < len(st) - 1 else "") for i, x in enumerate(st)]
+    rows = [[f"{x['mark']} {x['status']}" for x in st], [x["who"] for x in st], [x["detail"] for x in st]]
+    return [("h2", f"{title} ({flow['done']}/{flow['total']} 단계 완료)"),
+            ("table", header, rows, [1] * len(st)),
+            ("note", f"✓ 완료 · ▶ 진행 중 · ○ 예정 — 지금 할 일: {flow['next']}")]
+
+
+def onboarding_flow(m):
+    """후임자 착임 후 순서도: 첫날 → 첫 주 → 첫 달 → 1년."""
+    first_month = m["months"][0] if m["months"] else {"month": "", "items": [], "monthly": []}
+    yearly = sum(len(mo["items"]) for mo in m["months"])
+    urgent = [i for i in m["issues"] if i.get("days_left") is not None and i["days_left"] <= 30]
+    return [
+        {"name": "첫날", "what": "연락망 인사·업무 확인", "detail": f"연락처 {len(m['contacts'])}명 중 핵심 {min(4, len(m['contacts']))}명"},
+        {"name": "첫 주", "what": "급한 현안·기한 지난 일 처리", "detail": f"할 일 {len(m['week1'])}가지 · 30일 안 기한 현안 {len(urgent)}건"},
+        {"name": f"첫 달({first_month['month']}월)", "what": "이번 달 일정·매월 반복 업무",
+         "detail": f"이번 달 {len(first_month['items'])}건 · 매월 {len(first_month['monthly'])}건"},
+        {"name": "1년", "what": "연간 일정 따라 운영, 다음 바통 준비", "detail": f"12개월 일정 {yearly}건"},
+    ]
+
+
 def handover_blocks(h):
     d = h["draft"]
     S = d["sections"]
@@ -66,6 +153,7 @@ def handover_blocks(h):
                   ["전임자 확인", f"확인 완료 ({rv.get('by', '')}, {rv.get('at', '')})" if rv.get("confirmed") else "검토 중(초안)"],
                   ["작성 방식", d.get("engine", "")],
               ], [1, 3]),
+              *flow_blocks(flow_steps(h)),
               ("h1", "1. 업무 개요"), ("p", d.get("overview", "")),
               ("h1", "2. 담당 업무(R&R)"),
               ("table", ["담당 업무", "세부 내용·메모", "상태", "근거"],
@@ -389,9 +477,11 @@ def build_manual(h, successor="", career="신규", start=None):
     if career == "신규":
         text = " ".join(s["task"] for s in S["schedule"]) + " ".join(i["title"] for i in S["issues"])
         terms = [(k, v) for k, v in GLOSSARY.items() if k in text]
-    return {"successor": successor, "career": career, "start": start.isoformat(), "week1": week1,
-            "months": months, "issues": issues, "contacts": contacts, "terms": terms,
-            "unresolved": unresolved, "rnr": live(S["rnr"])}
+    m = {"successor": successor, "career": career, "start": start.isoformat(), "week1": week1,
+         "months": months, "issues": issues, "contacts": contacts, "terms": terms,
+         "unresolved": unresolved, "rnr": live(S["rnr"])}
+    m["flow"] = onboarding_flow(m)
+    return m
 
 
 def manual_blocks(h, m):
@@ -399,6 +489,9 @@ def manual_blocks(h, m):
     b = [("title", title),
          ("p", f"착임일 {m['start']} · {'신규 담당자' if m['career'] == '신규' else '경력 담당자'} 기준으로 정리했습니다. "
                f"전임자 {h['draft'].get('predecessor', '')}의 자료와 인수인계 검토 결과를 근거로 합니다."),
+         ("h2", "착임 후 순서도"),
+         ("table", [f"{x['name']}" + (" →" if i < 3 else "") for i, x in enumerate(m["flow"])],
+          [[x["what"] for x in m["flow"]], [x["detail"] for x in m["flow"]]], [1, 1, 1, 1]),
          ("h1", "1. 첫 주에 할 일")] + [("bullet", x) for x in m["week1"]]
     b += [("h1", "2. 맡게 될 업무")] + [("bullet", r["duty"]) for r in m["rnr"]]
     rows = []
