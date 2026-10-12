@@ -23,6 +23,14 @@ GLOSSARY = {
 }
 
 
+# '확인 필요' 구분을 화면·문서에서는 쉬운 말로 보여 준다(저장값은 그대로)
+FLAG_LABEL = {"충돌": "자료끼리 다름", "불확실": "애매한 내용", "누락": "빠진 정보", "기한 지남": "기한 지남"}
+
+
+def flag_label(t):
+    return FLAG_LABEL.get(t, t)
+
+
 def _src(it, n=2):
     return "; ".join(f"{s['file'].split('/')[-1]} {s['loc']}" for s in it.get("sources", [])[:n])
 
@@ -86,9 +94,9 @@ def flow_steps(h):
          "status": DONE if confirmed or (items and len(reviewed) == len(items)) else NOW,
          "detail": f"검토한 항목 {len(reviewed)}/{len(items)}",
          "next": "표에서 항목마다 '확인'·수정·삭제"},
-        {"key": "flags", "name": "확인 필요 정리", "who": "전임자", "tab": "flags",
+        {"key": "flags", "name": "빈틈 스캐너", "who": "전임자", "tab": "flags",
          "status": DONE if not open_flags else NOW,
-         "detail": f"처리 {len(flags) - len(open_flags)}/{len(flags)}건" if flags else "확인 필요 없음",
+         "detail": f"처리 {len(flags) - len(open_flags)}/{len(flags)}건" if flags else "빈틈 없음",
          "next": f"충돌·누락·불확실 {len(open_flags)}건 처리" if open_flags else ""},
         {"key": "confirm", "name": "확인 완료", "who": "전임자", "tab": "draft",
          "status": DONE if confirmed else TODO,
@@ -181,8 +189,8 @@ def handover_blocks(h, net=None, rd=None):
                [3, 1, 3, 1, 2]),
               ("h1", "5. 협업 네트워크와 노하우"),
               *network.blocks_for_doc(net),
-              ("h1", "6. 확인이 필요한 사항"),
-              ("table", ["구분", "내용", "처리"], [[f["type"], f["message"], ("해결: " + f.get("note", "")) if f.get("resolved") else "미해결"]
+              ("h1", "6. 빈틈 스캐너"),
+              ("table", ["구분", "내용", "처리"], [[flag_label(f["type"]), f["message"], ("해결: " + f.get("note", "")) if f.get("resolved") else "미해결"]
                                                for f in d["flags"]], [1, 5, 2]),
               ("h1", "7. 인계 자료 목록"),
               ("table", ["자료", "종류", "요약"], [[x["relpath"], x.get("kind", ""), x.get("summary", "")] for x in d["docs"]], [3, 1, 4]),
@@ -339,13 +347,13 @@ def build_ics(h, start=None):
             desc.append("자료에 정확한 날짜(일)가 없어 대략의 날짜에 넣었습니다(초 5일·중순 15일·말 말일, 그 밖에는 1일 또는 착임일). 실제 날짜를 확인해 고쳐 주세요.")
         flag = open_flags.get(s["id"])
         if flag:
-            desc.append(f"확인 필요({flag['type']}): {flag['message']}")
+            desc.append(f"빈틈 스캐너({flag_label(flag['type'])}): {flag['message']}")
         desc.append(f"업무바통 인수인계({pred} → {h.get('successor') or '후임자'})에서 내보냄")
         summary = re.sub(r"\s+", " ", s["task"]).strip()
         if approx:
             summary += " (날짜 확인)"
         if flag:
-            summary = f"[확인 필요] {summary}"
+            summary = f"[빈틈] {summary}"
         ev = ["BEGIN:VEVENT", f"UID:{uid}@baton-handover", f"DTSTAMP:{stamp}",
               f"DTSTART;VALUE=DATE:{day0:%Y%m%d}", f"DTEND;VALUE=DATE:{day0 + timedelta(days=1):%Y%m%d}",
               f"SUMMARY:{_ics_escape(summary[:150])}", f"DESCRIPTION:{_ics_escape(chr(10).join(desc))}",
@@ -465,7 +473,7 @@ def build_manual(h, successor="", career="신규", start=None):
             week1.append(f"[기한 지남] {s['task']}: 처리됐는지 확인")
     for c in contacts[:4]:
         week1.append(f"{c['name']}에게 인사·업무 확인: {', '.join(c.get('topics', [])[:1])}")
-    week1.append("확인 필요 사항(인수인계서 6장)을 전임자와 함께 정리")
+    week1.append("빈틈 스캐너 항목(인수인계서 6장)을 전임자와 함께 정리")
     unresolved = [f for f in d["flags"] if not f.get("resolved")]
     terms = []
     if career == "신규":
@@ -508,7 +516,7 @@ def manual_blocks(h, m):
            [[c["name"], ", ".join(c.get("phones", [])), ", ".join(c.get("topics", [])[:2])]
             for c in m["contacts"]], [2, 2, 3])]
     if m["unresolved"]:
-        b += [("h1", "6. 아직 확인되지 않은 내용 (주의)")] + [("bullet", f"[{f['type']}] {f['message']}") for f in m["unresolved"]]
+        b += [("h1", "6. 빈틈 스캐너에서 아직 남은 빈틈 (주의)")] + [("bullet", f"[{flag_label(f['type'])}] {f['message']}") for f in m["unresolved"]]
     if m["terms"]:
         b += [("h1", "7. 처음 보는 용어")] + [("table", ["용어", "뜻"], [[k, v] for k, v in m["terms"]], [1, 4])]
     return b
@@ -554,7 +562,7 @@ def prefill_form(h):
                              for x in d.get("ledger", []) if x["kind"] == "계약"]},
         "a4": {"issues": [{"title": i["title"], "state": i.get("state", ""), "next": i.get("next_action", ""), "due": i.get("due", "")}
                           for i in live(S["issues"])],
-               "cautions": [f"[{f['type']}] {f['message']}" for f in flags[:10]] + notes[:5]},
+               "cautions": [f"[{flag_label(f['type'])}] {f['message']}" for f in flags[:10]] + notes[:5]},
         "a5": {"docs": [{"name": x["relpath"].split("/")[-1], "kind": x.get("kind", ""), "where": x["relpath"]}
                         for x in d.get("docs", []) if not x.get("error")],
                "contacts": [{"name": c["name"], "org": c.get("org", ""), "title": c.get("title", ""),

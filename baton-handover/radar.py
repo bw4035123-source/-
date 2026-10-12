@@ -206,7 +206,7 @@ def _ev(**kw):
 
 def build(h, start=None):
     """레이더: {settings, top:{week:[..], contract:[..]}, timeline:[..], conditional:[..], public:[..]}"""
-    from report import _parse_due, live
+    from report import _parse_due, flag_label, live
     st = settings(h)
     if start:
         st["start"] = start
@@ -306,12 +306,12 @@ def build(h, start=None):
                                 "link": public_link(r["law"][0], "law", r["law"][1]), "tip": r["tip"],
                                 "why": f"자료에 '{m.group(0)}' 언급이 있습니다"})
 
-    # 아직 풀리지 않은 '확인 필요'(충돌·불확실)가 걸린 일정은 카드에 함께 적는다
+    # 빈틈 스캐너에서 아직 풀리지 않은 것(자료끼리 다름·애매한 내용)이 걸린 일정은 카드에 함께 적는다
     flags = {}
     for f in d.get("flags", []):
         if not f.get("resolved"):
             for r in f.get("refs", []):
-                flags.setdefault(r, f"[{f['type']}] {f['message']}")
+                flags.setdefault(r, f"[{flag_label(f['type'])}] {f['message']}")
     for e in evs:
         if e.get("ref") in flags:
             e["flag"] = flags[e["ref"]]

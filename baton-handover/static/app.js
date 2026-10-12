@@ -215,7 +215,7 @@ function renderDraft() {
         : el("span", { class: "tag warn" }, "검토 중(초안)")),
     el("p", { class: "small muted" }, `인계: 전임자 → 후임자 (사람 이름 비식별) · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
     el("div", { class: "grid3", style: { gridTemplateColumns: "repeat(6,1fr)" } },
-      ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["확인 필요", open], ["AI 분신 질문", H.asked || 0]]
+      ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["빈틈", open], ["AI 분신 질문", H.asked || 0]]
         .map(([a, b]) => el("div", { class: "stat" }, el("b", {}, b), a))),
     el("h3", {}, "업무 개요"), el("p", { style: { whiteSpace: "pre-wrap" } }, d.overview),
     d.filtered && d.filtered.length ? el("details", {}, el("summary", { class: "small" }, `모델 결과 중 원문과 맞지 않아 버린 항목 ${d.filtered.reduce((n, f) => n + (f.count || 1), 0)}건`),
@@ -229,7 +229,7 @@ function renderDraft() {
         ? el("button", { onclick: async () => { H = await api("POST", `/api/handovers/${H.id}/review`, { confirmed: false }); renderAll(); } }, "확인 취소(다시 수정)")
         : el("button", { class: "primary", onclick: async () => {
             const by = "전임자";
-            if (open && !confirm(`확인 필요 사항이 ${open}건 남아 있습니다. 그래도 확인 완료할까요?`)) return;
+            if (open && !confirm(`빈틈 스캐너에 아직 메우지 않은 빈틈이 ${open}건 있습니다. 그래도 확인 완료할까요?`)) return;
             H = await api("POST", `/api/handovers/${H.id}/review`, { confirmed: true, by }); renderAll(); toast("전임자 확인을 완료했습니다. 후임자가 바로 활용할 수 있습니다.");
           } }, "전임자 확인 완료"))));
   // 인수인계 순서도는 요약 카드 바로 아래(서버에서 단계 상태를 받아 채움)
@@ -368,19 +368,20 @@ async function downloadIcs(start) {
   toast(`${name} 저장됨: 일정 ${r.headers.get("X-Events")}건` + (sk ? ` (이미 지난 일 등 ${sk}건 제외)` : ""));
 }
 
-// ------------------------------------------------------------ 확인 필요
+// ------------------------------------------------------------ 빈틈 스캐너
+const FLAG_LABEL = { "충돌": "자료끼리 다름", "불확실": "애매한 내용", "누락": "빠진 정보", "기한 지남": "기한 지남" };
 function renderFlags() {
   const sec = $("#tab-flags");
   if (needH(sec)) return;
   sec.innerHTML = "";
   const flags = H.draft.flags;
   const types = { "충돌": "bad", "기한 지남": "bad", "불확실": "warn", "누락": "info" };
-  const panel = el("div", { class: "panel" }, el("h2", {}, `확인이 필요한 사항 (${flags.filter(f => !f.resolved).length}건 남음)`),
-    el("p", { class: "small muted" }, "충돌: 자료끼리 내용이 다름 · 기한 지남: 해야 할 일인데 오늘 기준으로 날짜가 지남 · 불확실: '아마', '미정' 같은 표현 또는 개인메모에만 있음 · 누락: 연락처·기한·다음 할 일 등이 빠짐. 공식문서와 개인메모는 자료 목록에서 구분됩니다."));
+  const panel = el("div", { class: "panel" }, el("h2", {}, `빈틈 스캐너 (${flags.filter(f => !f.resolved).length}건 남음)`),
+    el("p", { class: "small muted" }, "인수인계 자료의 빈틈을 찾아 모았습니다. 그대로 믿으면 위험하니 떠나기 전에 메워 주세요. 자료끼리 다름: 문서마다 날짜·번호가 다름 · 기한 지남: 할 일인데 오늘 기준으로 날짜가 지남 · 애매한 내용: '아마', '미정' 같은 표현이거나 개인메모에만 있음 · 빠진 정보: 연락처·기한·다음 할 일 등이 없음."));
   for (const t of ["충돌", "기한 지남", "불확실", "누락"]) {
     const fs = flags.filter(f => f.type === t);
     if (!fs.length) continue;
-    panel.append(el("h3", {}, el("span", { class: "tag " + types[t] }, t), ` ${fs.length}건`));
+    panel.append(el("h3", {}, el("span", { class: "tag " + types[t] }, FLAG_LABEL[t]), ` ${fs.length}건`));
     for (const f of fs) {
       const note = el("input", { placeholder: "처리 내용 (예: 업체 확인 결과 11/3 착공)", value: f.note || "", style: { flex: 1 } });
       panel.append(el("div", { class: "panel", style: { padding: "10px", opacity: f.resolved ? .6 : 1 } },
@@ -392,7 +393,7 @@ function renderFlags() {
           } }, f.resolved ? "다시 열기" : "처리 완료"))));
     }
   }
-  if (!flags.length) panel.append(el("div", { class: "empty" }, "확인이 필요한 사항이 없습니다."));
+  if (!flags.length) panel.append(el("div", { class: "empty" }, "찾은 빈틈이 없습니다."));
   sec.append(panel);
 }
 
@@ -489,7 +490,7 @@ function setupManual() {
           el("td", {}, i.next_action || ""), el("td", {}, citeChips(i.sources, CTX()))))),
       el("h3", {}, "4. 꼭 알아둘 협업 상대"),
       el("table", { class: "t" }, m.contacts.map(c => el("tr", {}, el("td", {}, c.name), el("td", {}, (c.phones || []).join(", ")), el("td", {}, (c.topics || []).slice(0, 2).join(", "))))),
-      m.unresolved.length ? [el("h3", {}, "5. 아직 확인되지 않은 내용"), el("ul", {}, m.unresolved.map(f => el("li", {}, `[${f.type}] ${f.message}`)))] : null,
+      m.unresolved.length ? [el("h3", {}, "5. 빈틈 스캐너에서 아직 남은 빈틈"), el("ul", {}, m.unresolved.map(f => el("li", {}, `[${FLAG_LABEL[f.type] || f.type}] ${f.message}`)))] : null,
       m.terms.length ? [el("h3", {}, "6. 처음 보는 용어"), el("table", { class: "t" }, m.terms.map(([k, v]) => el("tr", {}, el("td", {}, el("b", {}, k)), el("td", {}, v))))] : null);
     out.append(p);
   };
@@ -680,7 +681,7 @@ function rcard(e) {
       e.kind === "공공 주기" ? el("span", { class: "tag info" }, "공공 주기") : null),
     el("b", { class: "rc-title" }, e.title),
     e.why ? el("p", { class: "rc-why" }, e.why) : null,
-    e.flag ? el("p", { class: "rc-flag" }, "⚠ 확인 필요 " + e.flag) : null,
+    e.flag ? el("p", { class: "rc-flag" }, "⚠ 빈틈 " + e.flag) : null,
     e.source ? el("span", { class: "rc-src" }, "근거: " + e.source) : null);
 }
 function radarCards(rd) {

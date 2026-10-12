@@ -308,7 +308,7 @@ def answer(draft, blocks, q, llm=None, persona=None):
         ids = {it.get("id") for _, it in found_items}
         for f in draft.get("flags", []):
             if f.get("type") == "충돌" and not f.get("resolved") and ids & set(f.get("refs", [])):
-                lines.append(f"⚠ 확인 필요: {f['message']}")
+                lines.append(f"⚠ 빈틈(자료끼리 다름 등): {f['message']}")
     if not lines:
         text = NOT_FOUND
         sources = []

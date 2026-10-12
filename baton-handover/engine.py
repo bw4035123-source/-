@@ -1133,7 +1133,7 @@ def analyze(docs, predecessor="", llm=None, today=None):
                 + ", ".join(f"{k} {v}" for k, v in kinds.items())
                 + f")에서 담당업무 {len(sections['rnr'])}건, 일정 {len(sections['schedule'])}건, "
                 f"연락처 {len(sections['contacts'])}명, 현안 {len(sections['issues'])}건을 찾았습니다. "
-                f"확인이 필요한 사항은 {len(flags)}건입니다."
+                f"빈틈 스캐너가 찾은 빈틈은 {len(flags)}건입니다."
                 + (f" 모델이 낸 항목 중 원문과 맞지 않는 {sum(f['count'] for f in filtered)}건은 버렸습니다." if filtered else "")
                 + relay)
     if llm is not None and llm.enabled:

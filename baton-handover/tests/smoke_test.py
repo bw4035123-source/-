@@ -63,7 +63,7 @@ def check_baton(c):
     yield "화면 열기", c.call("GET", "/", raw=True)[:15].lower().startswith(b"<!doctype")
     h = c.call("POST", "/api/handovers", {"source": {"kind": "sample"}, "start": "2026-10-12"})
     s = h["draft"]["sections"]
-    yield f"인수인계서 초안(업무 {len(s['rnr'])}, 일정 {len(s['schedule'])}, 연락처 {len(s['contacts'])}, 현안 {len(s['issues'])}, 확인 필요 {len(h['draft']['flags'])})", all(len(s[k]) for k in s)
+    yield f"인수인계서 초안(업무 {len(s['rnr'])}, 일정 {len(s['schedule'])}, 연락처 {len(s['contacts'])}, 현안 {len(s['issues'])}, 빈틈 {len(h["draft"]["flags"])})", all(len(s[k]) for k in s)
     a = c.call("POST", f"/api/handovers/{h['id']}/ask", {"q": "11월에 할 일 알려줘"})
     yield "후임자 질문", bool(a["answer"])
     for fmt in ("hwpx", "docx", "md"):
