@@ -242,7 +242,9 @@ def ask(req):
     # 실제 전임자가 이미 답한 질문이면 그 답을 먼저 (전임자 본인의 말)
     best = max(report.answered_questions(h), key=lambda x: similarity(x["q"], q), default=None)
     if best and same_question(best["q"], q):
-        return {"answer": f"이 질문은 제가 직접 답해 두었어요 ({best.get('answered_at', '')[:10]}).\n{best['answer']}",
+        lead = {"AI 답 확인": "이 답은 제가 직접 맞는지 확인했어요", "AI 답 바로잡기": "이 질문은 제가 직접 바로잡아 두었어요"}.get(
+            best.get("via"), "이 질문은 제가 직접 답해 두었어요")
+        return {"answer": f"{lead} ({best.get('answered_at', '')[:10]}).\n{best['answer']}",
                 "sources": [{"block_id": f"qa-{best['id']}", "file": "전임자 답변", "loc": f"질문 답변 {best['id']}",
                              "quote": f"질문: {best['q']} / 답변: {best['answer']}"[:160]}],
                 "items": [], "mode": "전임자 직접 답변", "found": True}
@@ -306,6 +308,134 @@ def answer_question(req):
             log(h["id"], "전임자 답변", f"{qobj['q']} → {a}")
             return qobj
     raise HttpError(404, "질문을 찾을 수 없습니다")
+
+
+# ---------------------------------------------------------------- 소통 창구: AI 답 확인·피드백·메시지
+# 후임자는 AI 분신의 답을 전임자에게 '확인 요청'하거나 의견·메시지를 남기고, 전임자는 확인·바로잡기·답장을 한다.
+# 전임자가 확인하거나 바로잡은 답은 '전임자 직접 답변'이 되어 같은 질문에 그대로 쓰이고, 인수인계서·바통 파일에도 남는다.
+
+ROLES = ("후임자", "전임자")
+KINDS = ("확인 요청", "메시지")
+
+
+def _text(v, n=4000):
+    return str(v or "").strip()[:n]
+
+
+def _thread(h, tid):
+    t = next((x for x in h.get("threads") or [] if x["id"] == tid), None)
+    if not t:
+        raise HttpError(404, "대화를 찾을 수 없습니다")
+    return t
+
+
+def _role(body):
+    r = body.get("by")
+    if r not in ROLES:
+        raise HttpError(400, "보내는 사람은 '후임자' 또는 '전임자'여야 합니다")
+    return r
+
+
+def _learn(h, q, answer, via):
+    """전임자가 확인·바로잡은 답을 전임자 답변으로 저장(같은 질문 재사용, 인수인계서·바통 파일 질의응답)."""
+    qs = h.setdefault("questions", [])
+    qobj = next((x for x in qs if x["q"] == q), None)
+    if not qobj:
+        qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": h.get("successor") or "후임자",
+                "asked_at": _now()}
+        qs.append(qobj)
+    qobj.update(answer=answer, status="답변", answered_at=_now(), via=via)
+    return qobj
+
+
+@app.get("/api/handovers/<hid>/threads")
+def list_threads(req):
+    return {"threads": load_h(req.params["hid"]).get("threads") or []}
+
+
+@app.post("/api/handovers/<hid>/threads")
+def create_thread(req):
+    h = load_h(req.params["hid"])
+    b = req.json
+    by = _role(b)
+    kind = b.get("kind") if b.get("kind") in KINDS else "메시지"
+    text = _text(b.get("text"))
+    ai = b.get("ai") if isinstance(b.get("ai"), dict) else None
+    if kind == "확인 요청":
+        if not ai or not _text(ai.get("q")) or not _text(ai.get("answer")):
+            raise HttpError(400, "확인할 AI 답이 없습니다")
+        ai = {"q": _text(ai["q"], 500), "answer": _text(ai["answer"]), "mode": _text(ai.get("mode"), 50),
+              "sources": [{k: _text(s.get(k), 300) for k in ("block_id", "file", "loc", "quote")}
+                          for s in (ai.get("sources") or [])[:5] if isinstance(s, dict)]}
+        title = ai["q"]
+    else:
+        ai = None
+        title = _text(b.get("title"), 120) or text[:40]
+        if not text:
+            raise HttpError(400, "내용을 입력해 주세요")
+    ts = h.setdefault("threads", [])
+    t = {"id": f"t{len(ts) + 1}-{uuid.uuid4().hex[:4]}", "kind": kind, "title": title, "ai": ai, "by": by,
+         "created": _now(), "status": "대기", "messages": []}
+    if text:
+        t["messages"].append({"by": by, "text": text, "at": _now()})
+    ts.append(t)
+    save_h(h)
+    log(h["id"], f"소통 창구: {kind}", title)
+    return t
+
+
+@app.post("/api/handovers/<hid>/threads/<tid>/reply")
+def reply_thread(req):
+    h = load_h(req.params["hid"])
+    t = _thread(h, req.params["tid"])
+    b = req.json
+    by = _role(b)
+    text = _text(b.get("text"))
+    if not text:
+        raise HttpError(400, "내용을 입력해 주세요")
+    t["messages"].append({"by": by, "text": text, "at": _now()})
+    if t["status"] == "완료":
+        t["status"] = "대기"  # 끝난 대화에 다시 말을 걸면 다시 연다
+    save_h(h)
+    log(h["id"], "소통 창구: 답장", f"{by} · {t['title']}")
+    return t
+
+
+@app.post("/api/handovers/<hid>/threads/<tid>/resolve")
+def resolve_thread(req):
+    """전임자: confirm(AI 답이 맞음) · correct(바로잡은 답) / 누구나: close(완료) · reopen(다시 열기)."""
+    h = load_h(req.params["hid"])
+    t = _thread(h, req.params["tid"])
+    b = req.json
+    by = _role(b)
+    action = b.get("action")
+    if action in ("confirm", "correct"):
+        if by != "전임자":
+            raise HttpError(403, "AI 답 확인·바로잡기는 전임자만 할 수 있습니다")
+        if not t.get("ai"):
+            raise HttpError(400, "AI 답 확인 요청이 아닙니다")
+        if action == "confirm":
+            answer = re.sub(r"^제 자료에서 찾아봤어요[^\n]*\n", "", t["ai"]["answer"]).strip()
+            t["status"], note = "확인됨", "AI 답이 맞다고 확인했습니다."
+        else:
+            answer = _text(b.get("text"))
+            if not answer:
+                raise HttpError(400, "바로잡은 답을 입력해 주세요")
+            t["status"], note = "바로잡음", f"답을 바로잡았습니다: {answer}"
+        qobj = _learn(h, t["ai"]["q"], answer, "AI 답 확인" if action == "confirm" else "AI 답 바로잡기")
+        t["learned"] = qobj["id"]
+        t["messages"].append({"by": by, "text": note, "at": _now(), "system": True})
+        save_h(h)
+        _answer_block(h, qobj)
+    elif action in ("close", "reopen"):
+        t["status"] = "완료" if action == "close" else "대기"
+        t["messages"].append({"by": by, "text": "대화를 마쳤습니다." if action == "close" else "대화를 다시 열었습니다.",
+                              "at": _now(), "system": True})
+        save_h(h)
+    else:
+        raise HttpError(400, "알 수 없는 처리입니다")
+    log(h["id"], f"소통 창구: {t['status']}", f"{by} · {t['title']}")
+    return t
 
 
 def _manual(h, body):

@@ -93,6 +93,16 @@ def handover_blocks(h):
         blocks.insert(-1, ("h1", f"{n}. 전임자 질의응답"))
         blocks.insert(-1, ("table", ["질문(후임자)", "답변(전임자)", "답변일"], [[q["q"], q["answer"], q.get("answered_at", "")[:10]] for q in qa], [3, 4, 1]))
         n += 1
+    threads = h.get("threads") or []
+    if threads:
+        rows = []
+        for t in threads:
+            last = (t.get("messages") or [{}])[-1]
+            rows.append([t.get("kind", ""), t.get("title", ""), t.get("status", ""),
+                         f"{last.get('by', '')}: {last.get('text', '')}" if last else "", t.get("created", "")[:10]])
+        blocks.insert(-1, ("h1", f"{n}. 후임자와의 소통 기록"))
+        blocks.insert(-1, ("table", ["구분", "내용", "처리", "마지막 말", "시작일"], rows, [1, 3, 1, 4, 1]))
+        n += 1
     comments = rv.get("comments") or []
     if comments:
         blocks.insert(-1, ("h1", f"{n}. 전임자 메모"))

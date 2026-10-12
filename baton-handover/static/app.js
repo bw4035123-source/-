@@ -457,10 +457,18 @@ function setupAsk() {
         renderMyQuestions(); renderDraft();
       } }, r.found ? `답이 부족하면 진짜 ${predName()} 님께 넘기기` : `진짜 ${predName()} 님께 질문 넘기기`);
       const already = r.related && r.related.status === "대기";
+      // 찾은 답은 '맞는지 확인 요청'(전임자가 확인·바로잡기), 못 찾은 답은 '질문 넘기기'
+      const check = el("button", { class: "small", onclick: async e => {
+        const t = await api("POST", `/api/handovers/${H.id}/threads`, { kind: "확인 요청", by: "후임자",
+          ai: { q, answer: r.answer, sources: r.sources || [], mode: r.mode } });
+        (H.threads = H.threads || []).push(t);
+        e.target.disabled = true; e.target.textContent = `✓ ${pv(predName())} 님께 확인을 요청했어요 (④ 소통 창구)`;
+        updateTalkBadge();
+      } }, `✋ 이 답이 맞는지 ${predName()} 님께 확인 요청`);
       pending.replaceWith(bot(el("div", { style: { whiteSpace: "pre-wrap" } }, r.answer),
         r.sources && r.sources.length ? el("div", { class: "small muted", style: { marginTop: "6px" } }, `근거 (${r.mode}): `, citeChips(r.sources, CTX())) : null,
         r.mode === "전임자 직접 답변" ? null : el("div", { style: { marginTop: "6px" } },
-          already ? el("span", { class: "tag warn" }, `같은 질문을 이미 넘겼어요 · ${predName()} 님 답변 대기`) : fwd)));
+          already ? el("span", { class: "tag warn" }, `같은 질문을 이미 넘겼어요 · ${predName()} 님 답변 대기`) : (r.found ? check : fwd))));
     } catch (e) { pending.remove(); }
   };
   $("#ask").onclick = () => send();
@@ -522,11 +530,119 @@ async function renderHistory() {
       history.slice().reverse().map(x => el("tr", {}, el("td", { class: "small" }, x.at), el("td", {}, x.action), el("td", { class: "small" }, x.detail))))));
 }
 
+// ------------------------------------------------------------ 소통 창구(AI 답 확인·피드백·메시지)
+// 이 PC 하나에서 전임자·후임자가 번갈아 쓰므로 '지금 쓰는 사람'을 고른다(기관 로그인 연동 시 자동)
+let ROLE = "후임자";
+try { ROLE = localStorage.getItem("baton:role") === "전임자" ? "전임자" : "후임자"; } catch (e) {}
+let TALK_SEL = null, TALK_FILTER = "all";
+const TALK_STATUS = { "대기": "warn", "확인됨": "ok", "바로잡음": "info", "완료": "gray" };
+const other = () => (ROLE === "전임자" ? "후임자" : "전임자");
+// 지금 쓰는 사람이 할 일이 있는 대화: 상대가 마지막으로 말했거나, (전임자) 확인 요청이 대기 중
+function needsMe(t) {
+  if (t.status === "완료") return false;
+  const last = (t.messages || []).filter(m => !m.system).slice(-1)[0];
+  if (ROLE === "전임자" && t.kind === "확인 요청" && t.status === "대기") return true;
+  return !!last && last.by !== ROLE;
+}
+function updateTalkBadge() {
+  const n = H ? (H.threads || []).filter(needsMe).length : 0;
+  const b = $("#talk-tab");
+  b.textContent = "④ 소통 창구";
+  if (n) b.append(el("span", { class: "badge" }, String(n)));
+}
+async function talkAct(t, path, body) {
+  const nt = await api("POST", `/api/handovers/${H.id}/threads/${t.id}/${path}`, { ...body, by: ROLE });
+  Object.assign(t, nt);
+  if (path === "resolve" && (body.action === "confirm" || body.action === "correct")) H = await api("GET", `/api/handovers/${H.id}`);
+  renderTalk(); renderMyQuestions();
+}
+function renderTalk() {
+  const sec = $("#tab-talk");
+  updateTalkBadge();
+  if (needH(sec)) return;
+  sec.innerHTML = "";
+  const all = H.threads || [];
+  const shown = all.filter(t => TALK_FILTER === "all" ? true : TALK_FILTER === "me" ? needsMe(t) : t.status === "완료").slice().reverse();
+  if (!shown.some(t => t.id === TALK_SEL)) TALK_SEL = shown[0] && shown[0].id;
+  const roleBtn = r => el("button", { class: "seg" + (ROLE === r ? " on" : ""), onclick: () => {
+    ROLE = r; try { localStorage.setItem("baton:role", r); } catch (e) {} renderTalk(); } }, r === "전임자" ? `전임자(${predName()})` : `후임자(${H.successor || "후임자"})`);
+  sec.append(el("div", { class: "panel" },
+    el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "소통 창구"),
+      el("span", { class: "small muted" }, "지금 쓰는 사람"), el("span", { class: "segs" }, roleBtn("후임자"), roleBtn("전임자")),
+      el("button", { class: "primary small", onclick: newThread }, "+ 새 메시지")),
+    el("p", { class: "small muted", style: { margin: "8px 0 0" } },
+      `후임자는 AI 분신의 답이 맞는지 전임자에게 확인을 요청하거나 궁금한 점·의견을 남기고, 전임자는 확인·바로잡기·답장을 합니다. `
+      + `전임자가 확인하거나 바로잡은 답은 AI 분신이 그대로 쓰고 인수인계서·바통 파일에도 남습니다.`)));
+  const tabs = [["all", `전체 ${all.length}`], ["me", `내 차례 ${all.filter(needsMe).length}`], ["done", `완료 ${all.filter(t => t.status === "완료").length}`]];
+  const list = el("div", { class: "talk-list" },
+    el("div", { class: "segs", style: { marginBottom: "10px" } }, tabs.map(([k, l]) => el("button", { class: "seg" + (TALK_FILTER === k ? " on" : ""), onclick: () => { TALK_FILTER = k; renderTalk(); } }, l))),
+    shown.length ? shown.map(t => {
+      const last = (t.messages || []).slice(-1)[0];
+      return el("button", { class: "th" + (t.id === TALK_SEL ? " on" : ""), onclick: () => { TALK_SEL = t.id; renderTalk(); } },
+        el("div", { class: "row", style: { gap: "6px" } }, el("span", { class: "tag " + (t.kind === "확인 요청" ? "info" : "gray") }, t.kind),
+          el("span", { class: "tag " + (TALK_STATUS[t.status] || "gray") }, t.status), needsMe(t) ? el("span", { class: "dot-new" }) : null),
+        el("b", {}, t.title),
+        el("span", { class: "small muted" }, last ? `${last.by}: ${last.text}` : `${t.by}이(가) 보냄`));
+    }) : el("div", { class: "empty" }, all.length ? "해당하는 대화가 없습니다." : "아직 대화가 없습니다. ③ AI 분신의 답 아래 '확인 요청'을 누르거나 '+ 새 메시지'로 시작하세요."));
+  const t = all.find(x => x.id === TALK_SEL);
+  sec.append(el("div", { class: "talk" }, list, el("div", { class: "panel talk-view" }, t ? threadView(t) : el("div", { class: "empty" }, "왼쪽에서 대화를 고르세요."))));
+}
+function threadView(t) {
+  const box = el("textarea", { placeholder: `${other()}에게 보낼 말`, style: { minHeight: "70px" } });
+  const parts = [el("div", { class: "row" }, el("span", { class: "tag " + (t.kind === "확인 요청" ? "info" : "gray") }, t.kind),
+    el("span", { class: "tag " + (TALK_STATUS[t.status] || "gray") }, t.status), el("span", { class: "small muted" }, `${t.by} · ${t.created}`)),
+    el("h3", { style: { margin: "10px 0" } }, t.title)];
+  if (t.ai) {
+    parts.push(el("div", { class: "ai-box" }, el("div", { class: "small muted" }, `AI ${predName()}(분신)의 답 · ${t.ai.mode || ""}`),
+      el("div", { style: { whiteSpace: "pre-wrap", marginTop: "4px" } }, t.ai.answer),
+      t.ai.sources && t.ai.sources.length ? el("div", { style: { marginTop: "6px" } }, citeChips(t.ai.sources, CTX())) : null));
+    if (ROLE === "전임자" && t.status === "대기") {
+      const fix = el("textarea", { placeholder: "바른 답을 적어 주세요. 이후 AI 분신이 이 답을 씁니다.", style: { minHeight: "70px" } }, "");
+      const fixRow = el("div", { hidden: true, style: { marginTop: "8px" } }, fix,
+        el("button", { class: "primary small", style: { marginTop: "6px" }, onclick: () => {
+          if (!fix.value.trim()) return toast("바른 답을 입력해 주세요", true);
+          talkAct(t, "resolve", { action: "correct", text: fix.value.trim() }).then(() => toast("바로잡은 답을 저장했습니다. AI 분신이 이제 이 답을 씁니다."));
+        } }, "바로잡은 답 저장"));
+      parts.push(el("div", { class: "row", style: { marginTop: "10px" } },
+        el("button", { class: "primary small", onclick: () => talkAct(t, "resolve", { action: "confirm" }).then(() => toast("확인했습니다. 같은 질문에는 이 답을 전임자 확인 답으로 씁니다.")) }, "✓ 맞아요(확인)"),
+        el("button", { class: "small", onclick: () => { fixRow.hidden = !fixRow.hidden; } }, "✎ 바로잡기")), fixRow);
+    } else if (ROLE === "후임자" && t.status === "대기") {
+      parts.push(el("p", { class: "small muted" }, `${predName()} 님이 확인하면 여기에 결과가 표시됩니다.`));
+    }
+  }
+  parts.push(el("div", { class: "thread" }, (t.messages || []).map(m => m.system
+    ? el("div", { class: "sys" }, `${m.by} · ${m.text} · ${m.at}`)
+    : el("div", { class: "msg " + (m.by === ROLE ? "me" : "bot"), style: { maxWidth: "80%", width: "auto" } },
+        el("div", { class: "small", style: { opacity: .75, marginBottom: "2px" } }, `${m.by} · ${m.at}`),
+        el("div", { style: { whiteSpace: "pre-wrap" } }, m.text)))));
+  parts.push(box, el("div", { class: "row", style: { marginTop: "6px" } },
+    el("button", { class: "primary small", onclick: () => {
+      if (!box.value.trim()) return toast("내용을 입력해 주세요", true);
+      talkAct(t, "reply", { text: box.value.trim() });
+    } }, `${other()}에게 보내기`),
+    el("span", { style: { flex: 1 } }),
+    t.status === "완료" ? el("button", { class: "small", onclick: () => talkAct(t, "resolve", { action: "reopen" }) }, "다시 열기")
+      : el("button", { class: "small", onclick: () => talkAct(t, "resolve", { action: "close" }) }, "대화 마치기")));
+  return parts;
+}
+function newThread() {
+  const title = el("input", { class: "wide", placeholder: "제목 (예: 승강기 재계약 일정 문의)" });
+  const text = el("textarea", { placeholder: `${other()}에게 보낼 내용` });
+  const m = modal(`새 메시지 (${ROLE} → ${other()})`, el("label", { class: "f" }, "제목"), title, el("label", { class: "f" }, "내용"), text,
+    el("div", { class: "row", style: { marginTop: "10px" } }, el("button", { class: "primary", onclick: async () => {
+      if (!text.value.trim()) return toast("내용을 입력해 주세요", true);
+      const t = await api("POST", `/api/handovers/${H.id}/threads`, { kind: "메시지", by: ROLE, title: title.value.trim(), text: text.value.trim() });
+      (H.threads = H.threads || []).push(t); TALK_SEL = t.id; TALK_FILTER = "all";
+      $$(".modal-bg").forEach(x => x.remove()); renderTalk();
+    } }, "보내기")));
+  return m;
+}
+
 let goTab;
-function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); if (H) { renderAvatarHead(); renderMyQuestions(); } }
+function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderTalk(); if (H) { renderAvatarHead(); renderMyQuestions(); } }
 document.addEventListener("DOMContentLoaded", async () => {
   setupStart(); setupAsk(); setupManual(); setupPrivacy();
-  goTab = setupTabs(id => { if (id === "history") renderHistory(); });
+  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "talk") renderTalk(); });
   $("#cur-h").onchange = e => e.target.value && select(e.target.value);
   await refreshList();
 });

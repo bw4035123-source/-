@@ -108,6 +108,24 @@ def check_baton(c):
         ("POST", f"/api/handovers/{hid}/manual", {"start": "2026-13-01"}), ("POST", f"/api/handovers/{hid}/ask", [1]),
         ("POST", f"/api/handovers/{hid}/questions", [1])])
     yield "DNS 리바인딩 차단(도메인 Host 거부)", c.status("GET", "/api/handovers", headers={"Host": "evil.example"}) == 403
+    # 소통 창구: AI 답 확인 요청 → 전임자 확인/바로잡기 → 같은 질문에 전임자 답, 메시지·답장
+    ans = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "민원 처리 기한은?"})
+    t1 = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "확인 요청", "by": "후임자",
+                                                           "ai": {"q": "민원 처리 기한은?", "answer": ans["answer"], "sources": ans["sources"]}})
+    yield "소통 창구: 후임자 쪽에서는 AI 답 확인 처리 불가", c.status("POST", f"/api/handovers/{hid}/threads/{t1['id']}/resolve",
+                                                         {"by": "후임자", "action": "confirm"}) == 403
+    c.call("POST", f"/api/handovers/{hid}/threads/{t1['id']}/resolve", {"by": "전임자", "action": "confirm"})
+    again = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "민원 처리 기한은?"})
+    yield "소통 창구: 전임자가 확인한 AI 답을 그대로 씀", again["mode"] == "전임자 직접 답변" and "확인" in again["answer"]
+    ans2 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "정민재 연락처"})
+    t2 = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "확인 요청", "by": "후임자", "ai": {"q": "정민재 연락처", "answer": ans2["answer"]}})
+    c.call("POST", f"/api/handovers/{hid}/threads/{t2['id']}/resolve", {"by": "전임자", "action": "correct", "text": "새 번호 010-0000-9081로 연락하세요."})
+    fixed = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "정민재 연락처"})
+    yield "소통 창구: 전임자가 바로잡은 답으로 응답", "010-0000-9081로 연락하세요" in fixed["answer"]
+    m = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "메시지", "by": "후임자", "title": "인사", "text": "다음 주에 뵙겠습니다."})
+    m = c.call("POST", f"/api/handovers/{hid}/threads/{m['id']}/reply", {"by": "전임자", "text": "네, 화요일 10시 어떠세요?"})
+    md = c.call("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
+    yield "소통 창구: 메시지·답장, 인수인계서에 소통 기록", len(m["messages"]) == 2 and "후임자와의 소통 기록" in md
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \
