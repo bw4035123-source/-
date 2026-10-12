@@ -1,0 +1,6 @@
+workspace/
+config/*.local.json
+.venv/
+wheels/
+__pycache__/
+*.pyc

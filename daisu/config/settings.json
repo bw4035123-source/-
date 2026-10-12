@@ -1,0 +1,26 @@
+{
+  "org": {"name": "가상구시설관리공단", "dept": "경영지원팀", "manager": "교육담당"},
+  "schedule": {
+    "slots": [
+      {"name": "오전", "start": "09:00"},
+      {"name": "오후", "start": "14:00"}
+    ],
+    "day_shift_codes": ["주"],
+    "rest_codes": ["비", "휴", "휴직", "연"],
+    "office_codes": ["일근"],
+    "min_on_duty_ratio": 0.5,
+    "room_capacity": 40,
+    "max_sessions": 12,
+    "holidays": ["2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-02", "2026-05-05", "2026-05-25", "2026-06-03", "2026-08-17",
+                 "2026-09-24", "2026-09-25", "2026-10-05", "2026-10-09", "2026-12-25"]
+  },
+  "remind": {"first_days": 30, "boss_days": 14},
+  "active_profile": "offline",
+  "profiles": {
+    "offline": {"label": "오프라인 규칙엔진 (AI 모델 없이 동작)", "kind": "offline"},
+    "ollama-exaone": {"label": "EXAONE 3.5 (Ollama, 내 PC)", "kind": "openai", "base_url": "http://localhost:11434/v1", "model": "exaone3.5:7.8b"},
+    "ollama-gemma": {"label": "Gemma 3 (Ollama, 내 PC)", "kind": "openai", "base_url": "http://localhost:11434/v1", "model": "gemma3:4b"},
+    "hyperclova-x": {"label": "HyperCLOVA X (CLOVA Studio)", "kind": "openai", "base_url": "https://clovastudio.stream.ntruss.com/v1/openai", "model": "HCX-005", "api_key_env": "CLOVA_STUDIO_API_KEY"},
+    "vllm": {"label": "OpenAI 호환 서버(vLLM 등)", "kind": "openai", "base_url": "http://localhost:8000/v1", "model": "gpt-oss-20b"}
+  }
+}
