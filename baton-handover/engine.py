@@ -405,7 +405,7 @@ class Extractor:
             for x in d.meta.get("baton_items", []):
                 if not 0 <= x["block"] < len(d.blocks):
                     continue
-                it = dict(x["item"], carried=x["since"])
+                it = dict(x["item"], carried=dict(x["since"], unverified=bool(x.get("unverified"))))
                 self.add(x["section"], it, d.blocks[x["block"]])
         return handled
 
@@ -610,6 +610,14 @@ def build_flags(sections, kind_of_file, today=None):
             c = it["carried"]
             flag("불확실", f"현안 '{it['title']}': {c.get('gen', '')}대 {c.get('name', '')} 때 넘겨받은 현안인데 이번 자료에는 없습니다. "
                  "지금도 진행 중인지 확인해 주세요.", [it["id"]], it["sources"], "중")
+
+    # 불확실: 이전 담당자가 확인하지 않고 넘긴(초안) 항목 — 한 건으로 묶어 알린다
+    unv = [it for sec in ("rnr", "schedule", "contacts", "issues") for it in sections[sec]
+           if (it.get("carried") or {}).get("unverified") and all(o == "이전 인수인계서" for o in it["origin"])]
+    if unv:
+        c = unv[0]["carried"]
+        flag("불확실", f"{c.get('gen', '')}대 {c.get('name', '')}이(가) 확인하지 않고 넘긴 항목 {len(unv)}건을 이어받았습니다. "
+             "이번 자료로 확인되지 않은 내용이니 하나씩 확인해 주세요.", [it["id"] for it in unv], [s for it in unv[:4] for s in it["sources"][:1]], "중")
 
     # 충돌: 같은 일(대상어+행위)인데 시기가 다름
     sch = sections["schedule"]

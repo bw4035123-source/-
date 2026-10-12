@@ -36,7 +36,14 @@ function collectNames() {
   const names = [...all].filter(n => /^[가-힣]{2,4}$/.test(n)).sort((a, b) => b.length - a.length);
   NAMES_RX = names.length ? new RegExp(names.join("|"), "g") : null;
 }
-const pv = t => (PRIVACY && NAMES_RX && t != null ? String(t).replace(NAMES_RX, maskName) : t);
+// 휴대전화는 가운데 자리를 가린다(010-****-9081). 사무실 번호는 업무용 공개 번호라 그대로 둔다
+const MOBILE_RX = /(?<!\d)(01[016789])([-. ]?)(\d{3,4})([-. ]?)(\d{4})(?!\d)/g;
+const pv = t => {
+  if (!PRIVACY || t == null) return t;
+  let s = String(t);
+  if (NAMES_RX) s = s.replace(NAMES_RX, maskName);
+  return s.replace(MOBILE_RX, (m, a, s1, mid, s2, b) => `${a}${s1}${"*".repeat(mid.length)}${s2}${b}`);
+};
 // 모든 화면 요소는 el()로 만들어지므로 여기서 한 번에 가린다(편집 칸·입력 칸은 제외)
 const rawEl = el;
 el = function (tag, attrs, ...kids) {
@@ -215,7 +222,9 @@ function schedTags(it) {
 }
 function carriedTag(it) {
   const c = it.carried;
-  return c ? el("span", { class: "tag ok", title: `${c.gen}대 담당자 ${c.name}의 인수인계서(바통 파일)에서 이어받은 항목` }, `이어받음 · ${c.gen}대 ${c.name}`) : null;
+  if (!c) return null;
+  return el("span", { class: "tag " + (c.unverified ? "warn" : "ok"), title: `${c.gen}대 담당자 ${c.name}의 인수인계서(바통 파일)에서 이어받은 항목`
+    + (c.unverified ? " · 그 담당자가 확인하지 않고 넘긴 초안" : "") }, `이어받음 · ${c.gen}대 ${c.name}` + (c.unverified ? " · 미확인" : ""));
 }
 function statusTag(it) { return el("span", { class: "st tag " + (STATUS_TAG[it.status] || "gray") }, it.status || "초안"); }
 
@@ -288,14 +297,21 @@ function renderInbox() {
     el("p", { class: "small muted" }, `AI ${predName()}(분신)이 자료에서 답을 찾지 못해 후임자가 넘긴 질문입니다. 답하면 이후 같은 질문에는 이 답으로 응답하고, 인수인계서와 바통 파일에도 남습니다.`),
     qs.map(q => {
       const ta = el("textarea", { placeholder: "답변을 적어 주세요", style: { width: "100%", minHeight: "56px" } }, q.answer || "");
+      const save = el("button", { class: "small primary", style: { marginTop: "6px" }, onclick: async () => {
+        if (!ta.value.trim()) return toast("답변을 입력해 주세요", true);
+        await api("POST", `/api/handovers/${H.id}/questions/${q.id}/answer`, { answer: ta.value.trim() });
+        H = await api("GET", `/api/handovers/${H.id}`); renderAll(); toast("답변을 저장했습니다. AI 분신도 이제 이 답으로 응답합니다.");
+      } }, q.status === "대기" ? "답변 보내기" : "답변 저장");
+      // 이미 답한 질문은 가린 글로 보여 주고, '고치기'를 눌렀을 때만 원래 글이 든 입력칸을 연다
+      const answered = q.status !== "대기" && q.answer;
+      const view = answered ? el("div", { class: "quote", style: { whiteSpace: "pre-wrap" } }, q.answer) : null;
+      const edit = answered ? el("button", { class: "small", style: { marginTop: "6px" }, onclick: () => {
+        view.replaceWith(ta); edit.replaceWith(save);
+      } }, "답변 고치기") : null;
       return el("div", { class: "panel", style: { padding: "10px" } },
         el("div", {}, el("span", { class: "tag " + (q.status === "대기" ? "warn" : "ok") }, q.status), " ", el("b", {}, q.q),
           el("span", { class: "small muted" }, ` · ${q.asked_by} · ${q.asked_at}`)),
-        ta, el("button", { class: "small primary", style: { marginTop: "6px" }, onclick: async () => {
-          if (!ta.value.trim()) return toast("답변을 입력해 주세요", true);
-          await api("POST", `/api/handovers/${H.id}/questions/${q.id}/answer`, { answer: ta.value.trim() });
-          H = await api("GET", `/api/handovers/${H.id}`); renderAll(); toast("답변을 저장했습니다. AI 분신도 이제 이 답으로 응답합니다.");
-        } }, q.status === "대기" ? "답변 보내기" : "답변 고치기"));
+        answered ? [view, edit] : [ta, save]);
     }));
 }
 

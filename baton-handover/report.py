@@ -182,6 +182,20 @@ def _ics_fold(line):
     return "\r\n ".join(out)
 
 
+LAST = 99  # '말'(말일) 표시
+
+
+def _approx_day(text):
+    """날짜(일)가 없을 때 시기 표현으로 대략의 날: 초 5일, 중순 15일, 말 말일, 그 밖에는 1일."""
+    if re.search(r"월\s*말|말까지|말일|하순", text):
+        return LAST
+    if re.search(r"중순", text):
+        return 15
+    if re.search(r"월\s*초|초순", text):
+        return 5
+    return 1
+
+
 def _clamp(y, m, d):
     return date(y, m, min(d, calendar.monthrange(y, m)[1]))
 
@@ -230,7 +244,7 @@ def build_ics(h, start=None):
         if src:
             desc.append(f"근거: {src}")
         if approx:
-            desc.append("자료에 정확한 날짜가 없어 그 달 1일에 넣었습니다. 실제 날짜를 확인해 고쳐 주세요.")
+            desc.append("자료에 정확한 날짜(일)가 없어 대략의 날짜에 넣었습니다(초 5일·중순 15일·말 말일, 그 밖에는 1일 또는 착임일). 실제 날짜를 확인해 고쳐 주세요.")
         flag = open_flags.get(s["id"])
         if flag:
             desc.append(f"확인 필요({flag['type']}): {flag['message']}")
@@ -256,33 +270,42 @@ def build_ics(h, start=None):
         if not months or not (s.get("task") or "").strip():
             skipped.append((s.get("task") or "(할 일 없음)", "시기(월)가 없음"))
             continue
-        day = s.get("day") or 1
+        day = s.get("day") or _approx_day(f"{s.get('when') or ''} {s['task']}")
         rec = s.get("recurring") or ""
         uid = f"{h['id']}-{s['id']}"
         if rec == "매월":
-            first = _next_on(range(1, 13), day, start)
-            event(uid, first, s, f"FREQ=MONTHLY;BYMONTHDAY={day if day <= 28 else -1}", alarm_days=1)
+            first = _next_on(range(1, 13), 31 if day == LAST else day, start)
+            byday = -1 if day in (LAST, 31) else day
+            event(uid, first, s, f"FREQ=MONTHLY;BYMONTHDAY={byday}", alarm_days=1)
         elif rec in ("매년", "매분기"):
-            # BYMONTHDAY가 어떤 달에 없으면 그 달은 빠지므로 모든 달에 있는 날로 맞춘다
-            dd = min([day] + [calendar.monthrange(2027, m)[1] for m in months])  # 2월은 28일 기준
-            first = _next_on(months, dd, start)
-            event(uid, first, s, f"FREQ=YEARLY;BYMONTH={','.join(map(str, months))};BYMONTHDAY={dd}")
+            # 달마다 따로 매년 반복(여러 달을 한 규칙에 넣으면 날짜를 가장 짧은 달에 맞춰야 하고 Outlook 호환도 떨어짐)
+            for m in months:
+                last = calendar.monthrange(2027, m)[1]  # 2월은 28일 기준
+                dd = last if day in (LAST,) or day > last else day
+                byday = -1 if dd == last and (day == LAST or day > 28) else dd
+                event(f"{uid}-{m}", _next_on([m], dd, start), s, f"FREQ=YEARLY;BYMONTH={m};BYMONTHDAY={byday}")
         else:
             if s.get("timing") in ("완료", "지난 일"):
                 skipped.append((s["task"], f"이미 지난 일({s['timing']})"))
                 continue
             for m in months:
+                d0 = None
                 if s.get("date"):
                     try:
                         d0 = date.fromisoformat(s["date"])
                     except ValueError:
                         d0 = None
                 elif s.get("year"):
-                    d0 = _clamp(s["year"], m, day)
+                    d0 = _clamp(s["year"], m, 31 if day == LAST else day)
                 else:
-                    d0 = _next_on([m], day, start)  # 연도 없는 날짜: 착임일 뒤 처음 오는 그 달
+                    # 연도 없는 일회성 일정: 올해 그 날짜로 보되, 착임일 전 반년 안이면 '기한 지남'(내년 일정으로 넘기지 않음)
+                    d0 = _clamp(start.year, m, 31 if day == LAST else day)
+                    if d0 < start and not s.get("day") and m == start.month:
+                        d0 = start  # 날짜 없이 '이번 달 중'인 일은 착임일에 넣는다
+                    elif d0 < start and (start - d0).days > 183:
+                        d0 = _clamp(start.year + 1, m, 31 if day == LAST else day)
                 if not d0 or d0 < start:
-                    skipped.append((s["task"], f"날짜({d0 or m}월)가 착임일({start.isoformat()}) 전"))
+                    skipped.append((s["task"], f"기한 지남: {d0.isoformat() if d0 else str(m) + '월'}(착임일 {start.isoformat()} 전)"))
                     continue
                 event(f"{uid}-{m}", d0, s)
                 if s.get("date"):

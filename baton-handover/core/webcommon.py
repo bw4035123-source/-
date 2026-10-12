@@ -14,8 +14,9 @@ def _check_llm_values(b):
     if url and not re.match(r"^https?://[^\s/]+", url):
         raise HttpError(400, "주소는 http:// 또는 https:// 로 시작해야 합니다")
     env = (b.get("api_key_env") or "").strip()
-    if env and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(KEY|TOKEN)[A-Za-z0-9_]*", env, re.I):
-        raise HttpError(400, "API 키 환경변수 이름은 KEY 또는 TOKEN이 들어간 이름이어야 합니다(예: LLM_API_KEY)")
+    # 모델용 키 이름만 허용(GITHUB_TOKEN 같은 다른 비밀값이 모델 서버로 나가는 것을 막음)
+    if env and not re.fullmatch(r"(LLM|OPENAI|MODEL|AI)_[A-Z0-9_]*(KEY|TOKEN)", env):
+        raise HttpError(400, "API 키 환경변수 이름은 LLM_ 으로 시작해야 합니다(예: LLM_API_KEY, OPENAI_API_KEY)")
 
 
 def register(app, cfg, llm, app_name, version):

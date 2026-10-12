@@ -2,6 +2,7 @@
 
 외부 웹 프레임워크를 쓰지 않아 설치·유지관리 부담이 없다.
 """
+import ipaddress
 import json
 import mimetypes
 import re
@@ -36,7 +37,10 @@ class Request:
     def json(self):
         if not self.body:
             return {}
-        return json.loads(self.body.decode("utf-8"))
+        obj = json.loads(self.body.decode("utf-8"))
+        if not isinstance(obj, dict):
+            raise HttpError(400, "요청 내용은 JSON 객체여야 합니다")
+        return obj
 
 
 class Response:
@@ -102,6 +106,23 @@ class App:
         return None
 
     @staticmethod
+    def _bad_host(handler):
+        """DNS 리바인딩 차단: 주소창 주소(Host)가 localhost 또는 IP 주소일 때만 받는다.
+        공격 사이트는 자기 도메인 이름을 이 PC로 돌려 접속하므로 Host에 도메인이 찍힌다(GET 포함 모든 요청에 적용)."""
+        host = (handler.headers.get("Host") or "").strip().lower()
+        if not host:
+            return False
+        name = host.rsplit(":", 1)[0] if not host.endswith("]") else host
+        name = name.strip("[]")
+        if name == "localhost" or name.endswith(".localhost"):
+            return False
+        try:
+            ipaddress.ip_address(name)
+            return False
+        except ValueError:
+            return True
+
+    @staticmethod
     def _foreign(handler):
         """다른 웹사이트가 보낸 요청을 막는다(이 앱 화면에서 보낸 요청만 받음).
         브라우저는 다른 출처로 보내는 POST에 Origin을 붙이므로, 있으면 주소창 주소(Host)와 같아야 한다.
@@ -124,6 +145,8 @@ class App:
     def handle(self, handler):
         u = urllib.parse.urlparse(handler.path)
         path = urllib.parse.unquote(u.path)
+        if self._bad_host(handler):
+            return json_response({"error": "허용되지 않은 주소로 접속했습니다. http://localhost 또는 IP 주소로 접속하세요."}, 403)
         bad = self._foreign(handler)
         if bad:
             return json_response({"error": bad}, 403)

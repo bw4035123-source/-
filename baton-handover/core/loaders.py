@@ -420,6 +420,11 @@ _BATON_FIELDS = {
     "issues": {"title": str, "state": str, "next_action": str, "due": str, "topic": str},
 }
 _BATON_MAIN = {"rnr": "duty", "schedule": "task", "contacts": "name", "issues": "title"}
+# 손상·악의적 파일로 앱이 느려지지 않게 하는 상한
+BATON_MAX_BYTES = 5 * 1024 * 1024
+BATON_MAX_LINEAGE = 50
+BATON_MAX_ITEMS = 1000
+BATON_MAX_TEXT = 2000
 
 
 def _baton_item(sec, raw):
@@ -430,9 +435,9 @@ def _baton_item(sec, raw):
     for k, typ in _BATON_FIELDS[sec].items():
         v = raw.get(k)
         if typ is str:
-            out[k] = str(v).strip() if v not in (None, "") else ""
+            out[k] = str(v).strip()[:BATON_MAX_TEXT] if v not in (None, "") else ""
         elif typ is list:
-            out[k] = [str(x).strip() for x in (v if isinstance(v, list) else []) if str(x).strip()]
+            out[k] = [str(x).strip()[:BATON_MAX_TEXT] for x in (v if isinstance(v, list) else [])[:50] if str(x).strip()]
         elif typ is int:
             out[k] = int(v) if isinstance(v, (int, str)) and str(v).isdigit() else None
         else:
@@ -466,20 +471,24 @@ def _baton_text(sec, it):
 
 def _read_baton(data, name):
     """이전 담당자가 저장한 인수인계서(.baton)를 블록으로 읽고, 정리된 항목·계보·질의응답은 meta로 넘긴다."""
+    if len(data) > BATON_MAX_BYTES:
+        raise ValueError(f"바통 파일이 너무 큽니다({len(data) // 1024 // 1024}MB, 최대 5MB)")
     obj = json.loads(_decode(data))
     if not isinstance(obj, dict) or obj.get("format") != BATON_FORMAT:
         raise ValueError("업무바통 파일(.baton) 형식이 아닙니다")
     as_list = lambda v: v if isinstance(v, list) else []
-    lineage = [{k: str(x.get(k) or "") for k in ("name", "handed_to", "date", "work")}
-               for x in as_list(obj.get("lineage")) if isinstance(x, dict) and x.get("name")]
-    holder = str(obj.get("holder") or (lineage[-1]["name"] if lineage else "") or "이전 담당자")
+    lineage = [{k: str(x.get(k) or "")[:100] for k in ("name", "handed_to", "date", "work")}
+               for x in as_list(obj.get("lineage")) if isinstance(x, dict) and x.get("name")][-BATON_MAX_LINEAGE:]
+    # 전임자가 확인 완료하지 않고 저장한 바통이면 모든 항목을 '이전 담당자 미확인'으로 이어받는다
+    file_confirmed = obj.get("confirmed") is not False
+    holder = str(obj.get("holder") or (lineage[-1]["name"] if lineage else "") or "이전 담당자")[:50]
     gen = len(lineage) or 1
     out, items = [], []
     chain = " → ".join(f"{i}대 {x['name']}" + (f"({x.get('date')})" if x.get("date") else "") for i, x in enumerate(lineage, 1))
     out.append(("계보", f"업무 계보: {chain or holder} → {obj.get('handed_to') or '다음 담당자'} · {obj.get('work', '')}"))
     sections = obj.get("sections") if isinstance(obj.get("sections"), dict) else {}
     for sec, label in BATON_SECTIONS.items():
-        for i, raw in enumerate(as_list(sections.get(sec)), 1):
+        for i, raw in enumerate(as_list(sections.get(sec))[:BATON_MAX_ITEMS], 1):
             it = _baton_item(sec, raw)
             if not it:
                 continue
@@ -488,18 +497,19 @@ def _read_baton(data, name):
                      if str(since.get("gen", "")).isdigit() else {"gen": gen, "name": holder})
             srcs = [s for s in as_list(raw.get("sources")) if isinstance(s, dict)][:2]
             text = _baton_text(sec, it) + (" (근거: " + "; ".join(f"{s.get('file', '')} {s.get('loc', '')}".strip() for s in srcs) + ")" if srcs else "")
-            items.append({"section": sec, "item": it, "block": len(out), "since": since})
+            unverified = not file_confirmed or str(raw.get("status") or "") in ("초안", "")
+            items.append({"section": sec, "item": it, "block": len(out), "since": since, "unverified": unverified})
             out.append((f"{label} {i}", text))
     interview = []
-    for i, x in enumerate(as_list(obj.get("interview")), 1):
+    for i, x in enumerate(as_list(obj.get("interview"))[:BATON_MAX_ITEMS], 1):
         if isinstance(x, dict) and x.get("q") and x.get("a"):
-            x = {"q": str(x["q"]), "a": str(x["a"]), "by": str(x.get("by") or holder), "at": str(x.get("at") or "")}
+            x = {"q": str(x["q"])[:BATON_MAX_TEXT], "a": str(x["a"])[:BATON_MAX_TEXT], "by": str(x.get("by") or holder)[:50], "at": str(x.get("at") or "")[:30]}
             interview.append(x)
             out.append((f"질의응답 {i}", f"질문: {x['q']} / 답변({x['by']}): {x['a']}"))
     notes = []
-    for i, x in enumerate(as_list(obj.get("notes")), 1):
+    for i, x in enumerate(as_list(obj.get("notes"))[:BATON_MAX_ITEMS], 1):
         if isinstance(x, dict) and x.get("text"):
-            x = {"text": str(x["text"]), "by": str(x.get("by") or holder), "at": str(x.get("at") or "")}
+            x = {"text": str(x["text"])[:BATON_MAX_TEXT], "by": str(x.get("by") or holder)[:50], "at": str(x.get("at") or "")[:30]}
             notes.append(x)
             out.append((f"전임자 메모 {i}", f"{x['by']} 메모: {x['text']}"))
     meta = {"title": f"{holder} 인수인계서(바통 파일)", "holder": holder, "handed_to": str(obj.get("handed_to") or ""),

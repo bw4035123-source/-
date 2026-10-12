@@ -39,7 +39,9 @@ STOP = {"누구", "누가", "누군", "누구야", "누구예요", "어디", "�
         "어떻게", "어떤", "알려줘", "알려", "알려주세요", "있어", "있나", "있나요", "있어요", "있는", "해", "해요", "해야",
         "하나", "하나요", "하는", "할", "돼", "되나", "되나요", "인가", "인가요", "이야", "이에요", "좀", "거", "것", "날",
         "날짜", "시", "때", "주세요", "해줘", "궁금", "알고", "싶어", "싶어요", "나요", "가요", "요", "님", "그", "이", "저",
-        "몇", "며칠", "얼마", "어느", "말해줘", "보여줘", "정리", "내용", "관련", "대해", "대한", "일이", "일은", "일을", "할일"}
+        "몇", "며칠", "얼마", "어느", "말해줘", "보여줘", "정리", "내용", "관련", "대해", "대한", "일이", "일은", "일을", "할일",
+        # '급한 현안 알려줘'처럼 현안 목록을 묻는 말(현안 전체 목록으로 답함)
+        "현안", "급한", "급해", "시급", "시급한", "남은", "밀린", "중요한"}
 # 답의 종류를 정하는 의도어: 이런 말이 있으면 그 답 꼴(기한·위치·종료일·번호)이 들어 있는 근거를 우선한다
 STRONG = {"기한", "마감", "언제까지", "끝나", "끝나는", "끝", "종료", "만료", "어디", "위치", "연락처", "전화", "번호", "전화번호"}
 # 질문의 의도어 → 원문에서 함께 찾을 말 (핵심 낱말은 아님)
@@ -180,6 +182,18 @@ def _item_line(s, it):
     return f"• [담당업무] {it.get('duty')}" + (f" — {it['detail']}" if it.get("detail") else "")
 
 
+VERB_END = re.compile(r"(면|고|서|요|까|니|는|은|을|게|해|나|지|야|어|아|죠|데|려|도록)$")
+
+
+def covers_question(q, texts):
+    """질문의 핵심어(조사·의문사·동사꼴 제외)가 한 근거 안에 모두 있는지."""
+    anchors, _ = query_terms(q)
+    core = [var for w, var in anchors if not VERB_END.search(w)]
+    if not core:
+        return True
+    return any(all(any(v in f for v in var) for var in core) for f in (_flat(t) for t in texts))
+
+
 def retrieve(draft, blocks, q):
     """(정리된 항목 [(구분, 항목)], 원문 문장 [(문장, 블록)], 방식) — 방식: month/role/list/search/none"""
     sections = draft["sections"]
@@ -285,6 +299,16 @@ def answer(draft, blocks, q, llm=None, persona=None):
             item_lines.append(_item_line(s, it) + (f" {_cite(it['sources'][0])}" if it.get("sources") else ""))
         sent_lines = [f"• {t} [{b['file'].split('/')[-1]} {b['loc']}]" for t, b in sents]
         lines = item_lines + sent_lines if CONTACT_Q.search(q) else sent_lines + item_lines
+        # 질문의 핵심어가 모두 들어 있는 근거가 하나도 없으면 '찾았다'고 하지 않는다
+        # (예: '수영장 비밀번호' → '수영장'만 겹치는 엉뚱한 자료를 늘어놓지 않고 전임자에게 넘기게 함)
+        if how == "search" and lines and not covers_question(q, [_item_text(*x) for x in found_items] + [t for t, _ in sents]):
+            lines = []
+    if lines and how != "role":
+        # 자료끼리 내용이 다른 항목이면 답에 함께 알린다(예: 착공일 10/27 ↔ 11/3)
+        ids = {it.get("id") for _, it in found_items}
+        for f in draft.get("flags", []):
+            if f.get("type") == "충돌" and not f.get("resolved") and ids & set(f.get("refs", [])):
+                lines.append(f"⚠ 확인 필요: {f['message']}")
     if not lines:
         text = NOT_FOUND
         sources = []

@@ -98,14 +98,16 @@ def to_hwpx(blocks):
             header, rows = b[1], b[2]
             ncol = max([len(header)] + [len(r) for r in rows])
             t = doc.add_table(len(rows) + 1, ncol)
+            # 칸 위치표는 한 번만 만든다(칸마다 t.cell()을 부르면 표 전체를 다시 훑어 행 수의 제곱으로 느려짐)
+            grid = [[pos.cell for pos in row] for row in t.get_cell_map()]
             for c in range(ncol):
-                t.set_cell_text(0, c, str(header[c]) if c < len(header) else "")
+                grid[0][c].set_text(str(header[c]) if c < len(header) else "")
                 t.set_cell_shading(0, c, "EAF1FB")
             for ri, r in enumerate(rows, 1):
                 for c in range(ncol):
                     val = str(r[c]) if c < len(r) and r[c] is not None else ""
                     if RICH.search(val):
-                        cell = t.cell(ri, c)
+                        cell = grid[ri][c]
                         cell.set_text("")
                         lines = val.split("\n")
                         para = cell.paragraphs[0]
@@ -115,7 +117,7 @@ def to_hwpx(blocks):
                             for seg, bold, und in _segments(line):
                                 para.add_run(seg, char_pr_id_ref=style(bold, und))
                     else:
-                        t.set_cell_text(ri, c, val)
+                        grid[ri][c].set_text(val)
             if len(b) > 3 and b[3]:
                 try:
                     total = sum(b[3])

@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -39,6 +40,16 @@ def free_port():
 class Client:
     def __init__(self, port):
         self.base = f"http://127.0.0.1:{port}"
+
+    def status(self, method, path, body=None, headers=None):
+        data = json.dumps(body).encode("utf-8") if body is not None else None
+        req = urllib.request.Request(self.base + path, data=data, method=method,
+                                     headers={"Content-Type": "application/json", **(headers or {})})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
 
     def call(self, method, path, body=None, raw=False):
         data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -84,6 +95,19 @@ def check_baton(c):
     d3 = h3["draft"]
     yield "3대 인수인계: 계보·항목·질의응답 이어받기", [x["name"] for x in d3["lineage"]] == ["최선우", "김도윤"] and \
         len(d3["carried_interview"]) == 2 and sum(1 for k in d3["sections"] for it in d3["sections"][k] if it.get("carried")) > 10
+    # 적대적 검증에서 나온 문제 재발 방지
+    nf = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "수영장 비밀번호 뭐야?"})
+    yield "AI 분신: 겹치는 낱말만 있는 엉뚱한 질문은 '모름'", nf["found"] is False
+    q11 = c.call("POST", f"/api/handovers/{hid}/questions", {"q": "11월에 할 일은?"})
+    c.call("POST", f"/api/handovers/{hid}/questions/{q11['id']}/answer", {"answer": "11월에는 동절기 점검을 합니다."})
+    a12 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "12월에 할 일은?"})
+    yield "AI 분신: 숫자가 다른 질문에 다른 답을 재사용하지 않음", a12["mode"] != "전임자 직접 답변"
+    cf = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "착공일 언제야?"})
+    yield "AI 분신: 자료끼리 다른 내용은 답에 함께 알림", "⚠" in cf["answer"]
+    yield "잘못된 요청은 500 대신 400", all(c.status(*x) == 400 for x in [
+        ("POST", f"/api/handovers/{hid}/manual", {"start": "2026-13-01"}), ("POST", f"/api/handovers/{hid}/ask", [1]),
+        ("POST", f"/api/handovers/{hid}/questions", [1])])
+    yield "DNS 리바인딩 차단(도메인 Host 거부)", c.status("GET", "/api/handovers", headers={"Host": "evil.example"}) == 403
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \

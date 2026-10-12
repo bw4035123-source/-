@@ -234,14 +234,14 @@ def history(req):
 def ask(req):
     """AI 전임자 분신에게 묻기: 전임자 자료로만 1인칭으로 답하고, 자료에 없으면 found=False(실제 전임자에게 넘기기)."""
     h = load_h(req.params["hid"])
-    q = (req.json.get("q") or "").strip()
+    q = str(req.json.get("q") or "").strip()[:500]
     if not q:
         raise HttpError(400, "질문을 입력해 주세요")
     name = h["draft"].get("predecessor") or "전임자"
     log(h["id"], "AI 분신에게 질문", q)
     # 실제 전임자가 이미 답한 질문이면 그 답을 먼저 (전임자 본인의 말)
     best = max(report.answered_questions(h), key=lambda x: similarity(x["q"], q), default=None)
-    if best and similarity(best["q"], q) >= 0.5:
+    if best and same_question(best["q"], q):
         return {"answer": f"이 질문은 제가 직접 답해 두었어요 ({best.get('answered_at', '')[:10]}).\n{best['answer']}",
                 "sources": [{"block_id": f"qa-{best['id']}", "file": "전임자 답변", "loc": f"질문 답변 {best['id']}",
                              "quote": f"질문: {best['q']} / 답변: {best['answer']}"[:160]}],
@@ -249,8 +249,14 @@ def ask(req):
     blocks = store.read(f"handovers/{h['id']}/blocks.json", [])
     res = qa.answer(h["draft"], blocks, q, llm, persona=name)
     res = qa.persona_wrap(res, name)
-    res["related"] = next((x for x in h.get("questions") or [] if similarity(x["q"], q) >= 0.5), None)
+    res["related"] = next((x for x in h.get("questions") or [] if same_question(x["q"], q)), None)
     return res
+
+
+def same_question(a, b):
+    """이미 답한 질문과 같은 질문인지: 글자가 많이 겹치고(0.7 이상) 숫자(월·일·금액)가 같아야 한다.
+    '11월에 할 일'과 '12월에 할 일'처럼 숫자만 다른 질문에 다른 답을 주지 않게 한다."""
+    return similarity(a, b) >= 0.7 and re.findall(r"\d+", a) == re.findall(r"\d+", b)
 
 
 def _answer_block(h, qobj):
@@ -266,7 +272,7 @@ def _answer_block(h, qobj):
 def forward_question(req):
     """AI 분신이 답하지 못한 질문을 실제 전임자에게 넘긴다(전임자 검토 화면에 표시)."""
     h = load_h(req.params["hid"])
-    q = (req.json.get("q") or "").strip()
+    q = str(req.json.get("q") or "").strip()[:500]
     if not q:
         raise HttpError(400, "질문을 입력해 주세요")
     qs = h.setdefault("questions", [])
@@ -289,7 +295,7 @@ def list_questions(req):
 @app.post("/api/handovers/<hid>/questions/<qid>/answer")
 def answer_question(req):
     h = load_h(req.params["hid"])
-    a = (req.json.get("answer") or "").strip()
+    a = str(req.json.get("answer") or "").strip()[:4000]
     if not a:
         raise HttpError(400, "답변을 입력해 주세요")
     for qobj in h.get("questions") or []:
@@ -303,7 +309,10 @@ def answer_question(req):
 
 
 def _manual(h, body):
-    start = date.fromisoformat(body["start"]) if body.get("start") else date.today()
+    try:
+        start = date.fromisoformat(str(body["start"])) if body.get("start") else date.today()
+    except ValueError:
+        raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
     return report.build_manual(h, body.get("successor") or h.get("successor", ""), body.get("career", "신규"), start)
 
 
