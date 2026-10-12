@@ -161,6 +161,11 @@ def check_baton(c):
     yield (f"뒤죽박죽 자료 정리(읽음 {len(files)}, 건너뜀 {len(mh['skipped'])})",
            all(k in reasons for k in ("같은 내용", "빈 파일", ".xls", "heic", "임시·시스템"))
            and any(f.startswith("옛날자료.zip/") for f in files) and any(f.endswith(".jpg") for f in files))
+    mnames = ["박정우", "이서진", "한서윤", "오민석", "윤가람", "이수민"]
+    mdump = json.dumps(c.call("GET", f"/api/handovers/{mh['id']}"), ensure_ascii=False) + \
+        c.call("POST", f"/api/handovers/{mh['id']}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
+    mleak = [n for n in mnames if n in mdump]
+    yield f"개인정보: 스캔본·사진 글자 속 이름도 노출 0건{' (노출: ' + ','.join(mleak) + ')' if mleak else ''}", not mleak
     # 포토 아카이브: 사진만 따로 모으고 키워드로 관련 사진 찾기, AI 분신 답에도 관련 사진
     mid = mh["id"]
     allp = c.call("GET", f"/api/handovers/{mid}/photos")

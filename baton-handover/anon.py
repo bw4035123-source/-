@@ -29,7 +29,15 @@ def role_label(c):
         return f"{org} {title}"
     if org:
         return f"{org} 담당자"
-    topic = re.sub(r"\s+", " ", (c.get("topics") or [""])[0])[:14].strip()
+    # 소속이 없으면 협의 업무로 이름 짓되, 그 문장에 든 이름·번호·'담당:' 같은 머리말은 뺀다
+    topic = (c.get("topics") or [""])[0]
+    topic = topic.replace(c.get("name") or "\0", " ")
+    topic = re.sub(r"\d[\d\-.\s]{5,}\d|\d{2,}-?|담당\s*[:：]?|문의\s*[:：]?|연락처\s*[:：]?", " ", topic)
+    if c.get("title"):
+        topic = topic.replace(c["title"], " ")
+    topic = re.sub(r"\s+", " ", re.sub(r"[^가-힣A-Za-z0-9·()\s]", " ", topic))[:14].strip()
+    if len(re.findall(r"[가-힣]", topic)) < 2:
+        topic = ""
     if title:
         return f"{topic} 관련 {title}" if topic else f"관계 {title}"
     return f"{topic} 관련 담당자" if topic else "관계자"
@@ -70,6 +78,12 @@ def build_aliases(draft, blocks, successor=""):
             t = t if TITLE_OK.match(t or "") else ""
             other[t] += 1
             names[n] = f"관계 {t or '담당자'} {other[t]}"
+    # 안전장치: 역할 이름 안에 다른 사람(또는 자기) 이름이 들어가면 안 된다
+    for n, a in list(names.items()):
+        for other_name in names:
+            a = a.replace(other_name, "")
+        a = re.sub(r"\s+", " ", a).strip()
+        names[n] = a if len(a) >= 2 and a not in ("관련", "담당자") else "관계자"
     return names
 
 
