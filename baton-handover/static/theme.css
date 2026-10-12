@@ -365,3 +365,30 @@ table.form-t textarea { min-height: 40px; }
 }
 @media print { .masthead { display: none; } }
 @media (max-width: 700px) { .net-graph { overflow-x: auto; } .net-svg { min-width: 620px; } }
+
+/* ── 올인원 드롭존 ── */
+.dz { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px 30px; margin-top: 14px; cursor: pointer;
+  background: linear-gradient(180deg, #f5f8ff 0, #fff 100%); border: 2px dashed #b9c9f5; border-radius: 18px; text-align: center;
+  transition: border-color .15s, background .15s, transform .15s; outline: none; }
+.dz:hover, .dz:focus-visible { border-color: var(--brand); background: var(--brand-soft); }
+.dz.over { border-color: var(--brand); background: var(--brand-soft); transform: scale(1.01); box-shadow: 0 0 0 6px rgba(47, 107, 255, .12); }
+.dz.has { padding: 26px 20px 22px; border-style: solid; border-color: var(--brand); }
+.dz-icon { width: 54px; height: 54px; border-radius: 16px; background: var(--brand); display: grid; place-items: center;
+  box-shadow: 0 8px 20px rgba(47, 107, 255, .3); }
+.dz-icon svg { width: 26px; height: 26px; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.dz.over .dz-icon { animation: dz-bob .6s ease-in-out infinite alternate; }
+@keyframes dz-bob { to { transform: translateY(-5px); } }
+.dz-title { font-size: 19px; font-weight: 800; color: var(--ink); letter-spacing: -.03em; }
+.dz-sub { font-size: 13.5px; color: var(--muted); }
+.dz-sub a { color: var(--brand-ink); font-weight: 600; }
+.dz-kinds { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
+.dz-kinds span { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: #fff; border: 1px solid var(--line); color: var(--ink-2); }
+.dz-got { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft); }
+.dz-got b { color: var(--ok); }
+.dz-got .chip { background: #fff; }
+.dz-got button.ghost, .dz-list button.ghost { border: 0; background: transparent; color: var(--muted); margin-left: auto; padding: 2px 8px; }
+.dz-list { max-height: 200px; overflow: auto; margin: 6px 0 0; padding-left: 0; list-style: none; }
+.dz-list li { display: flex; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px solid var(--line); word-break: break-all; }
+.dz-go { font-size: 16px; padding: 12px 22px; }
+.more-src { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.more-src summary { cursor: pointer; font-size: 13.5px; color: var(--muted); }

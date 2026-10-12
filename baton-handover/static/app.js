@@ -34,41 +34,96 @@ function svg(tag, attrs, ...kids) {
   return e;
 }
 
-// ------------------------------------------------------------ 자료 넣기
+// ------------------------------------------------------------ 올인원 드롭존
+// 확장자 → 사람이 아는 이름(드롭존에 무엇이 들어왔는지 보여 주기)
+const KIND_OF = [[/\.(xlsx|xlsm|xls|csv)$/i, "엑셀"], [/\.(hwpx|hwp)$/i, "한글"], [/\.pdf$/i, "PDF"], [/\.(docx|doc)$/i, "워드"],
+  [/\.(pptx|ppt)$/i, "파워포인트"], [/\.(eml|msg)$/i, "메일"], [/\.(txt|md|log)$/i, "메모장"],
+  [/\.(jpe?g|png|gif|bmp|tiff?|webp|heic)$/i, "사진"], [/\.(zip|7z|rar|egg|alz)$/i, "압축"], [/\.baton$/i, "바통"]];
+const kindOf = name => (KIND_OF.find(([rx]) => rx.test(name)) || [0, "기타"])[1];
+const fpath = f => f.webkitRelativePath || f._relPath || f.name;
 function setupStart() {
+  const src = () => ($("input[name=src]:checked") || {}).value || "";
+  const label = { sample: "시연용 모의자료로", sample_messy: "뒤죽박죽 모의자료로", local: "PC 폴더 경로로", docsystem: "문서시스템 자료로" };
+  const paintGo = () => {
+    $("#create").textContent = pickedFiles.length ? `파일 ${pickedFiles.length}개로 인수인계 초안 만들기`
+      : src() ? `${label[src()]} 인수인계 초안 만들기` : "인수인계 초안 만들기";
+  };
   $$("input[name=src]").forEach(r => r.addEventListener("change", () => {
     $$(".src-box").forEach(b => b.hidden = b.id !== "src-" + r.value);
+    paintGo();
   }));
-  $("#pick-folder").onclick = () => $("#in-folder").click();
-  $("#pick-files").onclick = () => $("#in-files").click();
-  const setPicked = files => {
-    pickedFiles = [...files];
-    $("#picked").textContent = pickedFiles.length ? `${pickedFiles.length}개 파일 선택됨` : "";
+  const paintPicked = () => {
+    const box = $("#picked");
+    box.innerHTML = "";
+    $("#drop").classList.toggle("has", !!pickedFiles.length);
+    $(".dz-title").textContent = pickedFiles.length ? "더 놓으면 계속 쌓여요" : "여기에 몽땅 끌어다 놓기";
+    if (pickedFiles.length) {
+      const cnt = {};
+      pickedFiles.forEach(f => { const k = kindOf(fpath(f)); cnt[k] = (cnt[k] || 0) + 1; });
+      const mb = pickedFiles.reduce((n, f) => n + f.size, 0) / 1048576;
+      box.append(el("div", { class: "dz-got" },
+        el("b", {}, `${pickedFiles.length}개 담음`), el("span", { class: "muted small" }, ` · ${mb < 0.1 ? "0.1" : mb.toFixed(1)}MB`),
+        Object.entries(cnt).map(([k, n]) => el("span", { class: "chip" }, `${k} ${n}`)),
+        el("button", { class: "small ghost", onclick: () => { pickedFiles = []; paintPicked(); } }, "모두 비우기")),
+        el("details", { class: "small" }, el("summary", {}, "담은 파일 보기"),
+          el("ul", { class: "dz-list" }, pickedFiles.map((f, i) => el("li", {}, el("span", { class: "tag gray" }, kindOf(fpath(f))), " ", fpath(f),
+            el("button", { class: "small ghost", title: "빼기", onclick: () => { pickedFiles.splice(i, 1); paintPicked(); } }, "✕"))))));
+    }
+    paintGo();
   };
-  $("#in-folder").onchange = e => setPicked(e.target.files);
-  $("#in-files").onchange = e => setPicked(e.target.files);
+  // 여러 번 끌어다 놓아도 쌓는다(같은 파일은 한 번만)
+  const addFiles = files => {
+    const seen = new Set(pickedFiles.map(f => fpath(f) + ":" + f.size));
+    for (const f of files) {
+      const k = fpath(f) + ":" + f.size;
+      if (!seen.has(k)) { seen.add(k); pickedFiles.push(f); }
+    }
+    paintPicked();
+    if (files.length) toast(`${files.length}개 파일을 담았습니다`);
+  };
   const drop = $("#drop");
-  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
-  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-  drop.addEventListener("drop", async e => { e.preventDefault(); drop.classList.remove("over"); setPicked(await filesFromDrop(e)); });
+  drop.onclick = e => { if (e.target.id !== "pick-folder") $("#in-files").click(); };
+  drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#in-files").click(); } };
+  $("#pick-folder").onclick = e => { e.preventDefault(); e.stopPropagation(); $("#in-folder").click(); };
+  $("#in-folder").onchange = e => { addFiles([...e.target.files]); e.target.value = ""; };
+  $("#in-files").onchange = e => { addFiles([...e.target.files]); e.target.value = ""; };
+  // 드롭존뿐 아니라 시작 화면 어디에 놓아도 받는다(브라우저가 파일을 열어 버리지 않게)
+  let depth = 0;
+  const area = $("#tab-start");
+  area.addEventListener("dragenter", e => { if ([...(e.dataTransfer.types || [])].includes("Files")) { depth++; drop.classList.add("over"); } });
+  area.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; drop.classList.remove("over"); } });
+  area.addEventListener("dragover", e => e.preventDefault());
+  area.addEventListener("drop", async e => { e.preventDefault(); depth = 0; drop.classList.remove("over"); addFiles(await filesFromDrop(e)); });
+  window.addEventListener("dragover", e => e.preventDefault());
+  window.addEventListener("drop", e => e.preventDefault());
   $("#start-date").value = new Date().toISOString().slice(0, 10);
   $("#create").onclick = async () => {
-    const kind = $("input[name=src]:checked").value;
+    const kind = pickedFiles.length ? "upload" : src();
+    if (!kind) return toast("자료를 드롭존에 끌어다 놓아 주세요", true);
     const source = { kind };
     if (kind === "upload") {
-      if (!pickedFiles.length) return toast("폴더나 파일을 먼저 선택해 주세요", true);
-      source.files = await readFiles(pickedFiles);
-    } else if (kind === "local") source.path = $("#local-path").value.trim();
+      // 다른 곳에서 온 같은 이름 파일(예: 메모.txt 두 개)이 서로 덮어쓰지 않게 이름을 나눈다
+      const used = new Set();
+      source.files = (await readFiles(pickedFiles)).map(f => {
+        let p = f.path, n = 2;
+        while (used.has(p)) p = f.path.replace(/(\.[^./]+)?$/, m => ` (${n})${m}`), n++;
+        used.add(p);
+        return { ...f, path: p };
+      });
+    }
+    else if (kind === "local") source.path = $("#local-path").value.trim();
     else if (kind === "docsystem") { source.base_url = $("#ds-url").value.trim(); source.owner = $("#ds-owner").value.trim(); }
     const btn = $("#create");
     busy(btn, true, "자료를 읽고 분석하는 중");
     try {
       const h = await api("POST", "/api/handovers", { source, title: $("#title").value, start: $("#start-date").value });
       toast("초안을 만들었습니다");
+      pickedFiles = []; paintPicked();
       await refreshList(h.id);
       goTab("draft");
-    } finally { busy(btn, false); }
+    } finally { busy(btn, false); paintGo(); }
   };
+  paintGo();
 }
 
 async function refreshList(selectId) {
@@ -79,7 +134,7 @@ async function refreshList(selectId) {
   handovers.forEach(h => sel.append(el("option", { value: h.id }, `${h.title}`)));
   const list = $("#h-list");
   list.innerHTML = "";
-  if (!handovers.length) list.append(el("div", { class: "empty" }, "아직 없습니다. 왼쪽에서 자료를 넣어 시작하세요. 처음이면 '시연용 모의자료'를 골라 보세요."));
+  if (!handovers.length) list.append(el("div", { class: "empty" }, "아직 없습니다. 왼쪽 드롭존에 자료를 몽땅 끌어다 놓아 시작하세요. 처음이면 '파일 없이 시작하기 → 시연용 모의자료'를 골라 보세요."));
   else list.append(el("table", { class: "t" },
     el("tr", {}, el("th", {}, "제목"), el("th", {}, "상태"), el("th", {}, "만든 시각"), el("th", {}, "")),
     handovers.map(h => el("tr", {},
@@ -106,7 +161,7 @@ function renderAvatarHead() {}
 function needH(sec) {
   if (H) return false;
   sec.innerHTML = "";
-  sec.append(el("div", { class: "empty" }, "먼저 ① 자료 넣기에서 인수인계 건을 만들거나 선택하세요."));
+  sec.append(el("div", { class: "empty" }, "먼저 ① 올인원 드롭존에서 인수인계 건을 만들거나 선택하세요."));
   return true;
 }
 
@@ -311,7 +366,7 @@ function renderRelay() {
     el("p", { class: "small muted" }, lin.length
       ? `${lin.length}대까지의 인수인계서를 이어받아 ${carried}개 항목, 질의응답 ${(d.carried_interview || []).length}건, 메모 ${(d.carried_notes || []).length}건을 넘겨받았습니다. `
       : "이 업무의 첫 바통입니다. ",
-      `검토를 마치고 바통 파일로 저장해 후임자에게 넘기면, 다음 인수인계 때 '자료 넣기'에 함께 넣기만 해도 ${gen}대까지의 업무 지식(항목·근거·노하우·메모)이 그대로 이어집니다. 바통 파일에도 사람 이름은 들어가지 않습니다.`,
+      `검토를 마치고 바통 파일로 저장해 후임자에게 넘기면, 다음 인수인계 때 '올인원 드롭존'에 함께 놓기만 해도 ${gen}대까지의 업무 지식(항목·근거·노하우·메모)이 그대로 이어집니다. 바통 파일에도 사람 이름은 들어가지 않습니다.`,
       rv_confirmed() ? "" : " (아직 전임자 확인 전이라 초안 상태로 저장됩니다)"),
     (d.carried_interview || []).length ? el("details", {}, el("summary", { class: "small" }, `앞 세대가 남긴 질의응답 ${(d.carried_interview || []).length}건`),
       el("ul", { class: "small" }, d.carried_interview.map(x => el("li", {}, el("b", {}, x.q), ` → ${x.a} (${x.by})`)))) : null,
