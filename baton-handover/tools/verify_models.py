@@ -45,7 +45,7 @@ def check_baton(llm):
     import qa
     from core.loaders import load_folder
     from dataclasses import asdict
-    src = next((d / "sample_data").iterdir())
+    src = d / "sample_data" / "전임자_업무폴더_시설운영"
     docs, _ = load_folder(src)
     res = []
     t = time.time()

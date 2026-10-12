@@ -14,18 +14,20 @@ from core.config import Config
 from core.export import FORMATS, export
 from core.llm import LLM
 from core.server import App, HttpError, file_response
-from core.textutil import similarity
 from core.sources import DocSystemSource, LocalFolderSource, UploadSource
 from core.store import Store
 from core import webcommon
 
+import anon
 import engine
+import network
 import qa
+import radar
 import report
 
 VERSION = "1.1.0"
 HERE = Path(__file__).resolve().parent
-SAMPLE = HERE / "sample_data" / "전임자_김도윤_업무폴더"
+SAMPLE = HERE / "sample_data" / "전임자_업무폴더_시설운영"
 SAMPLE_MESSY = HERE / "sample_data" / "전임자_뒤죽박죽_최소자료"  # 최소한의 자료를 아무렇게나 모은 경우(사진·스캔본·ZIP·중복 포함)
 
 cfg = Config(HERE, {"app_title": "업무바통", "port": 8101})
@@ -52,6 +54,11 @@ def save_h(h):
     store.write(f"handovers/{h['id']}/handover.json", h)
 
 
+def clean(h, value):
+    """사람이 새로 적은 글에서 이름을 역할 이름으로 바꾼다(인수인계 건마다 저장한 이름 해시 표 사용)."""
+    return anon.deep(value, lambda s: anon.scrub(s, h.get("privacy")))
+
+
 def log(hid, action, detail):
     store.append_log(f"handovers/{hid}/history.jsonl", {"action": action, "detail": detail})
 
@@ -67,7 +74,7 @@ def list_handovers(req):
             out.append({k: h.get(k) for k in ("id", "title", "created", "updated", "successor")}
                        | {"predecessor": h["draft"].get("predecessor"), "confirmed": h.get("review", {}).get("confirmed", False),
                           "generation": len(h["draft"].get("lineage") or []) + 1,
-                          "open_questions": sum(1 for q in h.get("questions") or [] if q.get("status") == "대기")})
+                          "asked": h.get("asked", 0)})
     out.sort(key=lambda x: x["created"], reverse=True)
     return {"handovers": out}
 
@@ -99,12 +106,27 @@ def create_handover(req):
     docs, skipped = source.load()
     if not [d for d in docs if not d.error]:
         raise HttpError(400, "읽을 수 있는 자료가 없습니다. 한글·PDF·엑셀·워드·메일·텍스트 파일을 넣어 주세요.")
-    draft = engine.analyze(docs, body.get("predecessor", "").strip(), llm)
-    h = {"id": hid, "title": body.get("title") or f"{draft['predecessor'] or '전임자'} 업무 인수인계",
-         "successor": body.get("successor", ""), "created": _now(), "source": source.describe(),
-         "skipped": skipped, "draft": draft, "review": {"confirmed": False, "comments": []}}
-    store.write(f"handovers/{hid}/blocks.json", [asdict(b) for d in docs for b in d.blocks])
+    draft = engine.analyze(docs, str(body.get("predecessor") or "").strip(), llm)
+    blocks = [asdict(b) for d in docs for b in d.blocks]
+    # 개인정보: 저장하기 전에 사람 이름을 역할 이름(전임자·후임자·소속 직위)으로 바꾼다
+    names = anon.build_aliases(draft, blocks, str(body.get("successor") or ""))
+    fix = anon.replacer(names)
+    draft, blocks, skipped = anon.deep(draft, fix), anon.deep(blocks, fix), anon.deep(skipped, fix)
+    team = next((c.get("org") for c in draft["sections"]["contacts"] if re.search(r"(팀|과|실)$", c.get("org") or "")), "")
+    privacy = anon.hashed(names)
+    title = anon.scrub(fix(str(body.get("title") or "").strip()[:100]), privacy) or f"{team + ' ' if team else ''}업무 인수인계".strip()
+    h = {"id": hid, "title": title, "successor": "후임자",
+         "created": _now(), "source": anon.deep(source.describe(), fix),
+         "skipped": skipped, "draft": draft, "review": {"confirmed": False, "comments": []},
+         "privacy": privacy}
+    try:  # 후임자 착임(발령)일: D-Day 리스크 레이더의 기준
+        h["radar"] = {"start": date.fromisoformat(str(body.get("start"))).isoformat()} if body.get("start") else {}
+    except ValueError:
+        raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+    store.write(f"handovers/{hid}/blocks.json", blocks)
     save_h(h)
+    if kind == "upload":
+        store.remove_tree(f"handovers/{hid}/inbox")  # 올린 원본 사본은 읽은 뒤 지운다(이름이 든 원문을 남기지 않음)
     log(hid, "초안 생성", f"{len(docs)}개 자료, {draft['engine']}")
     return h
 
@@ -158,7 +180,7 @@ def upsert_item(req):
     sec = body.get("section")
     if sec not in SECTIONS:
         raise HttpError(400, "잘못된 구분")
-    item = body.get("item") or {}
+    item = clean(h, body.get("item") or {})
     items = h["draft"]["sections"][sec]
     for i, it in enumerate(items):
         if it["id"] == item.get("id"):
@@ -204,7 +226,7 @@ def resolve_flag(req):
     for f in h["draft"]["flags"]:
         if f["id"] == body.get("id"):
             f["resolved"] = bool(body.get("resolved", True))
-            f["note"] = body.get("note", "")
+            f["note"] = clean(h, str(body.get("note") or ""))[:1000]
             save_h(h)
             log(h["id"], "확인필요 처리", f"{f['message']} → {f['note']}")
             return f
@@ -217,11 +239,12 @@ def review(req):
     body = req.json
     rv = h.setdefault("review", {"confirmed": False, "comments": []})
     if body.get("comment"):
-        rv.setdefault("comments", []).append({"at": _now(), "text": body["comment"]})
-        log(h["id"], "전임자 메모", body["comment"])
+        text = clean(h, str(body["comment"]))[:4000]
+        rv.setdefault("comments", []).append({"at": _now(), "text": text})
+        log(h["id"], "전임자 메모", text)
     if "confirmed" in body:
         rv["confirmed"] = bool(body["confirmed"])
-        rv["by"] = body.get("by", "")
+        rv["by"] = "전임자"  # 확인자도 이름 대신 역할로
         rv["at"] = _now()
         if rv["confirmed"]:
             for sec in SECTIONS:
@@ -230,7 +253,7 @@ def review(req):
                         it["status"] = "확인"
         log(h["id"], "전임자 확인 완료" if rv["confirmed"] else "확인 취소", rv.get("by", ""))
     if "successor" in body:
-        h["successor"] = body["successor"]
+        h["successor"] = "후임자" if str(body["successor"] or "").strip() else ""
     save_h(h)
     return h
 
@@ -244,82 +267,99 @@ def history(req):
 
 @app.post("/api/handovers/<hid>/ask")
 def ask(req):
-    """AI 전임자 분신에게 묻기: 전임자 자료로만 1인칭으로 답하고, 자료에 없으면 found=False(실제 전임자에게 넘기기)."""
+    """AI 전임자 분신에게 묻기: 전임자 자료로만 1인칭으로 답하고, 자료에 없으면 found=False와 함께 물어볼 곳(역할)을 알려 준다."""
     h = load_h(req.params["hid"])
     q = str(req.json.get("q") or "").strip()[:500]
     if not q:
         raise HttpError(400, "질문을 입력해 주세요")
-    name = h["draft"].get("predecessor") or "전임자"
     log(h["id"], "AI 분신에게 질문", q)
-    # 실제 전임자가 이미 답한 질문이면 그 답을 먼저 (전임자 본인의 말)
-    best = max(report.answered_questions(h), key=lambda x: similarity(x["q"], q), default=None)
-    if best and same_question(best["q"], q):
-        lead = {"AI 답 확인": "이 답은 제가 직접 맞는지 확인했어요", "AI 답 바로잡기": "이 질문은 제가 직접 바로잡아 두었어요"}.get(
-            best.get("via"), "이 질문은 제가 직접 답해 두었어요")
-        return {"answer": f"{lead} ({best.get('answered_at', '')[:10]}).\n{best['answer']}",
-                "sources": [{"block_id": f"qa-{best['id']}", "file": "전임자 답변", "loc": f"질문 답변 {best['id']}",
-                             "quote": f"질문: {best['q']} / 답변: {best['answer']}"[:160]}],
-                "items": [], "mode": "전임자 직접 답변", "found": True}
+    h.setdefault("asked", 0)
+    h["asked"] += 1
+    save_h(h)
     blocks = store.read(f"handovers/{h['id']}/blocks.json", [])
-    res = qa.answer(h["draft"], blocks, q, llm, persona=name)
-    res = qa.persona_wrap(res, name)
-    res["related"] = next((x for x in h.get("questions") or [] if same_question(x["q"], q)), None)
+    res = qa.answer(h["draft"], blocks, q, llm, persona="전임자")
+    res = qa.persona_wrap(res, "전임자")
+    if not res.get("found"):
+        res["who"] = network.who_knows(h, q, blocks)  # 자료에 없으면: 누구에게 물어보면 되는지(역할)
     return res
 
 
-def same_question(a, b):
-    """이미 답한 질문과 같은 질문인지: 글자가 많이 겹치고(0.7 이상) 숫자(월·일·금액)가 같아야 한다.
-    '11월에 할 일'과 '12월에 할 일'처럼 숫자만 다른 질문에 다른 답을 주지 않게 한다."""
-    return similarity(a, b) >= 0.7 and re.findall(r"\d+", a) == re.findall(r"\d+", b)
+# ---------------------------------------------------------------- D-Day 리스크 레이더
 
-
-def _answer_block(h, qobj):
-    """전임자가 답한 질문을 원문 블록으로 보탠다: 이후 질문 답변의 근거가 되고, 원문 보기로 확인할 수 있다."""
-    path = f"handovers/{h['id']}/blocks.json"
-    blocks = [b for b in store.read(path, []) if b["id"] != f"qa-{qobj['id']}"]
-    blocks.append({"id": f"qa-{qobj['id']}", "doc_id": "qa", "file": "전임자 답변", "loc": f"질문 답변 {qobj['id']}",
-                   "text": f"질문: {qobj['q']} / 답변({h['draft'].get('predecessor') or '전임자'}): {qobj['answer']}"})
-    store.write(path, blocks)
-
-
-@app.post("/api/handovers/<hid>/questions")
-def forward_question(req):
-    """AI 분신이 답하지 못한 질문을 실제 전임자에게 넘긴다(전임자 검토 화면에 표시)."""
+@app.get("/api/handovers/<hid>/radar")
+def get_radar(req):
     h = load_h(req.params["hid"])
-    q = str(req.json.get("q") or "").strip()[:500]
-    if not q:
-        raise HttpError(400, "질문을 입력해 주세요")
-    qs = h.setdefault("questions", [])
-    same = next((x for x in qs if x["q"] == q), None)
-    if same:
-        return same
-    qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": req.json.get("by") or h.get("successor") or "후임자",
-            "asked_at": _now(), "status": "대기", "answer": ""}
-    qs.append(qobj)
+    start = None
+    if req.query.get("start"):
+        try:
+            start = date.fromisoformat(req.query["start"])
+        except ValueError:
+            raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+    return radar.build(h, start)
+
+
+@app.post("/api/handovers/<hid>/radar")
+def save_radar(req):
+    """후임자 착임(발령)일·의회 행정사무감사 달·기관 유형을 저장한다."""
+    h = load_h(req.params["hid"])
+    b = req.json
+    try:
+        start = date.fromisoformat(str(b.get("start") or date.today().isoformat()))
+    except ValueError:
+        raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+    try:
+        audit = int(b.get("audit_month") or 0)
+    except (TypeError, ValueError):
+        audit = 0
+    h["radar"] = {"start": start.isoformat(), "audit_month": audit if 1 <= audit <= 12 else 0,
+                  "gov_level": b.get("gov_level") if b.get("gov_level") in radar.GOV_LEVELS else "시·군·구"}
     save_h(h)
-    log(h["id"], "전임자에게 질문 넘김", q)
-    return qobj
+    log(h["id"], "리스크 레이더 기준 저장", f"착임일 {start.isoformat()}")
+    return radar.build(h)
 
 
-@app.get("/api/handovers/<hid>/questions")
-def list_questions(req):
-    return {"questions": load_h(req.params["hid"]).get("questions") or []}
+# ---------------------------------------------------------------- 휴먼 네트워크 맵 · 노하우 카드
+
+def _net(h):
+    return network.build(h, store.read(f"handovers/{h['id']}/blocks.json", []))
 
 
-@app.post("/api/handovers/<hid>/questions/<qid>/answer")
-def answer_question(req):
+@app.get("/api/handovers/<hid>/network")
+def get_network(req):
+    return _net(load_h(req.params["hid"]))
+
+
+@app.post("/api/handovers/<hid>/knowhow")
+def add_knowhow(req):
+    """노하우 카드 직접 쓰기: 대상(협업 상대 노드)·유형·요령. 사람 이름을 적어도 역할 이름으로 바뀌어 저장된다."""
     h = load_h(req.params["hid"])
-    a = str(req.json.get("answer") or "").strip()[:4000]
-    if not a:
-        raise HttpError(400, "답변을 입력해 주세요")
-    for qobj in h.get("questions") or []:
-        if qobj["id"] == req.params["qid"]:
-            qobj.update(answer=a, status="답변", answered_at=_now())
-            save_h(h)
-            _answer_block(h, qobj)
-            log(h["id"], "전임자 답변", f"{qobj['q']} → {a}")
-            return qobj
-    raise HttpError(404, "질문을 찾을 수 없습니다")
+    b = req.json
+    text = clean(h, str(b.get("text") or "").strip()[:500])
+    if not text:
+        raise HttpError(400, "노하우를 입력해 주세요")
+    kind = b.get("kind") if b.get("kind") in network.KINDS else "요령"
+    card = {"id": f"m-{uuid.uuid4().hex[:8]}", "target": str(b.get("target") or "")[:40], "kind": kind, "text": text,
+            "source": "전임자 작성", "at": _now()}
+    h.setdefault("knowhow", []).append(card)
+    save_h(h)
+    log(h["id"], "노하우 카드 추가", text[:60])
+    return _net(h)
+
+
+@app.post("/api/handovers/<hid>/knowhow/<kid>/delete")
+def delete_knowhow(req):
+    """직접 쓴 카드는 지우고, 자료에서 뽑은 카드는 숨긴다(자료를 다시 읽어도 나오지 않게)."""
+    h = load_h(req.params["hid"])
+    kid = req.params["kid"]
+    before = len(h.get("knowhow") or [])
+    h["knowhow"] = [k for k in h.get("knowhow") or [] if k["id"] != kid]
+    if len(h["knowhow"]) == before:
+        if not re.fullmatch(r"k-[0-9a-f]{8}", kid):
+            raise HttpError(404, "카드를 찾을 수 없습니다")
+        h.setdefault("knowhow_hidden", []).append(kid)
+    save_h(h)
+    log(h["id"], "노하우 카드 삭제", kid)
+    return _net(h)
 
 
 # ---------------------------------------------------------------- 표준 인수인계서(필수 5대 영역) 입력 폼
@@ -336,7 +376,7 @@ def get_form(req):
 @app.post("/api/handovers/<hid>/form")
 def save_form(req):
     h = load_h(req.params["hid"])
-    h["form"] = report.clean_form(req.json.get("form"))
+    h["form"] = clean(h, report.clean_form(req.json.get("form")))
     h["form_updated"] = _now()
     save_h(h)
     log(h["id"], "표준 인수인계서 저장", "")
@@ -396,161 +436,14 @@ def law_articles(req):
     return res
 
 
-# ---------------------------------------------------------------- 소통 창구: AI 답 확인·피드백·메시지
-# 후임자는 AI 분신의 답을 전임자에게 '확인 요청'하거나 의견·메시지를 남기고, 전임자는 확인·바로잡기·답장을 한다.
-# 전임자가 확인하거나 바로잡은 답은 '전임자 직접 답변'이 되어 같은 질문에 그대로 쓰이고, 인수인계서·바통 파일에도 남는다.
-
-ROLES = ("후임자", "전임자")
-KINDS = ("확인 요청", "메시지")
-
-
-def _text(v, n=4000):
-    return str(v or "").strip()[:n]
-
-
-def _thread(h, tid):
-    t = next((x for x in h.get("threads") or [] if x["id"] == tid), None)
-    if not t:
-        raise HttpError(404, "대화를 찾을 수 없습니다")
-    return t
-
-
-def _role(body):
-    r = body.get("by")
-    if r not in ROLES:
-        raise HttpError(400, "보내는 사람은 '후임자' 또는 '전임자'여야 합니다")
-    return r
-
-
-def _learn(h, q, answer, via):
-    """전임자가 확인·바로잡은 답을 전임자 답변으로 저장(같은 질문 재사용, 인수인계서·바통 파일 질의응답)."""
-    qs = h.setdefault("questions", [])
-    qobj = next((x for x in qs if x["q"] == q), None)
-    if not qobj:
-        qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": h.get("successor") or "후임자",
-                "asked_at": _now()}
-        qs.append(qobj)
-    qobj.update(answer=answer, status="답변", answered_at=_now(), via=via)
-    return qobj
-
-
-@app.post("/api/handovers/<hid>/gaps/ask")
-def ask_gaps(req):
-    """충실도 점검에서 '부족·없음'인 영역의 질문을 전임자에게 한 번에 보낸다(이미 보낸 질문은 다시 보내지 않음).
-    전임자가 답하면 AI 분신이 그 답을 근거로 쓰고, 인수인계서·바통 파일의 질의응답에도 남는다."""
-    h = load_h(req.params["hid"])
-    qs = h.setdefault("questions", [])
-    asked = {x["q"] for x in qs}
-    made = []
-    for c in h["draft"].get("coverage") or []:
-        q = f"[{c['name']}] {c['question']}" if c.get("question") else ""
-        if q and q not in asked:
-            qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": h.get("successor") or "후임자",
-                    "asked_at": _now(), "status": "대기", "answer": "", "via": "충실도 점검"}
-            qs.append(qobj)
-            made.append(qobj)
-    if made:
-        save_h(h)
-        log(h["id"], "충실도 점검 질문 보냄", f"{len(made)}건")
-    return {"created": len(made), "questions": made}
-
-
-@app.get("/api/handovers/<hid>/threads")
-def list_threads(req):
-    return {"threads": load_h(req.params["hid"]).get("threads") or []}
-
-
-@app.post("/api/handovers/<hid>/threads")
-def create_thread(req):
-    h = load_h(req.params["hid"])
-    b = req.json
-    by = _role(b)
-    kind = b.get("kind") if b.get("kind") in KINDS else "메시지"
-    text = _text(b.get("text"))
-    ai = b.get("ai") if isinstance(b.get("ai"), dict) else None
-    if kind == "확인 요청":
-        if not ai or not _text(ai.get("q")) or not _text(ai.get("answer")):
-            raise HttpError(400, "확인할 AI 답이 없습니다")
-        ai = {"q": _text(ai["q"], 500), "answer": _text(ai["answer"]), "mode": _text(ai.get("mode"), 50),
-              "sources": [{k: _text(s.get(k), 300) for k in ("block_id", "file", "loc", "quote")}
-                          for s in (ai.get("sources") or [])[:5] if isinstance(s, dict)]}
-        title = ai["q"]
-    else:
-        ai = None
-        title = _text(b.get("title"), 120) or text[:40]
-        if not text:
-            raise HttpError(400, "내용을 입력해 주세요")
-    ts = h.setdefault("threads", [])
-    t = {"id": f"t{len(ts) + 1}-{uuid.uuid4().hex[:4]}", "kind": kind, "title": title, "ai": ai, "by": by,
-         "created": _now(), "status": "대기", "messages": []}
-    if text:
-        t["messages"].append({"by": by, "text": text, "at": _now()})
-    ts.append(t)
-    save_h(h)
-    log(h["id"], f"소통 창구: {kind}", title)
-    return t
-
-
-@app.post("/api/handovers/<hid>/threads/<tid>/reply")
-def reply_thread(req):
-    h = load_h(req.params["hid"])
-    t = _thread(h, req.params["tid"])
-    b = req.json
-    by = _role(b)
-    text = _text(b.get("text"))
-    if not text:
-        raise HttpError(400, "내용을 입력해 주세요")
-    t["messages"].append({"by": by, "text": text, "at": _now()})
-    if t["status"] == "완료":
-        t["status"] = "대기"  # 끝난 대화에 다시 말을 걸면 다시 연다
-    save_h(h)
-    log(h["id"], "소통 창구: 답장", f"{by} · {t['title']}")
-    return t
-
-
-@app.post("/api/handovers/<hid>/threads/<tid>/resolve")
-def resolve_thread(req):
-    """전임자: confirm(AI 답이 맞음) · correct(바로잡은 답) / 누구나: close(완료) · reopen(다시 열기)."""
-    h = load_h(req.params["hid"])
-    t = _thread(h, req.params["tid"])
-    b = req.json
-    by = _role(b)
-    action = b.get("action")
-    if action in ("confirm", "correct"):
-        if by != "전임자":
-            raise HttpError(403, "AI 답 확인·바로잡기는 전임자만 할 수 있습니다")
-        if not t.get("ai"):
-            raise HttpError(400, "AI 답 확인 요청이 아닙니다")
-        if action == "confirm":
-            answer = re.sub(r"^제 자료에서 찾아봤어요[^\n]*\n", "", t["ai"]["answer"]).strip()
-            t["status"], note = "확인됨", "AI 답이 맞다고 확인했습니다."
-        else:
-            answer = _text(b.get("text"))
-            if not answer:
-                raise HttpError(400, "바로잡은 답을 입력해 주세요")
-            t["status"], note = "바로잡음", f"답을 바로잡았습니다: {answer}"
-        qobj = _learn(h, t["ai"]["q"], answer, "AI 답 확인" if action == "confirm" else "AI 답 바로잡기")
-        t["learned"] = qobj["id"]
-        t["messages"].append({"by": by, "text": note, "at": _now(), "system": True})
-        save_h(h)
-        _answer_block(h, qobj)
-    elif action in ("close", "reopen"):
-        t["status"] = "완료" if action == "close" else "대기"
-        t["messages"].append({"by": by, "text": "대화를 마쳤습니다." if action == "close" else "대화를 다시 열었습니다.",
-                              "at": _now(), "system": True})
-        save_h(h)
-    else:
-        raise HttpError(400, "알 수 없는 처리입니다")
-    log(h["id"], f"소통 창구: {t['status']}", f"{by} · {t['title']}")
-    return t
-
-
 def _manual(h, body):
     try:
         start = date.fromisoformat(str(body["start"])) if body.get("start") else date.today()
     except ValueError:
         raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
-    return report.build_manual(h, body.get("successor") or h.get("successor", ""), body.get("career", "신규"), start)
+    m = report.build_manual(h, "후임자", body.get("career", "신규"), start)
+    m["radar"] = radar.build(h, start)
+    return m
 
 
 @app.post("/api/handovers/<hid>/manual")
@@ -566,15 +459,15 @@ def export_doc(req):
     if fmt not in FORMATS:
         raise HttpError(400, f"지원하지 않는 파일 형식입니다: '{fmt}'. 한글(hwpx)·워드(docx)·마크다운(md) 중에서 골라 주세요.")
     if req.params["what"] == "handover":
-        blocks = report.handover_blocks(h)
-        name = f"인수인계서_{h['draft'].get('predecessor', '')}"
+        blocks = report.handover_blocks(h, _net(h), radar.build(h))
+        name = f"인수인계서_{_fname(h.get('title'))}"
     elif req.params["what"] == "form":
         blocks = report.form_blocks(h, h.get("form") or report.prefill_form(h))
-        name = f"업무인수인계서_{h['draft'].get('predecessor', '')}"
+        name = f"업무인수인계서_{_fname(h.get('title'))}"
     elif req.params["what"] == "manual":
         m = _manual(h, req.json)
         blocks = report.manual_blocks(h, m)
-        name = f"업무매뉴얼_{m['successor'] or '후임자'}"
+        name = f"업무매뉴얼_{_fname(h.get('title'))}"
     else:
         raise HttpError(404, "없는 문서")
     data, ctype = export(blocks, fmt)
@@ -619,7 +512,7 @@ def export_calendar(req):
     data, info = report.build_ics(h, start)
     if not info["events"]:
         raise HttpError(400, "내보낼 일정이 없습니다. 연간 업무 달력에 일정이 있는지 확인해 주세요.")
-    name = f"업무달력_{_fname(h['draft'].get('predecessor') or '전임자')}.ics"
+    name = f"업무달력_{_fname(h.get('title'))}.ics"
     log(h["id"], "일정 내보내기(.ics)", f"{info['events']}건, 제외 {len(info['skipped'])}건")
     res = file_response(data, name, "text/calendar; charset=utf-8")
     res.headers["X-Events"] = str(info["events"])

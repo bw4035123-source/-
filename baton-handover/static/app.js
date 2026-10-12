@@ -6,45 +6,16 @@ const CTX = () => `/api/handovers/${H.id}/context`;
 const SEC = {
   rnr: { title: "담당 업무(R&R)", cols: [{ k: "duty", l: "담당 업무" }, { k: "detail", l: "세부 내용·메모" }] },
   schedule: { title: "연간 업무 일정", cols: [{ k: "months", l: "월", t: "months" }, { k: "day", l: "일", t: "num" }, { k: "task", l: "할 일" }, { k: "related", l: "관련" }] },
-  contacts: { title: "협의 연락망", cols: [{ k: "name", l: "이름" }, { k: "org", l: "소속" }, { k: "title", l: "직위" }, { k: "phones", l: "연락처", t: "list" }, { k: "emails", l: "메일", t: "list" }, { k: "topics", l: "협의 업무", t: "list" }] },
+  contacts: { title: "협의 연락망(협업 상대)", cols: [{ k: "name", l: "협업 상대(역할)" }, { k: "org", l: "소속" }, { k: "title", l: "직위" }, { k: "phones", l: "연락처", t: "list" }, { k: "emails", l: "메일", t: "list" }, { k: "topics", l: "협의 업무", t: "list" }] },
   issues: { title: "진행 중인 현안", cols: [{ k: "title", l: "현안" }, { k: "state", l: "상태" }, { k: "next_action", l: "다음 할 일" }, { k: "due", l: "기한" }] },
 };
 const STATUS_TAG = { "초안": "gray", "확인": "ok", "수정": "info", "추가": "info", "삭제": "bad" };
 
-// ------------------------------------------------------------ 개인정보 가림(기본 켬)
-// 화면에 나오는 사람 이름을 '김○윤'처럼 가린다. 화면 표시만 바꾸며, 저장 데이터·내려받는 공식 문서(한글·워드)는 그대로다.
-// 고칠 수 있는 칸(표 편집·답변 입력)은 누르는 동안만 원래 이름을 보여 주고, 가린 글자가 저장되는 일은 없다.
-let PRIVACY = true;
-try { PRIVACY = localStorage.getItem("baton:privacy") !== "off"; } catch (e) {}
-let NAMES_RX = null;
-const LIST_NAMES = new Set();
-function maskName(n) {
-  if (n.length <= 1) return n;
-  return n.length === 2 ? n[0] + "○" : n[0] + "○".repeat(n.length - 2) + n[n.length - 1];
-}
-function collectNames() {
-  const all = new Set(LIST_NAMES);
-  if (H) {
-    const d = H.draft;
-    [d.predecessor, H.successor, H.review && H.review.by,
-      ...(d.lineage || []).flatMap(x => [x.name, x.handed_to]),
-      ...d.sections.contacts.map(c => c.name),
-      ...(H.questions || []).map(q => q.asked_by),
-      ...(d.carried_interview || []).map(x => x.by), ...(d.carried_notes || []).map(x => x.by),
-      ...["rnr", "schedule", "contacts", "issues"].flatMap(k => d.sections[k].map(i => i.carried && i.carried.name))].forEach(n => n && all.add(n));
-  }
-  const names = [...all].filter(n => /^[가-힣]{2,4}$/.test(n)).sort((a, b) => b.length - a.length);
-  NAMES_RX = names.length ? new RegExp(names.join("|"), "g") : null;
-}
-// 휴대전화는 가운데 자리를 가린다(010-****-9081). 사무실 번호는 업무용 공개 번호라 그대로 둔다
+// ------------------------------------------------------------ 개인정보 보호
+// 사람 이름은 서버가 자료를 읽을 때 이미 역할 이름(전임자·후임자·소속 직위)으로 바꿔 저장한다(화면·문서·바통 파일 모두 이름 없음).
+// 화면에서는 혹시 남은 휴대전화 번호의 가운데 자리를 한 번 더 가린다(010-****-9081).
 const MOBILE_RX = /(?<!\d)(01[016789])([-. ]?)(\d{3,4})([-. ]?)(\d{4})(?!\d)/g;
-const pv = t => {
-  if (!PRIVACY || t == null) return t;
-  let s = String(t);
-  if (NAMES_RX) s = s.replace(NAMES_RX, maskName);
-  return s.replace(MOBILE_RX, (m, a, s1, mid, s2, b) => `${a}${s1}${"*".repeat(mid.length)}${s2}${b}`);
-};
-// 모든 화면 요소는 el()로 만들어지므로 여기서 한 번에 가린다(편집 칸·입력 칸은 제외)
+const pv = t => t == null ? t : String(t).replace(MOBILE_RX, (m, a, s1, mid, s2, b) => `${a}${s1}${"*".repeat(mid.length)}${s2}${b}`);
 const rawEl = el;
 el = function (tag, attrs, ...kids) {
   const editable = (attrs && attrs.contenteditable === "true") || tag === "textarea" || tag === "input";
@@ -52,17 +23,15 @@ el = function (tag, attrs, ...kids) {
   const a = attrs && attrs.title ? { ...attrs, title: pv(attrs.title) } : attrs;
   return rawEl(tag, a, ...kids.flat(Infinity).map(k => (typeof k === "string" || typeof k === "number") ? pv(String(k)) : k));
 };
-function setupPrivacy() {
-  const b = $("#pv-toggle");
-  const paint = () => { b.classList.toggle("on", PRIVACY); b.setAttribute("aria-pressed", String(PRIVACY));
-    b.title = PRIVACY ? "화면의 사람 이름을 가리고 있습니다(내려받는 문서는 원래 이름)" : "이름을 그대로 보여 주고 있습니다"; };
-  paint();
-  b.onclick = async () => {
-    PRIVACY = !PRIVACY;
-    try { localStorage.setItem("baton:privacy", PRIVACY ? "on" : "off"); } catch (e) {}
-    paint(); await refreshList(H && H.id);
-    toast(PRIVACY ? "화면의 이름을 가렸습니다" : "이름을 그대로 보여 줍니다");
-  };
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svg(tag, attrs, ...kids) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  kids.flat(Infinity).forEach(k => k != null && e.append(k instanceof Node ? k : document.createTextNode(String(k))));
+  return e;
 }
 
 // ------------------------------------------------------------ 자료 넣기
@@ -82,6 +51,7 @@ function setupStart() {
   drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", async e => { e.preventDefault(); drop.classList.remove("over"); setPicked(await filesFromDrop(e)); });
+  $("#start-date").value = new Date().toISOString().slice(0, 10);
   $("#create").onclick = async () => {
     const kind = $("input[name=src]:checked").value;
     const source = { kind };
@@ -93,7 +63,7 @@ function setupStart() {
     const btn = $("#create");
     busy(btn, true, "자료를 읽고 분석하는 중");
     try {
-      const h = await api("POST", "/api/handovers", { source, predecessor: $("#pred").value, successor: $("#succ").value, title: $("#title").value });
+      const h = await api("POST", "/api/handovers", { source, title: $("#title").value, start: $("#start-date").value });
       toast("초안을 만들었습니다");
       await refreshList(h.id);
       goTab("draft");
@@ -103,8 +73,6 @@ function setupStart() {
 
 async function refreshList(selectId) {
   const { handovers } = await api("GET", "/api/handovers");
-  handovers.forEach(h => h.predecessor && LIST_NAMES.add(h.predecessor));
-  collectNames();
   const sel = $("#cur-h");
   sel.innerHTML = "";
   if (!handovers.length) sel.append(el("option", { value: "" }, "인수인계 건 없음"));
@@ -113,10 +81,9 @@ async function refreshList(selectId) {
   list.innerHTML = "";
   if (!handovers.length) list.append(el("div", { class: "empty" }, "아직 없습니다. 왼쪽에서 자료를 넣어 시작하세요. 처음이면 '시연용 모의자료'를 골라 보세요."));
   else list.append(el("table", { class: "t" },
-    el("tr", {}, el("th", {}, "제목"), el("th", {}, "전임자"), el("th", {}, "상태"), el("th", {}, "만든 시각"), el("th", {}, "")),
+    el("tr", {}, el("th", {}, "제목"), el("th", {}, "상태"), el("th", {}, "만든 시각"), el("th", {}, "")),
     handovers.map(h => el("tr", {},
       el("td", {}, el("a", { href: "#", onclick: e => { e.preventDefault(); select(h.id); goTab("draft"); } }, h.title)),
-      el("td", {}, h.predecessor || "-"),
       el("td", {}, el("span", { class: "tag " + (h.confirmed ? "ok" : "warn") }, h.confirmed ? "전임자 확인 완료" : "검토 중")),
       el("td", { class: "small muted" }, h.created),
       el("td", {}, el("button", { class: "small danger", onclick: async () => {
@@ -129,19 +96,12 @@ async function refreshList(selectId) {
 
 async function select(id) {
   H = await api("GET", `/api/handovers/${id}`);
-  collectNames();
   $("#cur-h").value = id;
-  $("#m-name").value = H.successor || "";
+  if (H.radar && H.radar.start) $("#m-start").value = H.radar.start;
   renderAll();
 }
-const predName = () => (H && H.draft.predecessor) || "전임자";
-function renderAvatarHead() {
-  const n = pv(predName());
-  $("#ask-tab").textContent = `③ AI ${n}에게 묻기`;
-  $("#av-init").textContent = n.slice(0, 1);
-  $("#av-title").textContent = `AI ${n}에게 묻기`;
-  $("#av-sub").textContent = `${n} 님 본인이 아니라, ${n} 님이 남긴 자료와 답변으로만 답하는 AI 분신입니다. 자료에 없는 건 지어내지 않고 진짜 ${n} 님께 질문을 넘깁니다.`;
-}
+const predName = () => "전임자";
+function renderAvatarHead() {}
 
 function needH(sec) {
   if (H) return false;
@@ -189,7 +149,6 @@ function renderSection(key) {
         if (c.t === "months") upd.recurring = td.textContent.trim() === "매월" ? "매월" : (it.recurring === "매월" ? "" : it.recurring);
         const saved = await api("POST", `/api/handovers/${H.id}/item`, { section: key, item: upd });
         Object.assign(it, saved); tr.querySelector(".st").replaceWith(statusTag(it));
-        if (c.k === "name") collectNames();
         show();
       });
       tr.append(td);
@@ -249,15 +208,14 @@ function renderDraft() {
   const d = H.draft, rv = H.review || {};
   const cnt = k => d.sections[k].filter(i => i.status !== "삭제").length;
   const open = d.flags.filter(f => !f.resolved).length;
-  const waiting = (H.questions || []).filter(q => q.status === "대기");
   sec.append(el("div", { class: "panel" },
     el("div", { class: "row" },
       el("h2", { style: { flex: 1, margin: 0 } }, H.title),
       rv.confirmed ? el("span", { class: "done-badge", title: rv.at || "" }, `전임자 확인 완료 · ${rv.by || ""} · ${(rv.at || "").slice(0, 10).replace(/-/g, ".")}`)
         : el("span", { class: "tag warn" }, "검토 중(초안)")),
-    el("p", { class: "small muted" }, `전임자: ${d.predecessor || "-"} · 후임자: ${H.successor || "-"} · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
+    el("p", { class: "small muted" }, `인계: 전임자 → 후임자 (사람 이름 비식별) · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
     el("div", { class: "grid3", style: { gridTemplateColumns: "repeat(6,1fr)" } },
-      ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["확인 필요", open], ["후임자 질문 대기", waiting.length]]
+      ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["확인 필요", open], ["AI 분신 질문", H.asked || 0]]
         .map(([a, b]) => el("div", { class: "stat" }, el("b", {}, b), a))),
     el("h3", {}, "업무 개요"), el("p", { style: { whiteSpace: "pre-wrap" } }, d.overview),
     d.filtered && d.filtered.length ? el("details", {}, el("summary", { class: "small" }, `모델 결과 중 원문과 맞지 않아 버린 항목 ${d.filtered.reduce((n, f) => n + (f.count || 1), 0)}건`),
@@ -270,8 +228,7 @@ function renderDraft() {
       rv.confirmed
         ? el("button", { onclick: async () => { H = await api("POST", `/api/handovers/${H.id}/review`, { confirmed: false }); renderAll(); } }, "확인 취소(다시 수정)")
         : el("button", { class: "primary", onclick: async () => {
-            const by = prompt("확인자(전임자) 이름", d.predecessor || "");
-            if (by === null) return;
+            const by = "전임자";
             if (open && !confirm(`확인 필요 사항이 ${open}건 남아 있습니다. 그래도 확인 완료할까요?`)) return;
             H = await api("POST", `/api/handovers/${H.id}/review`, { confirmed: true, by }); renderAll(); toast("전임자 확인을 완료했습니다. 후임자가 바로 활용할 수 있습니다.");
           } }, "전임자 확인 완료"))));
@@ -280,11 +237,14 @@ function renderDraft() {
   sec.children[0].after(flowBox);
   renderFlow(flowBox);
   if ((d.coverage || []).length) flowBox.after(renderCoverage());
-  if (waiting.length || (H.questions || []).length) sec.append(renderInbox());
+  // 맨 위: 시한폭탄 방지 붉은 카드(부임 첫 주 · 이번 달 계약)
+  const radarBox = el("div", { class: "panel radar-top" }, el("span", { class: "spinner" }));
+  sec.prepend(radarBox);
+  renderRadarTop(radarBox);
   sec.append(renderRelay());
   if (!rv.confirmed) sec.append(el("p", { class: "small muted" }, "표의 내용을 눌러 바로 고칠 수 있습니다. 맞는 항목은 '확인', 틀린 항목은 '삭제'를 누르세요. 근거 칩을 누르면 원문 위치가 보입니다."));
   ["issues", "schedule", "contacts", "rnr"].forEach(k => sec.append(renderSection(k)));
-  const memo = el("textarea", { placeholder: "후임자에게 남길 말, 자료에 없는 노하우를 적어 주세요" });
+  const memo = el("textarea", { placeholder: "후임자에게 남길 말을 적어 주세요 (협업 상대별 일하는 요령은 ④ 휴먼 네트워크의 노하우 카드로 남기면 좋습니다)" });
   sec.append(el("div", { class: "panel" }, el("h2", {}, "전임자 메모"),
     el("ul", {}, (rv.comments || []).map(c => el("li", {}, el("span", { class: "small muted" }, c.at + " "), c.text))),
     memo, el("button", { style: { marginTop: "6px" }, onclick: async () => {
@@ -298,25 +258,24 @@ function renderCoverage() {
   const cov = H.draft.coverage || [];
   const ok = cov.filter(c => c.level === "충분").length;
   const gaps = cov.filter(c => c.level !== "충분");
-  const asked = new Set((H.questions || []).map(q => q.q));
-  const pending = gaps.filter(c => !asked.has(`[${c.name}] ${c.question}`));
   const lv = { "충분": "ok", "부족": "warn", "없음": "bad" };
   return el("div", { class: "panel" },
     el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "인수인계 충실도 점검"),
       el("span", { class: "tag " + (ok === cov.length ? "ok" : "warn") }, `${ok}/${cov.length} 영역 충분`)),
     el("p", { class: "small muted", style: { margin: "6px 0 12px" } },
-      "자료를 대충 모아 넣어도 후임자가 일할 수 있도록, 인수인계서에 꼭 있어야 할 7개 영역을 점검합니다. 모자란 영역은 전임자에게 물을 질문을 만들어 둡니다."),
+      "자료를 대충 모아 넣어도 후임자가 일할 수 있도록, 인수인계서에 꼭 있어야 할 7개 영역을 점검합니다. 모자란 영역은 인계 면담에서 물을 질문지를 만들어 둡니다."),
     el("div", { class: "cov" }, cov.map(c => el("div", { class: "cov-card " + lv[c.level], title: c.question || "자료가 충분합니다" },
       el("div", { class: "row", style: { gap: "6px" } }, el("b", {}, c.name), el("span", { class: "tag " + lv[c.level] }, c.level)),
       el("span", { class: "small muted" }, c.note),
       c.sources && c.sources.length ? el("div", {}, citeChips(c.sources.slice(0, 1), CTX())) : null))),
-    gaps.length ? el("div", { class: "row", style: { marginTop: "12px" } },
-      el("button", { class: "primary", disabled: !pending.length || null, onclick: async () => {
-        const r = await api("POST", `/api/handovers/${H.id}/gaps/ask`, {});
-        H = await api("GET", `/api/handovers/${H.id}`); renderAll();
-        toast(`모자란 ${r.created}개 영역을 전임자에게 물었습니다. 전임자가 답하면 AI 분신이 그 답을 근거로 씁니다.`);
-      } }, pending.length ? `모자란 ${pending.length}개 영역 전임자에게 한 번에 묻기` : "모두 물어봤어요 · 전임자 답변 대기"),
-      el("span", { class: "small muted" }, "질문은 '후임자가 보낸 질문'에 올라가고, 답은 인수인계서·바통 파일에 남습니다.")) : null);
+    gaps.length ? el("div", { class: "interview" },
+      el("div", { class: "row" }, el("b", { style: { flex: 1 } }, `인계 면담 질문지 (${gaps.length}개)`),
+        el("button", { class: "small", onclick: () => {
+          const text = gaps.map((c, i) => `${i + 1}. [${c.name}] ${c.question}`).join("\n");
+          (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("질문지를 복사했습니다"), () => modal("인계 면담 질문지", el("pre", { class: "doc" }, text)));
+        } }, "질문지 복사")),
+      el("ol", { class: "small" }, gaps.map(c => el("li", {}, el("b", {}, `[${c.name}] `), c.question))),
+      el("p", { class: "small muted", style: { margin: 0 } }, "면담에서 들은 답은 ② 표에 바로 고쳐 넣거나, 협업 상대별 요령이면 ④ 노하우 카드로 남기세요. AI 분신은 그 내용을 근거로 답합니다.")) : null);
 }
 
 // 인수인계 순서도: 단계마다 완료·진행 중·예정과 근거 숫자, 누르면 해당 화면으로
@@ -338,33 +297,6 @@ async function renderFlow(box) {
     el("div", { class: "flow-next" }, el("b", {}, f.current ? "지금 할 일 " : "완료 "), f.next));
 }
 
-// 전임자 화면: AI 분신이 답하지 못해 후임자가 넘긴 질문에 답하기
-function renderInbox() {
-  const qs = H.questions || [];
-  const n = qs.filter(q => q.status === "대기").length;
-  return el("div", { class: "panel", style: n ? { borderColor: "var(--brand)" } : {} },
-    el("h2", {}, `후임자가 보낸 질문 ${n ? `(${n}건 답변 대기)` : ""}`),
-    el("p", { class: "small muted" }, `AI ${predName()}(분신)이 자료에서 답을 찾지 못해 후임자가 넘긴 질문입니다. 답하면 이후 같은 질문에는 이 답으로 응답하고, 인수인계서와 바통 파일에도 남습니다.`),
-    qs.map(q => {
-      const ta = el("textarea", { placeholder: "답변을 적어 주세요", style: { width: "100%", minHeight: "56px" } }, q.answer || "");
-      const save = el("button", { class: "small primary", style: { marginTop: "6px" }, onclick: async () => {
-        if (!ta.value.trim()) return toast("답변을 입력해 주세요", true);
-        await api("POST", `/api/handovers/${H.id}/questions/${q.id}/answer`, { answer: ta.value.trim() });
-        H = await api("GET", `/api/handovers/${H.id}`); renderAll(); toast("답변을 저장했습니다. AI 분신도 이제 이 답으로 응답합니다.");
-      } }, q.status === "대기" ? "답변 보내기" : "답변 저장");
-      // 이미 답한 질문은 가린 글로 보여 주고, '고치기'를 눌렀을 때만 원래 글이 든 입력칸을 연다
-      const answered = q.status !== "대기" && q.answer;
-      const view = answered ? el("div", { class: "quote", style: { whiteSpace: "pre-wrap" } }, q.answer) : null;
-      const edit = answered ? el("button", { class: "small", style: { marginTop: "6px" }, onclick: () => {
-        view.replaceWith(ta); edit.replaceWith(save);
-      } }, "답변 고치기") : null;
-      return el("div", { class: "panel", style: { padding: "10px" } },
-        el("div", {}, el("span", { class: "tag " + (q.status === "대기" ? "warn" : "ok") }, q.status), " ", el("b", {}, q.q),
-          el("span", { class: "small muted" }, ` · ${q.asked_by} · ${q.asked_at}`)),
-        answered ? [view, edit] : [ta, save]);
-    }));
-}
-
 // 지식 릴레이: 업무 계보와 바통 파일(.baton) 저장
 function renderRelay() {
   const d = H.draft, lin = d.lineage || [];
@@ -372,9 +304,9 @@ function renderRelay() {
   const card = (cls, g, name, sub) => el("span", { class: "gen " + cls }, el("b", {}, `${g}대 ${name}`), sub);
   const chain = [];
   lin.forEach((x, i) => { chain.push(card("", i + 1, x.name, x.date || "")); chain.push(el("span", { class: "arrow" }, "→")); });
-  chain.push(card("now", gen, d.predecessor || "전임자", "지금 넘기는 중"));
+  chain.push(card("now", gen, "담당자(전임자)", "지금 넘기는 중"));
   chain.push(el("span", { class: "arrow" }, "→"));
-  chain.push(card("next", gen + 1, H.successor || "후임자", "이어받을 사람"));
+  chain.push(card("next", gen + 1, "담당자(후임자)", "이어받을 사람"));
   const carried = ["rnr", "schedule", "contacts", "issues"].reduce((n, k) => n + d.sections[k].filter(i => i.carried && i.status !== "삭제").length, 0);
   return el("div", { class: "panel" },
     el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "지식 릴레이 · 업무 계보"),
@@ -383,7 +315,7 @@ function renderRelay() {
     el("p", { class: "small muted" }, lin.length
       ? `${lin.length}대까지의 인수인계서를 이어받아 ${carried}개 항목, 질의응답 ${(d.carried_interview || []).length}건, 메모 ${(d.carried_notes || []).length}건을 넘겨받았습니다. `
       : "이 업무의 첫 바통입니다. ",
-      `검토를 마치고 바통 파일로 저장해 ${H.successor || "후임자"} 님께 넘기면, 다음 인수인계 때 '자료 넣기'에 함께 넣기만 해도 ${gen}대까지의 업무 지식(항목·근거·질의응답·메모)이 그대로 이어집니다.`,
+      `검토를 마치고 바통 파일로 저장해 후임자에게 넘기면, 다음 인수인계 때 '자료 넣기'에 함께 넣기만 해도 ${gen}대까지의 업무 지식(항목·근거·노하우·메모)이 그대로 이어집니다. 바통 파일에도 사람 이름은 들어가지 않습니다.`,
       rv_confirmed() ? "" : " (아직 전임자 확인 전이라 초안 상태로 저장됩니다)"),
     (d.carried_interview || []).length ? el("details", {}, el("summary", { class: "small" }, `앞 세대가 남긴 질의응답 ${(d.carried_interview || []).length}건`),
       el("ul", { class: "small" }, d.carried_interview.map(x => el("li", {}, el("b", {}, x.q), ` → ${x.a} (${x.by})`)))) : null,
@@ -511,31 +443,20 @@ function setupAsk() {
     $("#q").value = "";
     const chat = $("#chat");
     chat.append(el("div", { class: "msg me" }, q));
-    const bot = (...kids) => el("div", { class: "av-row" }, el("span", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI 분신" }, predName().slice(0, 1)),
+    const bot = (...kids) => el("div", { class: "av-row" }, el("span", { class: "avatar", title: "실제 본인이 아닌, 자료로만 답하는 AI 분신" }, "AI"),
       el("div", { class: "msg bot", style: { width: "auto", flex: 1 } }, ...kids));
     const pending = bot(el("span", { class: "spinner" }), " 자료를 찾는 중");
     chat.append(pending);
     try {
       const r = await api("POST", `/api/handovers/${H.id}/ask`, { q });
-      const fwd = el("button", { class: "small" + (r.found ? "" : " primary"), onclick: async e => {
-        const x = await api("POST", `/api/handovers/${H.id}/questions`, { q });
-        e.target.disabled = true; e.target.textContent = `✓ ${pv(predName())} 님께 넘겼어요 (전임자 검토 화면에 표시)`;
-        (H.questions = H.questions || []).some(y => y.id === x.id) || H.questions.push(x);
-        renderMyQuestions(); renderDraft();
-      } }, r.found ? `답이 부족하면 진짜 ${predName()} 님께 넘기기` : `진짜 ${predName()} 님께 질문 넘기기`);
-      const already = r.related && r.related.status === "대기";
-      // 찾은 답은 '맞는지 확인 요청'(전임자가 확인·바로잡기), 못 찾은 답은 '질문 넘기기'
-      const check = el("button", { class: "small", onclick: async e => {
-        const t = await api("POST", `/api/handovers/${H.id}/threads`, { kind: "확인 요청", by: "후임자",
-          ai: { q, answer: r.answer, sources: r.sources || [], mode: r.mode } });
-        (H.threads = H.threads || []).push(t);
-        e.target.disabled = true; e.target.textContent = `✓ ${pv(predName())} 님께 확인을 요청했어요 (④ 소통 창구)`;
-        updateTalkBadge();
-      } }, `✋ 이 답이 맞는지 ${predName()} 님께 확인 요청`);
+      const who = r.who || [];
       pending.replaceWith(bot(el("div", { style: { whiteSpace: "pre-wrap" } }, r.answer),
         r.sources && r.sources.length ? el("div", { class: "small muted", style: { marginTop: "6px" } }, `근거 (${r.mode}): `, citeChips(r.sources, CTX())) : null,
-        r.mode === "전임자 직접 답변" ? null : el("div", { style: { marginTop: "6px" } },
-          already ? el("span", { class: "tag warn" }, `같은 질문을 이미 넘겼어요 · ${predName()} 님 답변 대기`) : (r.found ? check : fwd))));
+        !r.found ? el("div", { class: "who-box" },
+          el("b", {}, who.length ? "이 협업 상대에게 물어보세요" : "인계 자료에 없는 내용입니다"),
+          who.length ? el("ul", {}, who.map(w => el("li", {}, el("b", {}, w.label), ` · ${w.group}`, w.phone ? ` · ${w.phone}` : "", w.why ? el("span", { class: "muted" }, ` — ${w.why}`) : null)))
+            : el("p", { class: "small muted", style: { margin: "4px 0 0" } }, "팀장·업무 대행자에게 확인한 뒤, 답을 ② 표나 ④ 노하우 카드에 남겨 두면 다음 질문부터 AI 분신이 답합니다."),
+          el("button", { class: "small", style: { marginTop: "6px" }, onclick: () => goTab("network") }, "④ 휴먼 네트워크에서 보기")) : null));
     } catch (e) { pending.remove(); }
   };
   $("#ask").onclick = () => send();
@@ -544,31 +465,19 @@ function setupAsk() {
     $("#q-examples").append(el("span", { class: "chip", onclick: () => send(x) }, x)));
 }
 
-// 후임자 화면: 전임자에게 넘긴 질문과 답
-function renderMyQuestions() {
-  const box = $("#my-questions");
-  const qs = (H && H.questions) || [];
-  box.hidden = !qs.length;
-  box.innerHTML = "";
-  if (!qs.length) return;
-  box.append(el("h3", {}, `${predName()} 님께 넘긴 질문 (${qs.filter(q => q.status === "대기").length}건 답변 대기)`),
-    el("ul", {}, qs.map(q => el("li", {}, el("span", { class: "tag " + (q.status === "대기" ? "warn" : "ok") }, q.status), " ", el("b", {}, q.q),
-      q.answer ? el("div", { class: "small" }, `↳ ${predName()}: ${q.answer}`) : null))),
-    el("button", { class: "small", onclick: async () => { H = await api("GET", `/api/handovers/${H.id}`); renderAll(); } }, "답변 새로 확인"));
-}
-
 // ------------------------------------------------------------ 매뉴얼
 function setupManual() {
   $("#m-start").value = new Date().toISOString().slice(0, 10);
   $("#m-make").onclick = async () => {
     if (!H) return toast("먼저 인수인계 건을 선택하세요", true);
-    const body = { successor: $("#m-name").value || H.successor, start: $("#m-start").value, career: $("#m-career").value };
+    const body = { start: $("#m-start").value, career: $("#m-career").value };
     const m = await api("POST", `/api/handovers/${H.id}/manual`, body);
     const out = $("#m-out");
     out.innerHTML = "";
-    const p = el("div", { class: "panel" }, el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, `${m.successor || "후임자"}님 업무매뉴얼`), exportButtons(`/api/handovers/${H.id}/export/manual`, () => body),
+    const p = el("div", { class: "panel" }, el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "후임자 업무매뉴얼"), exportButtons(`/api/handovers/${H.id}/export/manual`, () => body),
         el("button", { onclick: () => downloadIcs(body.start) }, "내 일정(.ics)")),
       H.review.confirmed ? null : el("p", { class: "tag warn" }, "전임자 확인 전 초안 기준입니다"),
+      radarCards(m.radar),
       el("h3", {}, "착임 후 순서도"),
       el("div", { class: "flow" }, m.flow.flatMap((x, i) => [
         el("div", { class: "fstep now" }, el("span", { class: "fno" }, String(i + 1)), el("b", {}, x.name), el("span", { class: "fwho" }, x.what), el("span", { class: "fdetail" }, x.detail)),
@@ -582,8 +491,8 @@ function setupManual() {
         m.issues.map(i => el("tr", {}, el("td", {}, i.title),
           el("td", {}, i.days_left === null ? "기한 없음" : el("span", { class: "tag " + (i.days_left < 0 ? "bad" : i.days_left <= 30 ? "warn" : "gray") }, i.days_left < 0 ? "기한 지남" : `D-${i.days_left}`)),
           el("td", {}, i.next_action || ""), el("td", {}, citeChips(i.sources, CTX()))))),
-      el("h3", {}, "4. 꼭 알아둘 연락처"),
-      el("table", { class: "t" }, m.contacts.map(c => el("tr", {}, el("td", {}, c.name), el("td", {}, `${c.org || ""} ${c.title || ""}`), el("td", {}, (c.phones || []).join(", ")), el("td", {}, (c.topics || []).slice(0, 2).join(", "))))),
+      el("h3", {}, "4. 꼭 알아둘 협업 상대"),
+      el("table", { class: "t" }, m.contacts.map(c => el("tr", {}, el("td", {}, c.name), el("td", {}, (c.phones || []).join(", ")), el("td", {}, (c.topics || []).slice(0, 2).join(", "))))),
       m.unresolved.length ? [el("h3", {}, "5. 아직 확인되지 않은 내용"), el("ul", {}, m.unresolved.map(f => el("li", {}, `[${f.type}] ${f.message}`)))] : null,
       m.terms.length ? [el("h3", {}, "6. 처음 보는 용어"), el("table", { class: "t" }, m.terms.map(([k, v]) => el("tr", {}, el("td", {}, el("b", {}, k)), el("td", {}, v))))] : null);
     out.append(p);
@@ -599,114 +508,6 @@ async function renderHistory() {
   sec.append(el("div", { class: "panel" }, el("h2", {}, "처리 이력"),
     el("table", { class: "t" }, el("tr", {}, el("th", {}, "시각"), el("th", {}, "작업"), el("th", {}, "내용")),
       history.slice().reverse().map(x => el("tr", {}, el("td", { class: "small" }, x.at), el("td", {}, x.action), el("td", { class: "small" }, x.detail))))));
-}
-
-// ------------------------------------------------------------ 소통 창구(AI 답 확인·피드백·메시지)
-// 이 PC 하나에서 전임자·후임자가 번갈아 쓰므로 '지금 쓰는 사람'을 고른다(기관 로그인 연동 시 자동)
-let ROLE = "후임자";
-try { ROLE = localStorage.getItem("baton:role") === "전임자" ? "전임자" : "후임자"; } catch (e) {}
-let TALK_SEL = null, TALK_FILTER = "all";
-const TALK_STATUS = { "대기": "warn", "확인됨": "ok", "바로잡음": "info", "완료": "gray" };
-const other = () => (ROLE === "전임자" ? "후임자" : "전임자");
-// 지금 쓰는 사람이 할 일이 있는 대화: 상대가 마지막으로 말했거나, (전임자) 확인 요청이 대기 중
-function needsMe(t) {
-  if (t.status === "완료") return false;
-  const last = (t.messages || []).filter(m => !m.system).slice(-1)[0];
-  if (ROLE === "전임자" && t.kind === "확인 요청" && t.status === "대기") return true;
-  return !!last && last.by !== ROLE;
-}
-function updateTalkBadge() {
-  const n = H ? (H.threads || []).filter(needsMe).length : 0;
-  const b = $("#talk-tab");
-  b.textContent = "④ 소통 창구";
-  if (n) b.append(el("span", { class: "badge" }, String(n)));
-}
-async function talkAct(t, path, body) {
-  const nt = await api("POST", `/api/handovers/${H.id}/threads/${t.id}/${path}`, { ...body, by: ROLE });
-  Object.assign(t, nt);
-  if (path === "resolve" && (body.action === "confirm" || body.action === "correct")) H = await api("GET", `/api/handovers/${H.id}`);
-  renderTalk(); renderMyQuestions();
-}
-function renderTalk() {
-  const sec = $("#tab-talk");
-  updateTalkBadge();
-  if (needH(sec)) return;
-  sec.innerHTML = "";
-  const all = H.threads || [];
-  const shown = all.filter(t => TALK_FILTER === "all" ? true : TALK_FILTER === "me" ? needsMe(t) : t.status === "완료").slice().reverse();
-  if (!shown.some(t => t.id === TALK_SEL)) TALK_SEL = shown[0] && shown[0].id;
-  const roleBtn = r => el("button", { class: "seg" + (ROLE === r ? " on" : ""), onclick: () => {
-    ROLE = r; try { localStorage.setItem("baton:role", r); } catch (e) {} renderTalk(); } }, r === "전임자" ? `전임자(${predName()})` : `후임자(${H.successor || "후임자"})`);
-  sec.append(el("div", { class: "panel" },
-    el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "소통 창구"),
-      el("span", { class: "small muted" }, "지금 쓰는 사람"), el("span", { class: "segs" }, roleBtn("후임자"), roleBtn("전임자")),
-      el("button", { class: "primary small", onclick: newThread }, "+ 새 메시지")),
-    el("p", { class: "small muted", style: { margin: "8px 0 0" } },
-      `후임자는 AI 분신의 답이 맞는지 전임자에게 확인을 요청하거나 궁금한 점·의견을 남기고, 전임자는 확인·바로잡기·답장을 합니다. `
-      + `전임자가 확인하거나 바로잡은 답은 AI 분신이 그대로 쓰고 인수인계서·바통 파일에도 남습니다.`)));
-  const tabs = [["all", `전체 ${all.length}`], ["me", `내 차례 ${all.filter(needsMe).length}`], ["done", `완료 ${all.filter(t => t.status === "완료").length}`]];
-  const list = el("div", { class: "talk-list" },
-    el("div", { class: "segs", style: { marginBottom: "10px" } }, tabs.map(([k, l]) => el("button", { class: "seg" + (TALK_FILTER === k ? " on" : ""), onclick: () => { TALK_FILTER = k; renderTalk(); } }, l))),
-    shown.length ? shown.map(t => {
-      const last = (t.messages || []).slice(-1)[0];
-      return el("button", { class: "th" + (t.id === TALK_SEL ? " on" : ""), onclick: () => { TALK_SEL = t.id; renderTalk(); } },
-        el("div", { class: "row", style: { gap: "6px" } }, el("span", { class: "tag " + (t.kind === "확인 요청" ? "info" : "gray") }, t.kind),
-          el("span", { class: "tag " + (TALK_STATUS[t.status] || "gray") }, t.status), needsMe(t) ? el("span", { class: "dot-new" }) : null),
-        el("b", {}, t.title),
-        el("span", { class: "small muted" }, last ? `${last.by}: ${last.text}` : `${t.by}이(가) 보냄`));
-    }) : el("div", { class: "empty" }, all.length ? "해당하는 대화가 없습니다." : "아직 대화가 없습니다. ③ AI 분신의 답 아래 '확인 요청'을 누르거나 '+ 새 메시지'로 시작하세요."));
-  const t = all.find(x => x.id === TALK_SEL);
-  sec.append(el("div", { class: "talk" }, list, el("div", { class: "panel talk-view" }, t ? threadView(t) : el("div", { class: "empty" }, "왼쪽에서 대화를 고르세요."))));
-}
-function threadView(t) {
-  const box = el("textarea", { placeholder: `${other()}에게 보낼 말`, style: { minHeight: "70px" } });
-  const parts = [el("div", { class: "row" }, el("span", { class: "tag " + (t.kind === "확인 요청" ? "info" : "gray") }, t.kind),
-    el("span", { class: "tag " + (TALK_STATUS[t.status] || "gray") }, t.status), el("span", { class: "small muted" }, `${t.by} · ${t.created}`)),
-    el("h3", { style: { margin: "10px 0" } }, t.title)];
-  if (t.ai) {
-    parts.push(el("div", { class: "ai-box" }, el("div", { class: "small muted" }, `AI ${predName()}(분신)의 답 · ${t.ai.mode || ""}`),
-      el("div", { style: { whiteSpace: "pre-wrap", marginTop: "4px" } }, t.ai.answer),
-      t.ai.sources && t.ai.sources.length ? el("div", { style: { marginTop: "6px" } }, citeChips(t.ai.sources, CTX())) : null));
-    if (ROLE === "전임자" && t.status === "대기") {
-      const fix = el("textarea", { placeholder: "바른 답을 적어 주세요. 이후 AI 분신이 이 답을 씁니다.", style: { minHeight: "70px" } }, "");
-      const fixRow = el("div", { hidden: true, style: { marginTop: "8px" } }, fix,
-        el("button", { class: "primary small", style: { marginTop: "6px" }, onclick: () => {
-          if (!fix.value.trim()) return toast("바른 답을 입력해 주세요", true);
-          talkAct(t, "resolve", { action: "correct", text: fix.value.trim() }).then(() => toast("바로잡은 답을 저장했습니다. AI 분신이 이제 이 답을 씁니다."));
-        } }, "바로잡은 답 저장"));
-      parts.push(el("div", { class: "row", style: { marginTop: "10px" } },
-        el("button", { class: "primary small", onclick: () => talkAct(t, "resolve", { action: "confirm" }).then(() => toast("확인했습니다. 같은 질문에는 이 답을 전임자 확인 답으로 씁니다.")) }, "✓ 맞아요(확인)"),
-        el("button", { class: "small", onclick: () => { fixRow.hidden = !fixRow.hidden; } }, "✎ 바로잡기")), fixRow);
-    } else if (ROLE === "후임자" && t.status === "대기") {
-      parts.push(el("p", { class: "small muted" }, `${predName()} 님이 확인하면 여기에 결과가 표시됩니다.`));
-    }
-  }
-  parts.push(el("div", { class: "thread" }, (t.messages || []).map(m => m.system
-    ? el("div", { class: "sys" }, `${m.by} · ${m.text} · ${m.at}`)
-    : el("div", { class: "msg " + (m.by === ROLE ? "me" : "bot"), style: { maxWidth: "80%", width: "auto" } },
-        el("div", { class: "small", style: { opacity: .75, marginBottom: "2px" } }, `${m.by} · ${m.at}`),
-        el("div", { style: { whiteSpace: "pre-wrap" } }, m.text)))));
-  parts.push(box, el("div", { class: "row", style: { marginTop: "6px" } },
-    el("button", { class: "primary small", onclick: () => {
-      if (!box.value.trim()) return toast("내용을 입력해 주세요", true);
-      talkAct(t, "reply", { text: box.value.trim() });
-    } }, `${other()}에게 보내기`),
-    el("span", { style: { flex: 1 } }),
-    t.status === "완료" ? el("button", { class: "small", onclick: () => talkAct(t, "resolve", { action: "reopen" }) }, "다시 열기")
-      : el("button", { class: "small", onclick: () => talkAct(t, "resolve", { action: "close" }) }, "대화 마치기")));
-  return parts;
-}
-function newThread() {
-  const title = el("input", { class: "wide", placeholder: "제목 (예: 승강기 재계약 일정 문의)" });
-  const text = el("textarea", { placeholder: `${other()}에게 보낼 내용` });
-  const m = modal(`새 메시지 (${ROLE} → ${other()})`, el("label", { class: "f" }, "제목"), title, el("label", { class: "f" }, "내용"), text,
-    el("div", { class: "row", style: { marginTop: "10px" } }, el("button", { class: "primary", onclick: async () => {
-      if (!text.value.trim()) return toast("내용을 입력해 주세요", true);
-      const t = await api("POST", `/api/handovers/${H.id}/threads`, { kind: "메시지", by: ROLE, title: title.value.trim(), text: text.value.trim() });
-      (H.threads = H.threads || []).push(t); TALK_SEL = t.id; TALK_FILTER = "all";
-      $$(".modal-bg").forEach(x => x.remove()); renderTalk();
-    } }, "보내기")));
-  return m;
 }
 
 // ------------------------------------------------------------ 표준 인수인계서(필수 5대 영역)
@@ -874,11 +675,179 @@ async function loadArticles(it, box, want) {
     } }, "고른 조문 넣기")), list);
 }
 
+// ------------------------------------------------------------ 시한폭탄 방지 · D-Day 리스크 레이더
+const LV = { red: "위험", amber: "주의", blue: "예정" };
+const fmtD = s => s.slice(5).replace("-", ".");
+function rcard(e) {
+  return el("div", { class: "rcard lv-" + e.level },
+    el("div", { class: "rc-head" }, el("span", { class: "dd" }, e.days < 0 ? `기한 ${-e.days}일 지남` : e.dday), el("span", { class: "rc-date" }, fmtD(e.date)),
+      e.kind === "공공 주기" ? el("span", { class: "tag info" }, "공공 주기") : null),
+    el("b", { class: "rc-title" }, e.title),
+    e.why ? el("p", { class: "rc-why" }, e.why) : null,
+    e.flag ? el("p", { class: "rc-flag" }, "⚠ 확인 필요 " + e.flag) : null,
+    e.source ? el("span", { class: "rc-src" }, "근거: " + e.source) : null);
+}
+function radarCards(rd, compact) {
+  if (!rd) return null;
+  const col = (title, sub, list, empty) => el("div", { class: "rcol" },
+    el("div", { class: "rcol-head" }, el("b", {}, title), el("span", {}, sub)),
+    list.length ? list.slice(0, compact ? 4 : 50).map(rcard) : el("div", { class: "rc-empty" }, empty),
+    compact && list.length > 4 ? el("button", { class: "small", onclick: () => goTab("radar") }, `${list.length - 4}건 더 보기`) : null);
+  return el("div", { class: "rcols" },
+    col("부임 첫 주에 해야 할 일", "착임 후 7일 안 · 이미 지난 기한", rd.top.week, "첫 주 안에 기한이 오는 일은 없습니다"),
+    col("이번 달 미체결 시 감사 지적 우려 계약", "착임 후 30일 안 계약·공사·갱신", rd.top.contract, "30일 안에 걸린 계약 건은 없습니다"));
+}
+async function renderRadarTop(box) {
+  const rd = await api("GET", `/api/handovers/${H.id}/radar`);
+  const n = rd.top.week.length + rd.top.contract.length;
+  box.innerHTML = "";
+  box.append(
+    el("div", { class: "row" },
+      el("span", { class: "bomb", "aria-hidden": "true" }, "⏰"),
+      el("div", { style: { flex: 1 } }, el("h2", { style: { margin: 0 } }, "시한폭탄 방지 · D-Day 리스크 레이더"),
+        el("span", { class: "small" }, `후임자 착임일 ${rd.start.replace(/-/g, ".")} 기준 · 붉은 카드 ${n}장`)),
+      el("button", { onclick: () => goTab("radar") }, "타임라인 전체 보기")),
+    radarCards(rd, true));
+}
+async function renderRadar(start) {
+  const sec = $("#tab-radar");
+  if (needH(sec)) return;
+  const q = start ? `?start=${start}` : "";
+  const rd = await api("GET", `/api/handovers/${H.id}/radar${q}`);
+  const dt = el("input", { type: "date", value: rd.start });
+  const audit = el("select", {}, [...Array(12)].map((_, i) => el("option", { value: i + 1, selected: rd.audit_month === i + 1 || null }, `${i + 1}월`)));
+  const lvl = el("select", {}, ["시·군·구", "시·도", "공공기관"].map(x => el("option", { value: x, selected: rd.gov_level === x || null }, x)));
+  // 달별로 묶은 세로 타임라인
+  const byMonth = {};
+  rd.timeline.forEach(e => (byMonth[e.date.slice(0, 7)] = byMonth[e.date.slice(0, 7)] || []).push(e));
+  sec.innerHTML = "";
+  sec.append(
+    el("div", { class: "panel radar-top" },
+      el("div", { class: "row" }, el("span", { class: "bomb", "aria-hidden": "true" }, "⏰"),
+        el("div", { style: { flex: 1 } }, el("h2", { style: { margin: 0 } }, "D-Day 리스크 레이더"),
+          el("span", { class: "small" }, "인수인계 자료의 기한 + 공공기관 법정·행정 주기를 후임자 착임(발령)일 기준으로 줄 세웁니다")),
+        el("span", { class: "tag bad" }, `위험 ${rd.counts.red}`), el("span", { class: "tag warn" }, `주의 ${rd.counts.amber}`)),
+      el("div", { class: "row radar-set" },
+        el("label", {}, "후임자 착임일 ", dt), el("label", {}, "의회 행정사무감사 ", audit), el("label", {}, "기관 유형 ", lvl),
+        el("button", { class: "primary small", onclick: async () => {
+          await api("POST", `/api/handovers/${H.id}/radar`, { start: dt.value, audit_month: Number(audit.value), gov_level: lvl.value });
+          H = await api("GET", `/api/handovers/${H.id}`); renderRadar(); renderDraft(); toast("착임일 기준으로 다시 계산했습니다");
+        } }, "기준 저장")),
+      radarCards(rd)),
+    el("div", { class: "panel" },
+      el("h2", {}, "앞으로 120일 타임라인"),
+      el("div", { class: "legend small" }, el("span", { class: "lg red" }, "위험"), el("span", { class: "lg amber" }, "주의(30일 안)"), el("span", { class: "lg blue" }, "예정"),
+        el("span", { class: "tag info" }, "공공 주기"), " = 법정·행정 일반 주기(기관 일정 확인)"),
+      el("div", { class: "tl" }, Object.entries(byMonth).map(([ym, list]) => el("div", { class: "tl-month" },
+        el("div", { class: "tl-m" }, `${Number(ym.slice(5))}월`),
+        el("div", { class: "tl-items" }, list.map(e => el("div", { class: "tl-item lv-" + e.level + (e.days < 0 ? " past" : "") },
+          el("span", { class: "tl-dot" }),
+          el("span", { class: "tl-dd" }, e.days < 0 ? `+${-e.days}일` : e.dday),
+          el("span", { class: "tl-date" }, fmtD(e.date)),
+          el("div", { class: "tl-body" }, el("b", {}, e.title), e.kind === "공공 주기" ? el("span", { class: "tag info" }, "공공 주기") : null,
+            e.why ? el("div", { class: "small muted" }, e.why) : null,
+            e.tip ? el("div", { class: "small" }, "💡 " + e.tip) : null,
+            e.basis ? el("div", { class: "small muted" }, "근거: " + e.basis, " ", e.link ? el("a", { href: e.link, target: "_blank", rel: "noopener" }, "법령 보기") : null) : null,
+            e.source ? el("div", { class: "small muted" }, "자료: " + e.source) : null)))))))),
+    rd.conditional.length ? el("div", { class: "panel" }, el("h2", {}, "일이 생기면 시작되는 법정 기한"),
+      el("div", { class: "cond" }, rd.conditional.map(c => el("div", { class: "cond-card" },
+        el("b", {}, c.title), el("div", { class: "dd-text" }, c.when), el("div", { class: "small muted" }, c.basis),
+        el("div", { class: "small" }, "💡 " + c.tip), el("div", { class: "small muted" }, c.why, " · ", el("a", { href: c.link, target: "_blank", rel: "noopener" }, "법령 보기")))))) : null,
+    el("p", { class: "small muted" }, "※ " + rd.note));
+}
+
+// ------------------------------------------------------------ 휴먼 네트워크 맵 · 노하우 카드
+let NET = null, NET_SEL = null;
+const GROUP_COLOR = { team: "#1d4ed8", dept: "#0891b2", gov: "#7c3aed", vendor: "#ea580c", civil: "#dc2626" };
+const short = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+function netGraph(net) {
+  const W = 820, Hh = 560, cx = W / 2, cy = Hh / 2;
+  const duties = net.duties, nodes = net.nodes;
+  const pos = { center: [cx, cy] };
+  const dAng = {};
+  duties.forEach((d, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(duties.length, 1); dAng[d.id] = a; pos[d.id] = [cx + 175 * Math.cos(a), cy + 125 * Math.sin(a)]; });
+  // 바깥 고리: 연결된 업무 방향 순서대로 고르게 놓아 겹치지 않게
+  const anchor = n => (n.link in dAng ? dAng[n.link] : -Math.PI / 2 - 0.3);
+  const order = [...nodes].sort((a, b) => ((anchor(a) + 2 * Math.PI) % (2 * Math.PI)) - ((anchor(b) + 2 * Math.PI) % (2 * Math.PI)));
+  const off = order.length ? ((anchor(order[0]) + 2 * Math.PI) % (2 * Math.PI)) : 0;
+  order.forEach((n, i) => { const a = off + (i * 2 * Math.PI) / order.length; pos[n.id] = [cx + 345 * Math.cos(a), cy + 228 * Math.sin(a)]; });
+  const g = svg("svg", { viewBox: `0 0 ${W} ${Hh}`, class: "net-svg", role: "img", "aria-label": "업무 협업 네트워크 그림" });
+  net.edges.forEach(e => { const [x1, y1] = pos[e.from] || pos.center, [x2, y2] = pos[e.to] || pos.center;
+    g.append(svg("line", { x1, y1, x2, y2, class: "net-edge" + (e.to === NET_SEL ? " on" : "") })); });
+  duties.forEach(d => { const [x, y] = pos[d.id];
+    g.append(svg("g", { class: "net-duty" }, svg("rect", { x: x - 62, y: y - 15, width: 124, height: 30, rx: 15 }),
+      svg("text", { x, y: y + 4, "text-anchor": "middle" }, short(d.label, 10)), svg("title", {}, d.label))); });
+  g.append(svg("g", { class: "net-center" }, svg("circle", { cx, cy, r: 50 }),
+    svg("text", { x: cx, y: cy - 2, "text-anchor": "middle" }, short(net.center.label.replace(/\s*업무 인수인계$/, ""), 9)),
+    svg("text", { x: cx, y: cy + 15, "text-anchor": "middle", class: "sub" }, "담당 업무")));
+  nodes.forEach(n => { const [x, y] = pos[n.id];
+    const r = 15 + Math.min(n.tips.length, 4) * 2;
+    g.append(svg("g", { class: "net-node" + (NET_SEL === n.id ? " on" : ""), tabindex: 0, onclick: () => { NET_SEL = n.id; drawNetwork(); },
+        onkeydown: ev => { if (ev.key === "Enter") { NET_SEL = n.id; drawNetwork(); } } },
+      svg("circle", { cx: x, cy: y, r, fill: GROUP_COLOR[n.group] }),
+      n.tips.length ? svg("text", { x, y: y + 4, "text-anchor": "middle", class: "cnt" }, String(n.tips.length)) : null,
+      svg("text", { x, y: y + r + 14, "text-anchor": "middle", class: "lbl" }, short(n.label, 13)), svg("title", {}, n.label))); });
+  return g;
+}
+function cardEl(c, net) {
+  const target = net.nodes.find(n => n.id === c.target);
+  return el("div", { class: "kcard k-" + ({ "사전 협의": "pre", "재확인": "re", "주의": "warn", "요령": "tip" }[c.kind] || "tip") },
+    el("div", { class: "row", style: { gap: "6px" } }, el("span", { class: "ktag" }, c.kind), el("b", { class: "small", style: { flex: 1 } }, target ? target.label : "공통"),
+      el("button", { class: "small ghost", title: c.auto ? "자료에서 뽑은 카드 숨기기" : "카드 지우기", onclick: async () => {
+        NET = await api("POST", `/api/handovers/${H.id}/knowhow/${c.id}/delete`, {}); drawNetwork(); } }, "✕")),
+    el("p", {}, c.text),
+    el("span", { class: "small muted" }, c.auto ? `자료에서 찾음 · ${c.source}` : "전임자가 직접 적음"));
+}
+function drawNetwork() {
+  const sec = $("#tab-network"), net = NET;
+  const sel = net.nodes.find(n => n.id === NET_SEL);
+  const txt = el("textarea", { placeholder: "예: 이 예산 항목은 결재 전에 경영지원팀 주무관과 사전 협의 필수 / 이 업체는 마감 3일 전 재확인" });
+  const tsel = el("select", {}, el("option", { value: "" }, "공통(특정 상대 없음)"), net.nodes.map(n => el("option", { value: n.id, selected: NET_SEL === n.id || null }, n.label)));
+  const ksel = el("select", {}, ["사전 협의", "재확인", "주의", "요령"].map(k => el("option", { value: k }, k)));
+  sec.innerHTML = "";
+  sec.append(
+    el("div", { class: "panel" },
+      el("div", { class: "row" }, el("div", { style: { flex: 1 } }, el("h2", { style: { margin: 0 } }, "휴먼 네트워크 맵"),
+        el("span", { class: "small muted" }, "문서에 없는 '누구와 어떻게'를 보여 줍니다. 원은 협업 상대(역할), 숫자는 노하우 카드 수입니다. 사람 이름은 쓰지 않습니다.")),
+        el("span", { class: "tag info" }, `협업 상대 ${net.counts.nodes}`), el("span", { class: "tag ok" }, `노하우 ${net.counts.cards}`)),
+      el("div", { class: "legend small" }, Object.entries(net.groups).map(([k, v]) => el("span", { class: "lg", style: `--c:${GROUP_COLOR[k]}` }, v.name))),
+      el("div", { class: "net-wrap" }, el("div", { class: "net-graph" }, netGraph(net)),
+        el("div", { class: "net-side" }, sel ? [
+          el("span", { class: "tag", style: { background: GROUP_COLOR[sel.group], color: "#fff" } }, net.groups[sel.group].name),
+          el("h3", { style: { margin: "6px 0" } }, sel.label),
+          el("div", { class: "small muted" }, [sel.org, sel.title].filter(Boolean).join(" · ")),
+          sel.phones.length || sel.emails.length ? el("div", { class: "small" }, "☎ ", [...sel.phones, ...sel.emails].join(", ")) : null,
+          el("div", { class: "small", style: { marginTop: "6px" } }, el("b", {}, "이럴 때 연락 "), sel.topics.slice(0, 3).join(" / ") || "-"),
+          el("div", { class: "small muted" }, "연결 업무: ", (net.duties.find(d => d.id === sel.link) || { label: "업무 전반" }).label),
+          el("h4", {}, `노하우 카드 ${sel.tips.length}장`),
+          net.cards.filter(c => c.target === sel.id).map(c => cardEl(c, net)),
+          el("button", { class: "small", onclick: () => { txt.focus(); } }, "+ 이 상대에 대한 노하우 쓰기")]
+          : el("div", { class: "empty small" }, "원을 누르면 협업 상대의 역할·연락처·노하우가 여기에 나옵니다.")))),
+    el("div", { class: "panel" },
+      el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "노하우 카드"),
+        el("span", { class: "small muted" }, "자료 속 '사전 협의 필수', '3일 전 재확인' 같은 문장을 찾아 카드로 만들었습니다. 인수인계서·바통 파일에도 들어갑니다.")),
+      el("div", { class: "kgrid" }, net.cards.map(c => cardEl(c, net))),
+      el("div", { class: "kadd" }, el("b", {}, "노하우 직접 쓰기"),
+        el("div", { class: "row" }, tsel, ksel), txt,
+        el("button", { class: "primary small", onclick: async () => {
+          if (!txt.value.trim()) return toast("노하우를 입력해 주세요", true);
+          NET = await api("POST", `/api/handovers/${H.id}/knowhow`, { target: tsel.value, kind: ksel.value, text: txt.value.trim() });
+          NET_SEL = tsel.value || NET_SEL; drawNetwork(); toast("노하우 카드를 남겼습니다(사람 이름은 역할로 바뀌어 저장)");
+        } }, "카드 남기기"))));
+}
+async function renderNetwork() {
+  const sec = $("#tab-network");
+  if (needH(sec)) return;
+  NET = await api("GET", `/api/handovers/${H.id}/network`);
+  if (!NET.nodes.some(n => n.id === NET_SEL)) NET_SEL = (NET.nodes.find(n => n.tips.length) || NET.nodes[0] || {}).id || null;
+  drawNetwork();
+}
+
 let goTab;
-function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderTalk(); if (H) { renderAvatarHead(); renderMyQuestions(); } }
+function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderRadar(); renderNetwork(); }
 document.addEventListener("DOMContentLoaded", async () => {
-  setupStart(); setupAsk(); setupManual(); setupPrivacy();
-  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "talk") renderTalk(); if (id === "form") renderForm(); });
+  setupStart(); setupAsk(); setupManual();
+  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "form") renderForm(); });
   $("#cur-h").onchange = e => e.target.value && select(e.target.value);
   await refreshList();
 });

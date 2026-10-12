@@ -61,7 +61,7 @@ class Client:
 
 def check_baton(c):
     yield "화면 열기", c.call("GET", "/", raw=True)[:15].lower().startswith(b"<!doctype")
-    h = c.call("POST", "/api/handovers", {"source": {"kind": "sample"}, "predecessor": "김도윤"})
+    h = c.call("POST", "/api/handovers", {"source": {"kind": "sample"}, "start": "2026-10-12"})
     s = h["draft"]["sections"]
     yield f"인수인계서 초안(업무 {len(s['rnr'])}, 일정 {len(s['schedule'])}, 연락처 {len(s['contacts'])}, 현안 {len(s['issues'])}, 확인 필요 {len(h['draft']['flags'])})", all(len(s[k]) for k in s)
     a = c.call("POST", f"/api/handovers/{h['id']}/ask", {"q": "11월에 할 일 알려줘"})
@@ -71,83 +71,98 @@ def check_baton(c):
         yield f"인수인계서 내보내기({fmt})", len(d) > 500
     m = c.call("POST", f"/api/handovers/{h['id']}/export/manual?fmt=hwpx", {}, raw=True)
     yield "업무 매뉴얼 내보내기", len(m) > 500
-    # AI 전임자 분신: 자료에 없으면 넘기기 → 전임자 답변 → 같은 질문엔 전임자 답
     hid = h["id"]
+    # 개인정보: 자료 속 사람 이름은 역할 이름으로 바뀌어 저장된다
+    yield "이름 비식별: 전임자·1대 담당자·연락처를 역할로", h["draft"]["predecessor"] == "전임자" and \
+        [x["name"] for x in h["draft"]["lineage"]] == ["1대 담당자"] and any(x["name"] == "계약팀 주임" for x in s["contacts"])
+    # AI 전임자 분신: 자료에 없으면 지어내지 않고 물어볼 협업 상대를 알려 준다(전임자에게 답을 받는 창구는 없음)
     a1 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "체육센터 대관료 감면 기준은?"})
-    yield "AI 분신: 자료에 없으면 지어내지 않음", a1["found"] is False and not a1["sources"]
-    q = c.call("POST", f"/api/handovers/{hid}/questions", {"q": "체육센터 대관료 감면 기준은?"})
-    c.call("POST", f"/api/handovers/{hid}/questions/{q['id']}/answer", {"answer": "국가유공자 50% 감면입니다."})
-    a2 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "체육센터 대관료 감면 기준 알려줘"})
-    yield "AI 분신: 전임자에게 넘긴 질문의 답으로 응답", a2["found"] and "50%" in a2["answer"]
+    yield "AI 분신: 자료에 없으면 지어내지 않음", a1["found"] is False and not a1["sources"] and "who" in a1
+    a1b = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "시설물 보험 갱신 보험사 계약 조건은?"})
+    yield "AI 분신: 모르면 물어볼 협업 상대(역할) 안내", a1b["found"] or any("총무팀" in w["label"] for w in a1b.get("who", []))
     a3 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "수질검사 부적합 나오면 어떻게 해?"})
-    yield "AI 분신: 1대 담당자의 질의응답까지 근거로", a3["found"] and "최선우" in a3["answer"]
-    # 지식 릴레이: 1대(모의 바통) → 2대 김도윤 → 3대
-    yield "지식 릴레이: 모의 바통 파일 이어받기", [x["name"] for x in h["draft"]["lineage"]] == ["최선우"] and \
-        any(it.get("carried") for it in s["schedule"])
+    yield "AI 분신: 1대 담당자의 질의응답까지 근거로", a3["found"] and "1대 담당자" in a3["answer"]
+    yield "소통 창구(전임자 답변 남기기) 삭제", all(c.status(*x) == 404 for x in [
+        ("GET", f"/api/handovers/{hid}/threads"), ("POST", f"/api/handovers/{hid}/questions", {"q": "x"}),
+        ("POST", f"/api/handovers/{hid}/gaps/ask", {})])
+    # D-Day 리스크 레이더: 착임일 기준 붉은 카드(첫 주·이번 달 계약) + 공공 주기
+    rd = c.call("GET", f"/api/handovers/{hid}/radar?start=2026-10-12")
+    wk, ct = rd["top"]["week"], rd["top"]["contract"]
+    pub = [e["title"] for e in rd["public"]]
+    yield (f"리스크 레이더(첫 주 {len(wk)}, 계약 {len(ct)}, 공공 주기 {len(pub)})",
+           any("예산요구서" in e["title"] for e in wk) and any("승강기" in e["title"] for e in ct)
+           and any("청소" in e["title"] for e in ct) and any("행정사무감사(11월" in t for t in pub)
+           and any(cd["id"] == "complaint" for cd in rd["conditional"]) and all(e["level"] == "red" for e in wk + ct))
+    rd2 = c.call("POST", f"/api/handovers/{hid}/radar", {"start": "2026-12-20", "audit_month": 6, "gov_level": "시·도"})
+    yield "리스크 레이더: 착임일·감사 달 바꾸면 다시 계산", rd2["start"] == "2026-12-20" and rd2["audit_month"] == 6 and \
+        any("계약 만료" in e["title"] for e in rd2["top"]["contract"]) and c.status("POST", f"/api/handovers/{hid}/radar", {"start": "2026-99-01"}) == 400
+    c.call("POST", f"/api/handovers/{hid}/radar", {"start": "2026-10-12"})
+    # 휴먼 네트워크 맵·노하우 카드
+    net = c.call("GET", f"/api/handovers/{hid}/network")
+    groups = {n["group"] for n in net["nodes"]}
+    lab = {n["id"]: n["label"] for n in net["nodes"]}
+    pre = [k for k in net["cards"] if k["kind"] == "사전 협의" and "경영지원팀" in lab.get(k["target"], "")]
+    yield (f"휴먼 네트워크(상대 {len(net['nodes'])}, 노하우 {len(net['cards'])})",
+           {"team", "dept", "gov", "vendor", "civil"} <= groups and len(net["cards"]) >= 5 and pre
+           and any("의회" in n["label"] for n in net["nodes"]) and any("그린공조" in lab.get(k["target"], "") for k in net["cards"]))
+    target = next(n["id"] for n in net["nodes"] if "총무팀" in n["label"])
+    n2 = c.call("POST", f"/api/handovers/{hid}/knowhow", {"target": target, "kind": "사전 협의", "text": "보험 갱신은 문가은 주임에게 11월 첫 주에 미리 연락"})
+    mine = [k for k in n2["cards"] if not k["auto"]]
+    yield "노하우 카드 직접 쓰기(이름은 역할로 바뀜)", len(mine) == 1 and "문가은" not in mine[0]["text"] and mine[0]["target"] == target
+    n3 = c.call("POST", f"/api/handovers/{hid}/knowhow/{pre[0]['id']}/delete", {})
+    yield "노하우 카드 숨기기", all(k["id"] != pre[0]["id"] for k in n3["cards"]) and \
+        c.status("POST", f"/api/handovers/{hid}/knowhow", {"text": " "}) == 400
+    # 지식 릴레이: 1대(모의 바통) → 2대 → 3대 (계보도 사람 이름 대신 세대 이름)
+    yield "지식 릴레이: 모의 바통 파일 이어받기", any(it.get("carried") for it in s["schedule"])
     b = c.call("POST", f"/api/handovers/{hid}/baton", {}, raw=True)
     bj = json.loads(b)
-    yield f"바통 파일 저장({len(bj['lineage'])}대, 질의응답 {len(bj['interview'])}건)", len(bj["lineage"]) == 2 and len(bj["interview"]) == 2
+    yield (f"바통 파일 저장({len(bj['lineage'])}대, 질의응답 {len(bj['interview'])}건, 노하우 포함)",
+           [x["name"] for x in bj["lineage"]] == ["1대 담당자", "2대 담당자"] and len(bj["interview"]) == len(h["draft"]["carried_interview"])
+           and any(n["text"].startswith("[노하우") for n in bj["notes"]))
     import base64
     h3 = c.call("POST", "/api/handovers", {"source": {"kind": "upload", "files": [
-        {"path": "인계/업무바통_2대_김도윤.baton", "b64": base64.b64encode(b).decode()},
-        {"path": "인계/메모.txt", "b64": base64.b64encode("2027년 3월 16일 상반기 정기 안전점검 착수".encode()).decode()}]},
-        "successor": "박다음"})
+        {"path": "인계/업무바통_2대.baton", "b64": base64.b64encode(b).decode()},
+        {"path": "인계/메모.txt", "b64": base64.b64encode("2027년 3월 16일 상반기 정기 안전점검 착수".encode()).decode()}]}})
     d3 = h3["draft"]
-    yield "3대 인수인계: 계보·항목·질의응답 이어받기", [x["name"] for x in d3["lineage"]] == ["최선우", "김도윤"] and \
-        len(d3["carried_interview"]) == 2 and sum(1 for k in d3["sections"] for it in d3["sections"][k] if it.get("carried")) > 10
+    yield "3대 인수인계: 계보·항목·질의응답 이어받기", [x["name"] for x in d3["lineage"]] == ["1대 담당자", "2대 담당자"] and \
+        len(d3["carried_interview"]) == len(h["draft"]["carried_interview"]) and sum(1 for k in d3["sections"] for it in d3["sections"][k] if it.get("carried")) > 10
     # 적대적 검증에서 나온 문제 재발 방지
     nf = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "수영장 비밀번호 뭐야?"})
     yield "AI 분신: 겹치는 낱말만 있는 엉뚱한 질문은 '모름'", nf["found"] is False
-    q11 = c.call("POST", f"/api/handovers/{hid}/questions", {"q": "11월에 할 일은?"})
-    c.call("POST", f"/api/handovers/{hid}/questions/{q11['id']}/answer", {"answer": "11월에는 동절기 점검을 합니다."})
-    a12 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "12월에 할 일은?"})
-    yield "AI 분신: 숫자가 다른 질문에 다른 답을 재사용하지 않음", a12["mode"] != "전임자 직접 답변"
     cf = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "착공일 언제야?"})
     yield "AI 분신: 자료끼리 다른 내용은 답에 함께 알림", "⚠" in cf["answer"]
     yield "잘못된 요청은 500 대신 400", all(c.status(*x) == 400 for x in [
         ("POST", f"/api/handovers/{hid}/manual", {"start": "2026-13-01"}), ("POST", f"/api/handovers/{hid}/ask", [1]),
-        ("POST", f"/api/handovers/{hid}/questions", [1])])
+        ("POST", f"/api/handovers/{hid}/knowhow", [1])])
     yield "DNS 리바인딩 차단(도메인 Host 거부)", c.status("GET", "/api/handovers", headers={"Host": "evil.example"}) == 403
-    # 소통 창구: AI 답 확인 요청 → 전임자 확인/바로잡기 → 같은 질문에 전임자 답, 메시지·답장
-    ans = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "민원 처리 기한은?"})
-    t1 = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "확인 요청", "by": "후임자",
-                                                           "ai": {"q": "민원 처리 기한은?", "answer": ans["answer"], "sources": ans["sources"]}})
-    yield "소통 창구: 후임자 쪽에서는 AI 답 확인 처리 불가", c.status("POST", f"/api/handovers/{hid}/threads/{t1['id']}/resolve",
-                                                         {"by": "후임자", "action": "confirm"}) == 403
-    c.call("POST", f"/api/handovers/{hid}/threads/{t1['id']}/resolve", {"by": "전임자", "action": "confirm"})
-    again = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "민원 처리 기한은?"})
-    yield "소통 창구: 전임자가 확인한 AI 답을 그대로 씀", again["mode"] == "전임자 직접 답변" and "확인" in again["answer"]
-    ans2 = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "정민재 연락처"})
-    t2 = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "확인 요청", "by": "후임자", "ai": {"q": "정민재 연락처", "answer": ans2["answer"]}})
-    c.call("POST", f"/api/handovers/{hid}/threads/{t2['id']}/resolve", {"by": "전임자", "action": "correct", "text": "새 번호 010-0000-9081로 연락하세요."})
-    fixed = c.call("POST", f"/api/handovers/{hid}/ask", {"q": "정민재 연락처"})
-    yield "소통 창구: 전임자가 바로잡은 답으로 응답", "010-0000-9081로 연락하세요" in fixed["answer"]
-    m = c.call("POST", f"/api/handovers/{hid}/threads", {"kind": "메시지", "by": "후임자", "title": "인사", "text": "다음 주에 뵙겠습니다."})
-    m = c.call("POST", f"/api/handovers/{hid}/threads/{m['id']}/reply", {"by": "전임자", "text": "네, 화요일 10시 어떠세요?"})
-    md = c.call("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
-    yield "소통 창구: 메시지·답장, 인수인계서에 소통 기록", len(m["messages"]) == 2 and "후임자와의 소통 기록" in md
     # 인수인계 순서도: 단계 상태가 실제 진행에 맞게 바뀌는지, 문서에 들어가는지
     f0 = c.call("GET", f"/api/handovers/{hid}/flow")
-    c.call("POST", f"/api/handovers/{hid}/review", {"confirmed": True, "by": "김도윤"})
+    c.call("POST", f"/api/handovers/{hid}/review", {"confirmed": True, "comment": "계약팀 강민호 주임에게 먼저 인사하세요"})
     f1 = c.call("GET", f"/api/handovers/{hid}/flow")
     st = lambda f, k: next(x["status"] for x in f["steps"] if x["key"] == k)
     md2 = c.call("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}, raw=True).decode("utf-8")
-    man = c.call("POST", f"/api/handovers/{hid}/export/manual?fmt=md", {}, raw=True).decode("utf-8")
+    man = c.call("POST", f"/api/handovers/{hid}/export/manual?fmt=md", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield (f"인수인계 순서도({f1['done']}/{f1['total']}단계, 지금: {f1['current']})",
-           st(f0, "confirm") != "완료" and st(f1, "confirm") == "완료" and st(f1, "baton") == "완료"
+           st(f0, "confirm") != "완료" and st(f1, "confirm") == "완료" and st(f1, "baton") == "완료" and st(f1, "ask") == "완료"
            and "인수인계 순서도" in md2 and "착임 후 순서도" in man)
-    # 뒤죽박죽 최소자료: 사진·스캔본·ZIP·중복·빈 파일·옛 형식이 섞여도 정리해서 읽고, 모자란 영역은 전임자에게 묻는다
-    mh = c.call("POST", "/api/handovers", {"source": {"kind": "sample_messy"}, "successor": "새담당"})
+    yield "인수인계서·매뉴얼에 리스크 레이더·네트워크·노하우", all(k in md2 for k in ("D-Day 리스크 레이더", "부임 첫 주에 해야 할 일", "협업 네트워크", "노하우 카드")) \
+        and "감사 지적 우려 계약" in man
+    # 이름이 어디에도 남지 않는지: 내려받은 문서·바통·답·네트워크·저장 데이터
+    names = ["김도윤", "최선우", "정민재", "박서연", "강민호", "문가은", "오세영", "정하은", "최현우", "이정훈", "박정우"]
+    outs = md2 + man + b.decode("utf-8") + json.dumps(c.call("GET", f"/api/handovers/{hid}/network"), ensure_ascii=False) + \
+        json.dumps(c.call("GET", f"/api/handovers/{hid}"), ensure_ascii=False) + a3["answer"]
+    leaked = sorted({n for n in names if n in outs})
+    yield f"개인정보: 사람 이름 노출 0건{' (노출: ' + ','.join(leaked) + ')' if leaked else ''}", not leaked and "010-0000-9081" not in outs
+    # 뒤죽박죽 최소자료: 사진·스캔본·ZIP·중복·빈 파일·옛 형식이 섞여도 정리해서 읽고, 모자란 영역은 면담 질문지로
+    mh = c.call("POST", "/api/handovers", {"source": {"kind": "sample_messy"}})
     reasons = " ".join(x["reason"] for x in mh["skipped"])
     files = [x["relpath"] for x in mh["draft"]["docs"]]
     yield (f"뒤죽박죽 자료 정리(읽음 {len(files)}, 건너뜀 {len(mh['skipped'])})",
            all(k in reasons for k in ("같은 내용", "빈 파일", ".xls", "heic", "임시·시스템"))
            and any(f.startswith("옛날자료.zip/") for f in files) and any(f.endswith(".jpg") for f in files))
     cov = {c_["name"]: c_["level"] for c_ in mh["draft"]["coverage"]}
-    g1 = c.call("POST", f"/api/handovers/{mh['id']}/gaps/ask", {})
-    g2 = c.call("POST", f"/api/handovers/{mh['id']}/gaps/ask", {})
-    yield (f"충실도 점검({sum(v == '충분' for v in cov.values())}/7 충분) → 모자란 {g1['created']}개 영역 전임자에게 질문",
-           len(cov) == 7 and mh["draft"]["predecessor"] == "박정우" and g1["created"] == sum(v != "충분" for v in cov.values()) and g2["created"] == 0)
+    yield (f"충실도 점검({sum(v == '충분' for v in cov.values())}/7 충분)",
+           len(cov) == 7 and mh["draft"]["predecessor"] == "전임자" and any(v != "충분" for v in cov.values()))
     # 표준 인수인계서(필수 5대 영역): 자료로 채우기 → 저장 → 한글 내보내기, 법령 API는 인증값 없으면 안내
     fm = c.call("GET", f"/api/handovers/{mh['id']}/form")["form"]
     sv = c.call("POST", f"/api/handovers/{mh['id']}/form", {"form": fm})

@@ -73,9 +73,7 @@ def flow_steps(h):
     docs = d.get("docs", [])
     failed = len(h.get("skipped") or [])
     batons = sum(1 for x in docs if x.get("ext") == ".baton")
-    qs = h.get("questions") or []
-    ths = h.get("threads") or []
-    waiting = sum(1 for q in qs if q.get("status") == "대기") + sum(1 for t in ths if t.get("status") == "대기")
+    asked = h.get("asked", 0)
     confirmed = bool(rv.get("confirmed"))
     steps = [
         {"key": "collect", "name": "자료 모으기", "who": "전임자", "tab": "docs", "status": DONE,
@@ -96,10 +94,10 @@ def flow_steps(h):
          "status": DONE if confirmed else TODO,
          "detail": f"{rv.get('by', '')} · {str(rv.get('at', ''))[:10]}" if confirmed else "전임자 확인 전(초안)",
          "next": "'전임자 확인 완료' 누르기"},
-        {"key": "talk", "name": "후임자 질의·소통", "who": "후임자·전임자", "tab": "talk",
-         "status": NOW if waiting else (DONE if confirmed and (qs or ths) else TODO),
-         "detail": f"질문 {len(qs)} · 소통 {len(ths)}" + (f" · 답변 대기 {waiting}" if waiting else ""),
-         "next": f"답변 대기 {waiting}건 처리" if waiting else "AI 분신에게 묻고, 필요하면 전임자에게 확인 요청"},
+        {"key": "ask", "name": "AI 분신 질의", "who": "후임자", "tab": "ask",
+         "status": DONE if asked else TODO,
+         "detail": f"AI 분신에게 물은 질문 {asked}건" if asked else "아직 질문 없음",
+         "next": "모르는 건 AI 전임자 분신에게 묻기(자료에 없으면 물어볼 협업 상대를 알려 줌)"},
         {"key": "baton", "name": "바통 넘기기", "who": "전임자", "tab": "draft",
          "status": DONE if h.get("baton_saved_at") else TODO,
          "detail": f"바통 파일 저장 {str(h.get('baton_saved_at'))[:10]}" if h.get("baton_saved_at") else "다음 담당자용 .baton 미저장",
@@ -152,19 +150,23 @@ def coverage_blocks(cov):
              [2, 1, 2, 5])]
 
 
-def handover_blocks(h):
+def handover_blocks(h, net=None, rd=None):
+    import network
+    import radar
     d = h["draft"]
     S = d["sections"]
     rv = h.get("review", {})
+    rd = rd or radar.build(h)
+    net = net or network.build(h, [])
     blocks = [("title", f"인수인계서 ({h.get('title') or '업무 인수인계'})"),
               ("table", ["구분", "내용"], [
-                  ["전임자", d.get("predecessor") or "-"],
-                  ["후임자", h.get("successor") or "-"],
+                  ["인계", "전임자 → 후임자 (개인정보 보호를 위해 사람 이름은 적지 않음)"],
                   ["작성일", h.get("created", "")[:10]],
                   ["전임자 확인", f"확인 완료 ({rv.get('by', '')}, {rv.get('at', '')})" if rv.get("confirmed") else "검토 중(초안)"],
                   ["작성 방식", d.get("engine", "")],
               ], [1, 3]),
               *flow_blocks(flow_steps(h)),
+              *radar.blocks(rd),
               *coverage_blocks(d.get("coverage") or []),
               ("h1", "1. 업무 개요"), ("p", d.get("overview", "")),
               ("h1", "2. 담당 업무(R&R)"),
@@ -177,10 +179,8 @@ def handover_blocks(h):
               ("table", ["현안", "상태", "다음 할 일", "기한", "근거"],
                [[i["title"], i.get("state", ""), i.get("next_action", ""), i.get("due", ""), _src(i)] for i in live(S["issues"])],
                [3, 1, 3, 1, 2]),
-              ("h1", "5. 협의 연락망"),
-              ("table", ["이름", "소속", "직위", "연락처", "협의 업무", "근거"],
-               [[c["name"], c.get("org", ""), c.get("title", ""), "\n".join(c.get("phones", []) + c.get("emails", [])),
-                 "\n".join(c.get("topics", [])[:2]), _src(c)] for c in live(S["contacts"])], [1, 2, 1, 2, 3, 2]),
+              ("h1", "5. 협업 네트워크와 노하우"),
+              *network.blocks_for_doc(net),
               ("h1", "6. 확인이 필요한 사항"),
               ("table", ["구분", "내용", "처리"], [[f["type"], f["message"], ("해결: " + f.get("note", "")) if f.get("resolved") else "미해결"]
                                                for f in d["flags"]], [1, 5, 2]),
@@ -188,21 +188,6 @@ def handover_blocks(h):
               ("table", ["자료", "종류", "요약"], [[x["relpath"], x.get("kind", ""), x.get("summary", "")] for x in d["docs"]], [3, 1, 4]),
               ("note", "※ 각 항목의 근거는 원문 파일과 위치를 표시한 것입니다. 이 문서는 업무바통 도구로 작성한 초안을 전임자가 검토한 결과입니다.")]
     n = 8
-    qa = answered_questions(h)
-    if qa:
-        blocks.insert(-1, ("h1", f"{n}. 전임자 질의응답"))
-        blocks.insert(-1, ("table", ["질문(후임자)", "답변(전임자)", "답변일"], [[q["q"], q["answer"], q.get("answered_at", "")[:10]] for q in qa], [3, 4, 1]))
-        n += 1
-    threads = h.get("threads") or []
-    if threads:
-        rows = []
-        for t in threads:
-            last = (t.get("messages") or [{}])[-1]
-            rows.append([t.get("kind", ""), t.get("title", ""), t.get("status", ""),
-                         f"{last.get('by', '')}: {last.get('text', '')}" if last else "", t.get("created", "")[:10]])
-        blocks.insert(-1, ("h1", f"{n}. 후임자와의 소통 기록"))
-        blocks.insert(-1, ("table", ["구분", "내용", "처리", "마지막 말", "시작일"], rows, [1, 3, 1, 4, 1]))
-        n += 1
     comments = rv.get("comments") or []
     if comments:
         blocks.insert(-1, ("h1", f"{n}. 전임자 메모"))
@@ -211,14 +196,10 @@ def handover_blocks(h):
     lineage = d.get("lineage") or []
     if lineage:
         rows = [[f"{i}대", x.get("name", ""), x.get("handed_to", ""), x.get("date", "")] for i, x in enumerate(lineage, 1)]
-        rows.append([f"{len(lineage) + 1}대", d.get("predecessor") or "-", h.get("successor") or "-", "이번 인수인계"])
+        rows.append([f"{len(lineage) + 1}대", f"{len(lineage) + 1}대 담당자(전임자)", f"{len(lineage) + 2}대 담당자(후임자)", "이번 인수인계"])
         blocks.insert(-1, ("h1", f"{n}. 업무 계보(지식 릴레이)"))
         blocks.insert(-1, ("table", ["세대", "담당자", "넘겨받은 사람", "인계일"], rows, [1, 2, 2, 2]))
     return blocks
-
-
-def answered_questions(h):
-    return [q for q in h.get("questions") or [] if q.get("status") == "답변" and q.get("answer")]
 
 
 # ---------------------------------------------------------------- 지식 릴레이: 바통 파일(.baton)
@@ -230,9 +211,10 @@ def build_baton(h):
     담당자 계보를 담는다. 1대 → 2대 → 3대로 넘어갈수록 기관의 업무 지식이 쌓인다."""
     d = h["draft"]
     S = d["sections"]
-    holder = d.get("predecessor") or "전임자"
     lineage = [dict(x) for x in d.get("lineage") or []]
-    lineage.append({"name": holder, "handed_to": h.get("successor") or "", "date": date.today().isoformat(),
+    # 사람 이름 대신 세대 이름(1대·2대 담당자)으로 넘긴다
+    holder = f"{len(lineage) + 1}대 담당자"
+    lineage.append({"name": holder, "handed_to": f"{len(lineage) + 2}대 담당자", "date": date.today().isoformat(),
                     "work": h.get("title") or ""})
     for i, x in enumerate(lineage, 1):
         x["gen"] = i
@@ -250,9 +232,9 @@ def build_baton(h):
         sections[sec] = out
     rv = h.get("review") or {}
     interview = [dict(x) for x in d.get("carried_interview") or []]
-    interview += [{"q": q["q"], "a": q["answer"], "by": holder, "at": q.get("answered_at", "")} for q in answered_questions(h)]
     notes = [dict(x) for x in d.get("carried_notes") or []]
     notes += [{"text": c["text"], "by": holder, "at": c.get("at", "")} for c in rv.get("comments") or []]
+    notes += [{"text": f"[노하우 · {k.get('kind', '요령')}] {k['text']}", "by": holder, "at": k.get("at", "")} for k in h.get("knowhow") or []]
     notes += [{"text": f"확인 결과: {f['message']} → {f['note']}", "by": holder, "at": ""}
               for f in d.get("flags", []) if f.get("resolved") and f.get("note")]
     return {
@@ -261,7 +243,7 @@ def build_baton(h):
         "exported_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "work": h.get("title") or "",
         "holder": holder,
-        "handed_to": h.get("successor") or "",
+        "handed_to": f"{len(lineage) + 1}대 담당자",
         "confirmed": bool(rv.get("confirmed")),
         "lineage": lineage,
         "sections": sections,
@@ -482,7 +464,7 @@ def build_manual(h, successor="", career="신규", start=None):
         if s.get("timing") == "기한 지남" and len(week1) < 5 and not any(s["task"] in w for w in week1):
             week1.append(f"[기한 지남] {s['task']}: 처리됐는지 확인")
     for c in contacts[:4]:
-        week1.append(f"{c['name']} {c.get('title', '')}({c.get('org', '')})에게 인사·업무 확인: {', '.join(c.get('topics', [])[:1])}")
+        week1.append(f"{c['name']}에게 인사·업무 확인: {', '.join(c.get('topics', [])[:1])}")
     week1.append("확인 필요 사항(인수인계서 6장)을 전임자와 함께 정리")
     unresolved = [f for f in d["flags"] if not f.get("resolved")]
     terms = []
@@ -497,10 +479,12 @@ def build_manual(h, successor="", career="신규", start=None):
 
 
 def manual_blocks(h, m):
-    title = f"{m['successor'] or '후임자'}님을 위한 업무매뉴얼"
+    import radar
+    title = "후임자 업무매뉴얼"
     b = [("title", title),
          ("p", f"착임일 {m['start']} · {'신규 담당자' if m['career'] == '신규' else '경력 담당자'} 기준으로 정리했습니다. "
-               f"전임자 {h['draft'].get('predecessor', '')}의 자료와 인수인계 검토 결과를 근거로 합니다."),
+               "전임자의 자료와 인수인계 검토 결과를 근거로 합니다."),
+         *radar.blocks(m.get("radar") or radar.build(h, date.fromisoformat(m["start"]))),
          ("h2", "착임 후 순서도"),
          ("table", [f"{x['name']}" + (" →" if i < 3 else "") for i, x in enumerate(m["flow"])],
           [[x["what"] for x in m["flow"]], [x["detail"] for x in m["flow"]]], [1, 1, 1, 1]),
@@ -519,10 +503,10 @@ def manual_blocks(h, m):
           ("table", ["현안", "남은 기간", "다음 할 일", "근거"],
            [[i["title"], ("기한 지남" if (i["days_left"] or 0) < 0 else f"D-{i['days_left']}") if i["days_left"] is not None else "기한 없음",
              i.get("next_action", ""), _src(i, 1)] for i in m["issues"]], [3, 1, 3, 2]),
-          ("h1", "5. 꼭 알아둘 연락처"),
-          ("table", ["이름", "소속·직위", "연락처", "이럴 때 연락"],
-           [[c["name"], f"{c.get('org', '')} {c.get('title', '')}", ", ".join(c.get("phones", [])), ", ".join(c.get("topics", [])[:2])]
-            for c in m["contacts"]], [1, 2, 2, 3])]
+          ("h1", "5. 꼭 알아둘 협업 상대"),
+          ("table", ["협업 상대(역할)", "연락처", "이럴 때 연락"],
+           [[c["name"], ", ".join(c.get("phones", [])), ", ".join(c.get("topics", [])[:2])]
+            for c in m["contacts"]], [2, 2, 3])]
     if m["unresolved"]:
         b += [("h1", "6. 아직 확인되지 않은 내용 (주의)")] + [("bullet", f"[{f['type']}] {f['message']}") for f in m["unresolved"]]
     if m["terms"]:
@@ -668,8 +652,8 @@ def form_blocks(h, f):
     b += [("h1", FORM_AREAS[4][1]), ("h2", "가. 보관 문서"),
           ("table", ["문서명", "구분", "보관 위치"], [[x["name"], x["kind"], x["where"]] for x in f["a5"].get("docs", [])] or [["-"] * 3], [3, 1, 4]),
           ("h2", "나. 주요 연락처"),
-          ("table", ["이름", "소속", "직위", "연락처", "관련 업무"],
-           [[x["name"], x["org"], x["title"], x["phone"], x["topic"]] for x in f["a5"].get("contacts", [])] or [["-"] * 5], [1, 2, 1, 2, 3])]
+          ("table", ["협업 상대(역할)", "소속", "직위", "연락처", "관련 업무"],
+           [[x["name"], x["org"], x["title"], x["phone"], x["topic"]] for x in f["a5"].get("contacts", [])] or [["-"] * 5], [2, 2, 1, 2, 3])]
     b += [("p", "위와 같이 업무를 인계·인수합니다."),
           ("p", f"{m.get('date') or ''}"),
           ("table", ["구분", "직위", "성명", "서명"], [
