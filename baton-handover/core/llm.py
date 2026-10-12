@@ -144,6 +144,26 @@ class LLM:
         except (KeyError, IndexError, TypeError):
             raise LLMError(f"예상하지 못한 응답 형식: {str(data)[:200]}")
 
+    def see(self, image_b64, prompt, max_tokens=2048):
+        """이미지(PNG base64)를 보여 주고 답을 받는다(비전 모델). 사진·스캔본 글자 읽기에 쓴다."""
+        if not self.enabled:
+            raise LLMError("모델이 설정되지 않았습니다")
+        base = self.cfg.get("base_url", "").rstrip("/")
+        if self.provider == "ollama":
+            data = self._post(base.removesuffix("/v1") + "/api/chat", {
+                "model": self.cfg["model"], "stream": False, "options": {"temperature": 0, "num_predict": max_tokens},
+                "messages": [{"role": "user", "content": prompt, "images": [image_b64]}]})
+            return strip_think(data.get("message", {}).get("content", "") or "")
+        data = self._post(base + "/chat/completions", {
+            "model": self.cfg["model"], "temperature": 0, "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image_b64}}]}]})
+        try:
+            return strip_think(data["choices"][0]["message"].get("content") or "")
+        except (KeyError, IndexError, TypeError):
+            raise LLMError(f"예상하지 못한 응답 형식: {str(data)[:200]}")
+
     def models(self):
         """연결한 서버가 제공하는 모델 이름 목록 (OpenAI 호환 /models, Ollama /api/tags)."""
         base = self.cfg.get("base_url", "").rstrip("/")

@@ -23,6 +23,8 @@ DEFAULT = {
         "api_key_env": "LLM_API_KEY",
         "temperature": 0.1,
         "timeout": 120,
+        # 사진·스캔본 글자 읽기에 모델을 쓸지: auto(이미지를 보는 모델 이름이면 사용) / true / false
+        "vision": "auto",
     },
 }
 
@@ -77,7 +79,7 @@ class Config:
         return p
 
     def update_llm(self, values):
-        allowed = {"provider", "base_url", "model", "api_key_env", "temperature", "timeout"}
+        allowed = {"provider", "base_url", "model", "api_key_env", "temperature", "timeout", "vision"}
         for k, v in values.items():
             if k in allowed:
                 self.data["llm"][k] = v

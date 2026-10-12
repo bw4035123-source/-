@@ -182,6 +182,17 @@ pre.doc { background: var(--fill-2); border: 1px solid var(--line); }
 .pv-toggle:hover { background: #e9ecef; }
 .pv-toggle.on:hover { background: #d9f1e6; }
 
+/* ── 충실도 점검·자료 정리 카드 ── */
+.cov { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; align-items: start; }
+.cov-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--fill-2); min-width: 0; }
+.cov-card b { font-size: 14px; font-weight: 700; color: var(--ink); }
+.cov-card.ok { border-left: 3px solid var(--ok); }
+.cov-card.warn { border-left: 3px solid var(--warn); }
+.cov-card.bad { border-left: 3px solid var(--bad); }
+.cov-card.gray { border-left: 3px solid var(--line-strong); }
+.cov-card summary { cursor: pointer; color: var(--ink-2); list-style: revert; }
+.cov-card .chip { max-width: 100%; }
+
 /* ── 인수인계 순서도 ── */
 .flow { display: flex; align-items: stretch; gap: 0; margin: 16px 0 12px; overflow-x: auto; padding-bottom: 4px; }
 .flow .fstep { flex: 1 1 0; min-width: 118px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;

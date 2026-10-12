@@ -279,6 +279,7 @@ function renderDraft() {
   const flowBox = el("div", { class: "panel flow-panel" }, el("span", { class: "spinner" }));
   sec.children[0].after(flowBox);
   renderFlow(flowBox);
+  if ((d.coverage || []).length) flowBox.after(renderCoverage());
   if (waiting.length || (H.questions || []).length) sec.append(renderInbox());
   sec.append(renderRelay());
   if (!rv.confirmed) sec.append(el("p", { class: "small muted" }, "표의 내용을 눌러 바로 고칠 수 있습니다. 맞는 항목은 '확인', 틀린 항목은 '삭제'를 누르세요. 근거 칩을 누르면 원문 위치가 보입니다."));
@@ -290,6 +291,32 @@ function renderDraft() {
       if (!memo.value.trim()) return;
       H = await api("POST", `/api/handovers/${H.id}/review`, { comment: memo.value.trim() }); renderDraft();
     } }, "메모 저장")));
+}
+
+// 인수인계 충실도 점검: 기본 7개 영역마다 자료가 충분한지, 모자란 영역은 전임자에게 한 번에 묻기
+function renderCoverage() {
+  const cov = H.draft.coverage || [];
+  const ok = cov.filter(c => c.level === "충분").length;
+  const gaps = cov.filter(c => c.level !== "충분");
+  const asked = new Set((H.questions || []).map(q => q.q));
+  const pending = gaps.filter(c => !asked.has(`[${c.name}] ${c.question}`));
+  const lv = { "충분": "ok", "부족": "warn", "없음": "bad" };
+  return el("div", { class: "panel" },
+    el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "인수인계 충실도 점검"),
+      el("span", { class: "tag " + (ok === cov.length ? "ok" : "warn") }, `${ok}/${cov.length} 영역 충분`)),
+    el("p", { class: "small muted", style: { margin: "6px 0 12px" } },
+      "자료를 대충 모아 넣어도 후임자가 일할 수 있도록, 인수인계서에 꼭 있어야 할 7개 영역을 점검합니다. 모자란 영역은 전임자에게 물을 질문을 만들어 둡니다."),
+    el("div", { class: "cov" }, cov.map(c => el("div", { class: "cov-card " + lv[c.level], title: c.question || "자료가 충분합니다" },
+      el("div", { class: "row", style: { gap: "6px" } }, el("b", {}, c.name), el("span", { class: "tag " + lv[c.level] }, c.level)),
+      el("span", { class: "small muted" }, c.note),
+      c.sources && c.sources.length ? el("div", {}, citeChips(c.sources.slice(0, 1), CTX())) : null))),
+    gaps.length ? el("div", { class: "row", style: { marginTop: "12px" } },
+      el("button", { class: "primary", disabled: !pending.length || null, onclick: async () => {
+        const r = await api("POST", `/api/handovers/${H.id}/gaps/ask`, {});
+        H = await api("GET", `/api/handovers/${H.id}`); renderAll();
+        toast(`모자란 ${r.created}개 영역을 전임자에게 물었습니다. 전임자가 답하면 AI 분신이 그 답을 근거로 씁니다.`);
+      } }, pending.length ? `모자란 ${pending.length}개 영역 전임자에게 한 번에 묻기` : "모두 물어봤어요 · 전임자 답변 대기"),
+      el("span", { class: "small muted" }, "질문은 '후임자가 보낸 질문'에 올라가고, 답은 인수인계서·바통 파일에 남습니다.")) : null);
 }
 
 // 인수인계 순서도: 단계마다 완료·진행 중·예정과 근거 숫자, 누르면 해당 화면으로
@@ -446,12 +473,29 @@ function renderDocs() {
   const sec = $("#tab-docs");
   if (needH(sec)) return;
   sec.innerHTML = "";
-  const kinds = { "이전 인수인계서": "ok", "공식문서": "ok", "메일": "info", "개인메모": "warn", "참고자료": "gray", "읽기 실패": "bad" };
+  const kinds = { "이전 인수인계서": "ok", "공식문서": "ok", "메일": "info", "개인메모": "warn", "사진": "info", "참고자료": "gray", "읽기 실패": "bad" };
+  // 뒤죽박죽 자료 정리 결과: 건너뛴 이유별로 묶어서 보여 준다
+  const groups = {};
+  (H.skipped || []).forEach(x => {
+    const k = /같은 내용/.test(x.reason) ? "중복이라 뺌" : /빈 파일/.test(x.reason) ? "빈 파일" : /임시·시스템/.test(x.reason) ? "임시·시스템 파일"
+      : /97~2003|heic|압축은 풀지|서식 파일/.test(x.reason) ? "형식 바꿔 다시 넣기" : "읽지 못함";
+    (groups[k] = groups[k] || []).push(x);
+  });
+  const photos = H.draft.docs.filter(x => x.meta && (x.meta.image || x.meta.scanned_pages));
   sec.append(el("div", { class: "panel" }, el("h2", {}, `인계 자료 (${H.draft.docs.length}건)`),
     el("p", { class: "small muted" }, `가져온 곳: ${H.source.kind} ${H.source.path || ""} · 원본은 읽기만 했고 수정하지 않았습니다.`),
+    (H.skipped || []).length || photos.length ? el("div", { class: "cov", style: { marginBottom: "14px" } },
+      el("div", { class: "cov-card ok" }, el("b", {}, "읽은 자료"), el("span", { class: "small muted" }, `${H.draft.docs.filter(x => !x.error).length}개`)),
+      photos.length ? el("div", { class: "cov-card " + (photos.some(x => x.meta.ocr_error) ? "warn" : "ok") }, el("b", {}, "사진·스캔본"),
+        el("span", { class: "small muted" }, `${photos.length}개 · 글자 읽음 ${photos.filter(x => !x.meta.ocr_error).length}개`)) : null,
+      Object.entries(groups).map(([k, xs]) => el("details", { class: "cov-card " + (k === "읽지 못함" || k === "형식 바꿔 다시 넣기" ? "warn" : "gray") },
+        el("summary", {}, el("b", {}, k), ` ${xs.length}개`),
+        el("ul", { class: "small", style: { margin: "6px 0 0", paddingLeft: "16px" } }, xs.map(x => el("li", {}, `${x.file}: ${x.reason}`)))))) : null,
     el("table", { class: "t" }, el("tr", {}, el("th", {}, "파일"), el("th", {}, "구분"), el("th", {}, "형식"), el("th", {}, "요약"), el("th", {}, "")),
       H.draft.docs.map(d => el("tr", {}, el("td", {}, d.relpath), el("td", {}, el("span", { class: "tag " + (kinds[d.kind] || "gray") }, d.kind)),
-        el("td", {}, d.ext), el("td", { class: "small" }, d.summary),
+        el("td", {}, d.ext), el("td", { class: "small" }, d.summary,
+          d.meta && (d.meta.image || d.meta.scanned_pages) ? el("div", { class: "small muted" },
+            d.meta.ocr_error ? `글자 못 읽음: ${d.meta.ocr_error}` : `글자 인식: ${d.meta.ocr_engine}` + (d.meta.taken ? ` · 찍은 날 ${d.meta.taken}` : "")) : null),
         el("td", {}, el("button", { class: "small", onclick: async () => {
           const r = await api("GET", `/api/handovers/${H.id}/document?file=${encodeURIComponent(d.relpath)}`);
           modal(d.relpath, el("pre", { class: "doc" }, r.blocks.map(b => `[${b.loc}] ${b.text}`).join("\n")));

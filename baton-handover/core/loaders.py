@@ -17,13 +17,30 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
-SUPPORTED = {".hwpx", ".hwp", ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx", ".eml", ".txt", ".md", ".csv", ".baton"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".webp"}
+SUPPORTED = {".hwpx", ".hwp", ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx", ".eml", ".txt", ".md", ".csv", ".baton", ".zip"} | IMAGE_EXT
+
+# 사진·스캔본 글자 읽기(core/ocr.py 의 make()가 돌려주는 함수). 앱이 시작할 때 넣는다. 없으면 사진은 '글자 못 읽음'으로 남는다
+OCR = None
+OCR_LIMIT = 200          # 한 번에 글자를 읽을 사진·스캔 쪽 수 상한
+ZIP_MAX_BYTES = 300 * 1024 * 1024
+ZIP_MAX_FILES = 3000
+JUNK = {"thumbs.db", "desktop.ini", ".ds_store"}
+OLD_FORMATS = {
+    ".ppt": "파워포인트 97~2003 형식(.ppt)은 읽지 못합니다. PowerPoint에서 .pptx로 저장해 넣어 주세요",
+    ".xls": "엑셀 97~2003 형식(.xls)은 읽지 못합니다. 엑셀에서 .xlsx로 저장해 넣어 주세요",
+    ".doc": "워드 97~2003 형식(.doc)은 읽지 못합니다. 워드에서 .docx로 저장해 넣어 주세요",
+    ".heic": "아이폰 사진(.heic)은 읽지 못합니다. JPG로 바꿔 넣어 주세요(사진 앱에서 '호환성 우선' 설정)",
+    ".hwt": "한글 서식 파일(.hwt)은 내용이 없는 틀이라 건너뜁니다",
+    ".7z": "7z 압축은 풀지 못합니다. ZIP으로 압축해 넣어 주세요",
+    ".rar": "RAR 압축은 풀지 못합니다. ZIP으로 압축해 넣어 주세요",
+    ".alz": "알집(.alz) 압축은 풀지 못합니다. ZIP으로 압축해 넣어 주세요",
+    ".egg": "알집(.egg) 압축은 풀지 못합니다. ZIP으로 압축해 넣어 주세요",
+}
 
 
 def skip_reason(ext):
-    if ext.lower() == ".ppt":
-        return "파워포인트 97~2003 형식(.ppt)은 읽지 못합니다. PowerPoint에서 .pptx로 저장해 넣어 주세요"
-    return "지원하지 않는 형식"
+    return OLD_FORMATS.get(ext.lower(), "지원하지 않는 형식")
 
 
 @dataclass
@@ -336,16 +353,60 @@ def _read_hwp(data, name):
 
 
 def _read_pdf(data, name):
+    """PDF 글자. 글자가 없는 쪽(스캔본)은 쪽 안의 그림을 글자 인식(OCR)으로 읽는다."""
     from pypdf import PdfReader
     r = PdfReader(io.BytesIO(data))
-    out = []
+    out, scanned, engines, errors = [], 0, set(), []
     for pno, page in enumerate(r.pages, 1):
         text = page.extract_text() or ""
+        if not text.strip():
+            try:
+                imgs = list(page.images)
+            except Exception:
+                imgs = []
+            if imgs:
+                scanned += 1
+                for img in imgs[:3]:
+                    res = _ocr(img.data)
+                    if res["engine"]:
+                        engines.add(res["engine"])
+                    elif res["error"]:
+                        errors.append(res["error"])
+                    for li, line in enumerate(res["text"].splitlines(), 1):
+                        t = _clean(line)
+                        if t:
+                            out.append((f"p.{pno} 스캔 {li}줄", t))
+                continue
         for li, line in enumerate(text.splitlines(), 1):
             t = _clean(line)
             if t:
                 out.append((f"p.{pno} {li}줄", t))
-    return out, []
+    meta = {}
+    if scanned:
+        meta = {"scanned_pages": scanned, "ocr_engine": ", ".join(sorted(engines)),
+                "ocr_error": "" if engines else (errors[0] if errors else "스캔본 글자를 읽지 못했습니다")}
+    return out, [], meta
+
+
+_ocr_budget = [OCR_LIMIT]
+
+
+def _ocr(data):
+    if OCR is None:
+        return {"text": "", "engine": "", "error": "글자 인식(OCR) 기능이 꺼져 있습니다"}
+    if _ocr_budget[0] <= 0:
+        return {"text": "", "engine": "", "error": f"사진·스캔 쪽이 {OCR_LIMIT}개를 넘어 나머지는 글자를 읽지 않았습니다"}
+    _ocr_budget[0] -= 1
+    return OCR(data)
+
+
+def _read_image(data, name):
+    """사진(현장 사진, 화이트보드, 메모지, 휴대폰으로 찍은 공문 등): 글자 인식 결과를 줄 단위로."""
+    res = _ocr(data)
+    items = [(f"사진 {i}줄", t) for i, t in enumerate((_clean(x) for x in res["text"].splitlines()), 1) if t]
+    meta = {"image": True, "ocr_engine": res.get("engine", ""), "ocr_error": "" if items else (res.get("error") or "사진에서 글자를 찾지 못했습니다"),
+            "taken": res.get("taken"), "size": f"{res.get('width')}x{res.get('height')}" if res.get("width") else ""}
+    return items, [], meta
 
 
 def _read_xlsx(data, name):
@@ -519,6 +580,7 @@ def _read_baton(data, name):
 
 
 READERS = {
+    **{e: _read_image for e in IMAGE_EXT},
     ".txt": _read_text, ".md": _read_text, ".csv": _read_csv,
     ".hwpx": _read_hwpx, ".hwp": _read_hwp, ".docx": _read_docx, ".pptx": _read_pptx,
     ".pdf": _read_pdf, ".xlsx": _read_xlsx, ".xlsm": _read_xlsx,
@@ -536,7 +598,10 @@ def load_bytes(data, relpath):
             items, tables, meta = (_read_eml if ext == ".eml" else _read_baton)(data, relpath)
             doc.meta.update(meta)
         elif ext in READERS:
-            items, tables = READERS[ext](data, relpath)
+            res = READERS[ext](data, relpath)
+            items, tables = res[0], res[1]
+            if len(res) > 2:
+                doc.meta.update(res[2])
         else:
             doc.error = "지원하지 않는 형식"
             return doc
@@ -561,16 +626,99 @@ def iter_folder(folder):
         yield rel, p
 
 
-def load_folder(folder):
-    docs, skipped = [], []
-    for rel, p in iter_folder(folder):
-        if p.suffix.lower() not in SUPPORTED:
-            skipped.append({"file": rel, "reason": skip_reason(p.suffix)})
+def _zip_name(zi):
+    """한국어 Windows에서 만든 ZIP은 파일 이름이 CP949로 들어 있다(UTF-8 표시가 없으면 CP949로 다시 읽음)."""
+    if zi.flag_bits & 0x800:
+        return zi.filename
+    try:
+        return zi.filename.encode("cp437").decode("cp949")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return zi.filename
+
+
+def _unzip(data, rel, skipped):
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except UnicodeDecodeError:
+        try:  # 이름이 UTF-8이라고 잘못 표시된 압축(일부 압축 프로그램): 한국어 Windows 인코딩으로 다시 읽는다
+            z = zipfile.ZipFile(io.BytesIO(data), metadata_encoding="cp949")
+        except Exception:
+            skipped.append({"file": rel, "reason": "압축 안 파일 이름을 읽지 못함"})
+            return
+    except Exception:
+        skipped.append({"file": rel, "reason": "깨진 압축 파일"})
+        return
+    total = 0
+    for i, zi in enumerate(z.infolist()):
+        if zi.is_dir():
             continue
-        with open(p, "rb") as f:  # 읽기 전용으로만 연다
-            data = f.read()
+        name = "/".join(x for x in _zip_name(zi).replace("\\", "/").split("/") if x not in ("", ".", ".."))
+        if i >= ZIP_MAX_FILES:
+            skipped.append({"file": rel, "reason": f"압축 안 파일이 {ZIP_MAX_FILES}개를 넘어 나머지는 건너뜀"})
+            return
+        if zi.flag_bits & 0x1:
+            skipped.append({"file": f"{rel}/{name}", "reason": "암호가 걸린 압축이라 열 수 없음"})
+            continue
+        total += zi.file_size
+        if total > ZIP_MAX_BYTES:
+            skipped.append({"file": rel, "reason": "압축을 푼 크기가 너무 커서(300MB 초과) 나머지는 건너뜀"})
+            return
+        try:
+            yield f"{rel}/{name}", z.open(zi).read(zi.file_size + 1)
+        except Exception as e:
+            skipped.append({"file": f"{rel}/{name}", "reason": f"압축 풀기 실패: {e}"})
+
+
+COPY_RX = re.compile(r"복사본|사본|copy|\(\d+\)\.[^.]+$", re.I)
+
+
+def load_entries(entries):
+    """(상대경로, 내용 읽는 함수) 목록을 읽는다. 뒤죽박죽 자료를 정리하며 읽는다:
+    ZIP은 풀어서(두 단계까지), 같은 내용 파일·빈 파일·임시/시스템 파일은 빼고, 옛 형식은 바꾸는 방법을 안내한다."""
+    import hashlib as _h
+    docs, skipped, seen = [], [], {}
+    _ocr_budget[0] = OCR_LIMIT
+
+    def handle(rel, data, depth):
+        name = rel.rsplit("/", 1)[-1]
+        ext = Path(name).suffix.lower()
+        if name.lower() in JUNK or name.startswith(("~$", "._")):
+            skipped.append({"file": rel, "reason": "임시·시스템 파일(자동으로 생긴 파일)이라 건너뜀"})
+            return
+        if not data:
+            skipped.append({"file": rel, "reason": "빈 파일"})
+            return
+        if ext == ".zip":
+            if depth >= 2:
+                skipped.append({"file": rel, "reason": "압축 안의 압축은 두 단계까지만 풉니다"})
+                return
+            for inner, inner_data in list(_unzip(data, rel, skipped)):
+                handle(inner, inner_data, depth + 1)
+            return
+        if ext not in SUPPORTED:
+            skipped.append({"file": rel, "reason": skip_reason(ext)})
+            return
+        digest = _h.sha1(data).hexdigest()
+        if digest in seen:
+            old = seen[digest]
+            if COPY_RX.search(old.rsplit("/", 1)[-1]) and not COPY_RX.search(name):
+                # 먼저 읽은 쪽이 '복사본'이면 원래 이름 파일을 남긴다
+                docs[:] = [x for x in docs if x.relpath != old]
+                skipped[:] = [x for x in skipped if x["file"] != old]
+                skipped.append({"file": old, "reason": f"같은 내용의 파일이 이미 있어 건너뜀({rel})"})
+            else:
+                skipped.append({"file": rel, "reason": f"같은 내용의 파일이 이미 있어 건너뜀({old})"})
+                return
+        seen[digest] = rel
         doc = load_bytes(data, rel)
         if doc.error:
             skipped.append({"file": rel, "reason": doc.error})
         docs.append(doc)
+
+    for rel, read in entries:
+        handle(rel, read(), 0)
     return docs, skipped
+
+
+def load_folder(folder):
+    return load_entries((rel, (lambda p=p: p.read_bytes())) for rel, p in iter_folder(folder))

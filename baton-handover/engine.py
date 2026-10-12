@@ -16,7 +16,7 @@ from core.textutil import (HEDGES, NOT_NAMES, extract_dates, find_emails, find_o
 ACTIONS = ["재계약", "입찰공고", "입찰", "공고", "착공", "준공", "제출", "보고", "통보", "점검", "검사", "재검사",
            "계약", "정산", "갱신", "교육", "회의", "게시", "의뢰", "요구", "확정", "신청", "실시", "협의", "평가",
            "마감", "납부", "집행", "등록", "검토", "만료", "종료", "정비", "교체", "보수", "발주", "검수"]
-ISSUE_WORDS = re.compile(r"진행\s*중|협의\s*중|검토\s*중|준비|예정|필요|요망|부탁|재확인|부적합|미정|확인할|해야|할 것|요청|지연|미완료|바랍니다|주십시오|검토하여")
+ISSUE_WORDS = re.compile(r"진행\s*중|협의\s*중|검토\s*중|준비|예정|필요|요망|부탁|재확인|부적합|미정|확인할|해야|할 것|할\s*일|요청|지연|미완료|미실시|미집행|바랍니다|주십시오|검토하여")
 RESOLVED = re.compile(r"적합\s*(판정|받음)|완료$|완료\s*\(|해결")
 DONE_WORDS = re.compile(r"^완료$|완료\s*$")
 GENERIC = {"용역", "공사", "계약", "관리", "유지", "유지관리", "시설", "업무", "결과", "보고", "제출", "점검", "검사",
@@ -47,6 +47,8 @@ def classify(doc):
     path = doc.relpath
     if doc.ext == ".baton":
         return "이전 인수인계서"
+    if doc.meta.get("image"):
+        return "사진"
     if doc.ext == ".eml":
         return "메일"
     if PERSONAL_PATH.search(path) or doc.ext in (".txt", ".md"):
@@ -219,6 +221,7 @@ class Extractor:
                 for rx in (r"([가-힣]{2,4})\s*(?:[가-힣]{1,4}\s*)?(?:의\s*)?(?:업무\s*)?(?:인수인계|인계)",
                            r"(?:인수인계|인계)[^\n(]{0,12}\(\s*([가-힣]{2,4})\s*[,)]",
                            r"담당\s*(?:자)?\s*[:：]?\s*([가-힣]{2,4})(?![가-힣])",
+                           r"작성\s*(?:자)?\s*[:：]\s*(?:[가-힣]{2,12}(?:팀|과|실|센터)\s+)?([가-힣]{2,4})(?![가-힣])",
                            r"전임자?[_\s:：]*([가-힣]{2,4})(?![가-힣])"):
                     for m in re.finditer(rx, h):
                         if is_name(m.group(1)):
@@ -302,6 +305,12 @@ class Extractor:
                                 "emails": find_emails(cell(i_email)) if i_email is not None else [],
                                 "topics": topics,
                             }, blk)
+                    # 진행 현황 열이 없는 표(예: 예산 집행현황)라도 비고에 '필요·검토·미실시' 같은 할 일이 있으면 현안
+                    note0 = cell(i_note)
+                    if title and i_status is None and note0 and ISSUE_WORDS.search(note0) and not RESOLVED.search(note0):
+                        due0 = dates_in(note0, self.ref.get(d.id))
+                        self.add("issues", {"title": title, "state": _state(note0), "next_action": _clip(note0, 70),
+                                            "due": _due_text(due0) if due0["months"] else "", "topic": title}, blk, note0)
                     # 진행 현황(계약·사업 목록)
                     if title and i_status is not None:
                         st = cell(i_status)
@@ -592,9 +601,10 @@ def build_flags(sections, kind_of_file, today=None):
             m = HEDGES.search(quotes)
             if m:
                 reasons.append(f"'{m.group(0)}' 같은 불확실한 표현이 있음")
-            memo_only = it["origin"] and all(o == "개인메모" for o in it["origin"])
+            memo_only = it["origin"] and all(o in ("개인메모", "사진") for o in it["origin"])
             if memo_only:
-                reasons.append("개인메모에만 있고 공식문서로 확인되지 않음")
+                reasons.append("사진에서 읽은 글자에만 있어(글자 인식 오류 가능) 원본으로 확인 필요" if "사진" in it["origin"]
+                               and "개인메모" not in it["origin"] else "개인메모에만 있고 공식문서로 확인되지 않음")
             if not reasons:
                 continue
             hq = next((s["quote"] for s in it["sources"] if HEDGES.search(s["quote"])), None)
@@ -1078,6 +1088,15 @@ def analyze(docs, predecessor="", llm=None, today=None):
                                              s["months"][0], s.get("day") or 0))
     sections["issues"].sort(key=lambda s: (_due_sort(s.get("due")), s["title"]))
     flags = build_flags(sections, ex.kind, ex.today)
+    # 글자를 읽지 못한 사진·스캔본: 버리지 않고 한 건으로 묶어 알린다
+    unread = [d for d in ex.docs if (d.meta.get("image") or d.meta.get("scanned_pages")) and d.meta.get("ocr_error")]
+    if unread:
+        flags.append({"id": new_id("fl"), "type": "누락", "severity": "중", "resolved": False, "refs": [],
+                      "message": f"글자를 읽지 못한 사진·스캔본 {len(unread)}개: " + ", ".join(d.name for d in unread[:5])
+                                 + (" 외" if len(unread) > 5 else "") + f". ({unread[0].meta['ocr_error']}) "
+                                 "내용을 전임자에게 확인하거나, 글자 인식(Windows OCR·Tesseract·비전 모델)을 쓸 수 있게 한 뒤 다시 넣어 주세요.",
+                      "sources": [{"block_id": "", "file": d.relpath, "loc": "사진" if d.meta.get("image") else "스캔본", "quote": ""} for d in unread[:4]]})
+    coverage = coverage_check(sections, ex)
     docs_info = []
     for d in docs:
         info = d.to_dict()
@@ -1118,10 +1137,70 @@ def analyze(docs, predecessor="", llm=None, today=None):
         "filtered": filtered,
         "today": ex.today.isoformat(),
         # 지식 릴레이: 앞 세대 계보와, 앞 세대가 남긴 질의응답·메모(다음 바통 파일에 그대로 이어 쓴다)
+        "coverage": coverage,
         "lineage": ex.lineage,
         "carried_interview": [x for d in ex.batons for x in d.meta.get("interview", [])],
         "carried_notes": [x for d in ex.batons for x in d.meta.get("notes", [])],
     }
+
+
+# ---------------------------------------------------------------- 인수인계 충실도 점검
+# 자료를 대충 모아 넣어도 후임자가 일할 수 있게: 공공기관 인수인계서의 기본 7개 영역마다 자료가 충분한지 보고,
+# 모자라면 전임자에게 물을 질문을 만든다(화면에서 한 번에 전임자에게 보낼 수 있음).
+
+COVERAGE = [
+    ("rnr", "담당 업무", "맡고 계신 업무를 빠짐없이 알려 주세요. 업무분장표가 있으면 함께 넣어 주세요."),
+    ("schedule", "연간 일정", "매년·매월 정해진 시기에 하는 일(보고·점검·계약·예산 등)을 알려 주세요."),
+    ("issues", "진행 중 현안", "지금 진행 중이거나 후임자가 이어서 해야 할 일과 그 기한을 알려 주세요."),
+    ("contacts", "협의 연락망", "업무로 자주 연락하는 내부·외부 담당자와 연락처를 알려 주세요."),
+    ("rules", "근거 규정·지침", "업무의 근거가 되는 법령·규정·지침·매뉴얼 이름과 보관 위치를 알려 주세요."),
+    ("budget", "예산·계약", "담당 예산 사업과 진행 중인 계약(기간·금액·업체)을 알려 주세요."),
+    ("systems", "시스템·자료 위치", "업무에 쓰는 시스템(온나라·e호조·나라장터 등)과 자료 보관 위치(공유폴더 경로)를 알려 주세요. "
+                                   "비밀번호는 적지 말고 정해진 인계 절차로 넘겨 주세요."),
+]
+_COVER_RX = {
+    "rules": re.compile(r"규정|지침|조례|시행규칙|시행령|법률|법\s*제\d|매뉴얼|훈령|예규|고시|편람|업무\s*기준"),
+    "budget": re.compile(r"예산|계약|집행|정산|입찰|발주|금액|\d[\d,]*\s*(원|천원|만원|백만원)"),
+    "systems": re.compile(r"시스템|온나라|e\s*호조|나라장터|새올|인사랑|홈페이지|누리집|계정|공유\s*폴더|폴더에|경로|드라이브|NAS|\\\\|[A-Z]:\\"),
+}
+
+
+def coverage_check(sections, ex):
+    """영역마다 '충분·부족·없음', 근거 수, 근거 위치(최대 2), 모자라면 전임자에게 물을 질문."""
+    out = []
+    for key, name, question in COVERAGE:
+        if key in sections:
+            its = [it for it in sections[key] if it.get("status") != "삭제"]
+            if key == "rnr":
+                n = sum(1 for it in its if "자료에서 추정" not in it.get("duty", ""))
+                level = "충분" if n >= 3 else "부족" if its else "없음"
+                note = f"{n}건" + (f" (추정 {len(its) - n}건)" if len(its) > n else "")
+            elif key == "schedule":
+                months = {m for it in its for m in it.get("months", [])}
+                n = len(its)
+                level = "충분" if len(months) >= 6 else "부족" if its else "없음"
+                note = f"{n}건 · {len(months)}개 달"
+                if 0 < len(months) < 12:
+                    question += f" 특히 {', '.join(f'{m}월' for m in range(1, 13) if m not in months)}에는 할 일이 없나요?"
+            elif key == "contacts":
+                n = sum(1 for it in its if it.get("phones") or it.get("emails"))
+                level = "충분" if n >= 3 else "부족" if its else "없음"
+                note = f"연락처 있는 {n}명 / {len(its)}명"
+            else:
+                n = len(its)
+                level = "충분" if n >= 2 and any(it.get("due") for it in its) else "부족" if its else "없음"
+                note = f"{n}건" + (f" · 기한 있는 {sum(1 for it in its if it.get('due'))}건" if its else "")
+            srcs = [src for it in its[:2] for src in it.get("sources", [])[:1]]
+        else:
+            hits = [b for b in ex.blocks.values() if _COVER_RX[key].search(b.text)]
+            files = {b.file for b in hits}
+            n = len(hits)
+            level = "충분" if n >= 3 and len(files) >= 1 else "부족" if hits else "없음"
+            note = f"언급 {n}곳 · 파일 {len(files)}개"
+            srcs = [b.cite() for b in hits[:2]]
+        out.append({"key": key, "name": name, "level": level, "count": n, "note": note,
+                    "question": question if level != "충분" else "", "sources": srcs})
+    return out
 
 
 def _overview_input(pred, sections):

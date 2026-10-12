@@ -210,6 +210,130 @@ def relay_baton():
     return json.dumps(data, ensure_ascii=False, indent=1).encode("utf-8")
 
 
+# ---------------------------------------------------------------- 뒤죽박죽 최소자료(개떡같이 넘겨도 찰떡같이)
+
+MESSY = ROOT / "sample_data" / "전임자_뒤죽박죽_최소자료"
+MEMO_MESSY = "업체 연락처는 엑셀 참고(없으면 계약서 보기)\n정산은 11월 말까지\n모르면 연락 주세요 010-0000-3321 (박정우)\n"
+
+
+def _font(size):
+    """사진 흉내용 글꼴: 맑은 고딕 → Pretendard(OTF) 순으로 찾는다(생성할 때만 필요)."""
+    from PIL import ImageFont
+    import glob
+    for cand in [r"C:\Windows\Fonts\malgun.ttf", *glob.glob(str(ROOT.parent / "**" / "Pretendard-Regular.otf"), recursive=True),
+                 *glob.glob("/tmp/**/Pretendard-Regular.otf", recursive=True)]:
+        try:
+            return ImageFont.truetype(cand, size)
+        except OSError:
+            continue
+    raise SystemExit("한글 글꼴을 찾지 못했습니다(맑은 고딕 또는 Pretendard OTF 필요)")
+
+
+def _photo(lines, size=(1280, 900), bg=(236, 236, 230), date="2026:09:15 09:30:12", rotate=-1.2, fmt="JPEG"):
+    """화이트보드·메모지를 휴대폰으로 찍은 듯한 사진(약간 기울어짐, 찍은 날짜 EXIF)."""
+    import io
+    from PIL import Image, ImageDraw, ImageFilter
+    im = Image.new("RGB", size, bg)
+    d = ImageDraw.Draw(im)
+    y = 70
+    for i, line in enumerate(lines):
+        f = _font(46 if i == 0 else 36)
+        d.text((70, y), line, fill=(30, 30, 40) if i else (20, 40, 120), font=f)
+        y += 78 if i == 0 else 64
+    im = im.rotate(rotate, expand=False, fillcolor=bg).filter(ImageFilter.GaussianBlur(0.6))
+    buf = io.BytesIO()
+    if fmt == "JPEG":
+        exif = Image.Exif()
+        exif[306] = date
+        exif.get_ifd(0x8769)[36867] = date
+        im.save(buf, "JPEG", quality=88, exif=exif)
+    else:
+        im.save(buf, fmt, resolution=150)
+    return buf.getvalue()
+
+
+def messy_budget_xlsx():
+    import io
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["2026년 기획예산팀 예산 집행현황"])
+    ws.append(["(단위: 천원)"])
+    ws.append([])
+    ws.append(["사업명", "예산액", "집행액", "잔액", "비고"])
+    for r in [["업무추진비", 12000, 8400, 3600, "매월 10일 홈페이지 공개"],
+              ["청사 경비용역", 180000, 135000, 45000, "12월 정산"],
+              ["복합기 임차", 9600, 8000, 1600, "11월 말 계약 종료, 재계약 검토 필요"],
+              ["직원 교육", 5000, 1200, 3800, "하반기 교육 미실시, 11월 중 실시 필요"]]:
+        ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def messy_report_hwpx():
+    return to_hwpx([
+        ("title", "기획예산팀 회계 업무 현황(초안)"),
+        ("p", "작성: 기획예산팀 박정우 주무관"),
+        ("bullet", "담당 업무: 예산 편성·집행 관리 / 업무추진비 공개 / 계약 관리(경비·임차)"),
+        ("bullet", "다음 달 할 일: 2027년 예산 2차 요구서 11월 14일까지 제출"),
+        ("bullet", "관련 규정: 지방재정법, 지방자치단체 회계관리에 관한 훈령, 업무추진비 집행 규칙"),
+        ("bullet", "시스템: e호조(회계), 온나라(문서). 자료는 공유폴더 \\\\nas\\기획예산\\회계 에 보관"),
+    ])
+
+
+def messy_rnr_docx():
+    return to_docx([
+        ("title", "기획예산팀 업무분장(2025)"),
+        ("table", ["담당자", "직위", "담당 업무"], [
+            ["이서진", "팀장", "팀 업무 총괄 / 예산 결재"],
+            ["박정우", "주무관", "예산 편성·집행 관리\n업무추진비 공개\n위탁·임차 계약 관리"],
+        ]),
+    ])
+
+
+def messy_zip():
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("업무분장_2025.docx", messy_rnr_docx())
+        z.writestr("메모 - 복사본.txt", MEMO_MESSY)   # 바깥 메모와 같은 내용(중복)
+        z.writestr("Thumbs.db", b"\x00" * 64)       # 윈도우가 만든 미리보기 파일
+    return buf.getvalue()
+
+
+def messy():
+    """최소한의 자료를 아무렇게나 모은 폴더: 휴대폰 사진, 스캔 PDF, 제목 줄이 엉망인 엑셀, 한글, ZIP, 중복·빈 파일, 옛 형식."""
+    def put(rel, data):
+        p = MESSY / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data if isinstance(data, bytes) else data.encode("utf-8"))
+    xlsx = messy_budget_xlsx()
+    put("IMG_20260915_093012.jpg", _photo([
+        "9월 업무 메모 (화이트보드)",
+        "- 2027 예산 1차 요구: 10/31까지 기획예산팀 제출",
+        "- 업무추진비 공개: 매월 10일 홈페이지 게시",
+        "- 회계 마감 12/20, 이월 신청 12/15까지",
+        "- 문의: 회계팀 한서윤 주무관 내선 2471"]))
+    put("스캔_위탁계약 현황.pdf", _photo([
+        "2026 위탁·임차 계약 현황",
+        "청사 경비용역 / (주)든든경비 / 2026.01.01~2026.12.31",
+        "  담당: 오민석 과장 031-000-4410",
+        "복합기 임차 / 한빛오피스 / ~2026.11.30 (재계약 필요)",
+        "  담당: 윤가람 대리 02-000-5512"], bg=(250, 250, 248), rotate=0.6, fmt="PDF"))
+    put("예산 집행현황(최종)(진짜최종).xlsx", xlsx)
+    put("예산 집행현황(최종)(진짜최종) - 복사본.xlsx", xlsx)   # 같은 파일 복사본
+    put("업무 보고(초안).hwpx", messy_report_hwpx())
+    put("메모.txt", MEMO_MESSY)
+    put("옛날자료.zip", messy_zip())
+    put("빈 문서.txt", b"")
+    put("옛날 예산.xls", b"\xd0\xcf\x11\xe0" + b"\x00" * 60)   # 엑셀 97~2003 형식(읽지 못함 → 안내)
+    put("회의 사진.heic", b"\x00\x00\x00\x18ftypheic" + b"\x00" * 40)
+    print("뒤죽박죽 모의자료:", MESSY)
+
+
 def main():
     w("00_이전인수인계/시설운영_1대_최선우.baton", relay_baton())
     w("01_공식문서/2026년 체육시설 안전점검 계획.hwpx", safety_plan())
@@ -236,4 +360,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--messy" in sys.argv:
+        messy()
+    else:
+        main()
+        messy()

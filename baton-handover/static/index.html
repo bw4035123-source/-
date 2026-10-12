@@ -56,6 +56,7 @@
           <label><input type="radio" name="src" value="local"> PC 폴더 경로</label>
           <label><input type="radio" name="src" value="docsystem"> 문서시스템 연계(모의 API)</label>
           <label><input type="radio" name="src" value="sample"> 시연용 모의자료</label>
+          <label><input type="radio" name="src" value="sample_messy"> 모의자료(뒤죽박죽 최소자료)</label>
         </div>
         <div id="src-upload" class="src-box">
           <div class="drop" id="drop">여기에 업무 폴더를 끌어다 놓거나
@@ -76,6 +77,9 @@
           <input id="ds-url" class="wide" placeholder="http://127.0.0.1:8101/mock-docsystem">
           <label class="f">문서 소유자(전임자 ID)</label>
           <input id="ds-owner" class="wide" placeholder="예: kdy">
+        </div>
+        <div id="src-sample_messy" class="src-box" hidden>
+          <p class="small muted">전임자가 최소한의 파일만 아무렇게나 모아 둔 경우입니다. 휴대폰 사진·스캔한 PDF·제목 줄이 엉망인 엑셀·한글·ZIP 압축·중복 파일·빈 파일·옛 형식 파일이 섞여 있습니다.</p>
         </div>
         <div id="src-sample" class="src-box" hidden>
           <p class="small muted">가상의 공공기관 시설운영팀 김도윤 주임의 업무폴더 9개 파일(한글·엑셀·PDF·워드·메일·메모, 그리고 1대 담당자 최선우가 2024년에 넘긴 바통 파일)을 사용합니다.</p>

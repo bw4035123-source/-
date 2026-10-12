@@ -136,6 +136,18 @@ def check_baton(c):
     yield (f"인수인계 순서도({f1['done']}/{f1['total']}단계, 지금: {f1['current']})",
            st(f0, "confirm") != "완료" and st(f1, "confirm") == "완료" and st(f1, "baton") == "완료"
            and "인수인계 순서도" in md2 and "착임 후 순서도" in man)
+    # 뒤죽박죽 최소자료: 사진·스캔본·ZIP·중복·빈 파일·옛 형식이 섞여도 정리해서 읽고, 모자란 영역은 전임자에게 묻는다
+    mh = c.call("POST", "/api/handovers", {"source": {"kind": "sample_messy"}, "successor": "새담당"})
+    reasons = " ".join(x["reason"] for x in mh["skipped"])
+    files = [x["relpath"] for x in mh["draft"]["docs"]]
+    yield (f"뒤죽박죽 자료 정리(읽음 {len(files)}, 건너뜀 {len(mh['skipped'])})",
+           all(k in reasons for k in ("같은 내용", "빈 파일", ".xls", "heic", "임시·시스템"))
+           and any(f.startswith("옛날자료.zip/") for f in files) and any(f.endswith(".jpg") for f in files))
+    cov = {c_["name"]: c_["level"] for c_ in mh["draft"]["coverage"]}
+    g1 = c.call("POST", f"/api/handovers/{mh['id']}/gaps/ask", {})
+    g2 = c.call("POST", f"/api/handovers/{mh['id']}/gaps/ask", {})
+    yield (f"충실도 점검({sum(v == '충분' for v in cov.values())}/7 충분) → 모자란 {g1['created']}개 영역 전임자에게 질문",
+           len(cov) == 7 and mh["draft"]["predecessor"] == "박정우" and g1["created"] == sum(v != "충분" for v in cov.values()) and g2["created"] == 0)
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \

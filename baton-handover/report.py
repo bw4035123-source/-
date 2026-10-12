@@ -141,6 +141,17 @@ def onboarding_flow(m):
     ]
 
 
+def coverage_blocks(cov):
+    """인수인계 충실도 점검 표: 기본 7개 영역의 자료 충분도와, 모자라면 전임자에게 확인할 내용."""
+    if not cov:
+        return []
+    ok = sum(1 for c in cov if c["level"] == "충분")
+    return [("h2", f"인수인계 충실도 점검 ({ok}/{len(cov)} 영역 충분)"),
+            ("table", ["영역", "판정", "근거", "부족하면 전임자에게 확인할 내용"],
+             [[c["name"], {"충분": "● 충분", "부족": "◐ 부족", "없음": "○ 없음"}[c["level"]], c["note"], c.get("question") or "-"] for c in cov],
+             [2, 1, 2, 5])]
+
+
 def handover_blocks(h):
     d = h["draft"]
     S = d["sections"]
@@ -154,6 +165,7 @@ def handover_blocks(h):
                   ["작성 방식", d.get("engine", "")],
               ], [1, 3]),
               *flow_blocks(flow_steps(h)),
+              *coverage_blocks(d.get("coverage") or []),
               ("h1", "1. 업무 개요"), ("p", d.get("overview", "")),
               ("h1", "2. 담당 업무(R&R)"),
               ("table", ["담당 업무", "세부 내용·메모", "상태", "근거"],

@@ -8,6 +8,7 @@ from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 
+from core import loaders, ocr
 from core.config import Config
 from core.export import FORMATS, export
 from core.llm import LLM
@@ -24,9 +25,11 @@ import report
 VERSION = "1.1.0"
 HERE = Path(__file__).resolve().parent
 SAMPLE = HERE / "sample_data" / "전임자_김도윤_업무폴더"
+SAMPLE_MESSY = HERE / "sample_data" / "전임자_뒤죽박죽_최소자료"  # 최소한의 자료를 아무렇게나 모은 경우(사진·스캔본·ZIP·중복 포함)
 
 cfg = Config(HERE, {"app_title": "업무바통", "port": 8101})
 llm = LLM(cfg["llm"])
+loaders.OCR = ocr.make(llm)  # 사진·스캔본 글자 읽기(Tesseract → Windows OCR → 비전 모델 순)
 store = Store(cfg.data_dir)
 app = App(HERE / "static")
 webcommon.register(app, cfg, llm, "업무바통", VERSION)
@@ -85,6 +88,8 @@ def create_handover(req):
             raise HttpError(400, str(e))
     elif kind == "sample":
         source = LocalFolderSource(SAMPLE)
+    elif kind == "sample_messy":
+        source = LocalFolderSource(SAMPLE_MESSY)
     elif kind == "docsystem":
         base = src.get("base_url") or f"http://127.0.0.1:{cfg['port']}/mock-docsystem"
         source = DocSystemSource(base, src.get("owner", ""))
@@ -352,6 +357,27 @@ def _learn(h, q, answer, via):
         qs.append(qobj)
     qobj.update(answer=answer, status="답변", answered_at=_now(), via=via)
     return qobj
+
+
+@app.post("/api/handovers/<hid>/gaps/ask")
+def ask_gaps(req):
+    """충실도 점검에서 '부족·없음'인 영역의 질문을 전임자에게 한 번에 보낸다(이미 보낸 질문은 다시 보내지 않음).
+    전임자가 답하면 AI 분신이 그 답을 근거로 쓰고, 인수인계서·바통 파일의 질의응답에도 남는다."""
+    h = load_h(req.params["hid"])
+    qs = h.setdefault("questions", [])
+    asked = {x["q"] for x in qs}
+    made = []
+    for c in h["draft"].get("coverage") or []:
+        q = f"[{c['name']}] {c['question']}" if c.get("question") else ""
+        if q and q not in asked:
+            qobj = {"id": f"q{len(qs) + 1}-{uuid.uuid4().hex[:4]}", "q": q, "asked_by": h.get("successor") or "후임자",
+                    "asked_at": _now(), "status": "대기", "answer": "", "via": "충실도 점검"}
+            qs.append(qobj)
+            made.append(qobj)
+    if made:
+        save_h(h)
+        log(h["id"], "충실도 점검 질문 보냄", f"{len(made)}건")
+    return {"created": len(made), "questions": made}
 
 
 @app.get("/api/handovers/<hid>/threads")
