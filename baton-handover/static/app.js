@@ -237,10 +237,6 @@ function renderDraft() {
   sec.children[0].after(flowBox);
   renderFlow(flowBox);
   if ((d.coverage || []).length) flowBox.after(renderCoverage());
-  // 맨 위: 시한폭탄 방지 붉은 카드(부임 첫 주 · 이번 달 계약)
-  const radarBox = el("div", { class: "panel radar-top" }, el("span", { class: "spinner" }));
-  sec.prepend(radarBox);
-  renderRadarTop(radarBox);
   sec.append(renderRelay());
   if (!rv.confirmed) sec.append(el("p", { class: "small muted" }, "표의 내용을 눌러 바로 고칠 수 있습니다. 맞는 항목은 '확인', 틀린 항목은 '삭제'를 누르세요. 근거 칩을 누르면 원문 위치가 보입니다."));
   ["issues", "schedule", "contacts", "rnr"].forEach(k => sec.append(renderSection(k)));
@@ -687,27 +683,14 @@ function rcard(e) {
     e.flag ? el("p", { class: "rc-flag" }, "⚠ 확인 필요 " + e.flag) : null,
     e.source ? el("span", { class: "rc-src" }, "근거: " + e.source) : null);
 }
-function radarCards(rd, compact) {
+function radarCards(rd) {
   if (!rd) return null;
   const col = (title, sub, list, empty) => el("div", { class: "rcol" },
     el("div", { class: "rcol-head" }, el("b", {}, title), el("span", {}, sub)),
-    list.length ? list.slice(0, compact ? 4 : 50).map(rcard) : el("div", { class: "rc-empty" }, empty),
-    compact && list.length > 4 ? el("button", { class: "small", onclick: () => goTab("radar") }, `${list.length - 4}건 더 보기`) : null);
+    list.length ? list.map(rcard) : el("div", { class: "rc-empty" }, empty));
   return el("div", { class: "rcols" },
     col("부임 첫 주에 해야 할 일", "착임 후 7일 안 · 이미 지난 기한", rd.top.week, "첫 주 안에 기한이 오는 일은 없습니다"),
     col("이번 달 미체결 시 감사 지적 우려 계약", "착임 후 30일 안 계약·공사·갱신", rd.top.contract, "30일 안에 걸린 계약 건은 없습니다"));
-}
-async function renderRadarTop(box) {
-  const rd = await api("GET", `/api/handovers/${H.id}/radar`);
-  const n = rd.top.week.length + rd.top.contract.length;
-  box.innerHTML = "";
-  box.append(
-    el("div", { class: "row" },
-      el("span", { class: "bomb", "aria-hidden": "true" }, "⏰"),
-      el("div", { style: { flex: 1 } }, el("h2", { style: { margin: 0 } }, "시한폭탄 방지 · D-Day 리스크 레이더"),
-        el("span", { class: "small" }, `후임자 착임일 ${rd.start.replace(/-/g, ".")} 기준 · 붉은 카드 ${n}장`)),
-      el("button", { onclick: () => goTab("radar") }, "타임라인 전체 보기")),
-    radarCards(rd, true));
 }
 async function renderRadar(start) {
   const sec = $("#tab-radar");
