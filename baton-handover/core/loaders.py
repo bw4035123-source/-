@@ -609,6 +609,8 @@ def load_bytes(data, relpath):
         doc.error = f"읽기 실패: {e}"
         return doc
     doc.tables = tables
+    if ext in IMAGE_EXT:
+        doc.image_bytes = data  # 포토 아카이브용(문서 목록·저장 데이터에는 들어가지 않음)
     for i, (loc, text) in enumerate(items):
         doc.blocks.append(Block(id=f"{did}-{i}", doc_id=did, file=relpath, loc=loc, text=text))
     return doc

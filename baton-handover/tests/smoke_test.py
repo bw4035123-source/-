@@ -12,6 +12,7 @@ import tempfile
 import time
 import shutil
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -160,6 +161,21 @@ def check_baton(c):
     yield (f"뒤죽박죽 자료 정리(읽음 {len(files)}, 건너뜀 {len(mh['skipped'])})",
            all(k in reasons for k in ("같은 내용", "빈 파일", ".xls", "heic", "임시·시스템"))
            and any(f.startswith("옛날자료.zip/") for f in files) and any(f.endswith(".jpg") for f in files))
+    # 포토 아카이브: 사진만 따로 모으고 키워드로 관련 사진 찾기, AI 분신 답에도 관련 사진
+    mid = mh["id"]
+    allp = c.call("GET", f"/api/handovers/{mid}/photos")
+    edu = c.call("GET", f"/api/handovers/{mid}/photos?q=" + urllib.parse.quote("직무중심교육"))
+    sep = c.call("GET", f"/api/handovers/{mid}/photos?q=" + urllib.parse.quote("9월"))
+    img = c.call("GET", edu["photos"][0]["url"], raw=True) if edu["photos"] else b""
+    ap = c.call("POST", f"/api/handovers/{mid}/ask", {"q": "직무중심교육 결과 알려줘"})
+    yield (f"포토 아카이브(사진 {allp['total']}장, '직무중심교육' {len(edu['photos'])}장)",
+           allp["total"] == 3 and len(edu["photos"]) == 2 and all("직무중심교육" in p_["name"] for p_ in edu["photos"])
+           and any(p_["taken"].startswith("2026-09") for p_ in sep["photos"]) and img[:2] == b"\xff\xd8"
+           and len(ap.get("photos", [])) == 2 and c.status("GET", f"/api/handovers/{mid}/photos/zzz/image") == 404)
+    gone = edu["photos"][0]["id"]
+    c.call("POST", f"/api/handovers/{mid}/photos/{gone}/delete", {})
+    yield "포토 아카이브: 사진 지우기", c.call("GET", f"/api/handovers/{mid}/photos")["total"] == 2 and \
+        c.status("GET", f"/api/handovers/{mid}/photos/{gone}/image") == 404
     cov = {c_["name"]: c_["level"] for c_ in mh["draft"]["coverage"]}
     yield (f"충실도 점검({sum(v == '충분' for v in cov.values())}/7 충분)",
            len(cov) == 7 and mh["draft"]["predecessor"] == "전임자" and any(v != "충분" for v in cov.values()))

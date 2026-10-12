@@ -502,7 +502,11 @@ function setupAsk() {
     try {
       const r = await api("POST", `/api/handovers/${H.id}/ask`, { q });
       const who = r.who || [];
+      const pics = r.photos || [];
       pending.replaceWith(bot(el("div", { style: { whiteSpace: "pre-wrap" } }, r.answer),
+        pics.length ? el("div", { class: "ask-photos" }, el("div", { class: "small muted" }, `관련 사진 ${pics.length}장`),
+          el("div", { class: "ph-row" }, pics.map(p => photoCard(p, true))),
+          el("button", { class: "small", onclick: () => { goTab("photos"); renderPhotos(q); } }, "포토 아카이브에서 더 보기")) : null,
         r.sources && r.sources.length ? el("div", { class: "small muted", style: { marginTop: "6px" } }, `근거 (${r.mode}): `, citeChips(r.sources, CTX())) : null,
         !r.found ? el("div", { class: "who-box" },
           el("b", {}, who.length ? "이 협업 상대에게 물어보세요" : "인계 자료에 없는 내용입니다"),
@@ -882,8 +886,58 @@ async function renderNetwork() {
   drawNetwork();
 }
 
+// ------------------------------------------------------------ 포토 아카이브
+let PHOTO_Q = "";
+const photoCard = (p, compact) => el("div", { class: "ph-card" + (compact ? " compact" : "") },
+  el("button", { class: "ph-img", title: "크게 보기", onclick: () => photoModal(p) }, rawEl("img", { src: p.url, alt: p.name, loading: "lazy" })),
+  el("div", { class: "ph-body" },
+    el("b", { class: "ph-name" }, p.name),
+    el("span", { class: "small muted" }, [p.taken ? `찍은 날 ${p.taken.replace(/-/g, ".")}` : "찍은 날 모름", p.folder ? ` · ${p.folder}` : ""].join("")),
+    (p.reasons || []).length ? el("div", { class: "ph-why" }, p.reasons.map(r => el("span", { class: "tag info" }, r))) : null,
+    !compact && p.caption ? el("div", { class: "small" }, "🤖 " + p.caption) : null,
+    !compact && p.ocr ? el("div", { class: "small muted ph-ocr" }, "사진 속 글자: " + p.ocr.slice(0, 120)) : null));
+function photoModal(p) {
+  const m = modal(p.name,
+    rawEl("img", { src: p.url, alt: p.name, style: "width:100%;border-radius:12px;display:block" }),
+    el("div", { class: "small", style: { marginTop: "10px" } }, `파일: ${p.file} · 찍은 날: ${p.taken || "모름"} · 크기: ${p.size}`),
+    p.caption ? el("p", {}, "🤖 AI 사진 설명: " + p.caption) : null,
+    p.ocr ? el("p", { class: "small" }, `사진 속 글자(${p.ocr_engine || "글자 인식"}): ${p.ocr}`) : el("p", { class: "small muted" }, "사진 속 글자를 읽지 못했거나 글자가 없습니다."),
+    (p.linked || []).length ? el("p", { class: "small" }, "이 사진을 근거로 한 항목: " + p.linked.join(" / ")) : null,
+    el("div", { class: "row", style: { marginTop: "8px" } },
+      el("button", { class: "small danger", onclick: async () => {
+        if (!confirm("이 사진을 지울까요? (줄인 사본과 기록이 지워지고, 원본 파일은 그대로입니다)")) return;
+        await api("POST", `/api/handovers/${H.id}/photos/${p.id}/delete`, {});
+        H.photos = (H.photos || []).filter(x => x.id !== p.id); m.remove ? m.remove() : null; renderPhotos(); toast("사진을 지웠습니다");
+      } }, "이 사진 지우기")));
+  return m;
+}
+async function renderPhotos(q) {
+  const sec = $("#tab-photos");
+  if (needH(sec)) return;
+  if (q !== undefined) PHOTO_Q = q;
+  const r = await api("GET", `/api/handovers/${H.id}/photos?q=${encodeURIComponent(PHOTO_Q)}`);
+  const box = el("input", { class: "wide", value: PHOTO_Q, placeholder: "키워드로 사진 찾기 (예: 직무중심교육, 주차장 균열, 9월)" });
+  box.addEventListener("keydown", e => { if (e.key === "Enter") renderPhotos(box.value.trim()); });
+  // 추천 키워드: 사진 파일·폴더 이름에서
+  const words = [...new Set((H.photos || []).flatMap(p => (p.name.replace(/\.[^.]+$/, "") + " " + p.folder).split(/[\s_()\[\]\/·,.-]+/))
+    .filter(w => w.length >= 3 && !/^\d+$|^IMG|^DSC|현장사진/i.test(w)))].slice(0, 8);
+  sec.innerHTML = "";
+  sec.append(el("div", { class: "panel" },
+    el("div", { class: "row" }, el("div", { style: { flex: 1 } }, el("h2", { style: { margin: 0 } }, "포토 아카이브"),
+      el("span", { class: "small muted" }, "넣은 자료 속 사진만 따로 모았습니다. 파일·폴더 이름, 사진 속 글자, AI 사진 설명, 찍은 날짜, 같은 폴더 자료로 찾습니다.")),
+      el("span", { class: "tag info" }, `사진 ${r.total}장`)),
+    el("div", { class: "row", style: { marginTop: "12px" } }, box, el("button", { class: "primary", onclick: () => renderPhotos(box.value.trim()) }, "찾기"),
+      PHOTO_Q ? el("button", { onclick: () => renderPhotos("") }, "전체 보기") : null),
+    words.length ? el("div", { class: "row small", style: { marginTop: "8px" } }, words.map(w => el("span", { class: "chip", onclick: () => renderPhotos(w) }, w))) : null,
+    el("p", { class: "small muted", style: { margin: "10px 0 0" } }, "※ 사진은 긴 변 1,024px로 줄인 사본만 보관하고 위치 정보(EXIF)는 지웁니다. 사진 속 얼굴·이름표는 자동으로 가리지 않으니, 남기면 안 되는 사진은 크게 보기에서 지워 주세요.")),
+    el("div", { class: "panel" },
+      el("h3", { style: { marginTop: 0 } }, PHOTO_Q ? `'${PHOTO_Q}' 관련 사진 ${r.photos.length}장` : `전체 사진 ${r.photos.length}장`),
+      r.photos.length ? el("div", { class: "ph-grid" }, r.photos.map(p => photoCard(p)))
+        : el("div", { class: "empty" }, r.total ? "찾는 사진이 없습니다. 다른 낱말로 찾아 보세요." : "넣은 자료에 사진이 없습니다. 드롭존에 사진(JPG·PNG 등)을 함께 놓으면 여기에 모입니다.")));
+}
+
 let goTab;
-function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderRadar(); renderNetwork(); }
+function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderRadar(); renderNetwork(); PHOTO_Q = ""; renderPhotos(); }
 document.addEventListener("DOMContentLoaded", async () => {
   setupStart(); setupAsk(); setupManual();
   goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "form") renderForm(); });

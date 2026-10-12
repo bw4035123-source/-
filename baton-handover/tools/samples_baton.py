@@ -225,7 +225,7 @@ def _font(size):
     from PIL import ImageFont
     import glob
     for cand in [r"C:\Windows\Fonts\malgun.ttf", *glob.glob(str(ROOT.parent / "**" / "Pretendard-Regular.otf"), recursive=True),
-                 *glob.glob("/tmp/**/Pretendard-Regular.otf", recursive=True)]:
+                 *glob.glob("/tmp/**/Pretendard-Regular.otf", recursive=True), "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"]:
         try:
             return ImageFont.truetype(cand, size)
         except OSError:
@@ -254,6 +254,90 @@ def _photo(lines, size=(1280, 900), bg=(236, 236, 230), date="2026:09:15 09:30:1
     else:
         im.save(buf, fmt, resolution=150)
     return buf.getvalue()
+
+
+def _exif_jpeg(im, date):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    exif = Image.Exif()
+    exif[306] = date
+    exif.get_ifd(0x8769)[36867] = date
+    im.save(buf, "JPEG", quality=86, exif=exif)
+    return buf.getvalue()
+
+
+def scene_training():
+    """교육장 현장 사진 흉내: 화면에 과정 이름, 책상 줄, 참석자는 얼굴 없는 실루엣."""
+    from PIL import Image, ImageDraw, ImageFilter
+    im = Image.new("RGB", (1280, 860), (222, 226, 232))
+    d = ImageDraw.Draw(im)
+    d.rectangle([0, 560, 1280, 860], fill=(176, 160, 140))                  # 바닥
+    d.rectangle([300, 70, 980, 420], fill=(250, 250, 252), outline=(90, 90, 100), width=6)   # 스크린
+    d.text((350, 120), "2026 상반기 직무중심교육", fill=(20, 60, 160), font=_font(54))
+    d.text((350, 210), "예산·회계 실무 과정", fill=(40, 40, 50), font=_font(42))
+    d.text((350, 290), "5. 20.(수) 14:00 · 3층 교육장", fill=(70, 70, 80), font=_font(34))
+    for row, y in enumerate((600, 700, 790)):
+        for x in range(90, 1200, 230):
+            d.ellipse([x + 60, y - 70, x + 120, y - 10], fill=(70, 74, 86))   # 머리(뒷모습)
+            d.rectangle([x + 40, y - 12, x + 140, y + 40], fill=(70, 74, 86))
+            d.rectangle([x, y + 20, x + 190, y + 50], fill=(120, 96, 70))      # 책상
+    return _exif_jpeg(im.filter(ImageFilter.GaussianBlur(0.8)), "2026:05:20 14:12:05")
+
+
+def scene_parking_crack():
+    """주차장 바닥 균열 사진 흉내: 회색 바닥, 갈라진 선, 라바콘, 기둥 번호."""
+    from PIL import Image, ImageDraw, ImageFilter
+    import random
+    random.seed(7)
+    im = Image.new("RGB", (1280, 860), (150, 150, 146))
+    d = ImageDraw.Draw(im)
+    d.rectangle([980, 0, 1180, 860], fill=(200, 200, 196))                  # 기둥
+    d.rectangle([1010, 120, 1150, 220], fill=(250, 210, 40))
+    d.text((1028, 140), "B1 C-3", fill=(30, 30, 30), font=_font(40))
+    x, y = 120, 760
+    pts = [(x, y)]
+    for _ in range(14):
+        x += random.randint(40, 70)
+        y -= random.randint(15, 55)
+        pts.append((x, y))
+    d.line(pts, fill=(40, 40, 40), width=7)
+    d.line([(p[0] + 4, p[1] + 3) for p in pts[5:11]], fill=(60, 60, 60), width=3)
+    d.polygon([(860, 700), (900, 520), (940, 700)], fill=(240, 110, 20))     # 라바콘
+    d.rectangle([840, 700, 960, 720], fill=(30, 30, 30))
+    d.text((60, 40), "주차장 바닥 균열 — B1 C-3 기둥 앞 (2026.9.3)", fill=(250, 250, 250), font=_font(36))
+    return _exif_jpeg(im.filter(ImageFilter.GaussianBlur(0.7)), "2026:09:03 10:41:20")
+
+
+def scene_shower_pipe():
+    """샤워실 온수 배관 점검 사진 흉내: 타일 벽, 배관, 점검 꼬리표."""
+    from PIL import Image, ImageDraw, ImageFilter
+    im = Image.new("RGB", (1280, 860), (226, 232, 236))
+    d = ImageDraw.Draw(im)
+    for x in range(0, 1280, 80):
+        d.line([(x, 0), (x, 860)], fill=(200, 208, 214), width=3)
+    for y in range(0, 860, 80):
+        d.line([(0, y), (1280, y)], fill=(200, 208, 214), width=3)
+    d.rectangle([0, 300, 1280, 340], fill=(184, 115, 51))                    # 온수관(구리)
+    d.rectangle([0, 420, 1280, 455], fill=(150, 160, 170))                   # 냉수관
+    d.rectangle([600, 270, 640, 470], fill=(120, 120, 130))                  # 밸브
+    d.rectangle([700, 360, 1080, 560], fill=(255, 250, 220), outline=(120, 100, 40), width=4)
+    d.text((725, 380), "남자 샤워실 온수 배관", fill=(30, 30, 30), font=_font(34))
+    d.text((725, 440), "점검 2026.10.5", fill=(30, 30, 30), font=_font(32))
+    d.text((725, 495), "수온 38℃ (기준 40℃ 미달)", fill=(180, 30, 30), font=_font(30))
+    return _exif_jpeg(im.filter(ImageFilter.GaussianBlur(0.6)), "2026:10:05 07:55:41")
+
+
+def add_photos():
+    """포토 아카이브 시연용 사진(두 모의자료에 각 2장)."""
+    w("04_현장사진/주차장 바닥 균열(2026.9.3).jpg", scene_parking_crack())
+    w("04_현장사진/샤워실 온수 배관 점검.jpg", scene_shower_pipe())
+    (MESSY / "2026 상반기 직무중심교육_현장.jpg").write_bytes(scene_training())
+    (MESSY / "직무중심교육 결과 메모.jpg").write_bytes(_photo([
+        "직무중심교육 결과 (5/20)",
+        "- 예산·회계 실무 과정, 참석 10명 / 대상 12명",
+        "- 만족도 4.6점, 강사료 정산 완료",
+        "- 하반기 과정 11월 중 실시 필요 (미실시)"], date="2026:05:20 16:40:00", rotate=0.9))
 
 
 def messy_budget_xlsx():
@@ -363,9 +447,16 @@ def main():
     print("업무바통 모의데이터:", OUT)
 
 
+def main_all():
+    main()
+    messy()
+    add_photos()
+
+
 if __name__ == "__main__":
     if "--messy" in sys.argv:
         messy()
+    elif "--photos" in sys.argv:
+        add_photos()
     else:
-        main()
-        messy()
+        main_all()

@@ -13,7 +13,7 @@ from core import lawapi, loaders, ocr
 from core.config import Config
 from core.export import FORMATS, export
 from core.llm import LLM
-from core.server import App, HttpError, file_response
+from core.server import App, HttpError, Response, file_response
 from core.sources import DocSystemSource, LocalFolderSource, UploadSource
 from core.store import Store
 from core import webcommon
@@ -21,6 +21,7 @@ from core import webcommon
 import anon
 import engine
 import network
+import photos as photo_mod
 import qa
 import radar
 import report
@@ -123,6 +124,12 @@ def create_handover(req):
         h["radar"] = {"start": date.fromisoformat(str(body.get("start"))).isoformat()} if body.get("start") else {}
     except ValueError:
         raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+    # 포토 아카이브: 사진만 따로 모아 줄인 사본과 찾을 단서(파일·폴더 이름, 사진 속 글자, AI 설명, 찍은 날짜)를 둔다
+    def _save_photo(pid, jpeg):
+        out = store.path(f"handovers/{hid}/photos/{pid}.jpg")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(jpeg)
+    h["photos"] = [anon.deep(p, lambda t: anon.scrub(t, privacy)) for p in photo_mod.build(docs, fix, _save_photo, llm)]
     store.write(f"handovers/{hid}/blocks.json", blocks)
     save_h(h)
     if kind == "upload":
@@ -279,9 +286,52 @@ def ask(req):
     blocks = store.read(f"handovers/{h['id']}/blocks.json", [])
     res = qa.answer(h["draft"], blocks, q, llm, persona="전임자")
     res = qa.persona_wrap(res, "전임자")
+    res["photos"] = [p for p in photo_mod.search(h, q) if p["score"] >= 2][:4]  # 질문과 관련된 사진
     if not res.get("found"):
-        res["who"] = network.who_knows(h, q, blocks)  # 자료에 없으면: 누구에게 물어보면 되는지(역할)
+        res["who"] = network.who_knows(h, q, blocks)
+        if res["photos"]:
+            res["answer"] = ("글로 된 제 자료에서는 답을 찾지 못했어요. 대신 관련 사진이 있어요. 사진을 눌러 내용을 확인해 주세요. "
+                             "확인한 내용을 표나 노하우 카드에 남겨 두면 다음부터는 제가 답할게요.")  # 자료에 없으면: 누구에게 물어보면 되는지(역할)
     return res
+
+
+# ---------------------------------------------------------------- 포토 아카이브
+
+@app.get("/api/handovers/<hid>/photos")
+def list_photos(req):
+    h = load_h(req.params["hid"])
+    q = str(req.query.get("q") or "").strip()[:100]
+    found = photo_mod.search(h, q)
+    return {"photos": found, "total": len(h.get("photos") or []), "q": q}
+
+
+@app.get("/api/handovers/<hid>/photos/<pid>/image")
+def photo_image(req):
+    h = load_h(req.params["hid"])
+    pid = req.params["pid"]
+    if not any(p["id"] == pid for p in h.get("photos") or []):
+        raise HttpError(404, "사진을 찾을 수 없습니다")
+    path = store.path(f"handovers/{h['id']}/photos/{pid}.jpg")
+    if not path.exists():
+        raise HttpError(404, "사진을 찾을 수 없습니다")
+    return Response(path.read_bytes(), 200, "image/jpeg", {"Cache-Control": "private, max-age=3600"})
+
+
+@app.post("/api/handovers/<hid>/photos/<pid>/delete")
+def delete_photo(req):
+    """사진 속 얼굴·이름표 등 남기면 안 되는 사진은 지운다(줄인 사본과 기록 모두)."""
+    h = load_h(req.params["hid"])
+    pid = req.params["pid"]
+    before = len(h.get("photos") or [])
+    h["photos"] = [p for p in h.get("photos") or [] if p["id"] != pid]
+    if len(h["photos"]) == before:
+        raise HttpError(404, "사진을 찾을 수 없습니다")
+    p = store.path(f"handovers/{h['id']}/photos/{pid}.jpg")
+    if p.exists():
+        p.unlink()
+    save_h(h)
+    log(h["id"], "사진 삭제", pid)
+    return {"ok": True, "total": len(h["photos"])}
 
 
 # ---------------------------------------------------------------- D-Day 리스크 레이더
