@@ -424,14 +424,14 @@ async function downloadIcs(start) {
 }
 
 // ------------------------------------------------------------ 빈틈 스캐너
-const FLAG_LABEL = { "충돌": "자료끼리 다름", "불확실": "애매한 내용", "누락": "빠진 정보", "기한 지남": "기한 지남" };
+const FLAG_LABEL = { "충돌": "자료끼리 다름(충돌)", "불확실": "애매한 내용(불확실)", "누락": "빠진 정보(누락)", "기한 지남": "기한 지남" };
 function renderFlags() {
   const sec = $("#tab-flags");
   if (needH(sec)) return;
   sec.innerHTML = "";
   const flags = H.draft.flags;
   const types = { "충돌": "bad", "기한 지남": "bad", "불확실": "warn", "누락": "info" };
-  const panel = el("div", { class: "panel" }, el("h2", {}, `빈틈 스캐너 (${flags.filter(f => !f.resolved).length}건 남음)`),
+  const panel = el("div", { class: "panel" }, el("h2", {}, `빈틈 스캐너 · 누락·충돌·불확실 표시 (${flags.filter(f => !f.resolved).length}건 남음)`),
     el("p", { class: "small muted" }, "인수인계 자료의 빈틈을 찾아 모았습니다. 그대로 믿으면 위험하니 떠나기 전에 메워 주세요. 자료끼리 다름: 문서마다 날짜·번호가 다름 · 기한 지남: 할 일인데 오늘 기준으로 날짜가 지남 · 애매한 내용: '아마', '미정' 같은 표현이거나 개인메모에만 있음 · 빠진 정보: 연락처·기한·다음 할 일 등이 없음."));
   for (const t of ["충돌", "기한 지남", "불확실", "누락"]) {
     const fs = flags.filter(f => f.type === t);
