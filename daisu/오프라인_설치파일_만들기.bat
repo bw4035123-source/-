@@ -1,33 +1,34 @@
 @echo off
 setlocal
-chcp 65001 > nul
 cd /d "%~dp0"
-title ë‹¤ì´ìˆ˜ - ì¸í„°ë„·ì´ ë§‰ížŒ PCìš© ì„¤ì¹˜ íŒŒì¼ ë§Œë“¤ê¸°
+title ´ÙÀÌ¼ö - ÀÎÅÍ³ÝÀÌ ¸·Èù PC¿ë ¼³Ä¡ ÆÄÀÏ ¸¸µé±â
 echo.
-echo   ì¸í„°ë„·ì´ ë˜ëŠ” PCì—ì„œ ì‹¤í–‰í•˜ì„¸ìš”.
-echo   wheels í´ë”ì— 64ë¹„íŠ¸ Windowsìš© ì„¤ì¹˜ íŒŒì¼(Python 3.10~3.13)ì„ ëª¨ë‘ ë‚´ë ¤ë°›ìŠµë‹ˆë‹¤.
-echo   ë‹¤ ë°›ìœ¼ë©´ ë‹¤ì´ìˆ˜ í´ë”ë¥¼ í†µì§¸ë¡œ(wheels í¬í•¨) ì¸í„°ë„·ì´ ë§‰ížŒ PCë¡œ ì˜®ê¸°ê³  run.bat ì„ ì‹¤í–‰í•˜ë©´ ë©ë‹ˆë‹¤.
+echo   ÀÎÅÍ³ÝÀÌ µÇ´Â PC¿¡¼­ ½ÇÇàÇÏ¼¼¿ä.
+echo   wheels Æú´õ¿¡ 64ºñÆ® Windows¿ë ¼³Ä¡ ÆÄÀÏ(Python 3.10~3.14)À» ¸ðµÎ ³»·Á¹Þ½À´Ï´Ù.
+echo   ´Ù ¹ÞÀ¸¸é ´ÙÀÌ¼ö Æú´õ¸¦ ÅëÂ°·Î(wheels Æ÷ÇÔ) ÀÎÅÍ³ÝÀÌ ¸·Èù PC·Î ¿Å±â°í run.bat À» ½ÇÇàÇÏ¸é µË´Ï´Ù.
 echo.
 call "%~dp0tools\find_python.bat"
 if defined PY goto foundpy
-echo   [ì˜¤ë¥˜] Python 3.10 ì´ìƒì„ ì°¾ì§€ ëª»í–ˆìŠµë‹ˆë‹¤. https://www.python.org/downloads/ ì—ì„œ ì„¤ì¹˜í•˜ì„¸ìš”.
+echo   [¿À·ù] Python 3.10 ÀÌ»óÀ» Ã£Áö ¸øÇß½À´Ï´Ù. https://www.python.org/downloads/ ¿¡¼­ ¼³Ä¡ÇÏ¼¼¿ä.
 pause
 exit /b 1
 
 :foundpy
 if not exist wheels mkdir wheels
-for %%v in (310 311 312 313) do (
-  echo   - Python %%v ìš© ë‚´ë ¤ë°›ëŠ” ì¤‘...
+for %%v in (310 311 312 313 314) do (
+  echo   - Python %%v ¿ë ³»·Á¹Þ´Â Áß...
   %PY% -m pip download -q --disable-pip-version-check -r requirements.txt -d wheels --only-binary=:all: --platform win_amd64 --python-version %%v
 )
+rem Python 3.10 Àü¿ë ºÎ¼Ó(´Ù¸¥ ¹öÀü PC¿¡¼­ ¹ÞÀ» ¶§ ºüÁöÁö ¾Êµµ·Ï Á÷Á¢ ¹ÞÀ½)
+%PY% -m pip download -q --disable-pip-version-check exceptiongroup -d wheels --only-binary=:all:
 if errorlevel 1 goto fail
 echo.
-echo   ì™„ë£Œ: wheels í´ë”ê°€ ì¤€ë¹„ë˜ì—ˆìŠµë‹ˆë‹¤.
+echo   ¿Ï·á: wheels Æú´õ°¡ ÁØºñµÇ¾ú½À´Ï´Ù.
 pause
 exit /b 0
 
 :fail
 echo.
-echo   [ì˜¤ë¥˜] ë‚´ë ¤ë°›ê¸°ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤. ì¸í„°ë„· ì—°ê²°ì´ë‚˜ í”„ë¡ì‹œ ì„¤ì •ì„ í™•ì¸í•˜ì„¸ìš”.
+echo   [¿À·ù] ³»·Á¹Þ±â¿¡ ½ÇÆÐÇß½À´Ï´Ù. ÀÎÅÍ³Ý ¿¬°áÀÌ³ª ÇÁ·Ï½Ã ¼³Á¤À» È®ÀÎÇÏ¼¼¿ä.
 pause
 exit /b 1

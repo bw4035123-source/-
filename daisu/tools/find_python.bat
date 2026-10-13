@@ -1,15 +1,18 @@
 @echo off
-rem ì‹¤ì œ ë™ìž‘í•˜ëŠ” Python 3.10 ì´ìƒì„ ì°¾ì•„ PY ë³€ìˆ˜ì— ë„£ëŠ”ë‹¤. (call ë¡œ ë¶ˆëŸ¬ ì“°ëŠ” ê³µìš© ìŠ¤í¬ë¦½íŠ¸)
-rem  - Microsoft Store ë°”ë¡œê°€ê¸° python.exe(ì‹¤í–‰í•˜ë©´ ìŠ¤í† ì–´ê°€ ì—´ë¦¬ëŠ” ê°€ì§œ)ëŠ” ì‹¤í–‰ ì‹œí—˜ìœ¼ë¡œ ê±¸ëŸ¬ë‚¸ë‹¤
-rem  - ìˆœì„œ: PATHì˜ python â†’ py ëŸ°ì²˜(3.13~3.10) â†’ ê¸°ë³¸ ì„¤ì¹˜ í´ë”
+rem ½ÇÁ¦ µ¿ÀÛÇÏ´Â Python 3.10 ÀÌ»óÀ» Ã£¾Æ PY º¯¼ö¿¡ ³Ö´Â´Ù(call ·Î ºÒ·¯ ¾²´Â °ø¿ë ½ºÅ©¸³Æ®).
+rem  - Microsoft Store ¹Ù·Î°¡±â python.exe(½ÇÇàÇÏ¸é ½ºÅä¾î°¡ ¿­¸®´Â °¡Â¥)´Â ½ÇÇà ½ÃÇèÀ¸·Î °É·¯³½´Ù
+rem  - ¼ø¼­: py ·±Ã³(3.14~3.10) - PATHÀÇ python - ±âº» ¼³Ä¡ Æú´õ
 set "PY="
 set "PYCHK=import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)"
+
+for %%v in (3.14 3.13 3.12 3.11 3.10) do if not defined PY py -%%v -c "%PYCHK%" >nul 2>nul && set "PY=py -%%v"
+if defined PY goto :eof
 
 python -c "%PYCHK%" >nul 2>nul && set "PY=python"
 if defined PY goto :eof
 
-for %%v in (3.13 3.12 3.11 3.10 3) do if not defined PY py -%%v -c "%PYCHK%" >nul 2>nul && set "PY=py -%%v"
+py -3 -c "%PYCHK%" >nul 2>nul && set "PY=py -3"
 if defined PY goto :eof
 
-for /d %%d in ("%LocalAppData%\Programs\Python\Python3*" "%ProgramFiles%\Python3*" "%ProgramFiles(x86)%\Python3*") do if not defined PY if exist "%%~fd\python.exe" "%%~fd\python.exe" -c "%PYCHK%" >nul 2>nul && set PY="%%~fd\python.exe"
+for /d %%d in ("%LocalAppData%\Programs\Python\Python3*" "%ProgramFiles%\Python3*" "%ProgramFiles(x86)%\Python3*" "C:\Python3*") do if not defined PY if exist "%%~fd\python.exe" "%%~fd\python.exe" -c "%PYCHK%" >nul 2>nul && set PY="%%~fd\python.exe"
 goto :eof

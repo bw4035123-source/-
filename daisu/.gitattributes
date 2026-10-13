@@ -1,0 +1,4 @@
+# Windows 배치 파일은 CRLF·CP949(한국어 Windows 기본)로 그대로 보관한다(줄바꿈 변환 금지)
+*.bat -text
+*.sh text eol=lf
+*.py text eol=lf
