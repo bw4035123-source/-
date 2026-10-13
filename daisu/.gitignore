@@ -5,3 +5,4 @@ wheels/
 __pycache__/
 *.pyc
 run_log.txt
+output/

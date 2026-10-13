@@ -151,10 +151,11 @@ def units(text: str):
                 yield (art, title, pno, int(it.group(1)), (title + " " + head.strip() + " " + itxt).strip())
 
 
-def parse_text(text: str, law_name: str, effective_date: dt.date | None = None) -> ParseResult:
+def parse_text(text: str, law_name: str, effective_date: dt.date | None = None, default_article: str | None = None) -> ParseResult:
     res = ParseResult()
     seq: dict[str, int] = {}
     for art, title, pno, ino, sent in units(text):
+        art = art or default_article or ""
         s = re.sub(r"\s+", " ", sent)
         basis = LegalBasis(law_name=law_name, article=art or "제0조", paragraph=pno, item=ino,
                            effective_date=effective_date, text=s[:300]) if art else None
@@ -205,7 +206,7 @@ def parse_table(rows: list[list[str]], law_name: str, where: str, effective_date
         return res
     for i, r in enumerate(rows[1:], 2):
         s = " ".join(f"{head[j] if j < len(head) else ''} {c}" for j, c in enumerate(r) if c)
-        sub = parse_text(s, law_name, effective_date)
+        sub = parse_text(s, law_name, effective_date, default_article=article)
         for k, rule in enumerate(sub.rules, 1):
             res.rules.append(rule.model_copy(update={
                 "rule_id": f"{rule.category.code}-T{re.sub(r'[^0-9]', '', where) or '0'}R{i}-{k}",

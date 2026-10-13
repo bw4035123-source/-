@@ -1,0 +1,8 @@
+# rulekit(규정 검색·이수시간 계산·제출 양식) 추가 패키지 – 다이수 기본 실행에는 필요 없음
+langchain-core>=0.3
+langchain-text-splitters>=0.3
+rank-bm25>=0.2.2
+pytest>=8
+# BGE-m3 밀집 임베딩을 쓸 때만(둘 중 하나, 모델 약 2.3GB 별도 내려받기)
+# FlagEmbedding>=1.2
+# sentence-transformers>=3.0
