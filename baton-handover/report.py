@@ -297,7 +297,11 @@ def _approx_day(text):
 
 
 def _clamp(y, m, d):
-    return date(y, m, min(d, calendar.monthrange(y, m)[1]))
+    try:
+        d = int(d)
+    except (TypeError, ValueError):
+        d = 1
+    return date(y, m, max(1, min(d, calendar.monthrange(y, m)[1])))
 
 
 def _next_on(months, day, start):

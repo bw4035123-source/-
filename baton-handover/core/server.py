@@ -162,6 +162,10 @@ class App:
                     return json_response({"error": e.message}, e.status)
                 except json.JSONDecodeError:
                     return json_response({"error": "요청 내용을 읽을 수 없습니다(JSON 형식 오류)"}, 400)
+                except (TypeError, ValueError, AttributeError):
+                    # 대부분 요청 값의 형식이 맞지 않을 때(글자 자리에 목록 등): 기록은 남기고 400으로 안내
+                    traceback.print_exc()
+                    return json_response({"error": "요청 값의 형식이 올바르지 않습니다. 입력 내용을 확인해 주세요."}, 400)
                 except Exception:
                     # 내부 오류 내용은 실행 창(서버 기록)에만 남기고 화면에는 일반 안내만 보낸다
                     traceback.print_exc()

@@ -83,7 +83,11 @@ EVENT_RULES = [
 
 def _clamp(y, m, d):
     last = calendar.monthrange(y, m)[1]
-    return date(y, m, last if d in (0, 99) or d > last else d)
+    try:
+        d = int(d)
+    except (TypeError, ValueError):
+        d = 1
+    return date(y, m, last if d in (0, 99) or d > last else max(1, d))
 
 
 def dday(d, start):

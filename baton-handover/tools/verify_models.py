@@ -49,7 +49,7 @@ def check_baton(llm):
     docs, _ = load_folder(src)
     res = []
     t = time.time()
-    draft = engine.analyze(docs, "김도윤", llm)
+    draft = engine.analyze(docs, "", llm)
     by_model = sum(1 for sec in draft["sections"].values() for it in sec if it.get("by") == "model")
     # 모델이 보탠 항목도 원문 대조 검증을 거친 것만 남는다(엔진이 내용 불일치 항목을 버림)
     ok = "모델" in draft["engine"] and not draft["llm_errors"] and by_model > 0
@@ -57,11 +57,14 @@ def check_baton(llm):
                 f"모델이 추가한 항목 {by_model}개, 오류 {len(draft['llm_errors'])}건" + (f": {draft['llm_errors'][0][:80]}" if draft["llm_errors"] else "")))
     t = time.time()
     blocks = [asdict(b) for x in docs for b in x.blocks]
-    a = qa.answer(draft, blocks, "정민재 연락처 알려줘", llm)
-    # 답 품질: 답에 나온 전화번호가 원문에서 '정민재'와 같은 문단에 실제로 있어야 통과
+    import anon  # 앱과 똑같이 사람 이름을 역할 이름으로 바꾼 뒤 묻는다(보고서에 실명이 남지 않게)
+    fix = anon.replacer(anon.build_aliases(draft, blocks))
+    draft, blocks = anon.deep(draft, fix), anon.deep(blocks, fix)
+    a = qa.answer(draft, blocks, "승강기 업체 연락처 알려줘", llm)
+    # 답 품질: 답에 나온 전화번호가 원문에서 '승강기'와 같은 문단에 실제로 있어야 통과(보고서에 사람 이름이 남지 않게 역할로 묻는다)
     import re
     phones = set(re.findall(r"0\d{1,2}-\d{3,4}-\d{4}", a["answer"]))
-    real = {p for b in blocks if "정민재" in (b.get("text") or "") for p in re.findall(r"0\d{1,2}-\d{3,4}-\d{4}", b["text"])}
+    real = {p for b in blocks if "승강기" in (b.get("text") or "") for p in re.findall(r"0\d{1,2}-\d{3,4}-\d{4}", b["text"])}
     ok_ans = a["mode"] != "규칙 기반" and bool(phones) and phones <= real
     res.append(("업무바통: 후임자 질문 답변(번호가 원문과 일치)", ok_ans, time.time() - t,
                 a["answer"][:60].replace("\n", " ") + ("" if ok_ans else f" / 답의 번호 {sorted(phones) or '없음'}, 원문 번호 {sorted(real)}")))

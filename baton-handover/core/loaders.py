@@ -22,6 +22,7 @@ SUPPORTED = {".hwpx", ".hwp", ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx", ".eml"
 
 # 사진·스캔본 글자 읽기(core/ocr.py 의 make()가 돌려주는 함수). 앱이 시작할 때 넣는다. 없으면 사진은 '글자 못 읽음'으로 남는다
 OCR = None
+MAX_BLOCKS = 3000        # 한 파일에서 읽는 줄(문단·표 행) 수 상한
 OCR_LIMIT = 200          # 한 번에 글자를 읽을 사진·스캔 쪽 수 상한
 ZIP_MAX_BYTES = 300 * 1024 * 1024
 ZIP_MAX_FILES = 3000
@@ -587,6 +588,22 @@ READERS = {
 }
 
 
+def _why(e, ext):
+    """읽기 실패 이유를 사람이 알아듣는 말로(영어 오류 문구 대신)."""
+    msg = str(e)
+    if isinstance(e, zipfile.BadZipFile) or "not a zip file" in msg.lower():
+        return f"파일이 깨졌거나 {ext} 형식이 아닙니다(다른 프로그램으로 열어 다시 저장해 보세요)"
+    if "password" in msg.lower() or "encrypt" in msg.lower():
+        return "암호가 걸린 파일이라 열 수 없습니다"
+    if isinstance(e, (json.JSONDecodeError, UnicodeDecodeError)) or "Expecting" in msg:
+        return "파일 내용이 깨져 있어 읽을 수 없습니다"
+    if "xml" in type(e).__name__.lower() or "XMLSyntax" in msg:
+        return "문서 내부 구조가 깨져 있어 읽을 수 없습니다"
+    if "EOF" in msg or "startxref" in msg:
+        return "PDF가 끝까지 저장되지 않았거나 깨져 있습니다"
+    return f"파일을 열 수 없습니다({type(e).__name__})"
+
+
 def load_bytes(data, relpath):
     """파일 내용(bytes)과 상대경로로 Document를 만든다."""
     relpath = relpath.replace("\\", "/")
@@ -606,8 +623,11 @@ def load_bytes(data, relpath):
             doc.error = "지원하지 않는 형식"
             return doc
     except Exception as e:  # 한 파일이 깨져도 나머지는 계속 읽는다
-        doc.error = f"읽기 실패: {e}"
+        doc.error = f"읽기 실패: {_why(e, ext)}"
         return doc
+    if len(items) > MAX_BLOCKS:  # 아주 큰 파일(로그·덤프 등)은 앞부분만 읽어 전체가 멈추지 않게 한다
+        doc.meta["truncated"] = f"내용이 너무 길어 앞부분 {MAX_BLOCKS:,}줄만 읽었습니다(전체 {len(items):,}줄)"
+        items = items[:MAX_BLOCKS]
     doc.tables = tables
     if ext in IMAGE_EXT:
         doc.image_bytes = data  # 포토 아카이브용(문서 목록·저장 데이터에는 들어가지 않음)
@@ -715,6 +735,8 @@ def load_entries(entries):
         doc = load_bytes(data, rel)
         if doc.error:
             skipped.append({"file": rel, "reason": doc.error})
+        elif doc.meta.get("truncated"):
+            skipped.append({"file": rel, "reason": doc.meta["truncated"]})
         docs.append(doc)
 
     for rel, read in entries:

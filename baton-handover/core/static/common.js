@@ -114,6 +114,8 @@ function modal(title, ...content) {
       el("button", { onclick: () => bg.remove() }, "닫기")),
     el("div", { style: { marginTop: "10px" } }, ...content));
   bg.append(m); document.body.append(bg);
+  const esc = e => { if (e.key === "Escape") { bg.remove(); document.removeEventListener("keydown", esc); } };
+  document.addEventListener("keydown", esc);
   return bg;
 }
 

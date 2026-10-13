@@ -117,8 +117,16 @@ def pii(s):
 def replacer(names):
     if not names:
         return pii
-    rx = re.compile("|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)))
-    return lambda s: pii(tidy(rx.sub(lambda m: names[m.group(0)], s)) if rx.search(s) else s)
+    titles = "|".join(sorted({t for t in TITLE_OK.pattern.strip("^()$").split("|")}, key=len, reverse=True))
+    rx = re.compile("(" + "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)) + r")(\s?(?:" + titles + r"))?")
+
+    def one(m):
+        alias = names[m.group(1)]
+        # 역할 이름이 이미 직위로 끝나면(예: '구청 체육진흥과 주무관') 뒤에 붙은 직위는 뺀다
+        if m.group(2) and re.search(r"(" + titles + r")(\s[A-Z])?$", alias):
+            return alias
+        return alias + (m.group(2) or "")
+    return lambda s: pii(tidy(rx.sub(one, s)) if rx.search(s) else s)
 
 
 def deep(obj, fn):

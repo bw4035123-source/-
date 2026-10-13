@@ -489,9 +489,14 @@ def _next_action(s):
 
 # ---------------------------------------------------------------- 병합
 
+MAX_SOURCES = 30  # 한 항목에 붙이는 근거 수 상한(같은 말이 수천 번 반복된 자료에서도 느려지지 않게)
+
+
 def _merge_sources(dst, src):
-    seen = {(s["file"], s["loc"]) for s in dst["sources"]}
-    for s in src["sources"]:
+    seen = {(s["file"], s["loc"]) for s in dst["sources"]} if len(dst["sources"]) < MAX_SOURCES else None
+    for s in src["sources"] if seen is not None else []:
+        if len(dst["sources"]) >= MAX_SOURCES:
+            break
         if (s["file"], s["loc"]) not in seen:
             dst["sources"].append(s)
             seen.add((s["file"], s["loc"]))

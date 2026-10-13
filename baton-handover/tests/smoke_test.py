@@ -135,6 +135,28 @@ def check_baton(c):
     yield "잘못된 요청은 500 대신 400", all(c.status(*x) == 400 for x in [
         ("POST", f"/api/handovers/{hid}/manual", {"start": "2026-13-01"}), ("POST", f"/api/handovers/{hid}/ask", [1]),
         ("POST", f"/api/handovers/{hid}/knowhow", [1])])
+    # 심사위원 관점 점검에서 나온 문제 재발 방지
+    sid = next(x["id"] for x in c.call("GET", f"/api/handovers/{hid}")["draft"]["sections"]["schedule"])
+    bad_day = [c.status("POST", f"/api/handovers/{hid}/item", {"section": "schedule", "item": {"id": sid, "day": d}}) for d in (-5, 1.5, "x", 40)]
+    still = [c.status("GET", f"/api/handovers/{hid}/radar"), c.status("POST", f"/api/handovers/{hid}/export/handover?fmt=md", {}),
+             c.status("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"})]
+    yield "잘못된 '일'·'월' 값은 400, 다른 기능은 그대로 동작", bad_day == [400] * 4 and still == [200] * 3 and \
+        c.status("POST", f"/api/handovers/{hid}/item", {"section": "rnr", "item": {"detail": "담당 업무 없이"}}) == 400 and \
+        c.status("POST", f"/api/handovers/{hid}/item", {"section": "schedule", "item": {"task": "t", "months": ["x"]}}) == 400
+    bad_up = [c.status("POST", "/api/handovers", b) for b in (
+        {"source": {"kind": "upload", "files": [{"path": "a.txt", "b64": "@@@"}]}}, {"source": {"kind": "upload", "files": "abc"}},
+        {"source": {"kind": "upload", "files": [{"b64": "YQ=="}]}}, {"source": "upload"},
+        {"source": {"kind": "docsystem", "base_url": "http://127.0.0.1:9/none"}})]
+    yield "잘못된 업로드·문서시스템 주소는 400", bad_up == [400] * 5
+    c.call("POST", f"/api/handovers/{hid}/ask", {"q": "김도윤 연락처 알려줘"})
+    k = c.call("POST", f"/api/handovers/{hid}/knowhow", {"target": "오세영 주무관", "text": "마감 전 재확인"})
+    hist = json.dumps(c.call("GET", f"/api/handovers/{hid}/history"), ensure_ascii=False)
+    yield "개인정보: 질문 기록·노하우 대상에도 이름 없음", "김도윤" not in hist and \
+        all(x["target"] == "" for x in k["cards"] if not x["auto"] and x["text"] == "마감 전 재확인")
+    big = ("2026년 11월 10일까지 청소 용역 입찰공고 필요, 계약팀과 협의 중\n" * 8000).encode()
+    t0 = time.time()
+    bh = c.call("POST", "/api/handovers", {"source": {"kind": "upload", "files": [{"path": "큰메모.txt", "b64": base64.b64encode(big).decode()}]}})
+    yield f"아주 큰 텍스트 파일도 멈추지 않음({time.time() - t0:.1f}초)", time.time() - t0 < 20 and any("앞부분" in x["reason"] for x in bh["skipped"])
     yield "DNS 리바인딩 차단(도메인 Host 거부)", c.status("GET", "/api/handovers", headers={"Host": "evil.example"}) == 403
     # 인수인계 순서도: 단계 상태가 실제 진행에 맞게 바뀌는지, 문서에 들어가는지
     f0 = c.call("GET", f"/api/handovers/{hid}/flow")

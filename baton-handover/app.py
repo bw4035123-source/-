@@ -84,12 +84,36 @@ def list_handovers(req):
 def create_handover(req):
     body = req.json
     src = body.get("source") or {}
+    if not isinstance(src, dict):
+        raise HttpError(400, "자료 넣는 방법을 선택해 주세요")
     hid = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
+    try:
+        return _create(body, src, hid)
+    finally:
+        # 올린 원본 사본은 성공·실패와 관계없이 읽은 뒤 지운다(이름이 든 원문을 남기지 않음)
+        store.remove_tree(f"handovers/{hid}/inbox")
+        if not store.path(f"handovers/{hid}/handover.json").exists():
+            store.remove_tree(f"handovers/{hid}")  # 실패한 건은 흔적을 남기지 않는다
+
+
+UPLOAD_MAX = 500 * 1024 * 1024  # 한 번에 올리는 자료 상한(500MB)
+
+
+def _create(body, src, hid):
     kind = src.get("kind")
     if kind == "upload":
-        if not src.get("files"):
+        files = src.get("files")
+        if not files:
             raise HttpError(400, "올린 파일이 없습니다")
-        source = UploadSource(src["files"], store.path(f"handovers/{hid}/inbox"))
+        if not isinstance(files, list) or not all(isinstance(f, dict) and isinstance(f.get("path"), str) and f["path"].strip()
+                                                   and isinstance(f.get("b64"), str) for f in files):
+            raise HttpError(400, "올린 파일 형식이 올바르지 않습니다")
+        if sum(len(f["b64"]) for f in files) * 3 // 4 > UPLOAD_MAX:
+            raise HttpError(400, "한 번에 올릴 수 있는 자료는 500MB까지입니다. 나눠서 올려 주세요")
+        try:
+            source = UploadSource(files, store.path(f"handovers/{hid}/inbox"))
+        except (ValueError, TypeError) as e:
+            raise HttpError(400, f"올린 파일을 읽을 수 없습니다({str(e)[:80]})")
     elif kind == "local":
         try:
             source = LocalFolderSource(src.get("path", ""))
@@ -101,10 +125,17 @@ def create_handover(req):
         source = LocalFolderSource(SAMPLE_MESSY)
     elif kind == "docsystem":
         base = src.get("base_url") or f"http://127.0.0.1:{cfg['port']}/mock-docsystem"
-        source = DocSystemSource(base, src.get("owner", ""))
+        source = DocSystemSource(str(base), str(src.get("owner") or ""))
     else:
         raise HttpError(400, "자료 넣는 방법을 선택해 주세요")
-    docs, skipped = source.load()
+    try:
+        docs, skipped = source.load()
+    except HttpError:
+        raise
+    except Exception as e:
+        if kind == "docsystem":
+            raise HttpError(400, f"문서시스템에 연결하지 못했습니다. 주소와 소유자 ID를 확인해 주세요({type(e).__name__})")
+        raise
     if not [d for d in docs if not d.error]:
         raise HttpError(400, "읽을 수 있는 자료가 없습니다. 한글·PDF·엑셀·워드·메일·텍스트 파일을 넣어 주세요.")
     draft = engine.analyze(docs, str(body.get("predecessor") or "").strip(), llm)
@@ -132,8 +163,6 @@ def create_handover(req):
     h["photos"] = [anon.deep(p, lambda t: anon.scrub(t, privacy)) for p in photo_mod.build(docs, fix, _save_photo, llm)]
     store.write(f"handovers/{hid}/blocks.json", blocks)
     save_h(h)
-    if kind == "upload":
-        store.remove_tree(f"handovers/{hid}/inbox")  # 올린 원본 사본은 읽은 뒤 지운다(이름이 든 원문을 남기지 않음)
     log(hid, "초안 생성", f"{len(docs)}개 자료, {draft['engine']}")
     return h
 
@@ -178,6 +207,61 @@ def document_blocks(req):
 # ---------------------------------------------------------------- 전임자 검토·수정
 
 SECTIONS = ("rnr", "schedule", "contacts", "issues")
+# 구분마다 받을 칸과 형식: 글자(str)·목록(list)·월(months)·일(day)
+FIELDS = {
+    "rnr": {"duty": "str", "detail": "str"},
+    "schedule": {"months": "months", "day": "day", "task": "str", "related": "str", "recurring": "rec"},
+    "contacts": {"name": "str", "org": "str", "title": "str", "phones": "list", "emails": "list", "topics": "list"},
+    "issues": {"title": "str", "state": "str", "next_action": "str", "due": "str"},
+}
+MAIN = {"rnr": "duty", "schedule": "task", "contacts": "name", "issues": "title"}
+
+
+def sanitize_item(sec, raw, new):
+    """화면·API에서 온 항목을 정해진 칸과 형식으로만 받는다(잘못된 값이 저장돼 다른 기능까지 망가지지 않게)."""
+    if not isinstance(raw, dict):
+        raise HttpError(400, "항목 형식이 올바르지 않습니다")
+    out = {"id": str(raw.get("id") or "")[:40]} if raw.get("id") else {}
+    for k, kind in FIELDS[sec].items():
+        if k not in raw:
+            continue
+        v = raw[k]
+        if kind == "str":
+            out[k] = "" if v is None else str(v).strip()[:2000]
+        elif kind == "list":
+            vs = v if isinstance(v, list) else ([v] if v not in (None, "") else [])
+            out[k] = [str(x).strip()[:300] for x in vs if str(x).strip()][:20]
+        elif kind == "rec":
+            out[k] = v if v in ("", "매월", "매년", "매분기") else ""
+        elif kind == "day":
+            if v in (None, ""):
+                out[k] = None
+                continue
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                raise HttpError(400, "'일'은 1~31 사이 숫자로 적어 주세요")
+            if f != int(f) or not 1 <= int(f) <= 31:
+                raise HttpError(400, "'일'은 1~31 사이 숫자로 적어 주세요")
+            out[k] = int(f)
+        elif kind == "months":
+            vs = v if isinstance(v, list) else []
+            ms = []
+            for m in vs:
+                try:
+                    m = int(float(m))
+                except (TypeError, ValueError):
+                    raise HttpError(400, "'월'은 1~12 사이 숫자로 적어 주세요(예: 3 또는 3, 9 또는 매월)")
+                if not 1 <= m <= 12:
+                    raise HttpError(400, "'월'은 1~12 사이 숫자로 적어 주세요(예: 3 또는 3, 9 또는 매월)")
+                ms.append(m)
+            out[k] = sorted(set(ms))
+    if new:
+        for k, kind in FIELDS[sec].items():
+            out.setdefault(k, [] if kind in ("list", "months") else (None if kind == "day" else ""))
+        if not out[MAIN[sec]]:
+            raise HttpError(400, "내용을 입력해 주세요")
+    return out
 
 
 @app.post("/api/handovers/<hid>/item")
@@ -187,8 +271,10 @@ def upsert_item(req):
     sec = body.get("section")
     if sec not in SECTIONS:
         raise HttpError(400, "잘못된 구분")
-    item = clean(h, body.get("item") or {})
+    raw = body.get("item") or {}
     items = h["draft"]["sections"][sec]
+    exists = isinstance(raw, dict) and any(it["id"] == raw.get("id") for it in items)
+    item = clean(h, sanitize_item(sec, raw, new=not exists))
     for i, it in enumerate(items):
         if it["id"] == item.get("id"):
             before = {k: it.get(k) for k in item if k not in ("status",)}
@@ -203,10 +289,6 @@ def upsert_item(req):
             return it
     # 새 항목 (전임자가 직접 추가)
     item.update(id=engine.new_id(sec[:2]), status="추가", sources=[], origin=["전임자 입력"], edited_at=_now())
-    if sec == "schedule":
-        item.setdefault("months", [])
-        item["months"] = [int(m) for m in item["months"] if 1 <= int(m) <= 12]
-        item.setdefault("task", "")
     items.append(item)
     save_h(h)
     log(h["id"], f"{sec} 추가", item.get("task") or item.get("title") or item.get("name") or item.get("duty") or "")
@@ -217,7 +299,8 @@ def upsert_item(req):
 def delete_item(req):
     h = load_h(req.params["hid"])
     body = req.json
-    for it in h["draft"]["sections"].get(body.get("section"), []):
+    sec = body.get("section")
+    for it in h["draft"]["sections"].get(sec if sec in SECTIONS else "", []):
         if it["id"] == body.get("id"):
             it["status"] = "삭제" if it.get("status") != "삭제" else "초안"
             save_h(h)
@@ -279,7 +362,7 @@ def ask(req):
     q = str(req.json.get("q") or "").strip()[:500]
     if not q:
         raise HttpError(400, "질문을 입력해 주세요")
-    log(h["id"], "AI 분신에게 질문", q)
+    log(h["id"], "AI 분신에게 질문", clean(h, q))
     h.setdefault("asked", 0)
     h["asked"] += 1
     save_h(h)
@@ -388,7 +471,10 @@ def add_knowhow(req):
     if not text:
         raise HttpError(400, "노하우를 입력해 주세요")
     kind = b.get("kind") if b.get("kind") in network.KINDS else "요령"
-    card = {"id": f"m-{uuid.uuid4().hex[:8]}", "target": str(b.get("target") or "")[:40], "kind": kind, "text": text,
+    target = str(b.get("target") or "")[:40]
+    if target and not any(n["id"] == target for n in _net(h)["nodes"]):
+        target = ""  # 지도에 있는 협업 상대만(이름 같은 임의 글자를 저장하지 않음)
+    card = {"id": f"m-{uuid.uuid4().hex[:8]}", "target": target, "kind": kind, "text": text,
             "source": "전임자 작성", "at": _now()}
     h.setdefault("knowhow", []).append(card)
     save_h(h)
@@ -540,7 +626,7 @@ def export_baton(req):
     h = load_h(req.params["hid"])
     b = report.build_baton(h)
     data = json.dumps(b, ensure_ascii=False, indent=1).encode("utf-8")
-    name = f"업무바통_{len(b['lineage'])}대_{_fname(b['holder'])}.baton"
+    name = f"업무바통_{_fname(h.get('title'))}_{len(b['lineage'])}대.baton"
     out = store.path(f"handovers/{h['id']}/outputs/{name}")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)

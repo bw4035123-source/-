@@ -164,6 +164,17 @@ def _cite(s):
     return f"[{s['file'].split('/')[-1]} {s['loc']}]"
 
 
+def _who(it):
+    """연락처 이름이 이미 '소속 직위' 역할 이름이면 직위·소속을 다시 붙이지 않는다('…대리 대리' 방지)."""
+    name, title, org = it.get("name", ""), it.get("title", "") or "", it.get("org", "") or ""
+    out = name
+    if title and title not in name:
+        out += f" {title}"
+    if org and org.replace("기관 ", "") not in name:
+        out += f" ({org})"
+    return out
+
+
 def _item_line(s, it):
     if s == "schedule":
         if it.get("recurring") == "매월":
@@ -175,7 +186,7 @@ def _item_line(s, it):
         extra = f" ({it['timing']})" if it.get("timing") else ""
         return f"• {when}: {it['task']}{extra}"
     if s == "contacts":
-        return (f"• {it['name']} {it.get('title', '')} ({it.get('org', '') or '-'}) {', '.join(it.get('phones', [])) or '연락처 없음'}"
+        return (f"• {_who(it)} {', '.join(it.get('phones', [])) or '연락처 없음'}"
                 f" — {', '.join(it.get('topics', [])[:2])}")
     if s == "issues":
         return f"• [현안] {it['title']} [{it.get('state', '')}] 다음 할 일: {it.get('next_action') or '-'} / 기한: {it.get('due') or '-'}"
