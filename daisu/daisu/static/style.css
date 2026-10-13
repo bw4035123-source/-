@@ -238,3 +238,61 @@ body.kiosk-mode main { max-width: none; padding: 0 }
 @media (max-width: 700px) { .k-list { grid-template-columns: 1fr } .k-count { margin-left: 0 } }
 .law { border-radius: 14px; padding: 12px 14px; margin-top: 8px; background: var(--fill) }
 .law-text { white-space: pre-wrap; font-size: 13px; margin-top: 6px; max-height: 260px; overflow: auto; background: var(--fill); border-radius: 12px; padding: 12px 14px }
+
+/* 업무 일정(간트) */
+.g-stat { font: inherit; text-align: left; cursor: pointer; border: 0; transition: transform .12s var(--ease), box-shadow .2s }
+.g-stat:active { transform: scale(.98) } .g-stat:disabled { cursor: default; transform: none; color: inherit }
+.g-stat.on { box-shadow: 0 0 0 2px var(--brand), var(--shadow) }
+.g-card { padding: 0; position: relative }
+.g-head, .g-row { display: grid; grid-template-columns: 260px 1fr; align-items: center }
+.g-head { position: sticky; top: 57px; z-index: 5; background: rgba(255, 255, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius) var(--radius) 0 0; border-bottom: 1px solid var(--line); height: 46px; padding: 0 8px }
+.g-head .g-label { padding-left: 16px }
+.g-head .g-track { height: 46px }
+.g-month { position: absolute; top: 14px; font-size: 12px; color: var(--muted); font-weight: 600; padding-left: 6px; white-space: nowrap }
+.g-today-l { position: absolute; bottom: 2px; transform: translateX(-50%); font-size: 10.5px; font-weight: 700; color: #fff; background: var(--brand); border-radius: 6px; padding: 0 6px }
+.g-body { position: relative; padding-bottom: 6px }
+.g-today-w { position: absolute; top: 0; bottom: 0; left: 268px; right: 24px; pointer-events: none; z-index: 3 }
+.g-today { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--brand); opacity: .55 }
+.g-group { padding: 16px 24px 6px; font-size: 13px; font-weight: 800; color: var(--ink2); letter-spacing: -.01em }
+.g-row { min-height: 50px; cursor: pointer; border-radius: 12px; margin: 0 8px; outline: 0; transition: background .15s }
+.g-row:hover, .g-row:focus-visible { background: #f5f7fa }
+.g-row:focus-visible { box-shadow: 0 0 0 2px var(--brand) inset }
+.g-label { padding: 6px 12px 6px 16px; min-width: 0 }
+.g-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.g-sub { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; flex-wrap: wrap }
+.g-cnt { margin-left: 6px; background: var(--brand-soft); color: var(--brand); border-radius: 6px; padding: 0 6px; font-weight: 700 }
+.g-cnt.full { background: var(--done-bg); color: var(--done) }
+.g-track { position: relative; height: 50px; margin-right: 16px }
+.g-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line) }
+.g-bar { position: absolute; top: 15px; height: 20px; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .03); transition: transform .15s var(--ease), box-shadow .15s }
+.g-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px 0 0 6px }
+.g-row:hover .g-bar { transform: scaleY(1.12); box-shadow: 0 4px 12px rgba(0, 27, 55, .14) }
+.g-ck { position: absolute; right: 6px; top: 1px; font-size: 11px; font-weight: 800; color: #fff; text-shadow: 0 0 3px rgba(0, 0, 0, .25); white-space: nowrap }
+.g-bar.s-done { background: var(--done) } .g-bar.s-done i { background: transparent }
+.g-bar.s-late { background: #ffd2d6 } .g-bar.s-late i { background: var(--none) }
+.g-bar.s-doing { background: #cfe2fe } .g-bar.s-doing i { background: var(--brand) }
+.g-bar.s-todo { background: repeating-linear-gradient(135deg, #e3eefe 0 6px, #f1f6ff 6px 12px) } .g-bar.s-todo i { background: #8fbaf8 }
+.g-bar.s-past { background: #e5e8eb } .g-bar.s-past i { background: #b0b8c1 }
+.g-bar.s-late .g-ck, .g-bar.s-todo .g-ck, .g-bar.s-past .g-ck { color: var(--ink2); text-shadow: none }
+.g-mark { position: absolute; top: 20px; width: 10px; height: 10px; margin-left: -5px; background: #fff; border: 2px solid var(--ink2); transform: rotate(45deg); border-radius: 2px; z-index: 2 }
+.g-mark-l { width: 9px !important; height: 9px !important; border: 2px solid var(--ink2); transform: rotate(45deg); background: #fff }
+.g-dot { width: 8px; height: 8px; border-radius: 99px; display: inline-block; margin-right: 2px }
+.s-done.g-dot, .legend i.s-done, .g-b.s-done { background: var(--done) } .s-late.g-dot, .legend i.s-late, .g-b.s-late { background: var(--none) }
+.s-doing.g-dot, .legend i.s-doing, .g-b.s-doing { background: var(--brand) } .s-todo.g-dot, .legend i.s-todo, .g-b.s-todo { background: #8fbaf8 }
+.s-past.g-dot, .legend i.s-past, .g-b.s-past { background: #b0b8c1 }
+.g-b { color: #fff }
+.g-tip { position: absolute; z-index: 20; width: 290px; pointer-events: none; background: rgba(25, 31, 40, .94); color: #fff; border-radius: 14px; padding: 12px 14px; font-size: 12.5px;
+  line-height: 1.55; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; box-shadow: 0 12px 30px rgba(0, 0, 0, .2) }
+.g-tip.show { opacity: 1; transform: none } .g-tip b { font-size: 13.5px } .g-tip .muted { color: #b0b8c1 }
+.g-make { text-align: center; padding: 34px 10px 10px }
+.g-make-i { width: 64px; height: 64px; border-radius: 20px; background: var(--brand-soft); color: var(--brand); font-size: 32px; font-weight: 800; display: grid; place-items: center; margin: 0 auto 16px }
+.g-make p { max-width: 380px; margin: 6px auto 20px }
+.ck { list-style: none; padding: 0; margin: 0 }
+.ck li { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--line); animation: fadeUp .3s var(--ease) both }
+.ck li label { display: flex; gap: 10px; align-items: flex-start; flex: 1; cursor: pointer; font-size: 14.5px }
+.ck li input { width: 20px; height: 20px; margin-top: 2px; flex: none }
+.ck li small { display: block; color: var(--muted); font-size: 12px }
+.ck li.on label > span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line2) }
+.ck li.on label small { text-decoration: none }
+@media (max-width: 900px) { .g-stats { grid-template-columns: 1fr 1fr } .g-stats .kpi { padding: 16px } .g-head, .g-row { grid-template-columns: 130px 1fr } .g-today-w { left: 138px } .g-month { font-size: 10.5px; padding-left: 2px } .g-head { top: 53px } }

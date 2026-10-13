@@ -166,7 +166,7 @@ async function viewHome() {
 
 // ───────────── 작업 화면
 const TABS = [["files", "자료"], ["regs", "규정·기준"], ["results", "교육 실적"], ["board", "법정·필수 현황"], ["matrix", "이수 현황표"],
-  ["issues", "확인 필요"], ["plan", "일정 짜기"], ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고서"], ["year", "연간 계획"], ["ask", "질문하기"]];
+  ["issues", "확인 필요"], ["gantt", "업무 일정"], ["plan", "일정 짜기"], ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고서"], ["ask", "질문하기"]];
 
 // 작업 화면은 슬라이드: 한 화면에 한 가지 이야기, ←/→·스와이프·아래 막대로 넘깁니다.
 const SLIDE = { pid: null, idx: -1 };
@@ -181,7 +181,7 @@ const HEAD = {
   run: () => ["교육 당일, 출석과 서명을 받아요", "태블릿 서명으로 서명부와 이수 기록이 바로 생겨요"],
   notify: () => ["안내문을 대상자별로 써 드려요", "부서장·본인에게 보낼 문장을 복사만 하세요"],
   report: () => ["보고서를 바로 내려받으세요", "한글(HWPX)·워드·엑셀로 결재에 올릴 수 있어요"],
-  year: () => ["한 해 교육 일정을 한눈에", "기한과 미리 알림을 달력에 놓았어요"],
+  gantt: () => ["1년 업무를 한 장에 펼쳤어요", "막대를 누르면 그 업무의 체크리스트를 만들어요"],
   ask: () => ["궁금한 걸 물어보세요", "답에는 항상 근거 자료가 붙어요"],
 };
 function slideHead(title, sub) {
@@ -218,6 +218,7 @@ document.addEventListener("keydown", (e) => {
 })();
 
 async function viewProject(pid, tab, arg) {
+  if (tab === "year") tab = "gantt";
   const key = tab === "session" ? "run" : tab;
   const idx = Math.max(0, TABS.findIndex(([k]) => k === key));
   const dir = SLIDE.pid === pid && SLIDE.idx >= 0 ? Math.sign(idx - SLIDE.idx) : 0;
@@ -255,7 +256,7 @@ async function viewProject(pid, tab, arg) {
     h("a", { class: "nav next" + (next ? "" : " off"), href: next ? `#/p/${pid}/${next[0]}` : "#", title: "다음 (→)" }, h("span", { class: "lbl" }, next ? next[1] : ""), "›"));
   mount(head, tabs, slide, dock, h("div", { class: "keyhint" }, h("kbd", {}, "←"), " ", h("kbd", {}, "→"), " 로 넘기기"));
   tabs.querySelector(".tab.on")?.scrollIntoView({ block: "nearest", inline: "center" });
-  const fn = { files: tabFiles, regs: tabRegs, results: tabResults, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
+  const fn = { files: tabFiles, regs: tabRegs, results: tabResults, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, gantt: tabGantt, ask: tabAsk }[tab] || tabBoard;
   await fn(body, d, arg);
 }
 
@@ -582,32 +583,6 @@ async function tabReport(el, d) {
 }
 
 // ⑧ 연간 계획
-function tabYear(el, d) {
-  const rem = S.info.remind || { first_days: 30, boss_days: 14 };
-  const ev = Array.from({ length: 12 }, () => []);
-  const y = d.year;
-  const push = (iso, cls, text) => { const dd = pd(iso); if (dd.getFullYear() === y) ev[dd.getMonth()].push({ iso, cls, text }); };
-  const shift = (iso, n) => { const x = pd(iso); x.setDate(x.getDate() - n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
-  const byDue = {};
-  for (const s of d.summary) if (s.due && s.mandatory) (byDue[s.due] = byDue[s.due] || []).push(s);
-  for (const [due, ss] of Object.entries(byDue)) {
-    const left = ss.reduce((a, s) => a + s.partial + s.none, 0);
-    push(due, "due", `기한: ${ss.map((s) => s.label).join(", ")}` + (left ? ` (남은 ${left}명·건)` : " (완료)"));
-    push(shift(due, rem.first_days), "remind", `미이수자 본인 안내(기한 ${rem.first_days}일 전)`);
-    push(shift(due, rem.boss_days), "remind", `부서장 통보(기한 ${rem.boss_days}일 전)`);
-  }
-  for (const p of d.people) {
-    const c = d.cells[p.id].hire;
-    if (c && c.s !== "na") push(c.due, c.s === "done" ? "" : "due", `채용 시 교육: ${p.name}(${p.dept}) ${ST[c.s]}`);
-  }
-  for (const s of d.signs) if (s.date) push(s.date, "", `집합교육 실시: ${s.title} (${s.attended}/${s.n}명)`);
-  const now = pd(d.base);
-  add(el, h("div", { class: "alert info" }, `${y}년 법정의무교육 흐름입니다. 기한·안내 시점은 교육 규칙표와 설정의 안내 기준으로 자동 계산합니다.`),
-    h("div", { class: "months" }, ev.map((list, m) => h("div", { class: "month" + (m === now.getMonth() ? " now" : "") },
-      h("h3", {}, `${m + 1}월`, m === now.getMonth() ? h("span", { class: "badge b-brand" }, "이번 달") : null),
-      list.sort((a, b) => a.iso.localeCompare(b.iso)).map((e) => h("div", { class: `ev ${e.cls}${e.iso < d.base ? " past" : ""}` }, h("span", { class: "d" }, kd(e.iso)), e.text))))));
-}
-
 // ⑨ 질문하기
 function tabAsk(el, d) {
   const pid = d.project.id;
@@ -1030,5 +1005,157 @@ async function tabResults(el, d) {
           h("td", { class: "small" }, x.title, h("div", { class: "tiny muted" }, x.inst)), h("td", { class: "small" }, `${x.start}~${(x.end || "").slice(5)} (${x.days}일)`),
           h("td", { class: "num" }, (x.cost || 0).toLocaleString()), h("td", { class: "num", title: x.notes.join(" / ") }, x.travel == null ? "-" : x.travel.toLocaleString()),
           h("td", {}, x.report_state ? h("span", { class: "badge " + (x.report_state.includes("기한 내") ? "b-done" : x.report_state.includes("대기") ? "" : "b-none") }, x.report_state) : "")))))));
+  draw();
+}
+
+// ───────────── 업무 일정(간트): 자료를 분석해 1년 업무를 기간 막대로, 막대를 누르면 체크리스트
+const GST = { done: "완료", late: "지연", doing: "진행 중", todo: "예정", past: "기간 지남" };
+const GV = { view: store.get("gantt.view", "lane"), range: store.get("gantt.range", "year"), status: "" };
+function isoAdd(iso, days) { const x = pd(iso); x.setDate(x.getDate() + days); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; }
+function dayDiff(a, b) { return Math.round((pd(b) - pd(a)) / 864e5); }
+
+async function tabGantt(el, d) {
+  const pid = d.project.id;
+  let W = await api(`/api/projects/${pid}/work`);
+  const top = h("div"), chart = h("div");
+  add(el, top, chart);
+  const ranges = () => {
+    const y = W.year, q = Math.floor((pd(W.base).getMonth()) / 3), by = pd(W.base).getFullYear();
+    return { year: ["1년 + 다음 해 보고", `${y}-01-01`, `${y + 1}-02-28`], h1: ["상반기", `${y}-01-01`, `${y}-06-30`], h2: ["하반기", `${y}-07-01`, `${y}-12-31`],
+      q: ["이번 분기", `${by}-${String(q * 3 + 1).padStart(2, "0")}-01`, isoAdd(`${q === 3 ? by + 1 : by}-${String(q === 3 ? 1 : q * 3 + 4).padStart(2, "0")}-01`, -1)] };
+  };
+  const seg = (opts, cur, on) => h("div", { class: "seg", style: "margin:0" }, opts.map(([k, l]) => h("a", { href: "#", class: "tab" + (k === cur ? " on" : ""),
+    onclick: (e) => { e.preventDefault(); on(k); } }, l)));
+
+  function draw() {
+    const R = ranges()[GV.range] || ranges().year;
+    const [r0, r1] = [R[1], R[2]];
+    const span = dayDiff(r0, r1) + 1;
+    const pos = (iso) => Math.max(0, Math.min(100, (100 * dayDiff(r0, iso)) / span));
+    const items = W.items.filter((x) => x.end >= r0 && x.start <= r1);
+    const shown = items.filter((x) => !GV.status || x.status === GV.status);
+    const cnt = (s) => items.filter((x) => x.status === s).length;
+    const made = W.items.filter((x) => x.check).length;
+    slideHead(`업무 ${W.items.length}개를 1년 일정에 펼쳤어요`, `지연 ${cnt("late")} · 진행 중 ${cnt("doing")} · 예정 ${cnt("todo")} — 막대를 누르면 그 업무의 체크리스트를 만들어요`);
+    // 상단: 보기·기간·상태
+    const addBtn = h("button", { class: "btn sm", onclick: () => addWork() }, "+ 업무 추가");
+    top.replaceChildren(
+      h("div", { class: "row between", style: "margin-bottom:14px" },
+        h("div", { class: "row" }, seg([["lane", "업무별"], ["period", "기간별"]], GV.view, (k) => { GV.view = k; store.set("gantt.view", k); draw(); }),
+          seg(Object.entries(ranges()).map(([k, v]) => [k, v[0]]), GV.range, (k) => { GV.range = k; store.set("gantt.range", k); draw(); })),
+        h("div", { class: "row" }, addBtn, h("button", { class: "btn sm primary", onclick: () => dl(`/api/projects/${pid}/export?doc=gantt`) }, "엑셀(일정표·체크리스트)"))),
+      h("div", { class: "grid g4 g-stats", style: "margin-bottom:16px" },
+        [["", "전체 업무", items.length, ""], ["doing", "진행 중", cnt("doing"), ""], ["late", "지연", cnt("late"), cnt("late") ? "bad" : "ok"], ["check", "체크리스트", `${made}개`, ""]]
+          .map(([k, l, v, cls]) => h("button", { class: `card kpi g-stat ${cls}${GV.status === k && k ? " on" : ""}`, disabled: k === "check" ? true : null,
+            onclick: () => { if (k === "check") return; GV.status = GV.status === k ? "" : k; draw(); } },
+            h("div", { class: "v" }, v), h("div", { class: "l" }, l, k && k !== "check" ? h("span", { class: "tiny muted" }, GV.status === k ? " · 필터 해제" : " · 눌러서 보기") : null)))));
+    // 그룹
+    let groups;
+    if (GV.view === "lane") groups = W.lanes.map((l) => [l, shown.filter((x) => x.lane === l)]).filter(([, xs]) => xs.length);
+    else {
+      const qn = (iso) => { const t = pd(iso < r0 ? r0 : iso); return t.getFullYear() > W.year ? `${t.getFullYear()}년 초 (다음 해)` : `${Math.floor(t.getMonth() / 3) + 1}분기 (${Math.floor(t.getMonth() / 3) * 3 + 1}~${Math.floor(t.getMonth() / 3) * 3 + 3}월)`; };
+      const m = {};
+      [...shown].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)).forEach((x) => (m[qn(x.start)] = m[qn(x.start)] || []).push(x));
+      groups = Object.entries(m);
+    }
+    if (GV.view === "lane") groups.forEach(([, xs]) => xs.sort((a, b) => a.start.localeCompare(b.start)));
+    // 눈금(월)
+    const months = [];
+    for (let t = pd(r0); t <= pd(r1); t.setMonth(t.getMonth() + 1, 1)) {
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-01`;
+      months.push([iso < r0 ? r0 : iso, `${t.getMonth() === 0 && t.getFullYear() !== W.year ? t.getFullYear() % 100 + "." : ""}${t.getMonth() + 1}월`]);
+    }
+    const grid = () => months.map(([iso], i) => (i ? h("i", { class: "g-tick", style: `left:${pos(iso)}%` }) : null));
+    const today = W.base >= r0 && W.base <= r1 ? pos(W.base) : null;
+    const tip = h("div", { class: "g-tip", role: "tooltip" });
+    const showTip = (e, x) => {
+      tip.replaceChildren(h("b", {}, x.title), h("div", {}, `${kd(x.start)} ~ ${kd(x.end)}`), h("div", {}, h("span", { class: "g-dot s-" + x.status }), GST[x.status],
+        x.progress != null ? ` · ${Math.round(x.progress)}%` : "", x.check ? ` · 체크 ${x.check.done}/${x.check.total}` : ""), x.detail ? h("div", { class: "muted" }, x.detail) : null,
+        h("div", { class: "muted tiny" }, x.check ? "눌러서 체크리스트 열기" : "눌러서 체크리스트 만들기"));
+      tip.classList.add("show");
+      const b = chart.getBoundingClientRect();
+      tip.style.left = Math.min(e.clientX - b.left + 14, b.width - 300) + "px";
+      tip.style.top = e.clientY - b.top + 16 + "px";
+    };
+    const row = (x) => {
+      const L = pos(x.start < r0 ? r0 : x.start), Rr = pos(isoAdd(x.end > r1 ? r1 : x.end, 1));
+      const bar = h("div", { class: `g-bar s-${x.status}`, style: `left:${L}%;width:max(8px,${Rr - L}%)` },
+        x.progress != null ? h("i", { style: `width:${Math.max(0, Math.min(100, x.progress))}%` }) : null);
+      const marks = (x.marks || []).filter((m) => m.date >= r0 && m.date <= r1).map((m) => h("i", { class: "g-mark", style: `left:${pos(m.date)}%`, title: `${m.label} ${kd(m.date)}` }));
+      return h("div", { class: "g-row", tabindex: "0", role: "button", "aria-label": `${x.title}, ${GST[x.status]}, 체크리스트 열기`,
+        onclick: () => openWork(x.id), onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWork(x.id); } },
+        onmousemove: (e) => showTip(e, x), onmouseleave: () => tip.classList.remove("show") },
+        h("div", { class: "g-label" }, h("div", { class: "g-title", title: x.title }, x.title),
+          h("div", { class: "g-sub" }, h("span", { class: "g-dot s-" + x.status }), GST[x.status], x.progress != null ? ` · ${Math.round(x.progress)}%` : "",
+            x.check ? h("span", { class: "g-cnt" + (x.check.done === x.check.total ? " full" : "") }, `체크 ${x.check.done}/${x.check.total}`) : null)),
+        h("div", { class: "g-track" }, grid(), marks, bar));
+    };
+    chart.replaceChildren(h("div", { class: "card g-card" },
+      h("div", { class: "g-head" }, h("div", { class: "g-label muted small" }, GV.view === "lane" ? "업무" : "시작 시기"),
+        h("div", { class: "g-track" }, months.map(([iso, l]) => h("span", { class: "g-month", style: `left:${pos(iso)}%` }, l)),
+          today != null ? h("span", { class: "g-today-l", style: `left:${today}%` }, "오늘") : null)),
+      h("div", { class: "g-body" }, today != null ? h("div", { class: "g-today-w" }, h("i", { class: "g-today", style: `left:${today}%` })) : null,
+        groups.length ? groups.map(([g, xs]) => [h("div", { class: "g-group" }, g, h("span", { class: "muted" }, ` ${xs.length}`)), xs.map(row)])
+          : h("div", { class: "empty" }, "이 기간·조건에 해당하는 업무가 없습니다.")),
+      h("div", { class: "legend", style: "padding:14px 24px 18px" }, Object.entries(GST).map(([k, l]) => h("span", {}, h("i", { class: "s-" + k }), l)),
+        h("span", {}, h("i", { class: "g-mark-l" }), "기한·교육일"), h("span", {}, h("i", { style: "background:var(--brand);width:2px" }), "오늘(기준일)"))),
+      tip, h("p", { class: "small muted" }, "업무는 넣은 자료(명단·이수기록·외부교육·규정·편람)와 운영 회차를 분석해 만듭니다. 막대의 진한 부분은 진행률(이수율·집행률·체크 완료)입니다."));
+  }
+
+  async function reload() { W = await api(`/api/projects/${pid}/work`); draw(); }
+
+  async function openWork(iid) {
+    const r = await api(`/api/projects/${pid}/work/${encodeURIComponent(iid)}/checklist`);
+    renderWork(r);
+  }
+  function renderWork(r) {
+    const x = r.item, url = `/api/projects/${pid}/work/${encodeURIComponent(x.id)}`;
+    const send = async (json) => { renderWork(await api(url + "/checklist", { method: "PATCH", json })); reload(); };
+    const s = h("input", { type: "date", value: x.start }), e = h("input", { type: "date", value: x.end });
+    const period = h("div", { class: "law" }, h("div", { class: "row" }, h("b", { class: "small" }, "기간"), s, "~", e,
+      h("button", { class: "btn sm", onclick: async () => { await api(url, { method: "PATCH", json: { start: s.value, end: e.value } }); toast("기간을 바꿨습니다"); await reload(); openWork(x.id); } }, "저장"),
+      x.moved ? h("button", { class: "btn sm ghost", onclick: async () => { await api(url, { method: "PATCH", json: { reset: true } }); await reload(); openWork(x.id); } }, "자동 기간으로") : null));
+    const head = [h("div", { class: "row", style: "margin-bottom:6px" }, h("span", { class: "badge g-b s-" + x.status }, GST[x.status]), h("span", { class: "badge" }, x.lane),
+        x.progress != null ? h("span", { class: "badge b-brand" }, `진행 ${Math.round(x.progress)}%`) : null),
+      h("div", { class: "small", style: "margin-bottom:4px" }, `${kd(x.start, true)} ~ ${kd(x.end, true)}`), x.detail ? h("div", { class: "small muted" }, x.detail) : null,
+      x.link ? h("a", { class: "btn sm", style: "margin-top:8px", href: `#/p/${pid}/${x.link}`, onclick: closeDrawer }, "관련 화면 열기") : null, period];
+    let body;
+    if (!r.items) {
+      body = h("div", { class: "g-make" }, h("div", { class: "g-make-i" }, "✓"), h("h3", {}, "이 업무의 체크리스트를 만들어요"),
+        h("p", { class: "small muted" }, "업무 종류와 넣은 자료를 보고 해야 할 일을 순서대로 뽑습니다. 자료로 확인되는 항목(예: 미이수자 0명, 결과보고 제출)은 자동으로 체크됩니다."),
+        h("button", { class: "btn primary lg", onclick: async (ev) => { ev.target.disabled = true; renderWork(await api(url + "/checklist", { method: "POST" })); reload(); toast("체크리스트를 만들었습니다"); } }, "체크리스트 생성"));
+    } else {
+      const n = r.items.filter((i) => i.done).length;
+      const inp = h("input", { placeholder: "항목 추가 (예: 교육장 냉방 점검)", style: "flex:1", onkeydown: (ev) => { if (ev.key === "Enter" && inp.value.trim()) send({ add: inp.value }); } });
+      const text = () => `[${x.title}] ${x.start}~${x.end}\n` + r.items.map((i, k) => `${i.done ? "☑" : "☐"} ${k + 1}. ${i.text}${i.hint ? " (" + i.hint + ")" : ""}`).join("\n");
+      body = h("div", {},
+        h("div", { class: "row between", style: "margin:18px 0 8px" }, h("h3", { style: "margin:0" }, `체크리스트 ${n}/${r.items.length}`), h("span", { class: "tiny muted" }, `${r.created} 생성`)),
+        h("div", { class: "bar", style: "margin-bottom:12px" }, h("i", { class: "d", style: `width:${(100 * n) / Math.max(1, r.items.length)}%` })),
+        h("ul", { class: "ck" }, r.items.map((i) => h("li", { class: i.done ? "on" : "" },
+          h("label", {}, h("input", { type: "checkbox", checked: i.done, disabled: i.auto_ok, onchange: () => send({ toggle: i.id }) }),
+            h("span", {}, i.text, i.hint ? h("small", {}, i.hint) : null)),
+          i.auto_ok ? h("span", { class: "badge b-done", title: "넣은 자료로 확인되어 자동 체크" }, "자료로 확인") : null,
+          i.link ? h("a", { class: "tiny", href: `#/p/${pid}/${i.link}`, onclick: closeDrawer }, "바로 가기") : null,
+          i.mine ? h("button", { class: "btn sm ghost", "aria-label": "항목 삭제", onclick: () => send({ remove: i.id }) }, "×") : null))),
+        h("div", { class: "row", style: "margin-top:10px" }, inp, h("button", { class: "btn sm", onclick: () => inp.value.trim() && send({ add: inp.value }) }, "추가")),
+        h("div", { class: "row", style: "margin-top:16px" }, h("button", { class: "btn sm", onclick: () => copy(text()) }, "복사"),
+          h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm("체크 상태와 추가 항목을 지우고 다시 만들까요?")) return; renderWork(await api(url + "/checklist", { method: "POST" })); reload(); } }, "다시 만들기"),
+          h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm("이 체크리스트를 지울까요?")) return; await send({ delete: true }); } }, "체크리스트 삭제")));
+    }
+    const del = x.id.startsWith("custom:") ? h("button", { class: "btn sm ghost", style: "margin-top:18px;color:var(--none)", onclick: async () => {
+      if (!confirm("직접 추가한 이 업무를 지울까요?")) return; await api(url, { method: "DELETE" }); closeDrawer(); reload(); } }, "업무 삭제") : null;
+    openDrawer(x.title, head, body, del);
+  }
+
+  function addWork() {
+    const t = h("input", { placeholder: "예) 신규 강사 풀 구축", style: "width:100%" });
+    const s = h("input", { type: "date", value: W.base }), e = h("input", { type: "date", value: isoAdd(W.base, 30) });
+    openDrawer("업무 추가", h("p", { class: "small muted" }, "자료에 없는 업무(예: 교육장 개선, 강사 풀 구축)를 일정에 넣습니다. 넣은 뒤 막대를 눌러 체크리스트를 만들 수 있습니다."),
+      h("div", { class: "field" }, h("label", { class: "f" }, "업무 이름"), t),
+      h("div", { class: "row" }, h("div", { class: "field grow" }, h("label", { class: "f" }, "시작"), s), h("div", { class: "field grow" }, h("label", { class: "f" }, "끝"), e)),
+      h("button", { class: "btn primary", onclick: async () => { const r = await api(`/api/projects/${pid}/work`, { method: "POST", json: { title: t.value, start: s.value, end: e.value } });
+        await reload(); openWork(r.id); } }, "추가하고 체크리스트 만들기"));
+    setTimeout(() => t.focus(), 50);
+  }
   draw();
 }

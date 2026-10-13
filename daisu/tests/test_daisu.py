@@ -314,6 +314,76 @@ class TestServer(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(config.CONFIG, "rules.local.json")))
 
 
+class TestWorkGantt(unittest.TestCase):
+    """업무 분석 → 간트(업무별·기간별) → 막대별 체크리스트."""
+
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        cls.c = TestClient(app)
+        cls.pid = cls.c.post("/api/projects/sample").json()["id"]
+
+    def test_items(self):
+        w = self.c.get(f"/api/projects/{self.pid}/work").json()
+        lanes = {i["lane"] for i in w["items"]}
+        for l in ("계획·예산", "법정교육", "필수교육", "안내·독려", "집합교육 운영", "외부(위탁)교육", "보고·평가"):
+            self.assertIn(l, lanes)
+        for i in w["items"]:
+            self.assertLessEqual(i["start"], i["end"])
+            self.assertIn(i["status"], w["status"])
+        up = next(i for i in w["items"] if i["title"] == "산업안전보건 정기교육(상반기)")
+        self.assertEqual(up["status"], "late")  # 기한(6/30) 지난 미이수자 있음
+        self.assertEqual((up["start"], up["end"]), ("2026-01-01", "2026-06-30"))
+        self.assertTrue(any(i["status"] == "done" for i in w["items"] if i["lane"] == "외부(위탁)교육"))
+        self.assertNotIn("ctx", w["items"][0])
+
+    def test_checklist(self):
+        c, pid = self.c, self.pid
+        w = c.get(f"/api/projects/{pid}/work").json()
+        for it in w["items"]:  # 모든 업무 종류에서 체크리스트가 만들어짐
+            r = c.post(f"/api/projects/{pid}/work/{it['id']}/checklist")
+            self.assertEqual(r.status_code, 200, it["id"])
+            self.assertGreaterEqual(len(r.json()["items"]), 3)
+        iid = next(i["id"] for i in w["items"] if i["kind"] == "course")
+        r = c.get(f"/api/projects/{pid}/work/{iid}/checklist").json()
+        self.assertTrue(r["items"][0]["auto_ok"])  # 대상자 명단은 자료로 확인
+        r = c.patch(f"/api/projects/{pid}/work/{iid}/checklist", json={"toggle": "t2"}).json()
+        self.assertTrue(r["items"][1]["done"])
+        r = c.patch(f"/api/projects/{pid}/work/{iid}/checklist", json={"add": "교육장 냉방 점검"}).json()
+        uid = r["items"][-1]["id"]
+        self.assertTrue(r["items"][-1]["mine"])
+        r = c.patch(f"/api/projects/{pid}/work/{iid}/checklist", json={"remove": uid}).json()
+        self.assertNotIn(uid, [x["id"] for x in r["items"]])
+        it = next(i for i in c.get(f"/api/projects/{pid}/work").json()["items"] if i["id"] == iid)
+        self.assertEqual(it["check"]["done"], 2)
+        self.assertEqual(c.patch(f"/api/projects/{pid}/work/{iid}/checklist", json={"add": " "}).status_code, 400)
+
+    def test_dates_custom_export(self):
+        c, pid = self.c, self.pid
+        iid = "plan:annual"
+        self.assertEqual(c.patch(f"/api/projects/{pid}/work/{iid}", json={"start": "2026-02-01", "end": "2026-01-01"}).status_code, 400)
+        self.assertEqual(c.patch(f"/api/projects/{pid}/work/{iid}", json={"start": "2026-02-30", "end": "2026-03-01"}).status_code, 400)
+        c.patch(f"/api/projects/{pid}/work/{iid}", json={"start": "2026-02-01", "end": "2026-02-28"})
+        it = next(i for i in c.get(f"/api/projects/{pid}/work").json()["items"] if i["id"] == iid)
+        self.assertEqual((it["start"], it["moved"]), ("2026-02-01", True))
+        new = c.post(f"/api/projects/{pid}/work", json={"title": "강사 풀 구축", "start": "2026-03-01", "end": "2026-04-30"}).json()["id"]
+        c.post(f"/api/projects/{pid}/work/{new}/checklist")
+        for t in ("t1", "t2", "t3", "t4"):
+            c.patch(f"/api/projects/{pid}/work/{new}/checklist", json={"toggle": t})
+        it = next(i for i in c.get(f"/api/projects/{pid}/work").json()["items"] if i["id"] == new)
+        self.assertEqual((it["status"], it["progress"]), ("done", 100))
+        self.assertEqual(c.delete(f"/api/projects/{pid}/work/plan:annual").status_code, 400)
+        self.assertEqual(c.delete(f"/api/projects/{pid}/work/{new}").status_code, 200)
+        x = c.get(f"/api/projects/{pid}/export?doc=gantt")
+        self.assertEqual(x.status_code, 200)
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(x.content))
+        self.assertEqual(wb.sheetnames, ["업무 일정", "체크리스트"])
+        self.assertGreater(wb["체크리스트"].max_row, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
 

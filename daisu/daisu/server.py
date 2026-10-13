@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import annual, config, costs, engine, kpi, lawapi, llm, planning, qa, reports, schedule, sessions
+from . import annual, config, costs, engine, kpi, lawapi, llm, planning, qa, reports, schedule, sessions, work
 from .readers import SUPPORTED
 from .render import FORMATS
 
@@ -797,6 +797,139 @@ def toggle_task(pid: str, key: str):
     return {"done": key in done}
 
 
+# ───────────── 업무 일정(간트)·체크리스트
+def _work(p: dict, res: dict) -> list[dict]:
+    k, ex = _overview(p, res)
+    return work.analyze(p, res, ex, config.settings().get("remind", {}), k["spend"])
+
+
+def _work_item(p: dict, iid: str) -> dict:
+    for it in _work(p, result(p)):
+        if it["id"] == iid:
+            return it
+    raise HTTPException(404, "없는 업무입니다.")
+
+
+def _lean_item(it: dict) -> dict:
+    return {k: v for k, v in it.items() if k not in ("ctx", "base")}
+
+
+def _date_ok(x) -> str:
+    x = str(x or "")
+    try:
+        dt.date.fromisoformat(x)
+    except ValueError:
+        raise HTTPException(400, "날짜 형식이 올바르지 않습니다(YYYY-MM-DD).")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", x):
+        raise HTTPException(400, "날짜 형식이 올바르지 않습니다(YYYY-MM-DD).")
+    return x
+
+
+@app.get("/api/projects/{pid}/work")
+def get_work(pid: str):
+    p = load(pid)
+    res = result(p)
+    return {"year": res["year"], "base": res["base"], "lanes": work.LANES, "status": work.STATUS,
+            "items": [_lean_item(it) for it in _work(p, res)]}
+
+
+@app.get("/api/projects/{pid}/work/{iid}/checklist")
+def get_checklist(pid: str, iid: str):
+    p = load(pid)
+    it = _work_item(p, iid)
+    ck = p.get("work", {}).get("checks", {}).get(iid)
+    return {"item": _lean_item(it), "created": ck["created"] if ck else None, "items": work.checklist_view(it, ck) if ck else None}
+
+
+@app.post("/api/projects/{pid}/work/{iid}/checklist")
+def make_checklist(pid: str, iid: str):
+    with LOCK:
+        p = load(pid)
+        it = _work_item(p, iid)
+        p.setdefault("work", {}).setdefault("checks", {})[iid] = work.build_checklist(it)
+        save(p)
+    return get_checklist(pid, iid)
+
+
+@app.patch("/api/projects/{pid}/work/{iid}/checklist")
+async def edit_checklist(pid: str, iid: str, req: Request):
+    b = await body(req)
+    with LOCK:
+        p = load(pid)
+        ck = p.get("work", {}).get("checks", {}).get(iid)
+        if not ck:
+            raise HTTPException(404, "체크리스트를 먼저 만드세요.")
+        items = ck["items"]
+        if "toggle" in b:
+            x = next((x for x in items if x["id"] == b["toggle"]), None)
+            if not x:
+                raise HTTPException(400, "없는 항목입니다.")
+            x["checked"] = not x.get("checked")
+        elif "add" in b:
+            text = str(b["add"]).strip()[:120]
+            if not text:
+                raise HTTPException(400, "항목 내용을 입력하세요.")
+            n = max([int(x["id"][1:]) for x in items if x["id"].startswith("u")] + [0]) + 1
+            items.append({"id": f"u{n}", "text": text, "hint": "", "link": "", "auto": False, "checked": False, "mine": True})
+        elif "remove" in b:
+            ck["items"] = [x for x in items if x["id"] != b["remove"]]
+        elif b.get("delete"):
+            p["work"]["checks"].pop(iid)
+        else:
+            raise HTTPException(400, "toggle·add·remove·delete 중 하나를 보내세요.")
+        save(p)
+    return get_checklist(pid, iid)
+
+
+@app.patch("/api/projects/{pid}/work/{iid}")
+async def edit_work(pid: str, iid: str, req: Request):
+    b = await body(req)
+    with LOCK:
+        p = load(pid)
+        _work_item(p, iid)
+        w = p.setdefault("work", {})
+        if b.get("reset"):
+            w.get("dates", {}).pop(iid, None)
+        else:
+            s, e = _date_ok(b.get("start")), _date_ok(b.get("end"))
+            if e < s:
+                raise HTTPException(400, "끝나는 날이 시작일보다 빠릅니다.")
+            w.setdefault("dates", {})[iid] = [s, e]
+        save(p)
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/work")
+async def add_work(pid: str, req: Request):
+    b = await body(req)
+    title = str(b.get("title", "")).strip()[:80]
+    if not title:
+        raise HTTPException(400, "업무 이름을 입력하세요.")
+    s, e = _date_ok(b.get("start")), _date_ok(b.get("end"))
+    if e < s:
+        raise HTTPException(400, "끝나는 날이 시작일보다 빠릅니다.")
+    with LOCK:
+        p = load(pid)
+        iid = "custom:" + uuid.uuid4().hex[:6]
+        p.setdefault("work", {}).setdefault("custom", []).append({"id": iid, "title": title, "start": s, "end": e})
+        save(p)
+    return {"id": iid}
+
+
+@app.delete("/api/projects/{pid}/work/{iid}")
+def delete_work(pid: str, iid: str):
+    if not iid.startswith("custom:"):
+        raise HTTPException(400, "직접 추가한 업무만 지울 수 있습니다.")
+    with LOCK:
+        p = load(pid)
+        w = p.setdefault("work", {})
+        w["custom"] = [c for c in w.get("custom", []) if c["id"] != iid]
+        w.get("checks", {}).pop(iid, None)
+        w.get("dates", {}).pop(iid, None)
+        save(p)
+    return {"ok": True}
+
+
 @app.get("/api/projects/{pid}/stats")
 def get_stats(pid: str):
     p = load(pid)
@@ -832,6 +965,9 @@ def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign
     if doc == "settle":
         return _file(costs.settle_excel(costs.external(res)), f"외부교육_정산내역_{stamp}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    if doc == "gantt":
+        return _file(work.excel(_work(p, res), p.get("work", {}).get("checks", {}), res["year"], res["base"]),
+                     f"교육훈련_업무일정_체크리스트_{stamp}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if doc == "stats":
         return _file(kpi.hours_excel(res, _overview(p, res)[0]), f"교육훈련_실적집계_{stamp}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
