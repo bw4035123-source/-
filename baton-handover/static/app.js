@@ -1036,6 +1036,7 @@ const TAG_ORDER = ["기한", "주의", "절차", "빈틈", "협의", "노하우"
 async function renderGantt() {
   const sec = $("#tab-gantt");
   if (needH(sec)) return;
+  const again = !!sec.querySelector(".g-chart");  // 다시 그릴 때는 카드 등장 효과를 되풀이하지 않는다
   const start = GANTT.start || (H.radar && H.radar.start) || "";
   const g = await api("GET", `/api/handovers/${H.id}/gantt?months=${GANTT.months}${start ? "&start=" + start : ""}`);
   const t0 = new Date(g.first + "T00:00"), t1 = new Date(g.end + "T00:00");
@@ -1047,7 +1048,7 @@ async function renderGantt() {
   const kinds = [...new Set(g.groups.flatMap(x => x.tasks.map(t => t.cls)))];
   const bar = t => {
     const c = t.check, done = c && c.total && c.done === c.total;
-    return el("div", { class: "g-row" + (GANTT.task === t.id ? " on" : ""), onclick: () => openChecklist(t) },
+    return el("div", { class: "g-row" + (GANTT.task === t.id ? " on" : ""), "data-id": t.id, onclick: () => openChecklist(t) },
       el("div", { class: "g-label", title: t.label },
         el("span", { class: "g-kind k-" + t.cls }, t.kind),
         el("span", { class: "g-name" }, t.label),
@@ -1086,11 +1087,12 @@ async function renderGantt() {
         el("div", { class: "g-body" },
           el("div", { class: "g-grid", "aria-hidden": "true" }, g.months.map(m => el("span", { style: { width: (m.days / span * 100) + "%" } }))),
           el("div", { class: "g-start", style: { left: `calc(var(--lw) + (100% - var(--lw)) * ${startPct / 100})` }, title: "착임일 " + g.start }, el("span", {}, "착임 " + fmtD(g.start))),
-          tasks.map(grp => el("div", { class: "g-group" },
-            grp.name ? el("div", { class: "g-gname" }, el("b", {}, grp.name), el("span", { class: "small muted" }, `${grp.tasks.length}건`)) : null,
+          tasks.map((grp, gi) => el("div", { class: "g-group" },
+            grp.name ? el("div", { class: "g-gname" }, el("span", { class: "g-no" }, String(gi + 1).padStart(2, "0")), el("b", {}, grp.name), el("span", { class: "small muted" }, `${grp.tasks.length}건`)) : null,
             grp.tasks.map(bar))),
           g.count ? null : el("div", { class: "empty" }, "이 기간에 놓을 일정이 없습니다. 기간을 늘리거나 착임일을 바꿔 보세요."))),
       side));
+  if (again) $$(".panel", sec).forEach(p => p.classList.add("rv", "in"));
   if (GANTT.task) drawChecklist();
 }
 async function openChecklist(t, renew) {
@@ -1101,22 +1103,41 @@ async function openChecklist(t, renew) {
   const side = $("#g-side");
   if (side && window.innerWidth < 1100) side.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+function paintProgress() {
+  const c = GANTT.list, row = c && $(`#tab-gantt .g-row[data-id="${c.id}"]`);
+  if (!row) return;
+  const done = c.items.filter(x => x.done).length, all = done === c.items.length && c.items.length;
+  let tag = $(".g-prog", row);
+  if (!tag) {
+    const bars = $$(".g-bar", row), last = bars[bars.length - 1];
+    tag = el("span", { class: "g-prog" });
+    tag.style.left = `min(calc(${last.style.left || "0%"} + ${last.style.width || "0%"} + 14px), calc(100% - 52px))`;
+    $(".g-track", row).append(tag);
+  }
+  tag.textContent = `${done}/${c.items.length}`;
+  tag.classList.toggle("ok", !!all);
+  $$(".g-bar", row).forEach(b => b.classList.toggle("done", !!all));
+}
 function drawChecklist() {
   const side = $("#g-side"), c = GANTT.list;
   if (!side || !c) return;
   const done = c.items.filter(x => x.done).length, pct = c.items.length ? Math.round(done / c.items.length * 100) : 0;
   const url = `/api/handovers/${H.id}/gantt/checklist/${c.id}`;
-  const edit = async (op, extra) => { GANTT.list = await api("POST", url + "/items", { op, ...extra }); renderGantt(); };
+  const edit = async (op, extra) => { GANTT.list = await api("POST", url + "/items", { op, ...extra }); drawChecklist(); paintProgress(); };
   const input = el("input", { class: "wide", style: { flex: 1 }, placeholder: "할 일 직접 추가(이름은 역할로 바뀝니다)",
     onkeydown: e => { if (e.key === "Enter" && input.value.trim()) edit("add", { text: input.value }); } });
   const groups = TAG_ORDER.map(tag => [tag, c.items.filter(x => x.tag === tag)]).filter(([, xs]) => xs.length);
+  const keep = side.scrollTop;
   side.innerHTML = "";
-  side.append(el("div", {},
-    el("div", { class: "row" }, el("span", { class: "tag info" }, c.kind), el("span", { class: "small muted", style: { flex: 1 } }, c.due ? "기한 " + c.due.replaceAll("-", ". ") + "." : ""),
-      el("button", { class: "small", onclick: () => { GANTT.task = null; GANTT.list = null; renderGantt(); }, "aria-label": "체크리스트 닫기" }, "닫기")),
+  requestAnimationFrame(() => { side.scrollTop = keep; });
+  side.append(el("div", { class: "g-shead" },
+    el("div", { class: "row" }, el("span", { class: "g-skind" }, "체크리스트 · " + c.kind), el("span", { class: "g-sdue", style: { flex: 1 } }, c.due ? "기한 " + c.due.replaceAll("-", ". ") + "." : ""),
+      el("button", { class: "small g-close", onclick: () => { GANTT.task = null; GANTT.list = null; renderGantt(); }, "aria-label": "체크리스트 닫기" }, "닫기")),
     el("h3", { class: "g-ctitle" }, c.title),
-    el("div", { class: "g-meter", role: "progressbar", "aria-valuenow": pct, "aria-valuemin": 0, "aria-valuemax": 100 }, el("span", { style: { width: pct + "%" } })),
-    el("div", { class: "small muted" }, `${done}/${c.items.length} 완료 · 체크하면 바로 저장되고 간트 막대에 진행률이 표시됩니다`),
+    el("div", { class: "g-sprog" }, el("b", {}, pct + "%"),
+      el("div", { class: "g-meter", role: "progressbar", "aria-valuenow": pct, "aria-valuemin": 0, "aria-valuemax": 100 }, el("span", { style: { width: pct + "%" } })),
+      el("span", {}, `${done}/${c.items.length}`)),
+    el("div", { class: "g-shint" }, "체크하면 바로 저장되고 간트 막대 옆에 진행률이 붙습니다")), el("div", { class: "g-sbody" },
     groups.map(([tag, xs]) => el("div", { class: "g-cgroup" }, el("div", { class: "g-ctag" }, tag),
       xs.map(x => el("label", { class: "g-item" + (x.done ? " done" : "") },
         el("input", { type: "checkbox", checked: x.done || null, onchange: () => edit("toggle", { item: x.id }) }),

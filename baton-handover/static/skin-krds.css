@@ -48,3 +48,15 @@ button.primary { box-shadow: none; }
 .net-center circle { fill: var(--navy-2); }
 .av-head .avatar { background: var(--navy-2); }
 .foot { background: var(--fill); }
+
+/* 업무 간트차트: 표 머리처럼 윗선, 막대는 각지게 */
+.g-head { background: var(--fill); border-top: 1px solid var(--ink-2); }
+.g-hl { color: var(--ink); }
+.g-start span { background: var(--navy-2); }
+.g-start { border-left-color: var(--navy-2); }
+.g-gname b { color: var(--navy); }
+.g-group + .g-group { border-top: 1px solid var(--line); }
+.g-row.on::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; border-radius: 2px; background: var(--brand); }
+.g-shead { background: var(--fill-2); border-top: 3px solid var(--navy-2); border-radius: var(--radius) var(--radius) 0 0; }
+.g-ctitle { color: var(--navy); }
+.g-ctag { color: var(--navy-2); border-bottom: 2px solid var(--brand); padding-bottom: 2px; }

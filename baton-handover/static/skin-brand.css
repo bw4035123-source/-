@@ -190,3 +190,64 @@ section.tab > .panel.rv.in::before, #m-out > .panel.rv.in::before { animation: h
 .flow-arc .fa-sub { font-size: 12px; fill: var(--muted); }
 .flow-arc .fa-big { font-size: 46px; font-weight: 900; fill: var(--ink); letter-spacing: -.04em; }
 .flow-arc .fa-baton { fill: var(--volt); filter: drop-shadow(0 0 8px rgba(212, 255, 61, .9)); }
+
+/* 9) 업무 간트차트: 담당 업무는 트랙 레인(번호는 형광), 할 일 막대는 바통. 착임일은 출발선 */
+:root { --k-contract: #5b3df5; --k-work: #ff6a3d; --k-check: #0fa37f; --k-budget: #a94ef0; --k-report: #2f7cf6;
+  --k-edu: #e8458b; --k-renew: #c48f00; --k-civil: #e0342f; --k-etc: #8e8aa0; }
+.g-switch { border-radius: 99px; background: var(--fill); }
+.g-switch button, .g-switch button:hover { border-radius: 99px; }
+.g-switch button[aria-pressed="true"] { background: var(--night); color: var(--volt); box-shadow: none; }
+.g-legend i { border-radius: 99px; }
+.g-legend i.start-i { width: 10px; height: 10px; border-radius: 2px; background: repeating-conic-gradient(var(--night) 0 25%, #fff 0 50%) 0 0 / 5px 5px; box-shadow: 0 0 0 1px var(--night); }
+.g-chart { border-radius: var(--radius); }
+.g-head { background: var(--night); color: rgba(255, 255, 255, .62); border-bottom: 0; }
+.g-head::after { content: ""; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: linear-gradient(90deg, var(--brand) 0%, #8b6dff 45%, var(--volt) 100%); }
+.g-hl { color: #fff; font-weight: 800; }
+.g-yrs { color: var(--volt); }
+.g-months span { border-left-color: rgba(255, 255, 255, .1); }
+.g-body { padding-top: 6px; }
+.g-grid span { border-left: 1px dashed var(--line); }
+.g-grid span:nth-child(even) { background: var(--fill-2); }
+.g-start { border-left: 2px solid var(--night); }
+.g-start::before { content: ""; position: absolute; top: 0; left: -7px; width: 12px; bottom: 0; opacity: .14;
+  background: repeating-conic-gradient(var(--night) 0 25%, transparent 0 50%) 0 0 / 6px 6px; }
+.g-start span { top: 6px; left: 6px; background: var(--volt); color: var(--night); border-radius: 99px; font-weight: 800; padding: 2px 9px; }
+.g-group + .g-group { border-top: 3px double var(--line-strong); }
+.g-gname { padding: 16px 14px 6px; font-size: 14px; }
+.g-gname b { font-weight: 800; letter-spacing: -.03em; }
+.g-no { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--night); color: var(--volt); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.g-row { border-radius: 99px; margin: 0 6px; }
+.g-row:hover { background: var(--fill-2); }
+.g-row.on { background: var(--brand-soft); box-shadow: inset 0 0 0 1px #d9d1ff; }
+.g-row.on::before { content: ""; position: absolute; left: 6px; top: 50%; width: 4px; height: 16px; margin-top: -8px; border-radius: 2px;
+  background: linear-gradient(180deg, var(--brand), var(--volt)); }
+.g-kind { border-radius: 99px; padding: 1px 8px; }
+.g-bar, .g-bar:hover { height: 12px; top: 9px; border-radius: 99px;
+  background: linear-gradient(90deg, var(--k), color-mix(in srgb, var(--k) 68%, #fff)); }
+.g-bar:hover, .g-row.on .g-bar { box-shadow: 0 0 0 3px var(--panel), 0 0 0 5px color-mix(in srgb, var(--k) 45%, transparent); }
+.g-bar.pt { width: 12px; height: 12px; border-radius: 50%; transform: none; background: var(--k); box-shadow: 0 0 0 3px var(--panel), 0 0 0 4px var(--k); }
+.g-row.on .g-bar.pt { box-shadow: 0 0 0 3px var(--panel), 0 0 0 5px var(--k); }
+.g-bar.late { background: var(--bad); }
+.g-bar.pt.late { box-shadow: 0 0 0 3px var(--panel), 0 0 0 4px var(--bad); }
+.g-bar.done { background: linear-gradient(90deg, var(--brand), var(--volt)); }
+.g-prog { background: var(--night); color: var(--volt); border-radius: 99px; padding: 1px 8px; top: 6px; }
+.g-prog.ok { background: var(--volt); color: var(--night); }
+/* 체크리스트: 머리는 짙은 바탕(바통 띠), 진행 막대는 보라 → 형광 */
+.g-wrap.with-side > .g-side { max-height: calc(100vh - 200px); }
+.g-shead { position: relative; background: var(--night); color: #fff; border-bottom: 0; padding: 20px 22px 18px; }
+.g-shead::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: linear-gradient(90deg, var(--brand) 0%, #8b6dff 45%, var(--volt) 100%); }
+.g-skind { background: rgba(212, 255, 61, .14); color: var(--volt); border-radius: 99px; padding: 3px 10px; }
+.g-sdue { color: rgba(255, 255, 255, .7); }
+.g-shead .g-close, .g-shead .g-close:hover { background: var(--night-2); color: #fff; border: 0; }
+.g-shead .g-close:hover { background: #2c2842; }
+.g-ctitle { color: #fff; font-size: 17px; font-weight: 800; letter-spacing: -.04em; }
+.g-sprog { color: rgba(255, 255, 255, .7); }
+.g-sprog b { color: var(--volt); font-size: 24px; font-weight: 900; letter-spacing: -.04em; }
+.g-meter { background: rgba(255, 255, 255, .12); height: 10px; }
+.g-meter span { background: linear-gradient(90deg, var(--brand), var(--volt)); }
+.g-shint { color: rgba(255, 255, 255, .5); }
+.g-sbody { padding: 6px 22px 22px; }
+.g-ctag { background: var(--fill); color: var(--ink-2); border-radius: 99px; padding: 2px 10px; font-weight: 800; }
+.g-item { border-radius: 12px; }
+.g-item input { accent-color: var(--brand); }
