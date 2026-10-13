@@ -24,12 +24,17 @@ def external(res: dict) -> dict:
             continue
         p = people[r["pid"]]
         start, end = _d(r.get("start")) or _d(r.get("date")), _d(r.get("date"))
+        if end and end.year != res["year"]:  # 판정 연도의 교육만(시간 집계와 같은 기준)
+            continue
+        swapped = bool(start and end and start > end)
+        if swapped:
+            start, end = end, start
         days = (end - start).days + 1 if start and end else 1
         nights = days - 1 if r.get("stay") else 0
         row = {"rid": r["rid"], "pid": p["id"], "name": p["name"], "dept": p["dept"], "grade": p.get("grade") or r.get("grade", ""),
-               "title": r["title"], "inst": r.get("inst", ""), "start": r.get("start"), "end": r.get("date"), "days": days, "nights": nights,
+               "title": r["title"], "inst": r.get("inst", ""), "start": start.isoformat() if start else None, "end": end.isoformat() if end else None, "days": days, "nights": nights,
                "hours": r["hours"], "cost": r.get("cost", 0), "place": r.get("place", ""), "stay_provided": r.get("stay_provided", False),
-               "file": r["file"], "where": r["where"], "notes": []}
+               "file": r["file"], "where": r["where"], "notes": ["시작일이 종료일보다 늦게 적혀 있어 바꿔 계산함 – 원자료 확인"] if swapped else []}
         if tr:
             g = travel_group(regs, row["grade"], p.get("title", ""))
             ratio = tr.get("daily_ratio", 1.0)

@@ -15,10 +15,13 @@ exit /b 1
 
 :foundpy
 if not exist wheels mkdir wheels
+set FAIL=
 for %%v in (310 311 312 313 314) do (
   echo   - Python %%v 용 내려받는 중...
   %PY% -m pip download -q --disable-pip-version-check -r requirements.txt -d wheels --only-binary=:all: --platform win_amd64 --python-version %%v
+  if errorlevel 1 set FAIL=1
 )
+if defined FAIL goto fail
 rem Python 3.10 전용 부속(다른 버전 PC에서 받을 때 빠지지 않도록 직접 받음)
 %PY% -m pip download -q --disable-pip-version-check exceptiongroup -d wheels --only-binary=:all:
 if errorlevel 1 goto fail

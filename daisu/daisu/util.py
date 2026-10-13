@@ -121,6 +121,23 @@ def edit1(a: str, b: str) -> bool:
     return any(t[:i] + t[i + 1:] == s for i in range(len(t)))
 
 
+def add_months(d: dt.date, n: int) -> dt.date:
+    """달력 기준 n개월 뒤(말일 보정: 11/30 + 3개월 → 2/28)."""
+    y, m = divmod(d.month - 1 + n, 12)
+    y, m = d.year + y, m + 1
+    last = (dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1)).day
+    return dt.date(y, m, min(d.day, last))
+
+
+def due_label(s: dict) -> str:
+    """개인별 기한 과정의 기한 표기: 입사일·승진일 기준(N개월·N일 이내)."""
+    base = "승진일" if s.get("cycle") == "promo" else "입사일"
+    if s.get("due_months"):
+        return f"{base} 기준({s['due_months']}개월 이내)"
+    n = s.get("due_days")
+    return f"{base} 기준" + (f"({n}일 이내)" if n else "")
+
+
 def fmt_h(h) -> str:
     if h is None:
         return ""

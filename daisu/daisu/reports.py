@@ -7,7 +7,7 @@ import os
 import re
 import zipfile
 
-from .util import dept_core, fmt_h, kdate
+from .util import dept_core, due_label, fmt_h, kdate
 
 STATUS_KO = {"done": "이수", "partial": "부족", "none": "미이수", "leave": "휴직", "na": "-", "left": "퇴사"}
 
@@ -162,7 +162,7 @@ def status_blocks(res: dict, org: dict, plan_result: dict | None = None) -> list
         due = _d(s["due"]) if s["due"] else None
         rows.append([s["label"], str(s["target"]), str(s["done"]), f"{s['rate']}%" if s["rate"] is not None else "-",
                      str(s["partial"] + s["none"]) + (f"(부족 {s['partial']})" if s["partial"] else ""),
-                     kdate(due, False) if due else "입사일", f"기한 지남 {s['overdue']}명" if s["overdue"] else ""])
+                     kdate(due, False) if due else due_label(s), f"기한 지남 {s['overdue']}명" if s["overdue"] else ""])
     B.append(("table", ["교육", "대상", "이수", "이수율", "미이수", "기한", "비고"], rows, [5, 1, 1, 1.4, 1.8, 1.8, 2]))
     opt = [s for s in res["summary"] if not s["mandatory"]]
     if opt:
@@ -273,7 +273,7 @@ def excel(res: dict) -> bytes:
     ws.append(["교육", "근거", "대상", "이수", "부족", "미이수", "휴직", "이수율(%)", "기한", "기한 지남"])
     for s in res["summary"]:
         ws.append([s["label"] + ("" if s["mandatory"] else " (권장)"), s["law"], s["target"], s["done"], s["partial"], s["none"],
-                   s["leave"], s["rate"], s["due"] or "입사일 기준", s["overdue"]])
+                   s["leave"], s["rate"], s["due"] or due_label(s), s["overdue"]])
     for col, w in zip("ABCDEFGHIJ", (30, 46, 7, 7, 7, 8, 7, 10, 12, 10)):
         ws.column_dimensions[col].width = w
 

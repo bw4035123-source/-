@@ -351,6 +351,8 @@ def excel(items: list[dict], checks: dict, year: int, base: str) -> bytes:
         for n, c in enumerate(checklist_view(it, ck), 1):
             ws2.append([it["title"], f"{it['start']}~{it['end']}", n, c["text"], "☑" if c["done"] else "☐",
                         ("자료로 확인 · " if c["auto_ok"] else "") + (c["hint"] or "")])
+    if ws2.max_row == 1:
+        ws2.append(["(아직 만든 체크리스트가 없습니다 – 업무 일정 화면에서 막대를 눌러 만드세요)"])
     ws2.column_dimensions["A"].width = 36
     ws2.column_dimensions["D"].width = 44
     ws2.column_dimensions["F"].width = 50

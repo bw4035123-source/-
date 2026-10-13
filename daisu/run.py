@@ -229,6 +229,9 @@ def main():
     if sys.version_info < MIN_PY:
         fail(f"파이썬 {MIN_PY[0]}.{MIN_PY[1]} 이상이 필요합니다(현재 {sys.version.split()[0]}). https://www.python.org 에서 최신 버전을 설치하세요.")
     if args.check:
+        # 전용 실행 환경(.venv)이 이미 있으면 그 안의 패키지를 점검한다(바깥 파이썬에는 없어도 정상)
+        if not in_venv() and not args.no_venv and os.path.exists(venv_python()):
+            sys.exit(subprocess.run([venv_python(), os.path.abspath(__file__), "--check", "--in-venv"]).returncode)
         sys.exit(0 if check_env() else 1)
 
     # 1) 전용 실행 환경(.venv)에서 다시 실행

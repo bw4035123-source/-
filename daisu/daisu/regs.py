@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import re
 
-from .util import num
+from .util import hours_in, num
 
 DOC_KINDS = [
     ("fee", lambda t: "강사" in t and ("수당" in t or "강사료" in t)),
@@ -39,11 +39,19 @@ def money(s) -> int | None:
     s = str(s or "").replace(" ", "")
     if not s or "실비" in s:
         return None
-    m = re.search(r"([\d,]+(?:\.\d+)?)(만|천)?원?", s)
+    f = lambda x: float(x.replace(",", ""))  # noqa: E731
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)만(?:(\d[\d,]*)천)?원?", s)  # 100만원, 2만5천원
+    if m:
+        return int(f(m.group(1)) * 10000 + (f(m.group(2)) * 1000 if m.group(2) else 0))
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)천원", s)
+    if m:
+        return int(f(m.group(1)) * 1000)
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)원", s)  # '1일 25,000원' → 원 바로 앞 숫자
+    if not m:
+        m = re.search(r"(\d[\d,]*(?:\.\d+)?)", s)
     if not m:
         return None
-    v = float(m.group(1).replace(",", ""))
-    return int(v * (10000 if m.group(2) == "만" else 1000 if m.group(2) == "천" else 1))
+    return int(f(m.group(1)))
 
 
 def _src(file, where, text):
@@ -66,6 +74,12 @@ def _rows(t):
         if sum(1 for c in r if c) >= max(2, width - 1):
             return i, r, rows[i + 1:]
     return 0, rows[0] if rows else [], rows[1:]
+
+
+def _months(text: str) -> int | None:
+    """'임용 후 3개월 이내' → 3(달력 기준 개월 수). 개월 표기가 없으면 None."""
+    m = re.search(r"(\d+)\s*개월", text or "")
+    return int(m.group(1)) if m else None
 
 
 def _days(text: str, default: int) -> int:
@@ -179,7 +193,7 @@ def extract(docs: list[dict]) -> dict:
                 for i, r in enumerate(body, hi + 2):
                     if not r or not r[jc]:
                         continue
-                    out["required"].append({"name": r[jc].strip(), "target": r[jt], "hours": num(r[jh]) or 0,
+                    out["required"].append({"name": r[jc].strip(), "target": r[jt], "hours": num(r[jh]) or hours_in(r[jh]) or num((re.search(r"\d+(?:\.\d+)?", r[jh] or "") or [""])[0]) or 0,
                                             "when": r[jw] if jw is not None and jw < len(r) else "",
                                             "src": _src(d["rel"], f"{t['where']} {i}행", " / ".join(r))})
                     item("필수교육", r[jc].strip(), f"{r[jt]} · {r[jh]}시간 · {r[jw] if jw is not None else ''}", out["required"][-1]["src"])
@@ -242,9 +256,9 @@ def required_rules(regs: dict) -> list[dict]:
                 "hours": r["hours"] or 1, "mandatory": True, "category": "필수", "keywords": [r["name"], re.sub(r"\s*(과정|교육)$", "", r["name"])],
                 "target": {}, "cycle": "year", "due": "12-31", "note": f"대상: {tgt_text} · 시기: {r['when']}", "src": r["src"]}
         if "신규" in tgt_text:
-            rule.update(cycle="hire", due_days=_days(r["when"], 90), target={"hired_this_year": True})
+            rule.update(cycle="hire", due_days=_days(r["when"], 90), due_months=_months(r["when"]), target={"hired_this_year": True})
         elif "승진" in tgt_text:
-            rule.update(cycle="promo", due_days=_days(r["when"], 180), target={"promoted_this_year": True})
+            rule.update(cycle="promo", due_days=_days(r["when"], 180), due_months=_months(r["when"]), target={"promoted_this_year": True})
         else:
             if "현장" in tgt_text:
                 rule["target"]["job"] = "현장"

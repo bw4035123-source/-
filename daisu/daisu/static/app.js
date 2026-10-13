@@ -27,7 +27,7 @@ async function api(path, opts = {}) {
   const r = await fetch(path, o);
   const ct = r.headers.get("content-type") || "";
   const data = ct.includes("json") ? await r.json() : await r.text();
-  if (!r.ok) { const m = (data && data.detail) || r.statusText; toast(String(m), 4000); throw new Error(m); }
+  if (!r.ok) { const m = (data && data.detail) || r.statusText; toast(String(m), 4000); const e = new Error(m); e.shown = true; throw e; }
   return data;
 }
 const store = {
@@ -47,8 +47,14 @@ const KIND = { roster: "직원 명단", records: "이수 기록", sign: "집합�
 const S = { info: null, data: null };
 
 // ───────────── 라우팅
+window.addEventListener("unhandledrejection", (e) => { if (e.reason && e.reason.shown) e.preventDefault(); });
+const LATER = new Set();  // 화면을 떠나면 취소할 예약(키오스크 자동 넘김 등)
+function later(fn, ms) { const id = setTimeout(() => { LATER.delete(id); fn(); }, ms); LATER.add(id); return id; }
 window.addEventListener("hashchange", route);
+function topbarH() { document.documentElement.style.setProperty("--topbar-h", ($(".topbar")?.offsetHeight || 65) + "px"); }
+window.addEventListener("resize", topbarH);
 document.addEventListener("DOMContentLoaded", async () => {
+  topbarH();
   $("#drawerClose").onclick = closeDrawer;
   $("#modelBadge").onclick = () => (location.hash = "#/settings");
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
@@ -58,16 +64,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 async function loadInfo() { S.info = await api("/api/info"); $("#modelBadge").textContent = "AI: " + S.info.model; }
 function route() {
   closeDrawer();
+  LATER.forEach(clearTimeout); LATER.clear();
+  SLIDE.nav++;
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   document.body.classList.toggle("kiosk-mode", parts[0] === "kiosk");
   if (parts[0] === "kiosk" && parts[1] && parts[2]) return viewKiosk(parts[1], parts[2]);
-  if (parts[0] === "p" && parts[1]) return viewProject(parts[1], parts[2] || "results", decodeURIComponent(parts[3] || ""));
+  if (parts[0] === "p" && parts[1]) return viewProject(parts[1], parts[2] || "results", safeDecode(parts[3] || ""));
   if (parts[0] === "settings") return viewSettings();
   return viewHome();
 }
+function safeDecode(x) { try { return decodeURIComponent(x); } catch { return ""; } }
 function mount(...kids) { const app = $("#app"); app.replaceChildren(); add(app, kids); window.scrollTo(0, 0); }
-function openDrawer(title, ...kids) { $("#drawerTitle").textContent = title; $("#drawerBody").replaceChildren(); add($("#drawerBody"), kids); $("#drawer").classList.add("open"); }
-function closeDrawer() { $("#drawer").classList.remove("open"); }
+function openDrawer(title, ...kids) { $("#drawerTitle").textContent = title; $("#drawerBody").replaceChildren(); add($("#drawerBody"), kids); $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false"); }
+function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); }
 
 // ───────────── 처음 화면
 async function viewHome() {
@@ -169,7 +178,7 @@ const TABS = [["files", "자료"], ["regs", "규정·기준"], ["results", "교�
   ["issues", "확인 필요"], ["gantt", "업무 일정"], ["plan", "일정 짜기"], ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고서"], ["ask", "질문하기"]];
 
 // 작업 화면은 슬라이드: 한 화면에 한 가지 이야기, ←/→·스와이프·아래 막대로 넘깁니다.
-const SLIDE = { pid: null, idx: -1 };
+const SLIDE = { pid: null, idx: -1, nav: 0 };
 const HEAD = {
   files: (d) => [`자료 ${d.files.length}개를 읽었어요`, `직원 ${d.people.length}명 · 원본은 한 글자도 바꾸지 않았어요`],
   regs: () => ["규정에서 계산 기준을 읽었어요", "모든 숫자에 문서·조항 원문이 붙어요"],
@@ -184,8 +193,10 @@ const HEAD = {
   gantt: () => ["1년 업무를 한 장에 펼쳤어요", "막대를 누르면 그 업무의 체크리스트를 만들어요"],
   ask: () => ["궁금한 걸 물어보세요", "답에는 항상 근거 자료가 붙어요"],
 };
-function slideHead(title, sub) {
-  const t = $(".slide-head h1"), p = $(".slide-head p");
+function slideHead(el, title, sub) {
+  const sl = el && el.closest && el.closest(".slide");
+  if (!sl || !sl.isConnected) return;
+  const t = $(".slide-head h1", sl), p = $(".slide-head p", sl);
   if (t && title) t.textContent = title;
   if (p && sub != null) p.textContent = sub;
 }
@@ -219,12 +230,15 @@ document.addEventListener("keydown", (e) => {
 
 async function viewProject(pid, tab, arg) {
   if (tab === "year") tab = "gantt";
+  if (!TABS.some(([k]) => k === tab) && tab !== "session") tab = "results";
   const key = tab === "session" ? "run" : tab;
   const idx = Math.max(0, TABS.findIndex(([k]) => k === key));
   const dir = SLIDE.pid === pid && SLIDE.idx >= 0 ? Math.sign(idx - SLIDE.idx) : 0;
   const old = $(".slide");
   if (old && dir) old.classList.add("out-" + dir);
+  const nav = SLIDE.nav;
   const d = await api(`/api/projects/${pid}`);
+  if (nav !== SLIDE.nav) return;  // 그사이 다른 화면으로 넘어감
   SLIDE.pid = pid; SLIDE.idx = idx;
   S.data = d;
   const P = d.project;
@@ -296,7 +310,7 @@ async function tabBoard(el, d) {
   const active = d.people.filter((p) => !(p.left && p.left <= d.base)).length;
   const over = man.filter((s) => s.overdue);
   const pid = d.project.id;
-  slideHead(`법정·필수 교육, 평균 ${avg}% 이수했어요`, over.length ? `기한이 지난 교육이 ${over.length}개 있어요 – 먼저 챙겨 주세요` : "기한이 지난 교육은 없어요");
+  slideHead(el, `법정·필수 교육, 평균 ${avg}% 이수했어요`, over.length ? `기한이 지난 교육이 ${over.length}개 있어요 – 먼저 챙겨 주세요` : "기한이 지난 교육은 없어요");
   add(el,
     over.length ? h("div", { class: "alert bad" }, h("b", {}, "기한이 지난 교육이 있습니다. "),
       over.map((s) => `${s.label} ${s.overdue}명`).join(", "), " – ", h("a", { href: `#/p/${pid}/matrix/over` }, "명단 보기")) : null,
@@ -582,7 +596,6 @@ async function tabReport(el, d) {
         : h("div", { class: "small muted", style: "margin-top:6px" }, "연결된 만족도 응답이 없습니다."))) : h("div", { class: "card empty" }, "서명부가 없습니다."));
 }
 
-// ⑧ 연간 계획
 // ⑨ 질문하기
 function tabAsk(el, d) {
   const pid = d.project.id;
@@ -850,7 +863,7 @@ async function viewKiosk(pid, sid) {
       await refresh();
       screen(h("div", { class: "k-done" }, h("div", { class: "k-check" }, "✓"), h("div", { class: "k-big" }, `${p.name}님, 출석이 확인되었습니다`),
         h("div", { class: "k-sub" }, r.already ? "이미 출석한 기록이 있습니다" : `${fh(s.hours)}시간 이수로 기록됩니다`)));
-      setTimeout(home, 2200);
+      later(home, 2200);
     } }, "서명 완료");
     screen(h("div", { class: "k-big" }, `${p.name}님, 아래 칸에 서명해 주세요`), h("div", { class: "k-sub" }, `${p.dept}${p.team ? " · " + p.team + "조" : ""}`), cv,
       h("div", { class: "k-actions" }, h("button", { class: "k-btn", onclick: home }, "이전"), h("button", { class: "k-btn", onclick: () => { ctx.clearRect(0, 0, cv.width, cv.height); strokes = 0; } }, "다시 쓰기"), ok));
@@ -867,7 +880,7 @@ async function viewKiosk(pid, sid) {
         if (Object.keys(ans).length < s.survey_items.length) return toast("모든 문항에 답해 주세요");
         await api(`/api/projects/${pid}/sessions/${sid}/survey`, { method: "POST", json: { scores: ans, comment: cm.value } });
         screen(h("div", { class: "k-done" }, h("div", { class: "k-check" }, "✓"), h("div", { class: "k-big" }, "응답해 주셔서 고맙습니다")));
-        setTimeout(survey, 1800);
+        later(survey, 1800);
       } }, "제출")));
   }
   home();
@@ -936,7 +949,7 @@ function lawCard(s) {
 // ───────────── 규정·기준(규정 문서에서 읽은 계산 기준)
 async function tabRegs(el, d) {
   const r = await api(`/api/projects/${d.project.id}/regs`);
-  if (r.items.length) slideHead(`규정에서 기준 ${r.items.length}개를 읽었어요`, `문서 ${r.docs.length}개에서 읽었고, 모든 값에 원문 근거가 붙어요`);
+  if (r.items.length) slideHead(el, `규정에서 기준 ${r.items.length}개를 읽었어요`, `문서 ${r.docs.length}개에서 읽었고, 모든 값에 원문 근거가 붙어요`);
   const groups = {};
   r.items.forEach((it) => (groups[it.group] = groups[it.group] || []).push(it));
   const showSrc = (it) => it.src && openDrawer("규정 원문", h("div", { class: "small muted" }, `${it.src.file} · ${it.src.where}`), h("div", { class: "law-text" }, it.src.text));
@@ -956,7 +969,7 @@ async function tabRegs(el, d) {
 async function tabResults(el, d) {
   const pid = d.project.id;
   const o = await api(`/api/projects/${pid}/overview`);
-  slideHead(`직원 1명이 평균 ${o.per_capita}시간 교육받았어요`,
+  slideHead(el, `직원 1명이 평균 ${o.per_capita}시간 교육받았어요`,
     [o.target_hours ? `내규 목표 ${o.target_hours}시간` : "", o.gov_hours ? `정부 권장 ${o.gov_hours}시간` : "", `총 ${o.total_hours.toLocaleString()}시간`].filter(Boolean).join(" · "));
   const CAT = { "법정": "법정의무", "필수": "필수(내규)", "직무": "직무·역량", "외부": "외부(위탁)" };
   const kpiCards = o.kpis.map((k) => h("div", { class: "card kpi" + (k.value == null ? " warn" : "") },
@@ -1036,7 +1049,7 @@ async function tabGantt(el, d) {
     const shown = items.filter((x) => !GV.status || x.status === GV.status);
     const cnt = (s) => items.filter((x) => x.status === s).length;
     const made = W.items.filter((x) => x.check).length;
-    slideHead(`업무 ${W.items.length}개를 1년 일정에 펼쳤어요`, `지연 ${cnt("late")} · 진행 중 ${cnt("doing")} · 예정 ${cnt("todo")} — 막대를 누르면 그 업무의 체크리스트를 만들어요`);
+    slideHead(el, GV.range === "year" ? `업무 ${W.items.length}개를 1년 일정에 펼쳤어요` : `${R[0]} 업무 ${items.length}개예요`, `지연 ${cnt("late")} · 진행 중 ${cnt("doing")} · 예정 ${cnt("todo")} — 막대를 누르면 그 업무의 체크리스트를 만들어요`);
     // 상단: 보기·기간·상태
     const addBtn = h("button", { class: "btn sm", onclick: () => addWork() }, "+ 업무 추가");
     top.replaceChildren(
@@ -1065,6 +1078,9 @@ async function tabGantt(el, d) {
       const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-01`;
       months.push([iso < r0 ? r0 : iso, `${t.getMonth() === 0 && t.getFullYear() !== W.year ? t.getFullYear() % 100 + "." : ""}${t.getMonth() + 1}월`]);
     }
+    // 좁은 화면에서는 월 이름이 겹치지 않게 몇 달 걸러 표시
+    const trackW = Math.max(1, (el.clientWidth || 900) - (window.innerWidth <= 900 ? 170 : 300));
+    const step = Math.max(1, Math.ceil((months.length * 34) / trackW));
     const grid = () => months.map(([iso], i) => (i ? h("i", { class: "g-tick", style: `left:${pos(iso)}%` }) : null));
     const today = W.base >= r0 && W.base <= r1 ? pos(W.base) : null;
     const tip = h("div", { class: "g-tip", role: "tooltip" });
@@ -1092,7 +1108,7 @@ async function tabGantt(el, d) {
     };
     chart.replaceChildren(h("div", { class: "card g-card" },
       h("div", { class: "g-head" }, h("div", { class: "g-label muted small" }, GV.view === "lane" ? "업무" : "시작 시기"),
-        h("div", { class: "g-track" }, months.map(([iso, l]) => h("span", { class: "g-month", style: `left:${pos(iso)}%` }, l)),
+        h("div", { class: "g-track" }, months.map(([iso, l], i) => (i % step ? null : h("span", { class: "g-month", style: `left:${pos(iso)}%` }, l))),
           today != null ? h("span", { class: "g-today-l", style: `left:${today}%` }, "오늘") : null)),
       h("div", { class: "g-body" }, today != null ? h("div", { class: "g-today-w" }, h("i", { class: "g-today", style: `left:${today}%` })) : null,
         groups.length ? groups.map(([g, xs]) => [h("div", { class: "g-group" }, g, h("span", { class: "muted" }, ` ${xs.length}`)), xs.map(row)])
@@ -1110,7 +1126,7 @@ async function tabGantt(el, d) {
   }
   function renderWork(r) {
     const x = r.item, url = `/api/projects/${pid}/work/${encodeURIComponent(x.id)}`;
-    const send = async (json) => { renderWork(await api(url + "/checklist", { method: "PATCH", json })); reload(); };
+    const send = async (json) => { renderWork(await api(url + "/checklist", { method: "PATCH", json })); reload(); if (json.add) $("#drawerBody .ck-add")?.focus(); };
     const s = h("input", { type: "date", value: x.start }), e = h("input", { type: "date", value: x.end });
     const period = h("div", { class: "law" }, h("div", { class: "row" }, h("b", { class: "small" }, "기간"), s, "~", e,
       h("button", { class: "btn sm", onclick: async () => { await api(url, { method: "PATCH", json: { start: s.value, end: e.value } }); toast("기간을 바꿨습니다"); await reload(); openWork(x.id); } }, "저장"),
@@ -1126,7 +1142,7 @@ async function tabGantt(el, d) {
         h("button", { class: "btn primary lg", onclick: async (ev) => { ev.target.disabled = true; renderWork(await api(url + "/checklist", { method: "POST" })); reload(); toast("체크리스트를 만들었습니다"); } }, "체크리스트 생성"));
     } else {
       const n = r.items.filter((i) => i.done).length;
-      const inp = h("input", { placeholder: "항목 추가 (예: 교육장 냉방 점검)", style: "flex:1", onkeydown: (ev) => { if (ev.key === "Enter" && inp.value.trim()) send({ add: inp.value }); } });
+      const inp = h("input", { class: "ck-add", placeholder: "항목 추가 (예: 교육장 냉방 점검)", style: "flex:1", onkeydown: (ev) => { if (ev.key === "Enter" && inp.value.trim()) send({ add: inp.value }); } });
       const text = () => `[${x.title}] ${x.start}~${x.end}\n` + r.items.map((i, k) => `${i.done ? "☑" : "☐"} ${k + 1}. ${i.text}${i.hint ? " (" + i.hint + ")" : ""}`).join("\n");
       body = h("div", {},
         h("div", { class: "row between", style: "margin:18px 0 8px" }, h("h3", { style: "margin:0" }, `체크리스트 ${n}/${r.items.length}`), h("span", { class: "tiny muted" }, `${r.created} 생성`)),

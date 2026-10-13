@@ -28,7 +28,7 @@ main { max-width: 1120px; margin: 0 auto; padding: 28px 24px 120px }
 
 /* 카드·배치 */
 .card { background: var(--card); border: 0; border-radius: var(--radius); padding: 24px 26px; box-shadow: var(--shadow); margin-bottom: 16px }
-.grid { display: grid; gap: 16px }
+.grid { display: grid; gap: 16px } .grid > * { min-width: 0 }
 .g2 { grid-template-columns: 1.2fr 1fr } .g3 { grid-template-columns: repeat(3, 1fr) } .g4 { grid-template-columns: repeat(4, 1fr) }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .between { justify-content: space-between } .grow { flex: 1 } .right { margin-left: auto }
@@ -116,7 +116,7 @@ table { border-collapse: collapse; width: 100% }
 th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px }
 tr:last-child td { border-bottom: 0 }
 th { font-weight: 600; color: var(--muted); font-size: 12.5px; border-bottom: 1px solid var(--line) }
-.card[style*="padding: 0"] { overflow: hidden }
+.card[style*="padding: 0"] { overflow-x: auto }
 .card[style*="padding: 0"] th:first-child, .card[style*="padding: 0"] td:first-child { padding-left: 24px }
 .card[style*="padding: 0"] th:last-child, .card[style*="padding: 0"] td:last-child { padding-right: 24px }
 tr.click { cursor: pointer } tr.click:hover td { background: #f9fafb }
@@ -150,14 +150,6 @@ tr.click { cursor: pointer } tr.click:hover td { background: #f9fafb }
 .session summary { cursor: pointer; display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .session summary b { min-width: 230px }
 .msg { white-space: pre-wrap; background: var(--fill); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; margin: 6px 0 }
-/* 연간 계획 */
-.months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px }
-.month { background: #fff; border-radius: 18px; padding: 14px 16px; min-height: 120px; box-shadow: var(--shadow) }
-.month.now { box-shadow: 0 0 0 2px var(--brand), var(--shadow) }
-.month h3 { font-size: 15px; display: flex; justify-content: space-between }
-.ev { font-size: 12.5px; padding: 4px 0; border-top: 1px solid var(--line) }
-.ev .d { color: var(--muted); margin-right: 4px; font-variant-numeric: tabular-nums }
-.ev.due { color: var(--none) } .ev.remind { color: var(--part) } .ev.past { opacity: .45 }
 /* 질문 */
 .chat { display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow: auto; padding: 4px }
 .bubble { max-width: 82%; padding: 12px 16px; border-radius: 20px; white-space: pre-wrap; font-size: 14.5px; animation: fadeUp .3s var(--ease) both }
@@ -192,9 +184,10 @@ tr.click { cursor: pointer } tr.click:hover td { background: #f9fafb }
   border-radius: 16px; opacity: 0; transition: .3s var(--ease); z-index: 50; pointer-events: none; font-weight: 600; backdrop-filter: blur(10px) }
 .toast.show { opacity: 1; transform: translateX(-50%) }
 .empty { text-align: center; color: var(--muted); padding: 40px }
+.rules-table { display: block; overflow-x: auto; max-width: 100% }
 .rules-table input, .rules-table select { padding: 5px 8px; font-size: 13px; border-radius: 8px }
 @media (max-width: 900px) {
-  .g2, .g3, .g4, .compare, .steps, .promise { grid-template-columns: 1fr } .months { grid-template-columns: repeat(2, 1fr) }
+  .g2, .g3, .g4, .compare, .steps, .promise { grid-template-columns: 1fr }
   main { padding: 16px 16px 120px } .topbar { padding: 10px 16px } .brand small, #modelBadge { display: none } .brand b { white-space: nowrap } .keyhint { display: none }
   .dock .nav .lbl { display: none } .slide-head { margin: 22px 0 18px }
 }
@@ -245,7 +238,7 @@ body.kiosk-mode main { max-width: none; padding: 0 }
 .g-stat.on { box-shadow: 0 0 0 2px var(--brand), var(--shadow) }
 .g-card { padding: 0; position: relative }
 .g-head, .g-row { display: grid; grid-template-columns: 260px 1fr; align-items: center }
-.g-head { position: sticky; top: 57px; z-index: 5; background: rgba(255, 255, 255, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+.g-head { position: sticky; top: var(--topbar-h, 65px); z-index: 5; background: #fff;
   border-radius: var(--radius) var(--radius) 0 0; border-bottom: 1px solid var(--line); height: 46px; padding: 0 8px }
 .g-head .g-label { padding-left: 16px }
 .g-head .g-track { height: 46px }
@@ -295,4 +288,4 @@ body.kiosk-mode main { max-width: none; padding: 0 }
 .ck li small { display: block; color: var(--muted); font-size: 12px }
 .ck li.on label > span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line2) }
 .ck li.on label small { text-decoration: none }
-@media (max-width: 900px) { .g-stats { grid-template-columns: 1fr 1fr } .g-stats .kpi { padding: 16px } .g-head, .g-row { grid-template-columns: 130px 1fr } .g-today-w { left: 138px } .g-month { font-size: 10.5px; padding-left: 2px } .g-head { top: 53px } }
+@media (max-width: 900px) { .g-stats { grid-template-columns: 1fr 1fr } .g-stats .kpi { padding: 16px } .g-head, .g-row { grid-template-columns: 130px 1fr } .g-today-w { left: 138px } .g-month { font-size: 10.5px; padding-left: 2px } }

@@ -15,6 +15,12 @@ def _d(s):
     return dt.date.fromisoformat(s) if s else None
 
 
+def _avg_rate(res) -> float:
+    """대상자가 있는 법정교육만의 평균 이수율(대상 없는 과정은 0%로 세지 않음)."""
+    rates = [s["rate"] for s in res["summary"] if s["mandatory"] and s["rate"] is not None]
+    return round(sum(rates) / len(rates), 1) if rates else 0.0
+
+
 # ───────────── 할 일
 def tasks(project: dict, res: dict, remind: dict) -> list[dict]:
     base = _d(res["base"])
@@ -89,7 +95,7 @@ def stats(project: dict, res: dict, fee_cfg: dict) -> dict:
         if key in seen:  # 같은 과정·같은 날 중복 기록은 한 번만
             continue
         seen.add(key)
-        hours[pid]["legal" if r.get("rules") else "other"] += float(r["hours"] or 0)
+        hours[pid]["legal" if r.get("category") == "법정" else "other"] += float(r["hours"] or 0)
     total = sum(h["legal"] + h["other"] for h in hours.values())
     n = max(1, len(active))
 
@@ -275,7 +281,7 @@ def next_plan_blocks(project: dict, res: dict, org: dict, fee_cfg: dict, cap_per
     body = ["관련: 산업안전보건법, 양성평등기본법 등 법정의무교육 관계 법령(교육별 근거는 교육 규칙표) 및 기관 운영지침",
             f"{res['year']}년 법정의무교육 운영 결과를 분석하여 {y}년 운영 계획(안)을 아래와 같이 수립하고자 합니다.",
             [f"{res['year']}년 운영 결과: 재직 {len(active)}명, 법정교육 평균 이수율 "
-             f"{round(sum(s['rate'] or 0 for s in res['summary'] if s['mandatory']) / max(1, sum(1 for s in res['summary'] if s['mandatory'])), 1)}%(기준일 {res['base']})",
+             f"{_avg_rate(res)}%(기준일 {res['base']})",
              "주요 문제: " + ("; ".join(findings[:5]) if findings else "특이사항 없음"),
              "교육생 의견: " + ("; ".join(sv_imp[:4]) if sv_imp else "특이사항 없음")],
             f"{y}년 운영 방향", direction,

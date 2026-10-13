@@ -9,6 +9,7 @@ import os
 import shutil
 import sys
 import tempfile
+import urllib.parse
 import time
 import unittest
 import zipfile
@@ -652,7 +653,7 @@ class TestRegulations(unittest.TestCase):
         self.assertEqual(sm["고객응대 CS 실무"]["target"], 82)       # 현장직만
         promo = next(p for p in self.res["people"] if p.get("promoted") == "2026-03-01")
         c = self.res["cells"][promo["id"]][next(x["key"] for x in self.res["columns"] if x["label"] == "승진자 역량향상 과정")]
-        self.assertEqual(c["due"], "2026-08-28")  # 승진 후 180일
+        self.assertEqual(c["due"], "2026-09-01")  # 승진 후 6개월(달력 기준)
 
     def test_categories(self):
         cats = {r["category"] for r in self.res["records"]}
@@ -719,3 +720,151 @@ class TestRegulations(unittest.TestCase):
         sid = c.post(f"/api/projects/{pid}/sessions", json={"col": "dis"}).json()["ids"][0]
         self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "a", "grade": "일반1"}}).status_code, 400)
         self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "a", "grade": "일반1급"}}).status_code, 200)
+
+
+class TestAdversarialFixes(unittest.TestCase):
+    """적대적 검증에서 재현된 문제의 회귀 테스트."""
+
+    @staticmethod
+    def person(id_, name, **kw):
+        d = {"id": id_, "name": name, "dept": "총무팀", "title": "주임", "grade": "6급", "emp": "정규", "job": "사무", "promoted": None,
+             "shift": "일근", "team": "", "hired": "2020-01-01", "left": None, "leave": None,
+             "flags": {"개인정보취급자": False, "관리감독자": False}, "src": {"file": "x", "where": "y"}}
+        d.update(kw)
+        return d
+
+    @staticmethod
+    def rec(name, title, date, hours, **kw):
+        d = {"kind": "cyber", "title": title, "date": date, "hours": hours, "done": True, "name": name, "emp_id": "", "dept": "",
+             "file": "f.xlsx", "where": f"{title}{date}{name}{kw.get('file', '')}", "note": ""}
+        d.update(kw)
+        return d
+
+    def run_engine(self, people, records, base="2026-10-13", year=None, reg=None):
+        from unittest import mock
+        parsed = {"kinds": ["roster"], "note": "", "people": people, "records": records, "signs": [], "shifts": [], "survey": [],
+                  "texts": [], "reg": reg}
+        proj = {"files": [{"path": "x", "rel": "x", "sha": "s"}], "base_date": base, "overrides": {}, "sessions": []}
+        if year:
+            proj["year"] = year
+        with mock.patch.object(engine, "parse_file", lambda *a, **k: parsed):
+            return engine.compute(proj)
+
+    def test_progress_and_hours_cells(self):
+        from daisu import sources
+        from daisu.readers import Table
+        t = Table([["성명", "과정명", "학습시간", "이수일", "진도율"], ["박영희", "청렴교육", "1:30", "2026-03-01", "80%"],
+                   ["김철수", "청렴교육", "2시간", "2026-03-01", "100"]], "표1", [])
+        r = {x["name"]: x for x in sources.parse_records(t, "f")}
+        self.assertEqual((r["박영희"]["done"], r["박영희"]["hours"]), (False, 1.5))
+        self.assertEqual((r["김철수"]["done"], r["김철수"]["hours"]), (True, 2.0))
+        t2 = Table([["성명", "과정명", "학습시간", "진도율"], ["가나", "청렴교육", "1", "1"], ["다라", "청렴교육", "1", "0.8"]], "표1", [])
+        self.assertEqual([x["done"] for x in sources.parse_records(t2, "f")], [True, False])  # 엑셀 백분율 서식
+
+    def test_roster_without_ids_and_sign_date(self):
+        from daisu import sources
+        from daisu.readers import Table
+        h = ["성명", "소속", "직위", "입사일"]
+        ps = (sources.parse_roster(Table([h, ["김철수", "총무팀", "주임", "2020-01-01"]], "시트1"), "정규직.xlsx")
+              + sources.parse_roster(Table([h, ["이민수", "시설팀", "주무관", "2021-01-01"]], "시트1"), "공무직.xlsx"))
+        self.assertEqual(len({p["id"] for p in ps}), 2)
+        t = Table([["성명", "소속", "서명"], ["김철수", "총무팀", "김철수"]], "표1", ["청렴교육 참석자 서명부", "장소: 본관 2-1 회의실", "일시: 2026. 9. 10.(목) 14:00~16:00"])
+        self.assertEqual(sources.sign_info(t, "청렴교육 서명부.xlsx", 2026)["date"], "2026-09-10")
+
+    def test_duplicate_leave_nodate_future(self):
+        p = self.person("A1", "김철수")
+        r1 = self.rec("김철수", "산업안전보건교육", "2026-08-01", 3)
+        res = self.run_engine([p], [r1, dict(r1, file="g.xlsx", where="다른 파일")])
+        self.assertEqual(res["cells"]["A1"]["sr@H2"]["h"], 3.0)  # 두 자료에 같은 기록 → 한 번만
+        lv = self.person("A1", "김철수", leave=["2026-09-01", "2026-12-31"])
+        for b in ("2026-10-13", "2027-01-10"):
+            self.assertEqual(self.run_engine([lv], [], base=b, year=2026)["cells"]["A1"]["sr@H2"]["s"], "leave")
+        nd = self.run_engine([p], [self.rec("김철수", "산업안전보건교육", None, 6)], base="2027-01-10", year=2026)
+        self.assertEqual(nd["cells"]["A1"]["sr@H2"]["s"], "done")
+        fut = self.run_engine([p, self.person("A2", "신입", hired="2026-12-01")], [self.rec("김철수", "청렴교육", "2026-03-01", 2)])
+        self.assertEqual(fut["cells"]["A2"]["int"]["s"], "na")
+
+    def test_external_year_and_swapped_dates(self):
+        from daisu import costs
+        tr = {"rel": "여비규정.hwpx", "texts": [{"text": "여비규정", "where": "p1"}],
+              "tables": [{"rows": [["구분", "일비", "식비", "숙박비"], ["5급 이하", "25,000원", "25,000원", "70,000원"]], "where": "표 1", "before": []}],
+              "budget": None}
+        rs = [self.rec("김철수", "위탁A", "2025-11-03", 24, kind="external", start="2025-11-01", stay=False, stay_provided=False, cost=700000, inst="X"),
+              self.rec("김철수", "위탁B", "2026-06-01", 8, kind="external", start="2026-06-03", stay=True, stay_provided=False, cost=0, inst="X")]
+        e = costs.external(self.run_engine([self.person("A1", "김철수")], rs, reg=tr))
+        self.assertEqual(e["total_cost"], 0)
+        self.assertEqual(len(e["rows"]), 1)
+        self.assertEqual((e["rows"][0]["days"], e["rows"][0]["start"]), (3, "2026-06-01"))
+        self.assertGreater(e["rows"][0]["travel"], 0)
+
+    def test_money_and_required_hours(self):
+        from daisu import regs as R
+        self.assertEqual([R.money(x) for x in ("2만5천원", "1일 25,000원", "100만원", "1시간 250,000원", "실비")],
+                         [25000, 25000, 1000000, 250000, None])
+        t = {"rows": [["과정명", "대상", "시간", "시기"], ["신규임용자 기본교육", "신규임용자", "16시간", "임용 후 3개월 이내"]], "where": "표 1", "before": []}
+        out = R.extract([{"rel": "교육훈련규정.hwpx", "texts": [{"text": "교육훈련규정", "where": "p"}], "tables": [t], "budget": None}])
+        rule = R.required_rules(out)[0]
+        self.assertEqual((rule["hours"], rule["due_months"]), (16.0, 3))
+        from daisu.util import add_months, due_label
+        self.assertEqual(add_months(dt.date(2026, 11, 30), 3), dt.date(2027, 2, 28))
+        self.assertEqual(due_label({"cycle": "promo", "due_months": 6}), "승진일 기준(6개월 이내)")
+
+    def test_fee_grade_missing_and_formula(self):
+        from daisu import fees
+        cfg = {"tiers": [{"grade": "특별", "first": 400000, "extra": 300000}, {"grade": "일반", "first": 100000, "extra": 50000}]}
+        f = fees.compute({"grade": "", "income": "기타소득"}, 2, cfg)
+        self.assertTrue(f["grade_missing"])
+        self.assertEqual(f["lecture"], 0)
+        g = fees.compute({"grade": "특별", "income": "기타소득"}, 4, cfg)
+        self.assertTrue(any("= 1,300,000원" in x for x in g["steps"]))
+
+    def test_next_plan_average_ignores_courses_without_targets(self):
+        from daisu.planning import _avg_rate
+        res = {"summary": [{"mandatory": True, "rate": 100.0}, {"mandatory": True, "rate": None}, {"mandatory": True, "rate": 80.0}]}
+        self.assertEqual(_avg_rate(res), 90.0)
+
+
+class TestAdversarialServer(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        cls.c = TestClient(app)
+        cls.pid = cls.c.post("/api/projects/sample").json()["id"]
+
+    def test_upload_never_escapes_workspace(self):
+        from daisu.server import _safe_rel
+        long = "AAAA/" + "tmp/ESCAPE/" + "d" * 200 + "/pwn.xlsx"
+        for name in ("../../x.xlsx", "/etc/x.xlsx", "C:\\Windows\\x.xlsx", long, "a/" * 200 + "b.xlsx"):
+            r = _safe_rel(name)
+            self.assertFalse(r.startswith("/") or ".." in r.split("/"), name)
+            self.assertLessEqual(len(r), 240)
+        out = tempfile.mkdtemp()
+        r = self.c.post("/api/projects/upload", files=[("files", ("A/" + out.lstrip("/") + "/" + "d" * 230 + "/pwn.xlsx", b"x", None))])
+        self.assertIn(r.status_code, (200, 400))
+        self.assertEqual(os.listdir(out), [])
+
+    def test_session_inputs(self):
+        c, P = self.c, f"/api/projects/{self.pid}"
+        for h in ("abc", [1], {}, True):
+            self.assertEqual(c.post(P + "/sessions", json={"col": "sh", "hours": h}).status_code, 400, h)
+        sid = c.post(P + "/sessions", json={"col": "dis", "manual": True, "date": "2026-11-02"}).json()["ids"][0]
+        S = f"{P}/sessions/{sid}"
+        for bad in ("20261102", "2026-W45-1", "2026-02-30"):
+            self.assertEqual(c.patch(S, json={"date": bad}).status_code, 400, bad)
+        import base64
+        bad_png = "data:image/png;base64," + base64.b64encode(b"\x89PNGnotrealpngdata").decode()
+        d = c.get(P).json()
+        self.assertEqual(c.post(S + "/attend", json={"person": d["people"][0]["id"], "sign": bad_png}).status_code, 400)
+        self.assertEqual(c.get(P + "/export", params={"doc": "session_result", "session": sid, "fmt": "hwpx"}).status_code, 400)
+        c.patch(S, json={"instructor": {"name": "김강사", "grade": ""}})
+        self.assertEqual(c.get(P + "/export", params={"doc": "session_fee", "session": sid, "fmt": "hwpx"}).status_code, 400)
+
+    def test_export_format_fallback_and_empty_checklist_sheet(self):
+        r = self.c.get(f"/api/projects/{self.pid}/export", params={"doc": "nextplan", "fmt": "pdf"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(".hwpx", urllib.parse.unquote(r.headers["content-disposition"]))
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(self.c.get(f"/api/projects/{self.pid}/export?doc=gantt").content))
+        self.assertGreater(wb["체크리스트"].max_row, 1)

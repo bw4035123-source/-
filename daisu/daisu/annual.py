@@ -9,7 +9,7 @@ import os
 import re
 
 from .kpi import CATS
-from .util import dept_core, fmt_h, kdate
+from .util import dept_core, due_label, fmt_h, kdate
 
 CAT_LABEL = {"법정": "법정의무교육", "필수": "필수교육(내규)", "직무": "직무·역량교육", "외부": "외부(위탁)교육"}
 
@@ -80,7 +80,7 @@ def annual_blocks(res: dict, k: dict, ex: dict, org: dict) -> list:
     B.append(("p", f"이수율 {k['legal']['rate']}%(이수 연인원 {k['legal']['done']:,}명 ÷ 대상 연인원 {k['legal']['target']:,}명)"))
     B.append(("table", ["교육", "대상", "이수", "이수율", "기한", "기한 지남"],
               [[s["label"], str(s["target"]), str(s["done"]), f"{s['rate']}%" if s["rate"] is not None else "-",
-                kdate(dt.date.fromisoformat(s["due"]), False) if s["due"] else "입사일 기준", f"{s['overdue']}명" if s["overdue"] else "-"]
+                kdate(dt.date.fromisoformat(s["due"]), False) if s["due"] else due_label(s), f"{s['overdue']}명" if s["overdue"] else "-"]
                for s in res["summary"] if s.get("category") == "법정"], [4, 1, 1, 1, 1.6, 1.2]))
 
     req = [s for s in res["summary"] if s.get("category") == "필수"]

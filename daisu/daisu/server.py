@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import annual, config, costs, engine, kpi, lawapi, llm, planning, qa, reports, schedule, sessions, work
+from . import fees as fees_mod
 from .readers import SUPPORTED
 from .render import FORMATS
 
@@ -139,8 +140,16 @@ def new_project(name: str, base_date: str | None) -> dict:
 
 
 def _safe_rel(rel: str) -> str:
-    parts = [p for p in re.split(r"[\\/]+", rel or "") if p not in ("", ".", "..")]
-    return "/".join(re.sub(r'[<>:"|?*\x00-\x1f]', "_", p) for p in parts)[-240:]
+    """올린 파일의 상대 경로 정리: '..'·드라이브(C:)·절대 경로를 없애고, 너무 길면 뒤쪽 폴더만 남긴다(항상 상대 경로)."""
+    parts = [re.sub(r'[<>:"|?*\x00-\x1f]', "_", p)[:120] for p in re.split(r"[\\/]+", rel or "") if p not in ("", ".", "..")]
+    while len("/".join(parts)) > 240 and len(parts) > 1:
+        parts.pop(0)
+    return "/".join(parts)[-240:].lstrip("/")
+
+
+def _inside(root: str, path: str) -> bool:
+    root = os.path.realpath(root)
+    return os.path.commonpath([root, os.path.realpath(path)]) == root
 
 
 def add_folder(project: dict, src_dir: str) -> int:
@@ -153,6 +162,8 @@ def add_folder(project: dict, src_dir: str) -> int:
             src = os.path.join(root, nm)
             rel = _safe_rel(os.path.relpath(src, src_dir))
             dst = os.path.join(dst_root, rel)
+            if not rel or not _inside(dst_root, dst):
+                continue
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copy2(src, dst)
             project["files"].append(engine.file_entry(dst, rel) | {"origin_sha": engine.sha256(src)})
@@ -420,6 +431,8 @@ async def upload(req: Request):
             shutil.rmtree(_pdir(p["id"]), ignore_errors=True)
             raise HTTPException(413, "자료가 너무 큽니다(최대 500MB).")
         dst = os.path.join(root, rel)
+        if not _inside(root, dst):  # 작업 폴더 밖으로는 절대 쓰지 않음
+            continue
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, "wb") as out:
             out.write(data)
@@ -623,7 +636,11 @@ async def create_sessions(pid: str, req: Request):
                      "attend": {}, "survey": [], "created": dt.datetime.now().strftime("%Y-%m-%d %H:%M")}]
         else:
             hours = b.get("hours")
-            if hours not in (None, "") and not 0.5 <= float(hours) <= 8:
+            try:
+                ok = hours in (None, "") or (not isinstance(hours, bool) and 0.5 <= float(hours) <= 8)
+            except (TypeError, ValueError):
+                ok = False
+            if not ok:
                 raise HTTPException(400, "회차당 시간은 0.5~8시간입니다.")
             pl = schedule.plan(res, col, float(hours) if hours not in (None, "") else None)
             if not pl["sessions"]:
@@ -650,9 +667,11 @@ async def patch_session(pid: str, sid: str, req: Request):
                 s[k] = b[k]
         if "date" in b:
             try:
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(b["date"])):
+                    raise ValueError
                 dt.date.fromisoformat(str(b["date"]))
             except ValueError:
-                raise HTTPException(400, "날짜 형식이 올바르지 않습니다.")
+                raise HTTPException(400, "날짜 형식이 올바르지 않습니다(YYYY-MM-DD).")
             s["date"] = b["date"]
         if "hours" in b:
             try:
@@ -960,7 +979,8 @@ def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign
         blocks = {"annual": lambda: annual.annual_blocks(res, k, ex, org), "kpi": lambda: annual.kpi_blocks(res, k, org),
                   "criteria": lambda: annual.criteria_blocks(res, org)}[doc]()
         name = {"annual": f"{res['year']}년_교육훈련_실적보고", "kpi": f"{res['year']}년_경영평가_교육훈련지표_실적", "criteria": "교육훈련_산정기준표"}[doc]
-        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        fmt = fmt if fmt in FORMATS else "hwpx"
+        fn, mime = FORMATS[fmt]
         return _file(fn(blocks), f"{name}.{fmt if fmt in FORMATS else 'hwpx'}", mime)
     if doc == "settle":
         return _file(costs.settle_excel(costs.external(res)), f"외부교육_정산내역_{stamp}.xlsx",
@@ -980,6 +1000,10 @@ def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign
             return _file(sessions.signsheet_docx(s, pb, org), f"서명부_{safe}.docx", FORMATS["docx"][1])
         if doc == "session_fee" and not s["instructor"].get("name"):
             raise HTTPException(400, "강사 정보를 먼저 입력하세요.")
+        if doc == "session_result" and not s["attend"]:
+            raise HTTPException(400, "출석 기록이 없습니다. 교육을 실시하고 출석(키오스크·수기)을 받은 뒤 결과 보고를 만드세요.")
+        if doc == "session_fee" and fees_mod.compute(s["instructor"], s["hours"], fee_cfg)["grade_missing"]:
+            raise HTTPException(400, "강사 등급을 먼저 고르세요(등급표 기준). 등급이 없으면 강사료를 산정할 수 없습니다.")
         blocks = {"session_plan": lambda: sessions.plan_doc(s, pb, org, fee_cfg), "session_result": lambda: sessions.result_doc(s, pb, org),
                   "session_fee": lambda: sessions.fee_doc(s, org, fee_cfg), "signsheet": lambda: sessions.signsheet_blocks(s, pb, org)}[doc]()
         name = {"session_plan": "실시계획", "session_result": "결과보고", "session_fee": "강사료지급", "signsheet": "서명부"}[doc]
@@ -989,12 +1013,14 @@ def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign
         fn, mime = FORMATS[fmt]
         return _file(fn(blocks), f"{name}_{safe}.{fmt}", mime)
     if doc == "nextplan":
-        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        fmt = fmt if fmt in FORMATS else "hwpx"
+        fn, mime = FORMATS[fmt]
         return _file(fn(planning.next_plan_blocks(p, res, org, fee_cfg)), f"{res['year'] + 1}년_법정의무교육_운영계획(안).{fmt}", mime)
     if doc == "card":
         if person not in {x["id"] for x in res["people"]}:
             raise HTTPException(400, "없는 직원입니다.")
-        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        fmt = fmt if fmt in FORMATS else "hwpx"
+        fn, mime = FORMATS[fmt]
         nm = next(x["name"] for x in res["people"] if x["id"] == person)
         return _file(fn(planning.card_blocks(res, person, org)), f"교육이력카드_{nm}.{fmt}", mime)
     if doc == "excel":

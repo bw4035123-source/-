@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import os
 import re
 
@@ -120,6 +121,8 @@ def _get(r, cmap, key):
 def parse_roster(t: Table, rel: str) -> list[dict]:
     hi, cmap = find_header(t.rows)
     people = []
+    # 사번 열이 없는 명단: 파일마다 다른 자동 번호(명단 파일이 여러 개여도 서로 덮어쓰지 않게)
+    auto = "N" + hashlib.sha1(f"{rel}|{t.where}".encode()).hexdigest()[:4].upper() + "-"
     for i, r in enumerate(t.rows[hi + 1:], hi + 2):
         name = norm_name(_get(r, cmap, "성명"))
         if not name or not re.fullmatch(r"[가-힣A-Za-z·]{2,20}", name):
@@ -129,7 +132,7 @@ def parse_roster(t: Table, rel: str) -> list[dict]:
         job = "사무" if "사무" in job or "행정" in job else ("현장" if job else ("현장" if "교대" in shift else "사무"))
         ls, le = parse_range(_get(r, cmap, "휴직"))
         people.append({
-            "id": _get(r, cmap, "사번") or f"N{len(people) + 1:03d}", "name": name, "dept": _get(r, cmap, "소속"),
+            "id": _get(r, cmap, "사번") or f"{auto}{len(people) + 1:03d}", "name": name, "dept": _get(r, cmap, "소속"),
             "title": _get(r, cmap, "직위"), "grade": _get(r, cmap, "직급"), "emp": _get(r, cmap, "고용형태"), "job": job,
             "promoted": (parse_date(_get(r, cmap, "승진일")) or None) and parse_date(_get(r, cmap, "승진일")).isoformat(),
             "shift": "교대" if "교대" in shift else "일근", "team": _get(r, cmap, "근무조"),
@@ -143,22 +146,49 @@ def parse_roster(t: Table, rel: str) -> list[dict]:
 
 
 # ───────────── 이수 기록(사이버교육 등 목록형)
+def _pct(s) -> float | None:
+    """진도율 '80', '80%', '80.5 %' → 숫자(%)."""
+    return num(str(s or "").replace("%", "").strip()) if str(s or "").strip() else None
+
+
+def _hours_cell(s) -> float | None:
+    """학습시간 '2', '2시간', '1:30'(1시간 30분), '90분' → 시간."""
+    s = str(s or "").strip()
+    if not s:
+        return None
+    v = num(s)
+    if v is not None:
+        return v
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})(?::\d{2})?", s)
+    if m:
+        return round(int(m.group(1)) + int(m.group(2)) / 60, 2)
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)\s*분", s)
+    if m:
+        return round(float(m.group(1)) / 60, 2)
+    return hours_in(s)
+
+
 def parse_records(t: Table, rel: str) -> list[dict]:
     hi, cmap = find_header(t.rows)
     out = []
+    # 엑셀 백분율 서식(0.8 = 80%)으로 저장된 진도율 열: 값이 모두 1 이하이면 100을 곱한다
+    progs = [p for p in (_pct(_get(r, cmap, "진도율")) for r in t.rows[hi + 1:]) if p is not None]
+    frac = bool(progs) and max(progs) <= 1 and any(p > 0 for p in progs)
     for i, r in enumerate(t.rows[hi + 1:], hi + 2):
         name = norm_name(_get(r, cmap, "성명"))
         title = _get(r, cmap, "과정명")
         if not name or not title:
             continue
         status = _get(r, cmap, "이수여부")
-        prog = num(_get(r, cmap, "진도율"))
+        prog = _pct(_get(r, cmap, "진도율"))
+        if prog is not None and frac:
+            prog = round(prog * 100, 1)
         done = ("이수" in status or "수료" in status or "완료" in status or status in ("Y", "O", "○")) and "미" not in status
         if not status:
             done = prog is None or prog >= 100
         if prog is not None and prog < 100:
             done = False
-        hours = num(_get(r, cmap, "학습시간"))
+        hours = _hours_cell(_get(r, cmap, "학습시간"))
         if not hours:
             hours = hours_in(title) or 0
         when = parse_date(_get(r, cmap, "이수일")) or parse_date(_get(r, cmap, "시작일"))
@@ -191,7 +221,9 @@ def sign_info(t: Table, rel: str, year: int) -> dict:
         title = next((ln for ln in lines if "교육" in ln and len(ln) < 80), "") or stem
     title = re.sub(r"\s*(참석자\s*)?(서명부|명단)\s*$", "", title)
     when, hours = None, None
-    for ln in lines + [stem]:
+    # '일시·일자' 줄의 날짜를 먼저 본다('장소: 본관 2-1 회의실'의 2-1을 날짜로 읽지 않게)
+    keyed = [ln for ln in lines if re.search(r"일\s*시|일\s*자|날\s*짜|교육일|실시일", ln)]
+    for ln in keyed + [ln for ln in lines if ln not in keyed] + [stem]:
         if not when:
             ds = all_dates(ln, year)
             when = ds[0] if ds else None

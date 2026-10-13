@@ -19,7 +19,11 @@ def _floor10(x: float) -> int:
 
 def compute(inst: dict, hours: float, cfg: dict) -> dict:
     tiers = {t["grade"]: t for t in cfg.get("tiers", [])}
-    tier = tiers.get(inst.get("grade")) or (cfg.get("tiers") or [{"grade": "-", "first": 0, "extra": 0}])[0]
+    # 등급을 고르지 않았거나 등급표에 없는 값이면 금액을 0으로 두고 '등급 확인 필요'로 알린다(최고 등급으로 과지급 방지)
+    tier = tiers.get(inst.get("grade"))
+    missing = tier is None
+    if missing:
+        tier = {"grade": "", "desc": "", "first": 0, "extra": 0}
     hours = max(0.0, float(hours or 0))
     first = tier["first"] if hours > 0 else 0
     extra_h = max(0.0, hours - 1)
@@ -30,7 +34,9 @@ def compute(inst: dict, hours: float, cfg: dict) -> dict:
     lecture = first + extra + manuscript
     kind = inst.get("income") or "기타소득"
     tax = cfg.get("tax", {})
-    steps = [f"강의료: 첫 1시간 {first:,}원" + (f" + 추가 {extra_h:g}시간 × {tier['extra']:,}원 = {extra:,}원" if extra_h else ""),
+    steps = [f"강사 등급을 고르세요{' (등급표에 없는 값: ' + str(inst.get('grade')) + ')' if inst.get('grade') else ''} – 등급을 정하기 전에는 강의료를 0원으로 둡니다"
+             if missing else "",
+             f"강의료: 첫 1시간 {first:,}원" + (f" + 추가 {extra_h:g}시간 × {tier['extra']:,}원 = {first + extra:,}원" if extra_h else ""),
              f"원고료: {pages}매 × {int(cfg.get('manuscript_per_page', 0)):,}원 = {manuscript:,}원" if pages else "",
              f"교통비(실비, 비과세): {travel:,}원" if travel else ""]
     income_tax = local_tax = 0
@@ -51,7 +57,7 @@ def compute(inst: dict, hours: float, cfg: dict) -> dict:
     else:
         steps.append("내부 직원: 근로소득에 합산(이 단계에서 원천징수 없음)")
     withholding = income_tax + local_tax
-    return {"grade": tier["grade"], "grade_desc": tier.get("desc", ""), "hours": hours, "first": first, "extra": extra,
+    return {"grade": tier["grade"], "grade_missing": missing, "grade_desc": tier.get("desc", ""), "hours": hours, "first": first, "extra": extra,
             "manuscript": manuscript, "travel": travel, "lecture": lecture, "income": kind, "taxable": taxable,
             "income_tax": income_tax, "local_tax": local_tax, "withholding": withholding,
             "total": lecture + travel, "net": lecture + travel - withholding, "steps": [s for s in steps if s]}

@@ -55,7 +55,8 @@ def check_sign(data: str) -> str:
     if not isinstance(data, str) or not data.startswith("data:image/png;base64,") or len(data) > MAX_SIGN:
         raise ValueError("서명 이미지 형식이 올바르지 않습니다.")
     raw = base64.b64decode(data.split(",", 1)[1], validate=True)
-    if not raw.startswith(b"\x89PNG"):
+    # PNG 머리(시그니처+IHDR)와 끝(IEND)이 모두 있어야 서명부 문서에 넣을 수 있다
+    if not (raw.startswith(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") and raw.rstrip(b"\x00").endswith(b"IEND\xaeB`\x82")):
         raise ValueError("서명 이미지 형식이 올바르지 않습니다.")
     return data
 
@@ -129,7 +130,7 @@ def result_doc(s: dict, people_by_id: dict, org: dict) -> list:
     sv = survey_summary(_survey_rows(s))
     body = [f"관련: {org.get('dept', '')} 「{s['title']} 실시 계획」",
             f"{josa('「' + s['title'] + '」')} 아래와 같이 실시하였기에 그 결과를 보고합니다.",
-            [f"일시·장소: {_time(s)}, {s.get('place') or '-'}",
+            [f"일시·장소: {_time(s)}, {s.get('place') or '(미정)'}",
              f"참석: 대상 {len(s['targets'])}명 중 {sum(1 for p in s['targets'] if p in att)}명"
              f"(참석률 {round(100 * sum(1 for p in s['targets'] if p in att) / max(1, len(s['targets'])), 1)}%)"
              + (f", 대상 외 참석 {len(att) - sum(1 for p in s['targets'] if p in att)}명" if len(att) > sum(1 for p in s['targets'] if p in att) else ""),

@@ -12,7 +12,7 @@ from . import config, regs as regs_mod, sessions
 from .readers import read
 from .sources import (doc_kinds, classify, parse_budget, parse_cert, parse_records, parse_roster, parse_shift, parse_sign,
                       parse_survey)
-from .util import dept_core, edit1, norm_name, same_dept
+from .util import add_months, dept_core, edit1, norm_name, same_dept
 
 _CACHE: dict = {}
 
@@ -78,7 +78,7 @@ def columns(rules: dict, year: int) -> list[dict]:
                              due=f"{year}-12-31"))
         elif r.get("cycle") in ("hire", "promo"):
             cols.append(dict(base, key=r["id"], label=r["name"], start=f"{year}-01-01", end=f"{year}-12-31", due=None,
-                             due_days=r.get("due_days", 0)))
+                             due_days=r.get("due_days", 0), due_months=r.get("due_months")))
         else:
             cols.append(dict(base, key=r["id"], label=r["name"], start=f"{year}-01-01", end=f"{year}-12-31",
                              due=f"{year}-{r.get('due', '12-31')}"))
@@ -180,7 +180,7 @@ def compute(project: dict) -> dict:
             sugg = [p for p in people if edit1(p["name"], r["name"])]
             sugg.sort(key=lambda p: not same_dept(r.get("dept"), p["dept"]))
             issues.append({"type": "unknown", "key": r["key"], "rid": r["rid"],
-                           "text": f"‘{r['name']}’({r.get('dept') or '소속 없음'})이(가) 직원 명단에 없음"
+                           "text": f"직원 명단에 없는 이름 ‘{r['name']}’({r.get('dept') or '소속 없음'})"
                                    + (f" – ‘{sugg[0]['name']}’의 오타일 수 있음" if sugg else " – 퇴사자·외부인·오타 확인"),
                            "record": _brief(r), "candidates": [_who(p) for p in sugg[:3]]})
 
@@ -217,7 +217,12 @@ def compute(project: dict) -> dict:
             start, end = dt.date.fromisoformat(c["start"]), dt.date.fromisoformat(c["end"])
             tgt = rule.get("target") or {}
             anchor = promoted if c["cycle"] == "promo" else hired
-            due = dt.date.fromisoformat(c["due"]) if c["due"] else (anchor or hired) + dt.timedelta(days=c.get("due_days", 0))
+            if c["due"]:
+                due = dt.date.fromisoformat(c["due"])
+            elif c.get("due_months"):
+                due = add_months(anchor or hired, c["due_months"])
+            else:
+                due = (anchor or hired) + dt.timedelta(days=c.get("due_days", 0))
             cell = {"s": "na", "h": 0.0, "need": 0, "recs": [], "due": due.isoformat(), "why": ""}
             row[c["key"]] = cell
             if left and left <= base:
@@ -225,6 +230,9 @@ def compute(project: dict) -> dict:
                 continue
             if hired > end or (c["cycle"] not in ("hire", "promo") and hired > due):
                 cell["why"] = "기간 이후 입사"
+                continue
+            if c["cycle"] not in ("hire", "promo") and hired > base:
+                cell["why"] = "기준일 이후 입사(예정)"
                 continue
             if tgt.get("flag") and not p["flags"].get(tgt["flag"]):
                 cell["why"] = f"{tgt['flag']} 아님"
@@ -246,23 +254,27 @@ def compute(project: dict) -> dict:
                 continue
             hours = rule.get("hours", 1)
             need = hours.get(p["job"], max(hours.values())) if isinstance(hours, dict) else hours
-            got, used = 0.0, []
+            got, used, seen = 0.0, [], set()
             lo = (anchor - dt.timedelta(days=30)) if c["cycle"] in ("hire", "promo") else start
+            ref = min(base, dt.date(year, 12, 31))  # 날짜 없는 반기 기록은 기준일이 속한 반기(다음 해 기준일이면 하반기)로
             for r in rec_by_pid.get(p["id"], []):
                 if c["rule"] not in r["rules"]:
                     continue
                 d = dt.date.fromisoformat(r["date"]) if r.get("date") else None
                 if d and not (lo <= d <= end):
                     continue
-                if not d and c["cycle"] == "half" and not (start <= base <= end):
+                if not d and c["cycle"] == "half" and not (start <= ref <= end):
                     continue
+                if d and (r["title"], r["date"]) in seen:  # 같은 과정·같은 날이 두 자료(이수현황·서명부)에 있으면 한 번만
+                    continue
+                seen.add((r["title"], r["date"]))
                 share = r["hours"] / max(1, len([x for x in r["rules"] if rule_by_id[x].get("group") == rule.get("group")]))
                 got += share
                 used.append(r["rid"])
             cell.update(h=round(got, 2), need=need, recs=used)
             if got >= need - 1e-6:
                 cell["s"] = "done"
-            elif lv and (lv[0] <= base <= lv[1] or (lv[0] <= start and lv[1] >= end)):
+            elif lv and (lv[0] <= min(base, due) <= lv[1] or (lv[0] <= start and lv[1] >= end)):  # 기한(또는 기준일)에 휴직 중
                 cell.update(s="leave", why=f"휴직 {lv[0].month}/{lv[0].day}~{lv[1].month}/{lv[1].day}")
             else:
                 cell["s"] = "partial" if got > 0 else "none"
