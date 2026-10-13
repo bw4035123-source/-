@@ -5,6 +5,7 @@
 import ipaddress
 import json
 import mimetypes
+import os
 import re
 import traceback
 import urllib.parse
@@ -59,6 +60,16 @@ def file_response(data, filename, ctype=None):
     ctype = ctype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     quoted = urllib.parse.quote(filename)
     return Response(data, 200, ctype, {"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"})
+
+
+def _where(e):
+    """예외가 난 앱 코드 위치(파일 이름·행). 파이썬 기본 라이브러리 안쪽은 건너뛴다."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    frames = [f for f in traceback.extract_tb(e.__traceback__) if os.path.abspath(f.filename).startswith(here)]
+    if not frames:
+        return ""
+    f = frames[-1]
+    return f"(위치: {os.path.basename(f.filename)} {f.lineno}행 · {type(e).__name__})"
 
 
 class HttpError(Exception):
@@ -162,10 +173,11 @@ class App:
                     return json_response({"error": e.message}, e.status)
                 except json.JSONDecodeError:
                     return json_response({"error": "요청 내용을 읽을 수 없습니다(JSON 형식 오류)"}, 400)
-                except (TypeError, ValueError, AttributeError):
-                    # 대부분 요청 값의 형식이 맞지 않을 때(글자 자리에 목록 등): 기록은 남기고 400으로 안내
+                except (TypeError, ValueError, AttributeError) as e:
+                    # 요청 값의 형식이 맞지 않거나(글자 자리에 목록 등) 자료 속 값이 예상과 다를 때: 기록은 남기고 400으로 안내.
+                    # 어디서 멈췄는지(앱 파일·행)를 함께 보여 주어, 사용자가 이 문구만 알려 줘도 원인을 찾을 수 있게 한다
                     traceback.print_exc()
-                    return json_response({"error": "요청 값의 형식이 올바르지 않습니다. 입력 내용을 확인해 주세요."}, 400)
+                    return json_response({"error": f"처리하지 못한 값이 있습니다{_where(e)}. 입력 내용을 확인하고, 계속되면 이 문구를 알려 주세요."}, 400)
                 except Exception:
                     # 내부 오류 내용은 실행 창(서버 기록)에만 남기고 화면에는 일반 안내만 보낸다
                     traceback.print_exc()

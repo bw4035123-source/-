@@ -688,7 +688,11 @@ def build_flags(sections, kind_of_file, today=None):
     late_quotes = {q["quote"] for it in sections["schedule"] if it.get("timing") == "기한 지남" for q in it["sources"]}
     for it in sections["issues"]:
         m = re.match(r"(20\d{2})-(\d{2})-(\d{2})$", it.get("due") or "")
-        if m and date(int(m.group(1)), int(m.group(2)), int(m.group(3))) < today:
+        try:
+            past = bool(m) and date(int(m.group(1)), int(m.group(2)), int(m.group(3))) < today
+        except ValueError:  # 없는 날짜(2026-02-30)
+            past = False
+        if past:
             it["past_due"] = True
             if any(q["quote"] in late_quotes for q in it["sources"]):
                 continue

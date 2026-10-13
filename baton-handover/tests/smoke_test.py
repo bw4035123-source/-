@@ -163,6 +163,14 @@ def check_baton(c):
         c.status("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/items", {"op": "x"}) == 400
     ex = c.call("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/export?fmt=hwpx", {}, raw=True)
     yield "체크리스트 한글 내보내기", ex[:2] == b"PK" and len(ex) > 500
+    import base64
+    odd = ("수질검사 결과 보고: 다음 예정일 2026. 2. 30.\n청소 용역 계약기간: 2026.02.30~2027.13.01\n"
+           "탁도 기준 12.5~13.0 NTU, 잔류염소 0.4~1.0 mg/L\n현안: 주차장 보수 — 기한 2026-02-30\n매월 32일 점검, 6월 31일 결산, 13월 5일 마감\n")
+    oh = c.call("POST", "/api/handovers", {"source": {"kind": "upload", "files": [
+        {"path": "이상한날짜_메모.txt", "b64": base64.b64encode(odd.encode("utf-8")).decode()}]}, "start": "2026-10-12"})
+    bad = [p for p in ("gantt", "radar", "network", "reports", "form", "flow") if c.status("GET", f"/api/handovers/{oh['id']}/{p}") != 200]
+    yield f"자료에 없는 날짜(2.30·13월·12.5~13.0)가 있어도 모든 화면 동작{bad or ''}", not bad and \
+        c.status("POST", f"/api/handovers/{oh['id']}/export/manual?fmt=md", {"start": "2026-10-12"}) == 200
     yield "지식 릴레이: 모의 바통 파일 이어받기", any(it.get("carried") for it in s["schedule"])
     b = c.call("POST", f"/api/handovers/{hid}/baton", {}, raw=True)
     bj = json.loads(b)

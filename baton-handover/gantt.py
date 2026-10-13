@@ -95,6 +95,8 @@ def _occurrences(s, start, end):
             cur = _clamp(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
         return out
     rng = RANGE_RX.search(text)
+    if rng and not (1 <= int(rng.group(2)) <= 12 and 1 <= int(rng.group(5) or rng.group(2)) <= 12):
+        rng = None  # '탁도 12.5~13.0' 같은 수치 범위는 날짜가 아니다
     for y in years:
         if not rec and s.get("year") and s["year"] != y and not s.get("date"):
             continue
@@ -155,7 +157,10 @@ def build(h, start=None, months=12, rd=None):
     for s in live(S["schedule"]):
         if s.get("timing") in ("완료", "지난 일"):
             continue
-        occ = _occurrences(s, first, end)
+        try:
+            occ = _occurrences(s, first, end)
+        except (ValueError, TypeError, KeyError, AttributeError):
+            continue  # 형식이 이상한 일정 하나 때문에 간트 전체가 멈추지 않게
         if not occ:
             continue
         kind, cls = kind_of(s["task"] + " " + (s.get("related") or ""))
@@ -165,7 +170,10 @@ def build(h, start=None, months=12, rd=None):
                       "overdue": s.get("timing") == "기한 지남"})
     # 2) 진행 중 현안: 착임일부터 기한까지
     for i in live(S["issues"]):
-        due = _parse_due(i.get("due"), start.year)
+        try:
+            due = _parse_due(i.get("due"), start.year)
+        except (ValueError, TypeError):
+            due = None
         label = i["title"] if not i.get("next_action") or i["next_action"] in i["title"] else f"{i['title']}: {i['next_action']}"
         kind, cls = kind_of(label)
         if due and due < start and (start - due).days > 183:
@@ -185,8 +193,11 @@ def build(h, start=None, months=12, rd=None):
         m = PERIOD_RX.search(x.get("period") or "")
         if not m:
             continue
-        a = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        b = date(int(m.group(4)), int(m.group(5)), int(m.group(6)))
+        try:
+            a = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            b = date(int(m.group(4)), int(m.group(5)), int(m.group(6)))
+        except ValueError:  # 2026.02.30 처럼 없는 날짜가 적힌 칸은 건너뛴다
+            continue
         if b < first or a > end:
             continue
         tasks.append({"id": _tid("c", x["name"], x.get("period")), "label": f"{x['name']} 계약 기간", "related": x.get("vendor", ""),

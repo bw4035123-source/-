@@ -420,11 +420,14 @@ def build_ics(h, start=None):
 
 
 def _parse_due(due, year):
-    if not due:
+    if not due or not isinstance(due, str):
         return None
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})", due)
     if m:
-        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:  # 2026-02-30 처럼 없는 날짜
+            return None
     m = re.match(r"(\d{1,2})월(?:\s*(\d{1,2})일)?", due)
     if m:
         try:

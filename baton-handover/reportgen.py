@@ -223,7 +223,10 @@ def generate(h, blocks, file, mode="next", base=None, rd=None, net=None, llm=Non
     for x in lines("plan") + lines("other"):
         dm = DATE_RX.search(x["text"])
         if dm and re.search(r"다음|예정", x["text"]):
-            next_due = (date(int(dm.group(1)), int(dm.group(2)), int(dm.group(3))), x)
+            try:
+                next_due = (date(int(dm.group(1)), int(dm.group(2)), int(dm.group(3))), x)
+            except ValueError:  # 없는 날짜는 다음 예정일로 쓰지 않는다
+                continue
             break
     for x in kv_lines:
         parts = []
