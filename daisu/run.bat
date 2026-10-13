@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title 다이수 - 법정의무교육 비서
+title 다이수 - 교육훈련 규정 해석·실적 보고 자동화
 rem 다이수 실행: 파이썬을 찾아 run.py 를 실행한다. 실행 환경 만들기·설치·기록은 run.py 가 맡는다.
 rem 사용법: run.bat [--port 번호] [--reinstall] [--check]
 

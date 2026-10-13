@@ -42,12 +42,13 @@ class TestReading(unittest.TestCase):
             kinds[os.path.relpath(p, BASE)] = doc_kinds(read(p))
         got = sorted(k for ks in kinds.values() for k in ks)
         self.assertEqual(got.count("roster"), 1)
-        self.assertEqual(got.count("records"), 1)
+        self.assertEqual(got.count("records"), 2)  # 사이버·직무교육 이수현황, 외부(위탁)교육 실적
         self.assertEqual(got.count("sign"), 3)  # 한글·엑셀·워드 서명부
         self.assertEqual(got.count("cert"), 3)
         self.assertEqual(got.count("shift"), 1)
         self.assertEqual(got.count("survey"), 1)
-        self.assertEqual(got.count("guide"), 1)
+        self.assertEqual(got.count("guide"), 6)  # 운영지침 + [모의] 규정·기준 5종
+        self.assertEqual(got.count("budget"), 1)
 
 
 class TestEngine(unittest.TestCase):
@@ -206,7 +207,7 @@ class TestReports(unittest.TestCase):
     def test_reminders_excel_evidence(self):
         msgs = reports.reminders(self.res, self.org)
         over = [m for m in msgs if m["overdue"]]
-        self.assertEqual(len(over), 13)
+        self.assertEqual(len(over), 15)  # 법정 13명 + 필수(승진자 과정) 2명
         self.assertIn("기한이 지났습니다", over[0]["text"])
         self.assertIn("(목)", next(m for m in msgs if not m["overdue"])["text"])  # 2026-12-31은 목요일
         wb = reports.excel(self.res)
@@ -293,7 +294,7 @@ class TestServer(unittest.TestCase):
         self.assertEqual(len(d["people"]), 120)
         self.assertEqual(c.post("/api/projects/upload", files=[("files", ("a.jpg", b"x", "image/jpeg"))]).status_code, 400)
         r = c.post("/api/projects/path", json={"path": BASE})
-        self.assertEqual(len(c.get(f"/api/projects/{r.json()['id']}").json()["files"]), 11)
+        self.assertEqual(len(c.get(f"/api/projects/{r.json()['id']}").json()["files"]), 18)
         self.assertEqual(c.post("/api/projects/path", json={"path": "/없는/폴더"}).status_code, 400)
 
     def test_rules_edit(self):
@@ -401,7 +402,7 @@ class TestSessionFlow(unittest.TestCase):
         self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/survey", json={"scores": scores, "comment": "좋음"}).json()["n"], 1)
         self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"grade": "없는등급"}}).status_code, 400)
         self.assertEqual(c.get(f"/api/projects/{pid}/export?doc=session_fee&fmt=hwpx&session={sid}").status_code, 400)  # 강사 없음
-        c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "박강사", "org": "가상기관", "grade": "일반2"}, "start": "10:00"})
+        c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "박강사", "org": "가상기관", "grade": "일반2급"}, "start": "10:00"})
         v = c.get(f"/api/projects/{pid}/sessions/{sid}").json()
         self.assertEqual(v["fee"]["net"], 136800)
         tasks = {t["key"]: t for t in c.get(f"/api/projects/{pid}/tasks").json()}
@@ -541,3 +542,110 @@ class TestLawAPI(unittest.TestCase):
         self.assertEqual(c.get("/api/law/article", params={"name": "산업안전보건법", "jo": "x"}).status_code, 400)
         r = c.get("/api/law/rule/sr", params={"cache_only": False}).json()
         self.assertTrue(r["items"][0]["ok"])
+
+
+class TestRegulations(unittest.TestCase):
+    """규정 문서 해석 → 기준 → 계산 → 보고서."""
+
+    @classmethod
+    def setUpClass(cls):
+        from daisu import costs, kpi
+        cls.prj = sample_project()
+        cls.res = engine.compute(cls.prj)
+        cls.rg = cls.res["regs"]
+        cls.ex = costs.external(cls.res)
+        cls.k = kpi.compute(cls.res, cls.prj, cls.ex, config.settings()["fees"])
+
+    def test_extracted_criteria(self):
+        rg = self.rg
+        self.assertEqual(rg["training"]["annual_hours"]["value"], 60)
+        self.assertIn("제5조", rg["training"]["annual_hours"]["src"]["text"])  # 근거 원문
+        self.assertEqual(rg["training"]["report_days"]["value"], 7)
+        self.assertEqual(rg["training"]["support_limit"]["value"], 1000000)
+        self.assertEqual(rg["training"]["daily_ratio"]["value"], 0.5)
+        self.assertTrue(rg["travel"]["no_lodging_if_provided"])
+        self.assertEqual([(g["label"], g["lodging"]) for g in rg["travel"]["groups"]],
+                         [("제1호(임원)", 100000), ("제2호(1급~4급)", 80000), ("제3호(5급 이하)", 70000)])
+        self.assertEqual([t["grade"] for t in rg["fee"]["tiers"]], ["특1급", "특2급", "일반1급", "일반2급", "일반3급"])
+        self.assertEqual(rg["fee"]["manuscript_per_page"], 13000)
+        self.assertEqual(len(rg["kpis"]), 6)
+        self.assertEqual(rg["gov"]["rec_hours"]["value"], 80)  # 본문에 '경영평가'가 있어도 정부 계획으로 판별
+        self.assertEqual(len(rg["gov"]["priorities"]), 3)
+        self.assertEqual(rg["budget"]["total"], 22000000)
+        self.assertEqual([r["name"] for r in rg["required"]], ["신규임용자 기본교육", "승진자 역량향상 과정", "신임 관리자 리더십", "고객응대 CS 실무"])
+
+    def test_required_courses_judged(self):
+        sm = {s["label"]: s for s in self.res["summary"]}
+        self.assertEqual(sm["승진자 역량향상 과정"]["category"], "필수")
+        self.assertEqual(sm["승진자 역량향상 과정"]["target"], 6)    # 올해 승진자만
+        self.assertEqual(sm["신임 관리자 리더십"]["target"], 6)      # 팀장만
+        self.assertEqual(sm["고객응대 CS 실무"]["target"], 82)       # 현장직만
+        promo = next(p for p in self.res["people"] if p.get("promoted") == "2026-03-01")
+        c = self.res["cells"][promo["id"]][next(x["key"] for x in self.res["columns"] if x["label"] == "승진자 역량향상 과정")]
+        self.assertEqual(c["due"], "2026-08-28")  # 승진 후 180일
+
+    def test_categories(self):
+        cats = {r["category"] for r in self.res["records"]}
+        self.assertEqual(cats, {"법정", "필수", "직무", "외부"})
+        self.assertTrue(all(r["category"] == "외부" for r in self.res["records"] if r["kind"] == "external"))
+
+    def test_travel_settlement(self):
+        row = next(x for x in self.ex["rows"] if x["days"] == 3 and x["grade"] in ("5급", "6급", "7급") and x["nights"] == 2 and not x["stay_provided"])
+        # 5급 이하: 일비 25,000×1/2×3일 + 식비 25,000×3일 + 숙박 70,000×2박
+        self.assertEqual((row["daily"], row["meal"], row["lodging"], row["travel"]), (37500, 75000, 140000, 252500))
+        prov = [x for x in self.ex["rows"] if x["stay_provided"] and x["nights"]]
+        self.assertTrue(prov and all(x["lodging"] == 0 for x in prov))  # 숙박 제공 → 숙박비 없음
+        self.assertEqual(len(self.ex["missing"]), 2)
+        self.assertEqual([o["name"] for o in self.ex["over_limit"]], [self.ex["over_limit"][0]["name"]])
+        self.assertGreater(self.ex["over_limit"][0]["cost"], 1000000)
+
+    def test_kpis(self):
+        ks = {x["name"]: x for x in self.k["kpis"]}
+        self.assertEqual(ks["1인당 교육훈련시간"]["value"], round(self.k["total_hours"] / 119, 1))
+        self.assertEqual(ks["교육훈련 예산 집행률"]["value"], round(100 * self.k["spend"]["total"] / 22000000, 1))
+        self.assertIn("÷", ks["법정의무교육 이수율"]["basis"])
+        self.assertEqual(ks["교육훈련 만족도"]["value"], 4.04)
+
+    def test_reports(self):
+        from daisu import annual
+        from daisu.render import to_md
+        org = config.settings()["org"]
+        md = to_md(annual.annual_blocks(self.res, self.k, self.ex, org)).decode()
+        for must in ("1. 총괄", "내규 목표", "정부 권장", "분야별 실적", "필수교육(내규 별표)", "외부(위탁)교육", "1인당 지원 한도 초과",
+                     "교육훈련비 집행", "경영평가 교육훈련 지표", "정부 중점 과제 대비", "내규 목표(60시간)가 정부 권장(80시간)보다 낮습니다"):
+            self.assertIn(must, md)
+        self.assertNotIn("올해 관련 과정 없음", md)  # AI·안전 과정을 찾아냄
+        kmd = to_md(annual.kpi_blocks(self.res, self.k, org)).decode()
+        self.assertIn("편람 근거", kmd)
+        cmd = to_md(annual.criteria_blocks(self.res, org)).decode()
+        self.assertIn("수료 후 7일 이내", cmd)
+        for fn, _ in FORMATS.values():
+            fn(annual.annual_blocks(self.res, self.k, self.ex, org))
+
+    def test_no_regulations_fallback(self):
+        prj = sample_project()
+        prj["files"] = [f for f in prj["files"] if "07_" not in f["rel"] and "06_" not in f["rel"]]
+        res = engine.compute(prj)
+        self.assertIsNone(res["regs"]["travel"])
+        from daisu import costs, kpi
+        ex = costs.external(res)
+        self.assertIsNone(ex["rows"][0]["travel"])
+        k = kpi.compute(res, prj, ex, config.settings()["fees"])
+        self.assertEqual([x["name"] for x in k["kpis"]], ["1인당 교육훈련시간", "법정의무교육 이수율"])  # 편람 없으면 기본 지표
+
+    def test_api(self):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        c = TestClient(app)
+        pid = c.post("/api/projects/sample").json()["id"]
+        r = c.get(f"/api/projects/{pid}/regs").json()
+        self.assertTrue(r["fee_from_doc"])
+        self.assertIn("정부 권장", r["warnings"][0])
+        o = c.get(f"/api/projects/{pid}/overview").json()
+        self.assertEqual(len(o["per_person"]), 119)
+        for q in ("doc=annual&fmt=hwpx", "doc=kpi&fmt=docx", "doc=criteria&fmt=hwpx", "doc=settle", "doc=stats"):
+            self.assertEqual(c.get(f"/api/projects/{pid}/export?{q}").status_code, 200, q)
+        sid = c.post(f"/api/projects/{pid}/sessions", json={"col": "dis"}).json()["ids"][0]
+        self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "a", "grade": "일반1"}}).status_code, 400)
+        self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "a", "grade": "일반1급"}}).status_code, 200)

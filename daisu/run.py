@@ -211,7 +211,7 @@ def fail(msg: str):
 
 def main():
     _console_utf8()
-    ap = argparse.ArgumentParser(description="다이수 – 법정의무교육 비서")
+    ap = argparse.ArgumentParser(description="다이수 – 교육훈련 규정 해석·실적 보고 자동화")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8770)
     ap.add_argument("--model", default=None, help="AI 모델 프로필 이름(예: offline, ollama-exaone)")
@@ -225,7 +225,7 @@ def main():
 
     if not args.in_venv:
         log(f"===== 다이수 실행 (파이썬 {sys.version.split()[0]}, {sys.executable}, {sys.platform}) =====", screen=False)
-        print("\n  다이수 – 법정의무교육 비서")
+        print("\n  다이수 – 교육훈련 규정 해석·실적 보고 자동화")
     if sys.version_info < MIN_PY:
         fail(f"파이썬 {MIN_PY[0]}.{MIN_PY[1]} 이상이 필요합니다(현재 {sys.version.split()[0]}). https://www.python.org 에서 최신 버전을 설치하세요.")
     if args.check:

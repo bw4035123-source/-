@@ -61,7 +61,7 @@ function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/");
   document.body.classList.toggle("kiosk-mode", parts[0] === "kiosk");
   if (parts[0] === "kiosk" && parts[1] && parts[2]) return viewKiosk(parts[1], parts[2]);
-  if (parts[0] === "p" && parts[1]) return viewProject(parts[1], parts[2] || "board", decodeURIComponent(parts[3] || ""));
+  if (parts[0] === "p" && parts[1]) return viewProject(parts[1], parts[2] || "results", decodeURIComponent(parts[3] || ""));
   if (parts[0] === "settings") return viewSettings();
   return viewHome();
 }
@@ -98,9 +98,10 @@ async function viewHome() {
   drop.ondragleave = () => drop.classList.remove("over");
   drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); };
   const panes = {
-    sample: h("div", {}, h("p", { class: "small" }, "가상의 ‘가상구시설관리공단’(직원 120명, 교대 현장직 69명) 자료 11개로 전 과정을 체험합니다."),
-      h("ul", { class: "small muted" }, h("li", {}, "직원 명단·사이버교육 이수현황(엑셀)"), h("li", {}, "집합교육 서명부(한글·엑셀·워드), 외부교육 수료증(PDF)"),
-        h("li", {}, "11월 교대근무표, 만족도 조사, 기관 교육 운영지침(한글)"))),
+    sample: h("div", {}, h("p", { class: "small" }, "가상의 ‘가상구시설관리공단’(직원 120명, 교대 현장직 69명) 자료 18개로 전 과정을 체험합니다."),
+      h("ul", { class: "small muted" }, h("li", {}, "직원 명단, 사이버·직무교육 이수현황, 외부(위탁)교육 실적, 교육 예산(엑셀)"),
+        h("li", {}, "집합교육 서명부(한글·엑셀·워드), 수료증(PDF), 교대근무표, 만족도 조사"),
+        h("li", {}, "[모의] 교육훈련규정·여비규정·강사수당 기준·경영평가 편람·정부 교육 계획"))),
     upload: h("div", {}, drop, files, folder),
     path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(서버가 같은 PC에서 실행될 때)"), pathIn),
   };
@@ -128,23 +129,23 @@ async function viewHome() {
         fd.append("name", name.value); fd.append("base_date", base.value);
         r = await api("/api/projects/upload", { method: "POST", body: fd });
       }
-      location.hash = `#/p/${r.id}/board`;
+      location.hash = `#/p/${r.id}/results`;
     } catch { go.disabled = false; go.textContent = "시작하기"; }
   }
   mount(
     h("div", { class: "grid g2" },
       h("div", { class: "card hero" },
-        h("h1", {}, "법정의무교육, 누가 다 이수했나요?"),
-        h("p", {}, "직원 명단과 이수 기록(사이버교육 엑셀, 집합교육 서명부, 수료증)을 넣으면 직원별 이수 현황을 자동으로 맞춰 보고, ",
-          "교대근무표에 맞춘 교육 일정, 미이수자 안내문, 실적 보고서와 증빙 묶음까지 만들어 줍니다."),
+        h("h1", {}, "교육 폴더를 통째로 넣으면, 보고서가 나옵니다"),
+        h("p", {}, "법정·필수·직무·외부(위탁) 교육 기록과 함께 경영평가 편람, 정부 교육 계획, 회사 교육훈련규정·여비규정, 강사수당 기준을 넣으세요. ",
+          "다이수가 규정을 읽어 계산 기준을 스스로 세우고, 모든 교육 실적을 집계해 실적 보고서·경영평가 지표·정산서까지 씁니다."),
         h("div", { class: "steps" },
-          h("div", { class: "step" }, h("b", {}, "1. 자료 넣기"), h("span", { class: "small" }, "형식이 달라도 폴더째")),
-          h("div", { class: "step" }, h("b", {}, "2. 자동 대조"), h("span", { class: "small" }, "법령 기준으로 이수·부족·미이수 판정")),
-          h("div", { class: "step" }, h("b", {}, "3. 일정·안내·보고"), h("span", { class: "small" }, "근무표 반영 일정, 안내문, 한글 보고서"))),
+          h("div", { class: "step" }, h("b", {}, "1. 규정을 읽는다"), h("span", { class: "small" }, "목표 시간·필수교육·여비·강사수당·평가 산식을 근거와 함께")),
+          h("div", { class: "step" }, h("b", {}, "2. 모든 교육을 맞춘다"), h("span", { class: "small" }, "명단 × 이수기록 × 기준 → 직원별·분야별 판정")),
+          h("div", { class: "step" }, h("b", {}, "3. 보고서를 쓴다"), h("span", { class: "small" }, "실적 보고, 경영평가 지표, 정산서, 내년 계획(한글)"))),
         h("ul", { class: "small muted" },
-          h("li", {}, "동명이인·이름 오타·분류 안 되는 과정은 ‘확인 필요’로 모아 사람이 정합니다."),
-          h("li", {}, "판정은 규칙과 계산으로 하고 모든 결과에 근거 파일·행이 붙습니다(AI 추측 없음)."),
-          h("li", {}, "인터넷 없이 동작하며, 교육 규칙표는 설정에서 기관에 맞게 고칩니다."))),
+          h("li", {}, "규정에서 읽은 값마다 문서·조항 원문이 붙어 그대로 결재 근거가 됩니다."),
+          h("li", {}, "동명이인·이름 오타처럼 기계가 확신하지 못한 것만 사람에게 묻습니다."),
+          h("li", {}, "계산은 규칙으로 하고(AI 추측 없음), 인터넷 없이 동작합니다."))),
       h("div", { class: "card" }, h("h2", {}, "새 작업"),
         modeTabs, pane,
         h("div", { class: "grid g2", style: "margin-top:12px" },
@@ -154,15 +155,15 @@ async function viewHome() {
     h("h2", { style: "margin-top:8px" }, "진행 중인 작업"),
     list.length ? h("div", { class: "card", style: "padding:0" }, h("table", {},
       h("tr", {}, h("th", {}, "이름"), h("th", {}, "기준일"), h("th", {}, "자료"), h("th", {}, "만든 때"), h("th", {})),
-      list.map((p) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${p.id}/board`) },
+      list.map((p) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${p.id}/results`) },
         h("td", {}, p.name), h("td", {}, p.base_date), h("td", {}, p.files + "개"), h("td", { class: "muted" }, p.created),
         h("td", { class: "num" }, h("button", { class: "btn sm ghost", onclick: async (e) => { e.stopPropagation(); if (!confirm("이 작업을 지울까요? (원본 자료는 그대로)")) return; await api(`/api/projects/${p.id}`, { method: "DELETE" }); viewHome(); } }, "삭제"))))))
       : h("div", { class: "card empty" }, "아직 없습니다. ‘샘플로 체험’으로 시작해 보세요."));
 }
 
 // ───────────── 작업 화면
-const TABS = [["files", "자료"], ["board", "현황판"], ["matrix", "이수 현황표"], ["issues", "확인 필요"], ["plan", "일정 짜기"],
-  ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고·증빙"], ["year", "연간 계획"], ["ask", "질문하기"]];
+const TABS = [["files", "자료"], ["regs", "규정·기준"], ["results", "교육 실적"], ["board", "법정·필수 현황"], ["matrix", "이수 현황표"],
+  ["issues", "확인 필요"], ["plan", "일정 짜기"], ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고서"], ["year", "연간 계획"], ["ask", "질문하기"]];
 
 async function viewProject(pid, tab, arg) {
   const d = await api(`/api/projects/${pid}`);
@@ -186,7 +187,7 @@ async function viewProject(pid, tab, arg) {
     k === "issues" ? h("span", { class: "cnt" + (nIssues ? "" : " ok") }, nIssues || "0") : null)));
   const body = h("div");
   mount(head, tabs, body);
-  const fn = { files: tabFiles, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
+  const fn = { files: tabFiles, regs: tabRegs, results: tabResults, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
   await fn(body, d, arg);
 }
 
@@ -462,6 +463,16 @@ async function tabNotify(el, d) {
 // ⑦ 보고·증빙
 async function tabReport(el, d) {
   const pid = d.project.id;
+  const ex0 = (doc, fmt) => dl(`/api/projects/${pid}/export?doc=${doc}&fmt=${fmt}`);
+  const rep = (title, desc, doc) => h("div", { class: "card" }, h("h2", {}, title), h("p", { class: "small muted" }, desc),
+    h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ex0(doc, "hwpx") }, "한글(HWPX)"), h("button", { class: "btn", onclick: () => ex0(doc, "docx") }, "워드")));
+  add(el, h("div", { class: "alert info" }, "모든 보고서는 넣은 규정에서 읽은 기준(‘규정·기준’ 탭)과 기록으로 계산한 숫자로 씁니다. 숫자마다 산출 근거가 함께 들어갑니다."),
+    h("div", { class: "grid g2" },
+      rep(`${d.year}년 교육훈련 실적 보고서`, "총괄(1인당 시간·내규 목표·정부 권장), 분야별 실적, 법정·필수교육, 외부교육(결과보고·한도), 예산 집행, 경영평가 지표, 개선 방향, 정부 중점 과제 대비", "annual"),
+      rep("경영평가 교육훈련 지표 실적", "편람의 지표·산식 그대로, 실적값과 산출 근거(분자·분모), 편람 근거 위치, 증빙 자료 목록", "kpi"),
+      h("div", { class: "card" }, h("h2", {}, "외부(위탁)교육 정산"), h("p", { class: "small muted" }, "여비규정·교육여비 특례로 산정한 일비·식비·숙박비, 교육비, 결과보고 기한 준수 여부"),
+        h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ex0("settle", "") }, "정산 내역 엑셀"))),
+      rep("규정 해석 기준표", "다이수가 규정 문서에서 읽어 적용한 기준과 원문 근거 – 보고서 결재 시 붙임으로", "criteria")));
   const open = d.summary.filter((s) => s.partial + s.none > 0);
   const planSel = h("select", {}, h("option", { value: "" }, "일정 계획 넣지 않음"), open.map((s) => h("option", { value: s.key }, s.label + " 일정 포함")));
   const ex = (doc, fmt, extra = "") => dl(`/api/projects/${pid}/export?doc=${doc}&fmt=${fmt}${extra}`);
@@ -685,11 +696,11 @@ async function tabRun(el, d) {
 // ───────────── 회차 상세
 async function tabSession(el, d, sid) {
   const pid = d.project.id;
-  const [s, st] = await Promise.all([api(`/api/projects/${pid}/sessions/${sid}`), api("/api/settings")]);
+  const s = await api(`/api/projects/${pid}/sessions/${sid}`);
   const f = {};
   const inp = (k, v, attrs = {}) => (f[k] = h("input", { value: v ?? "", ...attrs }));
   const I = s.instructor;
-  const grade = h("select", {}, h("option", { value: "" }, "등급 선택"), (st.fees.tiers || []).map((t) => h("option", { value: t.grade }, `${t.grade} – ${t.desc} (첫 1시간 ${t.first.toLocaleString()}원, 추가 ${t.extra.toLocaleString()}원)`)));
+  const grade = h("select", {}, h("option", { value: "" }, "등급 선택"), (s.tiers || []).map((t) => h("option", { value: t.grade }, `${t.grade} – ${t.desc} (첫 1시간 ${t.first.toLocaleString()}원, 추가 ${t.extra.toLocaleString()}원)`)));
   grade.value = I.grade || "";
   const income = h("select", {}, ["기타소득", "사업소득", "근로"].map((x) => h("option", { value: x }, x === "근로" ? "내부 직원(근로소득 합산)" : x)));
   income.value = I.income || "기타소득";
@@ -719,7 +730,7 @@ async function tabSession(el, d, sid) {
           h("div", { class: "field" }, h("label", { class: "f" }, "장소"), inp("place", s.place))),
         h("h2", { style: "margin-top:8px" }, "강사"),
         h("div", { class: "grid g2" }, h("div", { class: "field" }, h("label", { class: "f" }, "이름"), inp("iname", I.name)), h("div", { class: "field" }, h("label", { class: "f" }, "소속"), inp("iorg", I.org))),
-        h("div", { class: "field" }, h("label", { class: "f" }, "강사료 등급(설정 → 강사료 기준)"), grade),
+        h("div", { class: "field" }, h("label", { class: "f" }, "강사료 등급(넣은 강사수당 기준 문서, 없으면 설정)"), grade),
         h("div", { class: "grid g3" }, h("div", { class: "field" }, h("label", { class: "f" }, "소득 구분"), income),
           h("div", { class: "field" }, h("label", { class: "f" }, "원고 매수"), inp("pages", I.pages, { type: "number", min: "0" })),
           h("div", { class: "field" }, h("label", { class: "f" }, "교통비(실비)"), inp("travel", I.travel, { type: "number", min: "0" }))),
@@ -876,4 +887,76 @@ function lawCard(s) {
         catch (err) { msg.textContent = "확인 실패: " + err.message; }
         e.target.disabled = false;
       } }, "근거 법령 최신 확인")), msg, out);
+}
+
+// ───────────── 규정·기준(규정 문서에서 읽은 계산 기준)
+async function tabRegs(el, d) {
+  const r = await api(`/api/projects/${d.project.id}/regs`);
+  const groups = {};
+  r.items.forEach((it) => (groups[it.group] = groups[it.group] || []).push(it));
+  const showSrc = (it) => it.src && openDrawer("규정 원문", h("div", { class: "small muted" }, `${it.src.file} · ${it.src.where}`), h("div", { class: "law-text" }, it.src.text));
+  add(el,
+    h("div", { class: "alert info" }, "넣은 규정·편람·계획 문서에서 다이수가 읽어 낸 계산 기준입니다. 모든 계산과 보고서는 이 기준을 따르며, 값마다 원문 근거가 붙습니다."),
+    r.warnings.map((w) => h("div", { class: "alert warn" }, w)),
+    h("div", { class: "card", style: "padding:0" }, h("table", {}, h("tr", {}, h("th", {}, "읽은 문서"), h("th", {}, "종류")),
+      r.docs.length ? r.docs.map((x) => h("tr", {}, h("td", { class: "small" }, x.file), h("td", {}, h("span", { class: "badge b-brand" }, x.label))))
+        : h("tr", {}, h("td", { colspan: "2", class: "muted" }, "규정 문서가 없습니다. 교육훈련규정·여비규정·강사수당 기준·경영평가 편람을 함께 넣어 보세요.")))),
+    Object.entries(groups).map(([g, items]) => h("div", { class: "card" }, h("h2", {}, g),
+      h("table", {}, items.map((it) => h("tr", {}, h("td", { style: "width:26%" }, h("b", {}, it.label)), h("td", { style: "width:32%" }, it.value),
+        h("td", {}, it.src ? h("span", { class: "chip src", title: it.src.text, onclick: () => showSrc(it) }, `${it.src.file.split("/").pop()} · ${it.src.where}`) : null)))))),
+    h("p", { class: "small muted" }, "값이 실제 규정과 다르면 원문을 고쳐 다시 넣거나 설정에서 덮어쓰세요. 보고서 탭의 ‘규정 해석 기준표’로 결재 붙임을 만들 수 있습니다."));
+}
+
+// ───────────── 교육 실적(모든 교육: 법정·필수·직무·외부)
+async function tabResults(el, d) {
+  const pid = d.project.id;
+  const o = await api(`/api/projects/${pid}/overview`);
+  const CAT = { "법정": "법정의무", "필수": "필수(내규)", "직무": "직무·역량", "외부": "외부(위탁)" };
+  const kpiCards = o.kpis.map((k) => h("div", { class: "card kpi" + (k.value == null ? " warn" : "") },
+    h("div", { class: "v" }, k.value == null ? "자료 필요" : `${typeof k.value === "number" ? k.value.toLocaleString() : k.value}${k.unit}`),
+    h("div", { class: "l" }, k.name, k.weight ? ` (배점 ${k.weight})` : ""), h("div", { class: "tiny muted", title: k.basis }, k.formula)));
+  const max = Math.max(o.target_hours || 0, o.gov_hours || 0, o.per_capita) || 1;
+  const bar = (v, cls, label) => h("div", { class: "row", style: "gap:8px;margin:6px 0;flex-wrap:nowrap" }, h("span", { class: "small", style: "width:110px" }, label),
+    h("div", { class: "bar grow" }, h("i", { class: cls, style: `width:${100 * v / max}%` })), h("b", { class: "small", style: "width:70px;text-align:right" }, `${v}시간`));
+  let filter = "", sortKey = "total";
+  const tbl = h("div");
+  const draw = () => {
+    const rows = o.per_person.filter((p) => !filter || (filter === "below" ? o.target_hours && p.total < o.target_hours : p.dept === filter))
+      .sort((a, b) => b[sortKey] - a[sortKey]);
+    tbl.replaceChildren(h("div", { class: "matrix-wrap", style: "max-height:420px" }, h("table", {},
+      h("tr", {}, h("th", {}, "성명"), h("th", {}, "소속·직급"), ["법정", "필수", "직무", "외부"].map((c) => h("th", { class: "num", style: "cursor:pointer", onclick: () => { sortKey = c; draw(); } }, CAT[c])),
+        h("th", { class: "num", style: "cursor:pointer", onclick: () => { sortKey = "total"; draw(); } }, "합계"), o.target_hours ? h("th", { class: "num" }, "목표 대비") : null),
+      rows.map((p) => h("tr", {}, h("td", {}, p.name), h("td", { class: "small" }, `${p.dept} · ${p.grade}`),
+        ["법정", "필수", "직무", "외부"].map((c) => h("td", { class: "num" }, p[c] || "")), h("td", { class: "num" }, h("b", {}, p.total)),
+        o.target_hours ? h("td", { class: "num" }, h("span", { class: "badge " + (p.total >= o.target_hours ? "b-done" : "b-part") }, `${Math.round(100 * p.total / o.target_hours)}%`)) : null)))));
+  };
+  const sel = h("select", { onchange: () => { filter = sel.value; draw(); } }, h("option", { value: "" }, "전체"), o.target_hours ? h("option", { value: "below" }, `목표(${o.target_hours}시간) 미달`) : null,
+    d.depts.map((x) => h("option", { value: x }, x)));
+  const ex = o.external;
+  add(el,
+    h("h2", {}, "경영평가 교육훈련 지표"), h("div", { class: "grid g3" }, kpiCards),
+    h("div", { class: "grid g2" },
+      h("div", { class: "card" }, h("h2", {}, "1인당 교육시간"), bar(o.per_capita, "d", "우리 기관(현재)"),
+        o.target_hours ? bar(o.target_hours, "p", "내규 목표") : null, o.gov_hours ? bar(o.gov_hours, "n", "정부 권장") : null,
+        o.target_hours ? h("p", { class: "small muted" }, `목표 미달 ${o.below}명 · 기준일 현재`) : null),
+      h("div", { class: "card" }, h("h2", {}, "분야별 교육시간"),
+        h("table", {}, Object.entries(CAT).map(([c, l]) => h("tr", {}, h("td", {}, l), h("td", { class: "num" }, `${o.courses[c]}개 과정`),
+          h("td", { class: "num" }, `${o.totals[c].toLocaleString()}시간`), h("td", { class: "num" }, `${Math.round(100 * o.totals[c] / Math.max(1, o.total_hours))}%`))),
+          h("tr", {}, h("td", {}, h("b", {}, "합계")), h("td", {}), h("td", { class: "num" }, h("b", {}, `${o.total_hours.toLocaleString()}시간`)), h("td", {}))))),
+    o.priorities.length ? h("div", { class: "card" }, h("h2", {}, "정부 중점 과제 대비"), h("ul", { class: "small" }, o.priorities.map((x) => h("li", {}, x)))) : null,
+    h("div", { class: "card" }, h("div", { class: "row between" }, h("h2", { style: "margin:0" }, "직원별 교육시간"), h("div", { class: "row" }, sel,
+      h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${pid}/export?doc=stats`) }, "엑셀"))), h("div", { style: "margin-top:8px" }, tbl)),
+    h("div", { class: "card" }, h("div", { class: "row between" }, h("h2", { style: "margin:0" }, `외부(위탁)교육 ${ex.rows.length}건`),
+      h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${pid}/export?doc=settle`) }, "정산 내역 엑셀")),
+      h("div", { class: "row small", style: "margin:8px 0" }, h("span", { class: "badge b-brand" }, `교육비 ${ex.total_cost.toLocaleString()}원`),
+        ex.has_travel_rule ? h("span", { class: "badge b-brand" }, `여비(규정 산정) ${ex.total_travel.toLocaleString()}원`) : h("span", { class: "badge b-part" }, "여비규정 없음"),
+        ex.report_days != null ? h("span", { class: "badge " + (ex.late + ex.missing ? "b-none" : "b-done") }, `결과보고 지연 ${ex.late} · 미제출 ${ex.missing}`) : null,
+        ex.over_limit.length ? h("span", { class: "badge b-none" }, `지원 한도 초과: ${ex.over_limit.map((x) => x.name).join(", ")}`) : null),
+      h("div", { class: "matrix-wrap", style: "max-height:360px" }, h("table", {},
+        h("tr", {}, h("th", {}, "성명"), h("th", {}, "교육"), h("th", {}, "기간"), h("th", { class: "num" }, "교육비"), h("th", { class: "num" }, "여비"), h("th", {}, "결과보고")),
+        ex.rows.map((x) => h("tr", {}, h("td", {}, x.name, h("div", { class: "tiny muted" }, `${x.dept} · ${x.grade}`)),
+          h("td", { class: "small" }, x.title, h("div", { class: "tiny muted" }, x.inst)), h("td", { class: "small" }, `${x.start}~${(x.end || "").slice(5)} (${x.days}일)`),
+          h("td", { class: "num" }, (x.cost || 0).toLocaleString()), h("td", { class: "num", title: x.notes.join(" / ") }, x.travel == null ? "-" : x.travel.toLocaleString()),
+          h("td", {}, x.report_state ? h("span", { class: "badge " + (x.report_state.includes("기한 내") ? "b-done" : x.report_state.includes("대기") ? "" : "b-none") }, x.report_state) : "")))))));
+  draw();
 }

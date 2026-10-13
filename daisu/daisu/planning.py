@@ -222,6 +222,15 @@ def next_plan_blocks(project: dict, res: dict, org: dict, fee_cfg: dict, cap_per
         direction.append("장시간 집합교육은 4시간 이내 회차로 분할(만족도 의견 반영)")
     if any("실습" in x for x in sv_imp):
         direction.append("팀 업무와 연결된 현장 실습·사례 중심 교안")
+    regs = res.get("regs") or {}
+    tg = (regs.get("training", {}).get("annual_hours") or {}).get("value")
+    gv = (regs.get("gov", {}).get("rec_hours") or {}).get("value")
+    if tg and gv and tg < gv:
+        direction.append(f"1인당 연간 교육시간 목표를 내규 {tg}시간에서 정부 권장 {gv}시간 수준으로 상향 검토(교육훈련규정 개정)")
+    for pr in regs.get("gov", {}).get("priorities", []):
+        direction.append(f"정부 중점 과제 반영: {pr['text']}")
+    if any(c.get("category") == "필수" and c.get("overdue") for c in res["summary"]):
+        direction.append("필수교육(내규) 대상자 자동 안내: 신규임용·승진 발생 시 기한 내 이수하도록 인사 자료와 연동")
     direction.append("출석은 전자 서명(키오스크)으로 받아 이수 현황에 즉시 반영, 결과보고·강사료 기안 자동 작성")
     direction.append(f"미이수자 관리: 기한 30일 전 본인 안내, 14일 전 부서장 통보, 기한 경과 시 보고")
 

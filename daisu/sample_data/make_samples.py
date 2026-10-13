@@ -20,6 +20,7 @@ import shutil
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "가상구시설관리공단_교육자료")
 ORG = "가상구시설관리공단"
 R = random.Random(20261012)
+R2 = random.Random(77)  # 새로 넣은 항목(직급·직무교육·외부교육)은 별도 난수로 – 기존 자료의 값은 그대로
 
 SURNAMES = list("김이박최정강조윤장임한오서신권황안송류홍전고문양손배백허남심노하곽성차주우구민진나엄채원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제모탁국어은편용예봉경")
 GIVEN = ["민준", "서연", "도윤", "하은", "지호", "수아", "예준", "지유", "시우", "서윤", "주원", "하린", "지훈", "유진", "건우", "채원",
@@ -51,9 +52,9 @@ def kdate(d: dt.date) -> str:
     return f"{d.year}. {d.month}. {d.day}.({wd(d)})"
 
 
-def rand_date(a: str, b: str) -> dt.date:
+def rand_date(a: str, b: str, rng=None) -> dt.date:
     x, y = dt.date.fromisoformat(a), dt.date.fromisoformat(b)
-    d = x + dt.timedelta(days=R.randint(0, (y - x).days))
+    d = x + dt.timedelta(days=(rng or R).randint(0, (y - x).days))
     while d.weekday() >= 5:
         d -= dt.timedelta(days=1)
     return d
@@ -97,6 +98,13 @@ def make_people():
         p = by[dept][-1]
         p["입사일"] = dt.date.fromisoformat(d)
         p["고용형태"] = "기간제"
+    # 직급(여비 등급 판단용)과 올해 승진일
+    grade = {"팀장": "3급", "파트장": "4급", "대리": "5급", "주임": "6급", "사원": "7급"}
+    for p in people:
+        p["직급"] = grade.get(p["직위"], "7급")
+        p["승진일"] = None
+    for p in R2.sample([x for x in people if x["직위"] in ("대리", "파트장") and not x["휴직기간"] and not x["퇴사일"]], 6):
+        p["승진일"] = dt.date(2026, R2.choice([3, 7]), 1)
     return people
 
 
@@ -110,11 +118,12 @@ def roster_xlsx(people):
     ws.append([f"{ORG} 직원 현황 (2026. 10. 1. 기준)"])
     ws["A1"].font = Font(bold=True, size=13)
     ws.append([])
-    cols = ["사번", "성명", "소속", "직위", "고용형태", "직무구분", "근무형태", "근무조", "입사일", "퇴사일", "휴직기간", "개인정보취급자", "관리감독자"]
+    cols = ["사번", "성명", "소속", "직위", "직급", "고용형태", "직무구분", "근무형태", "근무조", "입사일", "승진일", "퇴사일", "휴직기간",
+            "개인정보취급자", "관리감독자"]
     ws.append(cols)
     for p in people:
         ws.append([p[c] for c in cols])
-    for row in ws.iter_rows(min_row=4, min_col=9, max_col=10):
+    for row in ws.iter_rows(min_row=4, min_col=10, max_col=12):
         for c in row:
             c.number_format = "yyyy-mm-dd"
     wb.save(path("01_인사", "2026_직원현황(10월1일자).xlsx"))
@@ -132,6 +141,20 @@ CYBER = [
     ("산업안전보건 정기교육 – 사무직(6H)", 6, 0.92, "2026-04-01", "2026-06-26", lambda p: p["직무구분"] == "사무"),
     ("산업안전보건 정기교육 – 사무직 하반기(6H)", 6, 0.25, "2026-07-01", "2026-10-08", lambda p: p["직무구분"] == "사무"),
     ("관리감독자 안전보건교육(16H)", 16, 0.5, "2026-03-01", "2026-09-30", lambda p: p["관리감독자"] == "Y"),
+]
+
+
+JOB_COURSES = [
+    # (과정명, 시간, 이수율, 시작, 끝, 대상) – 직무교육과 내규 필수교육
+    ("신규임용자 기본교육(16H)", 16, 1.0, "2026-01-01", "2026-12-31", lambda p: p["입사일"] == dt.date(2026, 9, 1)),
+    ("승진자 역량향상 과정(12H)", 12, 0.5, "2026-03-15", "2026-09-30", lambda p: bool(p["승진일"])),
+    ("신임 관리자 리더십(8H)", 8, 0.6, "2026-03-01", "2026-09-30", lambda p: p["직위"] == "팀장"),
+    ("고객응대 CS 실무(4H)", 4, 0.68, "2026-03-01", "2026-09-30", lambda p: p["직무구분"] == "현장"),
+    ("AI 활용 업무혁신(3H)", 3, 0.45, "2026-04-01", "2026-10-08", lambda p: p["직무구분"] == "사무"),
+    ("엑셀 데이터 분석 실무(6H)", 6, 0.3, "2026-04-01", "2026-10-08", lambda p: p["직무구분"] == "사무"),
+    ("공공회계 실무(8H)", 8, 0.7, "2026-03-01", "2026-09-30", lambda p: p["소속"] in ("경영지원팀", "기획예산팀")),
+    ("수영장 안전요원 직무교육(8H)", 8, 0.8, "2026-04-01", "2026-08-31", lambda p: p["소속"] == "체육시설팀" and p["근무형태"] == "교대"),
+    ("인권 감수성 향상 예방교육(2H)", 2, 0.2, "2026-05-01", "2026-09-30", lambda p: p["직무구분"] == "사무"),
 ]
 
 
@@ -174,6 +197,14 @@ def cyber_xlsx(people):
     for p in R.sample([x for x in active if x["직무구분"] == "사무"], 7):
         d = rand_date("2026-04-01", "2026-09-30")
         rows.append([p["사번"], p["성명"], p["소속"], "공공기관 기록관리 실무(3H)", d, d, 3, 100, "이수"])
+    # 직무·필수(내규) 교육
+    for title, hours, rate, a, b, cond in JOB_COURSES:
+        for p in active:
+            if not cond(p) or p["휴직기간"].startswith("2026.03"):
+                continue
+            if R2.random() < rate:
+                end = rand_date(a, b, R2) if "신규" not in title else p["입사일"] + dt.timedelta(days=R2.randint(5, 20))
+                rows.append([p["사번"], p["성명"], p["소속"], title, end - dt.timedelta(days=R2.randint(0, 3)), end, hours, 100, "이수"])
     rows.sort(key=lambda r: (r[3], r[2], r[1]))
     for r in rows:
         ws.append(r)
@@ -384,6 +415,152 @@ def guide_hwpx():
         f.write(doc.to_bytes())
 
 
+# ───────────── 외부(위탁)교육 실적
+EXTERNAL = [
+    # (교육명, 교육기관, 일수, 시간, 교육비, 지역, 숙박, 숙박 제공)
+    ("공기업 중간관리자 리더십 과정", "가상공기업연수원", 3, 21, 350000, "세종", "Y", "N"),
+    ("공공기관 계약실무 전문과정", "가상회계연수원", 2, 14, 280000, "서울", "Y", "N"),
+    ("체육시설 안전관리자 양성과정", "가상안전보건교육원", 5, 35, 600000, "천안", "Y", "Y"),
+    ("공공데이터 분석 실무", "가상인재개발원", 1, 7, 120000, "서울", "N", "N"),
+    ("민원응대 전문가 과정", "가상인재개발원", 2, 14, 200000, "대전", "Y", "N"),
+    ("환경시설 운영관리 직무과정", "가상환경기술원", 3, 21, 420000, "인천", "Y", "Y"),
+]
+
+
+def external_xlsx(people):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "외부교육"
+    ws.append(["2026년 외부(위탁)교육 실적 – 경영지원팀"])
+    ws.append(["사번", "성명", "소속", "직급", "교육명", "교육기관", "교육 시작일", "교육 종료일", "교육시간", "교육비", "교육장소", "숙박",
+               "숙박 제공", "수료여부", "결과보고 제출일"])
+    pool = [p for p in people if not p["퇴사일"] and not p["휴직기간"] and p["입사일"] < dt.date(2026, 6, 1)]
+    for title, inst, days, hours, fee, place, stay, provided in EXTERNAL:
+        for p in R2.sample(pool, R2.randint(2, 5)):
+            st = rand_date("2026-03-02", "2026-09-25", R2)
+            en = st + dt.timedelta(days=days - 1)
+            roll = R2.random()
+            rep = en + dt.timedelta(days=R2.randint(2, 6)) if roll < 0.7 else (en + dt.timedelta(days=R2.randint(10, 20)) if roll < 0.88 else None)
+            ws.append([p["사번"], p["성명"], p["소속"], p["직급"], title, inst, st, en, hours, fee, place, stay, provided, "수료", rep])
+    # 함정: 한 사람이 위탁교육을 두 번 받아 1인당 지원 한도(100만원)를 넘김
+    p = [x for x in pool if x["직무구분"] == "사무"][3]
+    for title, inst, st, days, hours, fee in (("공공기관 감사실무 전문과정", "가상감사연수원", dt.date(2026, 4, 13), 3, 21, 650000),
+                                             ("공공기관 계약실무 전문과정", "가상회계연수원", dt.date(2026, 8, 24), 2, 14, 480000)):
+        en = st + dt.timedelta(days=days - 1)
+        ws.append([p["사번"], p["성명"], p["소속"], p["직급"], title, inst, st, en, hours, fee, "서울", "Y", "N", "수료", en + dt.timedelta(days=3)])
+    for row in ws.iter_rows(min_row=3, min_col=7, max_col=15):
+        for c in row:
+            if isinstance(c.value, dt.date):
+                c.number_format = "yyyy-mm-dd"
+    wb.save(path("02_이수기록", "외부교육", "2026_외부위탁교육_실적.xlsx"))
+
+
+def budget_xlsx():
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "예산"
+    ws.append(["2026년 교육훈련 예산 배정 현황"])
+    ws.append(["구분", "예산액(원)", "비고"])
+    for r in [["법정의무교육(집합 강사료)", 3000000, ""], ["직무교육(내부 강사료·교재)", 6000000, ""], ["외부(위탁)교육비", 9000000, "1인당 연 100만원 한도"],
+              ["교육훈련 여비", 4000000, "여비규정 적용"], ["합계", 22000000, ""]]:
+        ws.append(r)
+    wb.save(path("06_계획·예산", "2026_교육훈련_예산.xlsx"))
+
+
+# ───────────── 규정·기준 문서([모의] – 실제 규정·편람과 다름)
+def make_hwpx_doc(out, title, items):
+    import warnings
+
+    from hwpx import HwpxDocument
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    doc = HwpxDocument.new()
+    doc.paragraphs[0].add_run(title, char_pr_id_ref=doc.ensure_run_style(bold=True, size=14))
+    for it in items:
+        if isinstance(it, str):
+            doc.add_paragraph(it)
+        else:
+            header, rows = it
+            t = doc.add_table(len(rows) + 1, len(header))
+            for c, hname in enumerate(header):
+                t.set_cell_text(0, c, hname)
+            for ri, row in enumerate(rows, 1):
+                for c, v in enumerate(row):
+                    t.set_cell_text(ri, c, str(v))
+            doc.add_paragraph("")
+    with open(out, "wb") as f:
+        f.write(doc.to_bytes())
+
+
+def regulations():
+    note = "※ [모의] 다이수 시연용 가상 문서입니다. 실제 규정·기준과 다릅니다."
+    make_hwpx_doc(path("07_규정·기준", "[모의] 가상구시설관리공단 교육훈련규정.hwpx"), "가상구시설관리공단 교육훈련규정", [
+        note,
+        "제1조(목적) 이 규정은 직원의 교육훈련에 필요한 사항을 정함을 목적으로 한다.",
+        "제5조(교육훈련 시간) ① 직원은 연간 60시간 이상 교육훈련을 이수하여야 한다. ② 법정의무교육, 필수교육, 직무교육, 외부(위탁)교육 시간을 모두 합산한다.",
+        "제8조(필수교육) 직원은 별표 1의 필수교육을 정해진 시기에 이수하여야 한다.",
+        "제12조(위탁교육 결과보고) 외부 위탁교육을 받은 직원은 교육 수료 후 7일 이내에 결과보고서를 제출하여야 한다.",
+        "제13조(교육비 지원) 외부 위탁교육비는 1인당 연간 100만원 한도에서 지원한다.",
+        "제15조(교육여비) ① 교육훈련 여비는 여비규정에 따른다. ② 교육기관에서 숙박을 제공하는 경우 숙박비는 지급하지 아니한다. ③ 교육기간 중 일비는 2분의 1을 지급한다.",
+        "[별표 1] 필수교육 과정",
+        (["교육과정", "대상", "시간", "이수 시기"],
+         [["신규임용자 기본교육", "신규임용자", "16", "임용 후 3개월 이내"],
+          ["승진자 역량향상 과정", "당해연도 승진자", "12", "승진 후 6개월 이내"],
+          ["신임 관리자 리더십", "팀장", "8", "연 1회"],
+          ["고객응대 CS 실무", "현장직", "4", "연 1회"]]),
+    ])
+    make_hwpx_doc(path("07_규정·기준", "[모의] 여비규정(별표2 국내여비 지급표).hwpx"), "가상구시설관리공단 여비규정 별표 2 국내여비 지급표", [
+        note,
+        (["구분", "일비(1일)", "식비(1일)", "숙박비(1박 상한)", "교통비"],
+         [["제1호(임원)", "25,000원", "25,000원", "100,000원", "실비"],
+          ["제2호(1급~4급)", "25,000원", "25,000원", "80,000원", "실비"],
+          ["제3호(5급 이하)", "25,000원", "25,000원", "70,000원", "실비"]]),
+        "비고: 교통비는 철도·버스 등 실제 운임을 지급한다.",
+    ])
+    make_hwpx_doc(path("07_규정·기준", "[모의] 강사수당 지급기준(인재개발원 기준 준용).hwpx"), "강사수당 지급기준(인재개발원 기준 준용)", [
+        note,
+        (["구분", "대상", "기본(1시간)", "초과(1시간당)"],
+         [["특1급", "전·현직 장차관급, 대학 총장", "400,000", "300,000"],
+          ["특2급", "전·현직 기관장, 대학교수(정교수)", "300,000", "200,000"],
+          ["일반1급", "대학교수, 변호사·노무사 등 전문자격자", "250,000", "150,000"],
+          ["일반2급", "그 밖의 외부 전문가", "150,000", "100,000"],
+          ["일반3급", "소속 직원(내부 강사)", "100,000", "50,000"]]),
+        "원고료는 A4 1매당 13,000원을 지급한다.",
+    ])
+    make_hwpx_doc(path("07_규정·기준", "[모의] 지방공기업 경영평가 편람(교육훈련 지표 발췌).hwpx"), "지방공기업 경영평가 편람 – 교육훈련 지표(발췌)", [
+        note,
+        (["세부지표", "산식", "배점"],
+         [["1인당 교육훈련시간", "총 교육훈련시간 ÷ 평균 인원", "2"],
+          ["법정의무교육 이수율", "법정의무교육 이수 인원 ÷ 대상 인원 × 100", "1"],
+          ["필수교육 이수율", "필수교육 이수 인원 ÷ 대상 인원 × 100", "1"],
+          ["1인당 교육훈련비", "교육훈련비 집행액 ÷ 평균 인원", "1"],
+          ["교육훈련 만족도", "교육 만족도 조사 평균(5점 척도)", "1"],
+          ["교육훈련 예산 집행률", "교육훈련비 집행액 ÷ 교육훈련 예산 × 100", "1"]]),
+        "증빙: 교육 실적 대장, 이수증·서명부, 예산 집행 내역, 만족도 조사 결과",
+    ])
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.pdfgen import canvas
+
+    pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
+    c = canvas.Canvas(path("07_규정·기준", "[모의] 행정안전부 지방공기업 교육훈련 운영 계획(발췌).pdf"))
+    y = 780
+    for t, size in [("[모의] 지방공기업 임직원 교육훈련 운영 계획(발췌)", 15), (note, 9), ("", 10),
+                    ("1. 추진 목표", 12), ("  가. 임직원 1인당 연간 80시간 이상 교육훈련 권장", 11),
+                    ("  나. 청렴교육은 연 2시간 이상 실시하고 실적을 관리", 11), ("2. 중점 과제", 12),
+                    ("  가. 디지털·AI 활용 역량교육 확대", 11), ("  나. 현장 근무자 맞춤형 안전교육 강화", 11),
+                    ("  다. 교육 성과(만족도·현업 적용도) 측정 및 환류", 11), ("3. 실적 관리", 12),
+                    ("  가. 기관별 교육훈련 실적을 다음 해 1월 말까지 정리하여 경영평가에 활용", 11)]:
+        c.setFont("HYGothic-Medium", size)
+        c.drawString(50, y, t)
+        y -= size + 12
+    c.save()
+
+
 def main():
     if os.path.isdir(ROOT):
         shutil.rmtree(ROOT)
@@ -396,6 +573,9 @@ def main():
     shift_xlsx(people)
     survey_xlsx()
     guide_hwpx()
+    external_xlsx(people)
+    budget_xlsx()
+    regulations()
     n = sum(len(f) for _, _, f in os.walk(ROOT))
     print(f"모의자료 {n}개 생성: {ROOT}")
 

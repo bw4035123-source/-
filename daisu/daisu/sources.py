@@ -15,7 +15,15 @@ ALIASES = {
     "사번": ["사번", "직원번호", "사원번호", "개인번호", "아이디", "id", "학습자id", "교번"],
     "성명": ["성명", "이름", "직원명", "학습자명", "학습자", "수강자", "수강자명", "참석자", "성함"],
     "소속": ["소속", "부서", "부서명", "소속부서", "소속팀", "팀", "응답자소속"],
-    "직위": ["직위", "직급", "직책"],
+    "직위": ["직위", "직책"],
+    "직급": ["직급", "급수", "등급"],
+    "승진일": ["승진일", "최근승진일", "승진일자"],
+    "교육기관": ["교육기관", "주관기관", "운영기관", "위탁기관"],
+    "교육비": ["교육비", "수강료", "교육훈련비"],
+    "결과보고": ["결과보고제출일", "결과보고일", "결과보고"],
+    "장소": ["교육장소", "장소", "지역"],
+    "숙박": ["숙박", "숙박여부"],
+    "숙박제공": ["숙박제공", "숙박제공여부", "숙소제공"],
     "고용형태": ["고용형태", "고용구분", "신분", "채용구분", "근로형태"],
     "직무구분": ["직무구분", "직무", "업무구분", "직종", "직군"],
     "근무형태": ["근무형태", "근무유형", "근무구분"],
@@ -26,8 +34,8 @@ ALIASES = {
     "개인정보취급자": ["개인정보취급자", "개인정보취급", "개인정보"],
     "관리감독자": ["관리감독자", "관리감독"],
     "과정명": ["과정명", "교육명", "과정", "교육과정", "강좌명", "과목명", "교육과정명"],
-    "이수일": ["이수일", "수료일", "완료일", "학습종료일", "종료일", "교육일", "교육일자", "이수일자"],
-    "시작일": ["학습시작일", "시작일", "수강시작일"],
+    "이수일": ["이수일", "수료일", "완료일", "학습종료일", "종료일", "교육일", "교육일자", "이수일자", "교육종료일"],
+    "시작일": ["학습시작일", "시작일", "수강시작일", "교육시작일"],
     "학습시간": ["인정시간", "학습시간", "교육시간", "이수시간", "시간", "인정시간(h)"],
     "이수여부": ["이수여부", "수료여부", "이수상태", "상태", "결과", "이수"],
     "진도율": ["진도율", "진도", "진도율(%)"],
@@ -70,6 +78,10 @@ def _day_header(rows) -> int:
 def classify(t: Table) -> str:
     if _day_header(t.rows) >= 0:
         return "shift"
+    for r in t.rows[:6]:  # 예산표: '구분'과 '예산(액)' 머리글
+        cells = [c.replace(" ", "") for c in r]
+        if any(c == "구분" for c in cells) and any("예산" in c for c in cells) and not any(c in ("성명", "이름") for c in cells):
+            return "budget"
     hi, cmap = find_header(t.rows)
     if hi < 0:
         return "other"
@@ -85,7 +97,7 @@ def classify(t: Table) -> str:
     return "other"
 
 
-KIND_LABEL = {"roster": "직원 명단", "records": "이수 기록", "sign": "집합교육 서명부", "cert": "수료증", "shift": "근무표",
+KIND_LABEL = {"roster": "직원 명단", "records": "이수 기록", "budget": "예산", "regulation": "규정·기준", "sign": "집합교육 서명부", "cert": "수료증", "shift": "근무표",
               "survey": "만족도 조사", "guide": "지침·규정", "other": "기타"}
 
 
@@ -118,7 +130,8 @@ def parse_roster(t: Table, rel: str) -> list[dict]:
         ls, le = parse_range(_get(r, cmap, "휴직"))
         people.append({
             "id": _get(r, cmap, "사번") or f"N{len(people) + 1:03d}", "name": name, "dept": _get(r, cmap, "소속"),
-            "title": _get(r, cmap, "직위"), "emp": _get(r, cmap, "고용형태"), "job": job,
+            "title": _get(r, cmap, "직위"), "grade": _get(r, cmap, "직급"), "emp": _get(r, cmap, "고용형태"), "job": job,
+            "promoted": (parse_date(_get(r, cmap, "승진일")) or None) and parse_date(_get(r, cmap, "승진일")).isoformat(),
             "shift": "교대" if "교대" in shift else "일근", "team": _get(r, cmap, "근무조"),
             "hired": (parse_date(_get(r, cmap, "입사일")) or dt.date(2000, 1, 1)).isoformat(),
             "left": (parse_date(_get(r, cmap, "퇴사일")) or None) and parse_date(_get(r, cmap, "퇴사일")).isoformat(),
@@ -149,7 +162,15 @@ def parse_records(t: Table, rel: str) -> list[dict]:
         if not hours:
             hours = hours_in(title) or 0
         when = parse_date(_get(r, cmap, "이수일")) or parse_date(_get(r, cmap, "시작일"))
-        out.append({"kind": "cyber", "title": title, "date": when.isoformat() if when else None, "hours": hours, "done": done,
+        ext = {}
+        if "교육기관" in cmap or "교육비" in cmap:  # 외부(위탁)교육 실적
+            start = parse_date(_get(r, cmap, "시작일")) or when
+            rep = parse_date(_get(r, cmap, "결과보고"))
+            ext = {"inst": _get(r, cmap, "교육기관"), "cost": int(num(_get(r, cmap, "교육비")) or 0),
+                   "start": start.isoformat() if start else None, "place": _get(r, cmap, "장소"),
+                   "stay": yes(_get(r, cmap, "숙박")), "stay_provided": yes(_get(r, cmap, "숙박제공")),
+                   "report": rep.isoformat() if rep else None, "grade": _get(r, cmap, "직급")}
+        out.append({"kind": "external" if ext else "cyber", **ext, "title": title, "date": when.isoformat() if when else None, "hours": hours, "done": done,
                     "name": name, "emp_id": _get(r, cmap, "사번"), "dept": _get(r, cmap, "소속"),
                     "file": rel, "where": f"{t.where} {i}행", "note": "" if done else (f"진도율 {prog:g}%" if prog is not None else status)})
     return out
@@ -270,3 +291,23 @@ def parse_survey(t: Table, rel: str) -> list[dict]:
         out.append({"course": course, "dept": _get(r, cmap, "소속"), "scores": scores, "comment": _get(r, cmap, "의견"),
                     "file": rel, "where": f"{t.where} {i}행"})
     return out
+
+
+# ───────────── 예산표
+def parse_budget(t: Table, rel: str) -> dict:
+    hi = next((i for i, r in enumerate(t.rows[:6]) if any(c.replace(" ", "") == "구분" for c in r) and any("예산" in c for c in r)), 0)
+    head = t.rows[hi]
+    jm = next((j for j, h in enumerate(head) if "예산" in h or "금액" in h), None)
+    items, total = [], None
+    for i, r in enumerate(t.rows[hi + 1:], hi + 2):
+        if jm is None or jm >= len(r) or not r[0]:
+            continue
+        v = num(r[jm])
+        if v is None:
+            continue
+        if r[0].replace(" ", "") in ("합계", "계", "총계"):
+            total = int(v)
+        else:
+            items.append({"name": r[0], "amount": int(v), "note": r[jm + 1] if jm + 1 < len(r) else "", "where": f"{t.where} {i}행"})
+    title = " ".join(" ".join(c for c in row if c) for row in t.rows[:max(hi, 0)]) or os.path.basename(rel)
+    return {"title": title, "items": items, "total": total if total is not None else sum(x["amount"] for x in items), "file": rel}

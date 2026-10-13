@@ -8,9 +8,9 @@ import datetime as dt
 import hashlib
 import os
 
-from . import config, sessions
+from . import config, regs as regs_mod, sessions
 from .readers import read
-from .sources import (doc_kinds, classify, parse_cert, parse_records, parse_roster, parse_shift, parse_sign,
+from .sources import (doc_kinds, classify, parse_budget, parse_cert, parse_records, parse_roster, parse_shift, parse_sign,
                       parse_survey)
 from .util import dept_core, edit1, norm_name, same_dept
 
@@ -32,7 +32,8 @@ def parse_file(path: str, rel: str, sha: str, year: int) -> dict:
         return _CACHE[key]
     doc = read(path)
     out = {"kinds": doc_kinds(doc), "note": doc.note, "people": [], "records": [], "signs": [], "shifts": [], "survey": [],
-           "texts": []}
+           "texts": [], "reg": None}
+    other_tables = []
     for t in doc.tables:
         k = classify(t)
         if k == "roster":
@@ -47,10 +48,18 @@ def parse_file(path: str, rel: str, sha: str, year: int) -> dict:
             out["shifts"].append(parse_shift(t, rel, year))
         elif k == "survey":
             out["survey"] += parse_survey(t, rel)
+        elif k == "budget":
+            out["reg"] = {"rel": rel, "texts": [], "tables": [], "budget": parse_budget(t, rel)}
+        else:
+            other_tables.append({"rows": t.rows, "where": t.where, "before": t.before})
     if "cert" in out["kinds"]:
         out["records"] += parse_cert(doc, rel)
     if "guide" in out["kinds"]:
         out["texts"] = [{"text": t, "file": rel, "where": w} for t, w in doc.texts]
+        kind = regs_mod.doc_kind(rel, out["texts"])
+        if kind:  # 규정·기준 문서: 표와 글을 규정 해석에 넘긴다
+            out["kinds"] = ["regulation" if k == "guide" else k for k in out["kinds"]]
+            out["reg"] = {"rel": rel, "texts": out["texts"], "tables": other_tables, "budget": None}
     _CACHE[key] = out
     return out
 
@@ -61,13 +70,13 @@ def columns(rules: dict, year: int) -> list[dict]:
     for r in rules["courses"]:
         base = {"rule": r["id"], "name": r["name"], "group": r.get("group", ""), "law": r.get("law", ""),
                 "mandatory": r.get("mandatory", True), "cycle": r.get("cycle", "year"), "report": r.get("report", ""),
-                "note": r.get("note", "")}
+                "note": r.get("note", ""), "category": r.get("category") or ("법정" if r.get("mandatory", True) else "권장")}
         if r.get("cycle") == "half":
             cols.append(dict(base, key=f"{r['id']}@H1", label=f"{r['name']}(상반기)", start=f"{year}-01-01", end=f"{year}-06-30",
                              due=f"{year}-06-30"))
             cols.append(dict(base, key=f"{r['id']}@H2", label=f"{r['name']}(하반기)", start=f"{year}-07-01", end=f"{year}-12-31",
                              due=f"{year}-12-31"))
-        elif r.get("cycle") == "hire":
+        elif r.get("cycle") in ("hire", "promo"):
             cols.append(dict(base, key=r["id"], label=r["name"], start=f"{year}-01-01", end=f"{year}-12-31", due=None,
                              due_days=r.get("due_days", 0)))
         else:
@@ -96,14 +105,19 @@ def match_rules(title: str, context: str, rules: dict, course_map: dict) -> list
     return None
 
 
+MANDATORY_HINT = ("예방", "의무", "법정", "안전보건", "인식개선")
+
+
 def compute(project: dict) -> dict:
-    rules = config.rules()
+    import copy
+
+    rules = copy.deepcopy(config.rules())
     base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
     year = int(project.get("year") or base.year)  # 1~2월에 지난해 실적을 정리할 때는 판정 연도를 따로 지정
     ov = project.get("overrides") or {}
     person_map, course_map = ov.get("person", {}), ov.get("course", {})
 
-    files, people, records, signs, shifts, survey, texts = [], [], [], [], [], [], []
+    files, people, records, signs, shifts, survey, texts, reg_docs = [], [], [], [], [], [], [], []
     for f in project.get("files", []):
         parsed = parse_file(f["path"], f["rel"], f["sha"], year)
         files.append({"rel": f["rel"], "size": f.get("size", 0), "kinds": parsed["kinds"], "note": parsed["note"],
@@ -114,6 +128,10 @@ def compute(project: dict) -> dict:
         shifts += parsed["shifts"]
         survey += parsed["survey"]
         texts += parsed["texts"]
+        if parsed.get("reg"):
+            reg_docs.append(parsed["reg"])
+    regs = regs_mod.extract(reg_docs)
+    rules["courses"] += regs_mod.required_rules(regs)  # 내규 별표의 필수교육도 같은 방식으로 판정
 
     # 명단: 사번이 겹치면 뒤 자료가 앞 자료를 덮음(최신 명단 우선)
     by_id = {}
@@ -172,11 +190,14 @@ def compute(project: dict) -> dict:
         ids = r["preset_rules"] if r.get("preset_rules") is not None else match_rules(r["title"], r.get("context", ""), rules, course_map)
         r["rules"] = ids or []
         r["classified"] = ids is not None
-        if ids is None:
+        cats = {rule_by_id[x].get("category") or ("법정" if rule_by_id[x].get("mandatory", True) else "직무") for x in r["rules"]}
+        r["category"] = ("법정" if "법정" in cats else "필수" if "필수" in cats else "외부" if r["kind"] == "external" else "직무")
+        # 법정교육처럼 보이는데 어느 교육인지 모를 때만 사람에게 묻는다(그 밖의 과정은 직무교육으로 집계)
+        if ids is None and any(k in r["title"] for k in MANDATORY_HINT) and r["kind"] != "external":
             unclassified.setdefault(r["title"], []).append(r["rid"])
     for title, rids in unclassified.items():
         issues.append({"type": "course", "key": title, "title": title,
-                       "text": f"‘{title}’ 과정({len(rids)}건)이 어느 법정교육인지 알 수 없음 – 분류하거나 ‘의무교육 아님’으로 표시",
+                       "text": f"‘{title}’ 과정({len(rids)}건)이 법정교육으로 보이지만 어느 교육인지 알 수 없음 – 분류하거나 ‘의무교육 아님’으로 표시",
                        "count": len(rids)})
 
     # ── 직원별·열별 판정
@@ -188,19 +209,21 @@ def compute(project: dict) -> dict:
     for p in people:
         row = {}
         hired = dt.date.fromisoformat(p["hired"])
+        promoted = dt.date.fromisoformat(p["promoted"]) if p.get("promoted") else None
         left = dt.date.fromisoformat(p["left"]) if p.get("left") else None
         lv = [dt.date.fromisoformat(x) for x in p["leave"]] if p.get("leave") else None
         for c in cols:
             rule = rule_by_id[c["rule"]]
             start, end = dt.date.fromisoformat(c["start"]), dt.date.fromisoformat(c["end"])
             tgt = rule.get("target") or {}
-            due = dt.date.fromisoformat(c["due"]) if c["due"] else hired + dt.timedelta(days=c.get("due_days", 0))
+            anchor = promoted if c["cycle"] == "promo" else hired
+            due = dt.date.fromisoformat(c["due"]) if c["due"] else (anchor or hired) + dt.timedelta(days=c.get("due_days", 0))
             cell = {"s": "na", "h": 0.0, "need": 0, "recs": [], "due": due.isoformat(), "why": ""}
             row[c["key"]] = cell
             if left and left <= base:
                 cell.update(s="left", why=f"퇴사({p['left']})")
                 continue
-            if hired > end or (c["cycle"] != "hire" and hired > due):
+            if hired > end or (c["cycle"] not in ("hire", "promo") and hired > due):
                 cell["why"] = "기간 이후 입사"
                 continue
             if tgt.get("flag") and not p["flags"].get(tgt["flag"]):
@@ -212,10 +235,19 @@ def compute(project: dict) -> dict:
             if tgt.get("hired_this_year") and hired.year != year:
                 cell["why"] = "올해 입사자 아님"
                 continue
+            if tgt.get("promoted_this_year") and not (promoted and promoted.year == year):
+                cell["why"] = "올해 승진자 아님"
+                continue
+            if tgt.get("job") and p["job"] != tgt["job"]:
+                cell["why"] = f"{tgt['job']}직 대상"
+                continue
+            if tgt.get("title_has") and tgt["title_has"] not in (p.get("title") or ""):
+                cell["why"] = f"{tgt['title_has']} 대상"
+                continue
             hours = rule.get("hours", 1)
             need = hours.get(p["job"], max(hours.values())) if isinstance(hours, dict) else hours
             got, used = 0.0, []
-            lo = hired - dt.timedelta(days=30) if c["cycle"] == "hire" else start
+            lo = (anchor - dt.timedelta(days=30)) if c["cycle"] in ("hire", "promo") else start
             for r in rec_by_pid.get(p["id"], []):
                 if c["rule"] not in r["rules"]:
                     continue
@@ -261,7 +293,7 @@ def compute(project: dict) -> dict:
     depts = sorted({p["dept"] for p in people}, key=lambda d: [p["dept"] for p in people].index(d))
     return {"base": base.isoformat(), "year": year, "files": files, "people": people, "columns": cols, "cells": cells,
             "records": records, "issues": issues, "summary": summary, "depts": depts, "signs": signs, "shifts": shifts,
-            "survey": survey, "texts": texts, "rules": rules}
+            "survey": survey, "texts": texts, "rules": rules, "regs": regs}
 
 
 def _who(p: dict) -> dict:

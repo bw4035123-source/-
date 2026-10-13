@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, engine, lawapi, llm, planning, qa, reports, schedule, sessions
+from . import annual, config, costs, engine, kpi, lawapi, llm, planning, qa, reports, schedule, sessions
 from .readers import SUPPORTED
 from .render import FORMATS
 
@@ -113,6 +113,18 @@ def _rules_stamp():
     return os.path.getmtime(p) if os.path.exists(p) else 0
 
 
+def fee_config(res: dict) -> dict:
+    """강사수당 기준: 넣은 규정 문서(강사수당 지급기준)가 있으면 그 등급표, 없으면 설정값. 세금 기준은 설정값."""
+    cfg = dict(config.settings().get("fees", {}))
+    fee = (res.get("regs") or {}).get("fee")
+    if fee and fee.get("tiers"):
+        cfg["tiers"] = [{k: t[k] for k in ("grade", "desc", "first", "extra")} for t in fee["tiers"]]
+        cfg["from_doc"] = fee.get("file")
+        if fee.get("manuscript_per_page"):
+            cfg["manuscript_per_page"] = fee["manuscript_per_page"]
+    return cfg
+
+
 def bump(project: dict, what: str) -> None:
     project["version"] = project.get("version", 0) + 1
     project.setdefault("log", []).append({"at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "what": what})
@@ -121,7 +133,7 @@ def bump(project: dict, what: str) -> None:
 
 def new_project(name: str, base_date: str | None) -> dict:
     pid = uuid.uuid4().hex[:8]
-    return {"id": pid, "name": name or "법정의무교육 관리", "created": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    return {"id": pid, "name": name or "교육훈련 관리", "created": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
             "base_date": base_date or dt.date.today().isoformat(), "files": [], "overrides": {"person": {}, "course": {}},
             "version": 0, "log": []}
 
@@ -363,7 +375,7 @@ def list_projects():
 def create_sample():
     if not os.path.isdir(config.SAMPLE):
         raise HTTPException(404, "모의자료가 없습니다(python sample_data/make_samples.py 로 생성).")
-    p = new_project(f"{config.settings()['org']['name']} 법정의무교육(샘플)", config.SAMPLE_BASE)
+    p = new_project(f"{config.settings()['org']['name']} 교육훈련(샘플)", config.SAMPLE_BASE)
     with LOCK:
         add_folder(p, config.SAMPLE)
         bump(p, "모의자료로 시작")
@@ -394,7 +406,7 @@ async def upload(req: Request):
     base = str(form.get("base_date") or "") or None
     if base and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", base):
         raise HTTPException(400, "기준일 형식이 올바르지 않습니다.")
-    p = new_project(str(form.get("name") or "법정의무교육 관리"), base)
+    p = new_project(str(form.get("name") or "교육훈련 관리"), base)
     root = os.path.join(_pdir(p["id"]), "files")
     total = 0
     for f in files:
@@ -575,7 +587,7 @@ def _people_by_id(res):
 def list_sessions(pid: str):
     p = load(pid)
     res = result(p)
-    fee_cfg = config.settings().get("fees", {})
+    fee_cfg = fee_config(res)
     pb = _people_by_id(res)
     return sorted((sessions.view(s, pb, fee_cfg) for s in p.get("sessions", [])), key=lambda x: (x["date"], x["start"]))
 
@@ -584,7 +596,8 @@ def list_sessions(pid: str):
 def get_session(pid: str, sid: str):
     p = load(pid)
     res = result(p)
-    v = sessions.view(_sess(p, sid), _people_by_id(res), config.settings().get("fees", {}))
+    v = sessions.view(_sess(p, sid), _people_by_id(res), fee_config(res))
+    v["tiers"] = fee_config(res).get("tiers", [])
     v["everyone"] = [{"id": x["id"], "name": x["name"], "dept": x["dept"], "team": x.get("team", "")} for x in res["people"]
                      if not (x.get("left") and x["left"] <= res["base"])]
     v["survey_items"] = sessions.SURVEY_ITEMS
@@ -651,7 +664,7 @@ async def patch_session(pid: str, sid: str, req: Request):
             s["hours"] = h
         if isinstance(b.get("instructor"), dict):
             i = b["instructor"]
-            grades = {t["grade"] for t in config.settings().get("fees", {}).get("tiers", [])}
+            grades = {t["grade"] for t in fee_config(result(p)).get("tiers", [])}
             if i.get("grade") and i["grade"] not in grades:
                 raise HTTPException(400, "없는 강사 등급입니다.")
             if i.get("income") and i["income"] not in ("기타소득", "사업소득", "근로"):
@@ -728,6 +741,44 @@ async def session_survey(pid: str, sid: str, req: Request):
     return {"ok": True, "n": len(s["survey"])}
 
 
+# ───────────── 규정 해석·종합 실적
+def _overview(p: dict, res: dict) -> tuple[dict, dict]:
+    ex = costs.external(res)
+    return kpi.compute(res, p, ex, fee_config(res)), ex
+
+
+@app.get("/api/projects/{pid}/regs")
+def get_regs(pid: str):
+    res = result(load(pid))
+    rg = res["regs"]
+    tg, gov = rg.get("training", {}).get("annual_hours"), rg.get("gov", {}).get("rec_hours")
+    warn = []
+    if tg and gov and tg["value"] < gov["value"]:
+        warn.append(f"내규 목표({tg['value']}시간)가 정부 권장({gov['value']}시간)보다 낮습니다.")
+    if not rg.get("travel"):
+        warn.append("여비규정을 찾지 못해 외부교육 여비를 산정할 수 없습니다.")
+    if not rg.get("kpis"):
+        warn.append("경영평가 편람(지표·산식 표)을 찾지 못해 기본 지표만 계산합니다.")
+    return {"docs": rg.get("docs", []), "items": rg.get("items", []), "warnings": warn,
+            "fee_from_doc": bool(rg.get("fee")), "required": len(rg.get("required", []))}
+
+
+@app.get("/api/projects/{pid}/overview")
+def get_overview(pid: str):
+    p = load(pid)
+    res = result(p)
+    k, ex = _overview(p, res)
+    pb = _people_by_id(res)
+    per = [{"id": pid_, "name": pb[pid_]["name"], "dept": pb[pid_]["dept"], "job": pb[pid_]["job"], "grade": pb[pid_].get("grade", ""),
+            **{c: round(v[c], 1) for c in kpi.CATS}, "total": round(sum(v.values()), 1)} for pid_, v in k["hours"]["per"].items()]
+    return {"kpis": k["kpis"], "totals": k["totals"], "total_hours": k["total_hours"], "per_capita": k["per_capita"], "people": k["people"],
+            "target_hours": k["target_hours"], "gov_hours": k["gov_hours"], "below": len(k["below"]), "spend": k["spend"], "budget": k["budget"],
+            "legal": k["legal"], "required": k["required"], "satisfaction": k["satisfaction"], "per_person": per,
+            "courses": {c: len(v) for c, v in k["hours"]["courses"].items()}, "priorities": annual.priorities_check(res, k),
+            "external": {kk: ex[kk] for kk in ("total_cost", "total_travel", "hours", "report_days", "limit", "has_travel_rule")} |
+                        {"rows": ex["rows"], "late": len(ex["late"]), "missing": len(ex["missing"]), "over_limit": ex["over_limit"]}}
+
+
 # ───────────── 할 일·실적
 @app.get("/api/projects/{pid}/tasks")
 def get_tasks(pid: str):
@@ -749,7 +800,8 @@ def toggle_task(pid: str, key: str):
 @app.get("/api/projects/{pid}/stats")
 def get_stats(pid: str):
     p = load(pid)
-    st = planning.stats(p, result(p), config.settings().get("fees", {}))
+    res = result(p)
+    st = planning.stats(p, res, fee_config(res))
     st.pop("hours")
     return st
 
@@ -768,10 +820,20 @@ def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign
     res = result(p)
     st_all = config.settings()
     org = st_all["org"]
-    fee_cfg = st_all.get("fees", {})
+    fee_cfg = fee_config(res)
     stamp = res["base"].replace("-", "")
+    if doc in ("annual", "kpi", "criteria"):
+        k, ex = _overview(p, res)
+        blocks = {"annual": lambda: annual.annual_blocks(res, k, ex, org), "kpi": lambda: annual.kpi_blocks(res, k, org),
+                  "criteria": lambda: annual.criteria_blocks(res, org)}[doc]()
+        name = {"annual": f"{res['year']}년_교육훈련_실적보고", "kpi": f"{res['year']}년_경영평가_교육훈련지표_실적", "criteria": "교육훈련_산정기준표"}[doc]
+        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        return _file(fn(blocks), f"{name}.{fmt if fmt in FORMATS else 'hwpx'}", mime)
+    if doc == "settle":
+        return _file(costs.settle_excel(costs.external(res)), f"외부교육_정산내역_{stamp}.xlsx",
+                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if doc == "stats":
-        return _file(planning.stats_excel(planning.stats(p, res, fee_cfg), res), f"교육훈련_실적집계_{stamp}.xlsx",
+        return _file(kpi.hours_excel(res, _overview(p, res)[0]), f"교육훈련_실적집계_{stamp}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if doc in ("session_plan", "session_result", "session_fee", "signsheet"):
         s = _sess(p, session)
