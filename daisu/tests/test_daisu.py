@@ -315,3 +315,109 @@ class TestServer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+PNG = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
+
+class TestOperations(unittest.TestCase):
+    def test_fees(self):
+        from daisu import fees
+        cfg = config.settings()["fees"]
+        r = fees.compute({"grade": "일반1", "income": "기타소득"}, 1, cfg)
+        self.assertEqual((r["total"], r["withholding"], r["net"]), (250000, 22000, 228000))  # 실효 8.8%
+        r = fees.compute({"grade": "일반2", "income": "기타소득"}, 1, cfg)
+        self.assertEqual(r["withholding"], 13200)
+        r = fees.compute({"grade": "내부", "income": "기타소득"}, 1, cfg)
+        self.assertEqual(r["withholding"], 0)  # 10만원: 기타소득금액 4만원 ≤ 5만원 과세최저한
+        r = fees.compute({"grade": "일반2", "income": "사업소득", "pages": 5, "travel": 30000}, 4, cfg)
+        self.assertEqual((r["lecture"], r["income_tax"], r["local_tax"], r["total"]), (515000, 15450, 1540, 545000))
+
+    def test_gongmun_numbering(self):
+        from daisu import gongmun
+        b = gongmun.blocks({"name": "기관"}, "제목", ["가", ["나", "다", ["라"]], "마"], ["붙임1 1부.", "붙임2 1부."])
+        text = [x[1] for x in b if x[0] == "p"]
+        self.assertIn("제목  제목", text)
+        self.assertIn("  가. 나", text)
+        self.assertIn("    1) 라", text)
+        self.assertIn("2. 마", text)
+        self.assertTrue(any(t.endswith("붙임2 1부.  끝.") for t in text))
+        b = gongmun.blocks({"name": "기관"}, "제목", ["하나"])
+        self.assertIn("1. 하나  끝.", [x[1] for x in b if x[0] == "p"])
+
+    def test_josa(self):
+        from daisu.util import josa
+        self.assertEqual(josa("「청렴교육」"), "「청렴교육」을")
+        self.assertEqual(josa("「교육 1회차」"), "「교육 1회차」를")
+
+    def test_planning(self):
+        from daisu import planning
+        prj = sample_project()
+        res = engine.compute(prj)
+        st = planning.stats(prj, res, config.settings()["fees"])
+        self.assertEqual(st["people"], 119)
+        self.assertGreater(st["avg_hours"], 5)
+        tasks = planning.tasks(prj, res, {"first_days": 30, "boss_days": 14})
+        titles = " ".join(t["title"] for t in tasks)
+        self.assertIn("확인 필요 3건", titles)
+        self.assertIn("기한(6. 30.(화)) 지난", titles)
+        self.assertIn("채용 시 교육", titles)
+        md = __import__("daisu.render", fromlist=["to_md"]).to_md(planning.next_plan_blocks(prj, res, config.settings()["org"], config.settings()["fees"])).decode()
+        self.assertIn("2027년 법정의무교육 운영 계획(안)", md)
+        self.assertIn("기한 지난 미이수 12명", md)
+        self.assertIn("4시간 이내", md)        # 만족도 의견 반영
+        self.assertNotIn("하반기): 현장직 이수율", md)  # 진행 중인 반기는 문제로 잡지 않음
+        card = planning.card_blocks(res, res["people"][0]["id"], config.settings()["org"])
+        self.assertEqual(card[0][0], "title")
+
+
+class TestSessionFlow(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        cls.c = TestClient(app)
+
+    def test_flow(self):
+        c = self.c
+        pid = c.post("/api/projects/sample").json()["id"]
+        ids = c.post(f"/api/projects/{pid}/sessions", json={"col": "dis", "place": "대회의실"}).json()["ids"]
+        self.assertGreaterEqual(len(ids), 2)
+        sid = ids[0]
+        s = c.get(f"/api/projects/{pid}/sessions/{sid}").json()
+        person = s["targets"][0]["id"]
+        before = c.get(f"/api/projects/{pid}").json()["cells"][person]["dis"]["s"]
+        self.assertIn(before, ("none", "partial"))
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/attend", json={"person": person, "sign": "data:image/png;base64,AAAA"}).status_code, 400)
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/attend", json={"person": person}).status_code, 400)
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/attend", json={"person": "없음", "sign": PNG}).status_code, 400)
+        self.assertTrue(c.post(f"/api/projects/{pid}/sessions/{sid}/attend", json={"person": person, "sign": PNG}).json()["ok"])
+        self.assertTrue(c.post(f"/api/projects/{pid}/sessions/{sid}/attend", json={"person": person, "sign": PNG}).json()["already"])
+        d = c.get(f"/api/projects/{pid}").json()
+        self.assertEqual(d["cells"][person]["dis"]["s"], "done")  # 전자 서명 → 바로 이수
+        scores = {k: 4 for k in __import__("daisu.sessions", fromlist=["SURVEY_ITEMS"]).SURVEY_ITEMS}
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/survey", json={"scores": {"x": 9}}).status_code, 400)
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions/{sid}/survey", json={"scores": scores, "comment": "좋음"}).json()["n"], 1)
+        self.assertEqual(c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"grade": "없는등급"}}).status_code, 400)
+        self.assertEqual(c.get(f"/api/projects/{pid}/export?doc=session_fee&fmt=hwpx&session={sid}").status_code, 400)  # 강사 없음
+        c.patch(f"/api/projects/{pid}/sessions/{sid}", json={"instructor": {"name": "박강사", "org": "가상기관", "grade": "일반2"}, "start": "10:00"})
+        v = c.get(f"/api/projects/{pid}/sessions/{sid}").json()
+        self.assertEqual(v["fee"]["net"], 136800)
+        tasks = {t["key"]: t for t in c.get(f"/api/projects/{pid}/tasks").json()}
+        self.assertFalse(tasks[f"plan:{sid}"]["done"])
+        for doc, fmt in (("session_plan", "hwpx"), ("signsheet", "docx"), ("signsheet", "hwpx"), ("session_result", "hwpx"), ("session_fee", "docx")):
+            r = c.get(f"/api/projects/{pid}/export?doc={doc}&fmt={fmt}&session={sid}")
+            self.assertEqual(r.status_code, 200, doc)
+        tasks = {t["key"]: t for t in c.get(f"/api/projects/{pid}/tasks").json()}
+        self.assertTrue(tasks[f"plan:{sid}"]["done"] and tasks[f"result:{sid}"]["done"] and tasks[f"run:{sid}"]["done"])  # 자동 완료
+        self.assertTrue(c.post(f"/api/projects/{pid}/tasks/issues").json()["done"])
+        for q in ("doc=nextplan&fmt=hwpx", "doc=stats", f"doc=card&fmt=docx&person={person}"):
+            self.assertEqual(c.get(f"/api/projects/{pid}/export?{q}").status_code, 200, q)
+        st = c.get(f"/api/projects/{pid}/stats").json()
+        self.assertEqual(st["spend"], 150000)
+        c.delete(f"/api/projects/{pid}/sessions/{sid}/attend/{person}")
+        self.assertNotEqual(c.get(f"/api/projects/{pid}").json()["cells"][person]["dis"]["s"], "done")
+        c.delete(f"/api/projects/{pid}/sessions/{sid}")
+        self.assertEqual(c.get(f"/api/projects/{pid}/sessions/{sid}").status_code, 404)
+        self.assertEqual(c.post(f"/api/projects/{pid}/sessions", json={"manual": True, "col": "int", "date": "2026-11-20"}).status_code, 200)

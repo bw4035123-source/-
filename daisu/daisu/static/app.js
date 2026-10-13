@@ -59,6 +59,8 @@ async function loadInfo() { S.info = await api("/api/info"); $("#modelBadge").te
 function route() {
   closeDrawer();
   const parts = location.hash.replace(/^#\/?/, "").split("/");
+  document.body.classList.toggle("kiosk-mode", parts[0] === "kiosk");
+  if (parts[0] === "kiosk" && parts[1] && parts[2]) return viewKiosk(parts[1], parts[2]);
   if (parts[0] === "p" && parts[1]) return viewProject(parts[1], parts[2] || "board", decodeURIComponent(parts[3] || ""));
   if (parts[0] === "settings") return viewSettings();
   return viewHome();
@@ -160,7 +162,7 @@ async function viewHome() {
 
 // ───────────── 작업 화면
 const TABS = [["files", "자료"], ["board", "현황판"], ["matrix", "이수 현황표"], ["issues", "확인 필요"], ["plan", "일정 짜기"],
-  ["notify", "안내문"], ["report", "보고·증빙"], ["year", "연간 계획"], ["ask", "질문하기"]];
+  ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고·증빙"], ["year", "연간 계획"], ["ask", "질문하기"]];
 
 async function viewProject(pid, tab, arg) {
   const d = await api(`/api/projects/${pid}`);
@@ -180,11 +182,11 @@ async function viewProject(pid, tab, arg) {
       h("div", { class: "row small muted", style: "margin-top:4px" }, "기준일", baseIn, yearSel, `· 자료 ${d.files.length}개 · 직원 ${d.people.length}명`,
         d.integrity ? h("span", { class: "badge b-done", title: "처리 전후 파일 지문(SHA-256)이 같습니다" }, "원본 변경 없음") : h("span", { class: "badge b-none" }, "자료 변경 감지"))),
     h("a", { class: "btn", href: "#/" }, "다른 작업"));
-  const tabs = h("nav", { class: "tabs" }, TABS.map(([k, l]) => h("a", { class: "tab" + (k === tab ? " on" : ""), href: `#/p/${pid}/${k}` }, l,
+  const tabs = h("nav", { class: "tabs" }, TABS.map(([k, l]) => h("a", { class: "tab" + (k === tab || (k === "run" && tab === "session") ? " on" : ""), href: `#/p/${pid}/${k}` }, l,
     k === "issues" ? h("span", { class: "cnt" + (nIssues ? "" : " ok") }, nIssues || "0") : null)));
   const body = h("div");
   mount(head, tabs, body);
-  const fn = { files: tabFiles, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
+  const fn = { files: tabFiles, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
   await fn(body, d, arg);
 }
 
@@ -214,7 +216,10 @@ function deptStats(d) {
   }
   return out;
 }
-function tabBoard(el, d) {
+async function tabBoard(el, d) {
+  const pid0 = d.project.id;
+  const tasks = await api(`/api/projects/${pid0}/tasks`);
+  el.append(taskCard(d, tasks));
   const man = d.summary.filter((s) => s.mandatory);
   const avg = man.length ? Math.round(man.reduce((a, s) => a + (s.rate || 0), 0) / man.length * 10) / 10 : 0;
   const overPeople = d.people.filter((p) => Object.values(d.cells[p.id]).some((c) => c.overdue)).length;
@@ -309,6 +314,9 @@ async function cellDrawer(d, p, c) {
       h("b", {}, ST[x.s]), x.s === "na" || x.s === "left" ? ` – ${x.why}` : ` – 인정 ${fh(x.h)}시간 / 필요 ${fh(x.need)}시간`,
       x.s !== "na" && x.s !== "left" ? h("div", { class: "small" }, `기한 ${kd(x.due, true)}${x.overdue ? " (지남)" : ""}${x.why ? " · " + x.why : ""}`) : null),
     h("div", { class: "small muted" }, `${p.dept} · ${p.title} · ${p.emp} · ${p.shift}${p.team ? " " + p.team + "조" : ""} · 입사 ${p.hired}`),
+    h("div", { class: "row", style: "margin-top:8px" }, h("span", { class: "small" }, "교육이력 카드"),
+      h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${d.project.id}/export?doc=card&fmt=hwpx&person=${encodeURIComponent(p.id)}`) }, "한글"),
+      h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${d.project.id}/export?doc=card&fmt=docx&person=${encodeURIComponent(p.id)}`) }, "워드")),
     h("h3", { style: "margin-top:14px" }, "근거"), h("div", { class: "small" }, c.law),
     c.note ? h("div", { class: "small muted" }, c.note) : null,
     h("h3", { style: "margin-top:14px" }, `이 교육 관련 기록 ${mine.length}건`),
@@ -394,7 +402,14 @@ function drawPlan(out, d, pl) {
         h("div", { class: "big" }, `${pl.sessions.length}회차 · ${pl.targets - pl.unplaced.length}명 배정`),
         pl.unplaced.length ? h("div", { class: "small" }, `남은 ${pl.unplaced.length}명은 회차 한도·근무일 부족으로 사이버교육 안내(아래 명단)`) : null,
         h("div", { class: "small" }, "비번·휴무일 호출 0명, 모든 팀이 현장 최소 인원 유지"),
-        h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${pid}/export?doc=plan&fmt=hwpx&col=${encodeURIComponent(pl.col.key)}`) }, "일정 안내 한글"),
+        h("div", { class: "row", style: "margin-top:8px" },
+          h("button", { class: "btn sm primary", onclick: async () => {
+            const place = prompt("교육 장소(나중에 바꿀 수 있음)", "본사 3층 대회의실");
+            if (place === null) return;
+            await api(`/api/projects/${pid}/sessions`, { method: "POST", json: { col: pl.col.key, hours: pl.hours, place } });
+            toast(`${pl.sessions.length}개 회차를 만들었습니다`); location.hash = `#/p/${pid}/run`;
+          } }, "이 일정으로 회차 만들기"),
+          h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${pid}/export?doc=plan&fmt=hwpx&col=${encodeURIComponent(pl.col.key)}`) }, "일정 안내 한글"),
           h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${pid}/export?doc=plan&fmt=docx&col=${encodeURIComponent(pl.col.key)}`) }, "워드")))),
     h("details", { class: "small muted", style: "margin-bottom:10px" }, h("summary", {}, "적용한 규칙"), h("ul", {}, pl.rules.map((r) => h("li", {}, r)))),
     pl.sessions.map((s, k) => h("details", { class: "session" },
@@ -460,8 +475,20 @@ async function tabReport(el, d) {
       h("p", { class: "small muted" }, "엑셀: 교육별 요약, 직원별 이수현황(색 구분), 미이수자, 판정 근거(기록별 파일·행), 확인 필요"),
       h("p", { class: "small muted" }, "증빙 묶음: 교육별 폴더에 이수를 인정한 원본 서명부·이수현황·수료증과 증빙 목록을 모은 압축 파일(경영평가·감사 대비)"),
       h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ex("excel", "") }, "이수현황 엑셀"), h("button", { class: "btn", onclick: () => ex("evidence", "") }, "증빙 묶음(ZIP)")))));
+  const st = await api(`/api/projects/${pid}/stats`);
+  add(el, h("div", { class: "grid g2" },
+    h("div", { class: "card" }, h("h2", {}, `${d.year + 1}년 법정의무교육 운영계획(안)`),
+      h("p", { class: "small muted" }, "올해 교육별 이수율·이수 방식·직무별 차이·기한 지남, 만족도 의견을 분석해 운영 방향, 월별 일정, 소요 예산까지 담은 기안문 초안입니다."),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => ex("nextplan", "hwpx") }, "한글(HWPX)"), h("button", { class: "btn", onclick: () => ex("nextplan", "docx") }, "워드"))),
+    h("div", { class: "card" }, h("h2", {}, "교육훈련 실적 집계"),
+      h("div", { class: "row", style: "gap:18px;margin-bottom:8px" }, h("div", {}, h("div", { class: "kpi-v" }, `${st.avg_hours}시간`), h("div", { class: "tiny muted" }, "1인당 교육시간")),
+        h("div", {}, h("div", { class: "kpi-v" }, `${st.total_hours.toLocaleString()}시간`), h("div", { class: "tiny muted" }, "총 교육시간")),
+        h("div", {}, h("div", { class: "kpi-v" }, `${st.spend.toLocaleString()}원`), h("div", { class: "tiny muted" }, `강사료(${st.sessions}회차)`))),
+      h("table", {}, h("tr", {}, h("th", {}, "구분"), h("th", { class: "num" }, "인원"), h("th", { class: "num" }, "1인당 시간"), h("th", { class: "num" }, "법정 이수율")),
+        st.groups.filter((g) => !g.group.endsWith("팀")).map((g) => h("tr", {}, h("td", {}, g.group), h("td", { class: "num" }, g.n), h("td", { class: "num" }, g.avg_hours), h("td", { class: "num" }, g.rate + "%")))),
+      h("div", { class: "row", style: "margin-top:8px" }, h("button", { class: "btn", onclick: () => ex("stats", "") }, "실적 집계 엑셀(부서·직원별)")))));
   const sv = await api(`/api/projects/${pid}/survey`);
-  add(el, h("h2", { style: "margin-top:6px" }, "집합교육 결과보고서"),
+  add(el, h("h2", { style: "margin-top:6px" }, "집합교육 결과보고서(올린 서명부·만족도 기준)"),
     sv.length ? sv.map((s) => h("div", { class: "card" },
       h("div", { class: "row between" }, h("div", {}, h("b", {}, s.title), h("div", { class: "small muted" }, `${s.date ? kd(s.date, true) : ""} · ${fh(s.hours)}시간 · 참석 ${s.attended}/${s.n}명`)),
         h("div", { class: "row" }, h("button", { class: "btn sm primary", onclick: () => ex("result", "hwpx", "&sign=" + s.index) }, "결과보고 한글"), h("button", { class: "btn sm", onclick: () => ex("result", "docx", "&sign=" + s.index) }, "워드"))),
@@ -537,8 +564,16 @@ async function viewSettings() {
   const chk = h("div", { class: "small" });
   const fillProf = () => { const p = s.profiles[prof.value]; url.value = p.base_url || ""; model.value = p.model || ""; key.value = ""; key.placeholder = p.has_key ? "저장된 키 있음(바꿀 때만 입력)" : "필요할 때만(이 PC에만 저장)"; url.disabled = model.disabled = key.disabled = p.kind !== "openai"; chk.textContent = ""; };
   prof.onchange = fillProf; fillProf();
+  const st0 = s;
+  const tierRows = (s.fees.tiers || []).map((t) => ({ grade: h("input", { value: t.grade, style: "width:70px" }), desc: h("input", { value: t.desc || "", style: "width:220px" }),
+    first: h("input", { type: "number", value: t.first, style: "width:100px" }), extra: h("input", { type: "number", value: t.extra, style: "width:100px" }) }));
+  const manu = h("input", { type: "number", value: s.fees.manuscript_per_page || 0 });
+  const sgv = s.org.signers || {};
+  const sg = { drafter: h("input", { value: sgv.drafter || "" }), reviewer: h("input", { value: sgv.reviewer || "" }), approver: h("input", { value: sgv.approver || "" }) };
   const save = async () => {
-    const body = { org: { name: org.name.value, dept: org.dept.value, manager: org.manager.value },
+    const body = { org: { name: org.name.value, dept: org.dept.value, manager: org.manager.value,
+        signers: { drafter: sg.drafter.value, reviewer: sg.reviewer.value, approver: sg.approver.value } },
+      fees: { tiers: tierRows.map((r) => ({ grade: r.grade.value, desc: r.desc.value, first: r.first.value, extra: r.extra.value })), manuscript_per_page: manu.value },
       schedule: { min_on_duty_ratio: sc.ratio.value, room_capacity: sc.cap.value, max_sessions: sc.max.value, holidays: sc.hol.value.split(/[\s,]+/).filter(Boolean) },
       active_profile: prof.value };
     if (s.profiles[prof.value].kind === "openai") body.profile = { name: prof.value, base_url: url.value, model: model.value, ...(key.value ? { api_key: key.value } : {}) };
@@ -582,7 +617,15 @@ async function viewSettings() {
         h("div", { class: "field" }, h("label", { class: "f" }, "서버 주소"), url), h("div", { class: "field" }, h("label", { class: "f" }, "모델 이름"), model),
         h("div", { class: "field" }, h("label", { class: "f" }, "API 키"), key),
         h("div", { class: "row" }, h("button", { class: "btn", onclick: async () => { await save(); chk.textContent = "확인 중…"; const r = await api(`/api/llm/check?profile=${encodeURIComponent(prof.value)}`); chk.textContent = (r.ok ? "연결 성공: " : "연결 실패: ") + r.detail; } }, "저장 후 연결 확인"), chk))),
-    h("div", { class: "row", style: "margin-bottom:16px" }, h("button", { class: "btn primary", onclick: save }, "기관·일정·모델 설정 저장")),
+    h("div", { class: "grid g2" },
+      h("div", { class: "card" }, h("h2", {}, "강사료 기준"), h("p", { class: "small muted" }, st0.fees._안내 || ""),
+        h("table", { class: "rules-table" }, h("tr", {}, h("th", {}, "등급"), h("th", {}, "설명"), h("th", {}, "첫 1시간"), h("th", {}, "추가 1시간")),
+          tierRows.map((r) => h("tr", {}, h("td", {}, r.grade), h("td", {}, r.desc), h("td", {}, r.first), h("td", {}, r.extra)))),
+        h("div", { class: "field", style: "margin-top:8px" }, h("label", { class: "f" }, "원고료(1매당)"), manu)),
+      h("div", { class: "card" }, h("h2", {}, "결재선(공문 하단)"),
+        h("div", { class: "field" }, h("label", { class: "f" }, "기안자"), sg.drafter), h("div", { class: "field" }, h("label", { class: "f" }, "검토자"), sg.reviewer),
+        h("div", { class: "field" }, h("label", { class: "f" }, "결재권자"), sg.approver))),
+    h("div", { class: "row", style: "margin-bottom:16px" }, h("button", { class: "btn primary", onclick: save }, "기관·일정·모델·강사료 설정 저장")),
     h("div", { class: "card" }, h("div", { class: "row between" }, h("h2", { style: "margin:0" }, "교육 규칙표"),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: async () => { if (!confirm("기본 규칙표로 되돌릴까요?")) return; await api("/api/rules/reset", { method: "POST" }); viewSettings(); toast("기본값으로 되돌렸습니다"); } }, "기본값으로"),
         h("button", { class: "btn primary", onclick: saveRules }, "규칙표 저장"))),
@@ -590,4 +633,185 @@ async function viewSettings() {
       h("div", { style: "overflow:auto" }, h("table", { class: "rules-table" },
         h("tr", {}, h("th", {}, "법정"), h("th", {}, "교육"), h("th", {}, "근거"), h("th", {}, "주기"), h("th", {}, "시간(직무별은 사무:6, 현장:12)"), h("th", {}, "기한"), h("th", {}, "대상"), h("th", {}, "과정명 키워드")),
         rows.map((r) => h("tr", {}, h("td", {}, r.mand), h("td", {}, r.name), h("td", {}, r.law), h("td", {}, r.cycle), h("td", {}, r.hours), h("td", {}, r.due), h("td", {}, r.tgt), h("td", {}, r.kw)))))));
+}
+
+// ───────────── 할 일
+function taskCard(d, tasks) {
+  const pid = d.project.id;
+  const open = tasks.filter((t) => !t.done);
+  const urgent = open.filter((t) => t.dday != null && t.dday <= 14);
+  let showAll = false;
+  const box = h("div", { class: "card" });
+  const draw = () => {
+    const list = showAll ? tasks : (urgent.length ? urgent : open.slice(0, 5));
+    box.replaceChildren(
+      h("div", { class: "row between" }, h("h2", { style: "margin:0" }, "할 일", h("span", { class: "small muted", style: "margin-left:8px;font-weight:400" }, `2주 안 ${urgent.length}건 · 전체 남은 일 ${open.length}건`)),
+        h("button", { class: "btn sm ghost", onclick: () => { showAll = !showAll; draw(); } }, showAll ? "가까운 일만" : "전체 보기")),
+      h("table", { style: "margin-top:8px" }, list.map((t) => h("tr", { class: t.done ? "muted" : "" },
+        h("td", { style: "width:34px" }, h("input", { type: "checkbox", checked: t.done, disabled: t.auto, title: t.auto ? "문서를 만들거나 출석을 받으면 자동으로 완료됩니다" : "완료 표시",
+          onchange: async () => { await api(`/api/projects/${pid}/tasks/${encodeURIComponent(t.key)}`, { method: "POST" }); t.done = !t.done; draw(); } })),
+        h("td", { style: "width:150px", class: "small" }, t.date ? kd(t.date) : "", t.dday != null && !t.done ? h("div", {}, h("span", { class: "badge " + (t.dday < 0 ? "b-none" : t.dday <= 7 ? "b-part" : "") }, t.dday < 0 ? `${-t.dday}일 지남` : t.dday === 0 ? "오늘" : `D-${t.dday}`)) : null),
+        h("td", {}, t.done ? h("s", {}, t.title) : h("b", {}, t.title), t.detail ? h("div", { class: "tiny muted" }, t.detail) : null),
+        h("td", { class: "num" }, t.link && !t.done ? h("a", { class: "btn sm", href: `#/p/${pid}/${t.link}` }, "바로 가기") : null)))));
+  };
+  draw();
+  return box;
+}
+
+// ───────────── 교육 운영(회차 목록)
+async function tabRun(el, d) {
+  const pid = d.project.id;
+  const list = await api(`/api/projects/${pid}/sessions`);
+  const colSel = h("select", {}, d.columns.filter((c) => c.mandatory).map((c) => h("option", { value: c.key }, c.label)));
+  const dateIn = h("input", { type: "date", value: d.base });
+  add(el, h("div", { class: "alert info" }, "집합교육 한 회차의 일을 여기서 끝냅니다: 실시계획 기안 → 출석 키오스크(전자 서명) → 퇴실 만족도 → 결과보고 → 강사료 지급. 출석은 바로 이수 현황에 반영됩니다."),
+    h("div", { class: "card row" }, h("b", {}, "회차 직접 추가"), colSel, dateIn,
+      h("button", { class: "btn", onclick: async () => { const r = await api(`/api/projects/${pid}/sessions`, { method: "POST", json: { manual: true, col: colSel.value, date: dateIn.value } }); location.hash = `#/p/${pid}/session/${r.ids[0]}`; } }, "추가"),
+      h("span", { class: "small muted right" }, "또는 ‘일정 짜기’에서 ‘이 일정으로 회차 만들기’")));
+  if (!list.length) return add(el, h("div", { class: "card empty" }, "아직 회차가 없습니다. ‘일정 짜기’에서 회차를 만들어 보세요."));
+  add(el, h("div", { class: "card", style: "padding:0" }, h("table", {},
+    h("tr", {}, h("th", {}, "일시"), h("th", {}, "교육"), h("th", {}, "장소·강사"), h("th", { class: "num" }, "출석"), h("th", { class: "num" }, "만족도"), h("th", {})),
+    list.map((s) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${pid}/session/${s.id}`) },
+      h("td", { class: "small" }, kd(s.date), h("div", { class: "tiny muted" }, `${s.start}~${s.end} · ${fh(s.hours)}시간`)),
+      h("td", {}, h("b", {}, s.title)),
+      h("td", { class: "small" }, s.place || h("span", { class: "muted" }, "장소 미정"), h("div", { class: "tiny muted" }, s.instructor.name ? `${s.instructor.name}(${s.instructor.org})` : "강사 미정")),
+      h("td", { class: "num" }, s.attended ? h("span", { class: "badge b-done" }, `${s.attended}/${s.n_targets}`) : `0/${s.n_targets}`),
+      h("td", { class: "num" }, s.survey ? `${s.survey.overall}점(${s.survey.n})` : "-"),
+      h("td", { class: "num" }, h("button", { class: "btn sm primary", onclick: (e) => { e.stopPropagation(); window.open(`#/kiosk/${pid}/${s.id}`, "_blank"); } }, "출석 키오스크")))))));
+}
+
+// ───────────── 회차 상세
+async function tabSession(el, d, sid) {
+  const pid = d.project.id;
+  const [s, st] = await Promise.all([api(`/api/projects/${pid}/sessions/${sid}`), api("/api/settings")]);
+  const f = {};
+  const inp = (k, v, attrs = {}) => (f[k] = h("input", { value: v ?? "", ...attrs }));
+  const I = s.instructor;
+  const grade = h("select", {}, h("option", { value: "" }, "등급 선택"), (st.fees.tiers || []).map((t) => h("option", { value: t.grade }, `${t.grade} – ${t.desc} (첫 1시간 ${t.first.toLocaleString()}원, 추가 ${t.extra.toLocaleString()}원)`)));
+  grade.value = I.grade || "";
+  const income = h("select", {}, ["기타소득", "사업소득", "근로"].map((x) => h("option", { value: x }, x === "근로" ? "내부 직원(근로소득 합산)" : x)));
+  income.value = I.income || "기타소득";
+  const save = async () => {
+    await api(`/api/projects/${pid}/sessions/${sid}`, { method: "PATCH", json: {
+      title: f.title.value, date: f.date.value, start: f.start.value, end: f.end.value, hours: f.hours.value, place: f.place.value,
+      instructor: { name: f.iname.value, org: f.iorg.value, grade: grade.value, income: income.value, pages: f.pages.value, travel: f.travel.value } } });
+    toast("저장했습니다"); route();
+  };
+  const ex = (doc, fmt) => dl(`/api/projects/${pid}/export?doc=${doc}&fmt=${fmt}&session=${sid}`);
+  const fee = s.fee;
+  const attendRow = (t) => h("tr", {},
+    h("td", {}, t.name, t.walkin ? h("span", { class: "badge", style: "margin-left:6px" }, "대상 외") : null), h("td", { class: "small" }, t.dept), h("td", { class: "small" }, t.team || "일근"),
+    h("td", {}, t.at ? h("span", { class: "badge b-done" }, `출석 ${t.at.slice(11, 16)}`) : h("span", { class: "badge" }, "미출석")),
+    h("td", { class: "num" }, t.at ? h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm(`${t.name}님 출석을 취소할까요?`)) return; await api(`/api/projects/${pid}/sessions/${sid}/attend/${t.id}`, { method: "DELETE" }); route(); } }, "취소")
+      : h("button", { class: "btn sm", onclick: async () => { await api(`/api/projects/${pid}/sessions/${sid}/attend`, { method: "POST", json: { person: t.id, manual: true } }); toast(`${t.name}님 수기 출석`); route(); } }, "수기 출석")));
+  add(el,
+    h("div", { class: "row between", style: "margin-bottom:12px" }, h("a", { href: `#/p/${pid}/run` }, "← 회차 목록"),
+      h("div", { class: "row" }, h("button", { class: "btn primary", onclick: () => window.open(`#/kiosk/${pid}/${sid}`, "_blank") }, "출석 키오스크 열기"),
+        h("button", { class: "btn ghost", onclick: async () => { if (!confirm("이 회차를 지울까요? 출석 기록도 함께 지워집니다.")) return; await api(`/api/projects/${pid}/sessions/${sid}`, { method: "DELETE" }); location.hash = `#/p/${pid}/run`; } }, "회차 삭제"))),
+    h("div", { class: "grid g2" },
+      h("div", { class: "card" }, h("h2", {}, "교육 정보"),
+        h("div", { class: "field" }, h("label", { class: "f" }, "교육명"), inp("title", s.title)),
+        h("div", { class: "grid g3" }, h("div", { class: "field" }, h("label", { class: "f" }, "날짜"), inp("date", s.date, { type: "date" })),
+          h("div", { class: "field" }, h("label", { class: "f" }, "시작"), inp("start", s.start, { placeholder: "09:00" })), h("div", { class: "field" }, h("label", { class: "f" }, "끝"), inp("end", s.end, { placeholder: "13:00" }))),
+        h("div", { class: "grid g2" }, h("div", { class: "field" }, h("label", { class: "f" }, "인정 시간"), inp("hours", s.hours, { type: "number", step: "0.5", min: "0.5" })),
+          h("div", { class: "field" }, h("label", { class: "f" }, "장소"), inp("place", s.place))),
+        h("h2", { style: "margin-top:8px" }, "강사"),
+        h("div", { class: "grid g2" }, h("div", { class: "field" }, h("label", { class: "f" }, "이름"), inp("iname", I.name)), h("div", { class: "field" }, h("label", { class: "f" }, "소속"), inp("iorg", I.org))),
+        h("div", { class: "field" }, h("label", { class: "f" }, "강사료 등급(설정 → 강사료 기준)"), grade),
+        h("div", { class: "grid g3" }, h("div", { class: "field" }, h("label", { class: "f" }, "소득 구분"), income),
+          h("div", { class: "field" }, h("label", { class: "f" }, "원고 매수"), inp("pages", I.pages, { type: "number", min: "0" })),
+          h("div", { class: "field" }, h("label", { class: "f" }, "교통비(실비)"), inp("travel", I.travel, { type: "number", min: "0" }))),
+        h("button", { class: "btn primary", onclick: save }, "저장")),
+      h("div", {},
+        h("div", { class: "card" }, h("h2", {}, "공문·서류"),
+          [["session_plan", "실시계획 기안", "교육 전"], ["signsheet", "서명부", "교육 후"], ["session_result", "결과보고 기안", "교육 후"], ["session_fee", "강사료 지급 기안", "교육 후"]].map(([doc, label, when]) =>
+            h("div", { class: "row between", style: "padding:6px 0;border-bottom:1px solid var(--line)" }, h("div", {}, h("b", {}, label), h("span", { class: "tiny muted", style: "margin-left:6px" }, when)),
+              h("div", { class: "row" }, h("button", { class: "btn sm primary", disabled: doc === "session_fee" && !I.name, onclick: () => ex(doc, doc === "signsheet" ? "docx" : "hwpx") }, doc === "signsheet" ? "워드(서명 이미지)" : "한글"),
+                h("button", { class: "btn sm", disabled: doc === "session_fee" && !I.name, onclick: () => ex(doc, doc === "signsheet" ? "hwpx" : "docx") }, doc === "signsheet" ? "한글" : "워드"))))),
+        h("div", { class: "card" }, h("h2", {}, "강사료"),
+          fee ? [h("div", { class: "row", style: "gap:18px" }, h("div", {}, h("div", { class: "kpi-v" }, `${fee.total.toLocaleString()}원`), h("div", { class: "tiny muted" }, "지급 총액(세전)")),
+            h("div", {}, h("div", { class: "kpi-v" }, `${fee.withholding.toLocaleString()}원`), h("div", { class: "tiny muted" }, `원천징수(${fee.income})`)),
+            h("div", {}, h("div", { class: "kpi-v" }, `${fee.net.toLocaleString()}원`), h("div", { class: "tiny muted" }, "실지급액"))),
+            h("ul", { class: "small", style: "margin:8px 0 0" }, fee.steps.map((x) => h("li", {}, x)))] : h("p", { class: "muted small" }, "강사 이름과 등급을 넣으면 계산합니다."),
+          h("p", { class: "tiny muted", style: "margin:8px 0 0" }, "세금 계산은 기본값(기타소득 필요경비 60%·세율 20%·과세최저한 5만원, 사업소득 3%)이며 기관 회계 기준으로 확인하세요.")),
+        s.survey ? h("div", { class: "card" }, h("h2", {}, `퇴실 만족도 ${s.survey.n}명`),
+          h("div", { class: "row small" }, h("span", { class: "badge b-brand" }, `평균 ${s.survey.overall}점`), h("span", { class: "badge b-done" }, `만족 ${s.survey.satisfied}%`)),
+          h("table", { style: "margin-top:6px" }, Object.entries(s.survey.avg).map(([k, v]) => h("tr", {}, h("td", { class: "small" }, k), h("td", { class: "num" }, v + "점"))))) : null)),
+    h("div", { class: "card", style: "padding:0" },
+      h("div", { class: "row between", style: "padding:14px 16px 6px" }, h("h2", { style: "margin:0" }, `출석 ${s.attended} / 대상 ${s.n_targets}명`),
+        h("span", { class: "small muted" }, "키오스크에서 서명하면 여기와 이수 현황에 바로 반영됩니다")),
+      h("table", {}, h("tr", {}, h("th", {}, "성명"), h("th", {}, "소속"), h("th", {}, "근무조"), h("th", {}, "출석"), h("th", {})), s.targets.map(attendRow))));
+}
+
+// ───────────── 출석 키오스크(교육장 입구 노트북·태블릿)
+async function viewKiosk(pid, sid) {
+  let s = await api(`/api/projects/${pid}/sessions/${sid}`);
+  const app = $("#app");
+  let mode = "in";
+  const refresh = async () => { s = await api(`/api/projects/${pid}/sessions/${sid}`); };
+  const header = () => h("div", { class: "k-head" },
+    h("div", {}, h("div", { class: "k-title" }, s.title), h("div", { class: "k-sub" }, `${kd(s.date, true)} ${s.start}~${s.end} · ${s.place || ""}`)),
+    h("div", { class: "k-count" }, h("b", {}, s.attended), ` / ${s.n_targets}명 출석`),
+    h("div", { class: "k-modes" }, h("button", { class: "k-mode" + (mode === "in" ? " on" : ""), onclick: () => { mode = "in"; home(); } }, "입실 서명"),
+      h("button", { class: "k-mode" + (mode === "out" ? " on" : ""), onclick: () => { mode = "out"; home(); } }, "퇴실 만족도")));
+  const screen = (...kids) => { app.replaceChildren(); add(app, h("div", { class: "kiosk" }, header(), h("div", { class: "k-body" }, kids),
+    h("a", { class: "k-exit", href: `#/p/${pid}/session/${sid}` }, "관리 화면으로"))); };
+  const attendedIds = () => new Set(s.targets.filter((t) => t.at).map((t) => t.id));
+  function home() {
+    if (mode === "out") return survey();
+    const q = h("input", { class: "k-input", placeholder: "이름을 입력하세요 (예: 김민수)", autocomplete: "off" });
+    const list = h("div", { class: "k-list" });
+    const draw = () => {
+      const v = q.value.replace(/\s/g, "");
+      list.replaceChildren();
+      if (!v) return list.append(h("div", { class: "k-hint" }, "이름 두 글자 이상을 입력하면 아래에 나타납니다"));
+      const done = attendedIds();
+      const tgt = new Set(s.targets.map((t) => t.id));
+      const found = s.everyone.filter((p) => p.name.includes(v) || p.id.endsWith(v)).sort((a, b) => (tgt.has(b.id) - tgt.has(a.id))).slice(0, 8);
+      if (!found.length) return list.append(h("div", { class: "k-hint" }, "명단에서 찾을 수 없습니다. 담당자에게 알려 주세요."));
+      found.forEach((p) => list.append(h("button", { class: "k-person" + (done.has(p.id) ? " done" : ""), disabled: done.has(p.id), onclick: () => sign(p) },
+        h("b", {}, p.name), h("span", {}, `${p.dept}${p.team ? " · " + p.team + "조" : ""}`), done.has(p.id) ? h("em", {}, "출석 완료") : (tgt.has(p.id) ? null : h("em", {}, "대상 외")))));
+    };
+    q.oninput = draw;
+    screen(h("div", { class: "k-big" }, "출석 확인"), q, list);
+    draw(); q.focus();
+  }
+  function sign(p) {
+    const cv = h("canvas", { class: "k-canvas", width: "600", height: "240" });
+    const ctx = cv.getContext("2d");
+    ctx.lineWidth = 3.2; ctx.lineCap = "round"; ctx.strokeStyle = "#111";
+    let drawing = false, strokes = 0;
+    const pos = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.onpointerdown = (e) => { drawing = true; cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...pos(e)); };
+    cv.onpointermove = (e) => { if (!drawing) return; ctx.lineTo(...pos(e)); ctx.stroke(); strokes++; };
+    cv.onpointerup = () => { drawing = false; };
+    const ok = h("button", { class: "k-btn primary", onclick: async () => {
+      if (strokes < 5) return toast("서명을 해 주세요");
+      ok.disabled = true;
+      const r = await api(`/api/projects/${pid}/sessions/${sid}/attend`, { method: "POST", json: { person: p.id, sign: cv.toDataURL("image/png") } }).catch(() => null);
+      if (!r) { ok.disabled = false; return; }
+      await refresh();
+      screen(h("div", { class: "k-done" }, h("div", { class: "k-check" }, "✓"), h("div", { class: "k-big" }, `${p.name}님, 출석이 확인되었습니다`),
+        h("div", { class: "k-sub" }, r.already ? "이미 출석한 기록이 있습니다" : `${fh(s.hours)}시간 이수로 기록됩니다`)));
+      setTimeout(home, 2200);
+    } }, "서명 완료");
+    screen(h("div", { class: "k-big" }, `${p.name}님, 아래 칸에 서명해 주세요`), h("div", { class: "k-sub" }, `${p.dept}${p.team ? " · " + p.team + "조" : ""}`), cv,
+      h("div", { class: "k-actions" }, h("button", { class: "k-btn", onclick: home }, "이전"), h("button", { class: "k-btn", onclick: () => { ctx.clearRect(0, 0, cv.width, cv.height); strokes = 0; } }, "다시 쓰기"), ok));
+  }
+  function survey() {
+    const ans = {};
+    const rows = s.survey_items.map((item) => {
+      const btns = [1, 2, 3, 4, 5].map((n) => h("button", { class: "k-score", onclick: () => { ans[item] = n; btns.forEach((b, i) => b.classList.toggle("on", i + 1 === n)); } }, n));
+      return h("div", { class: "k-q" }, h("div", { class: "k-qt" }, item.replace(/\(.*\)/, "")), h("div", { class: "k-scores" }, btns));
+    });
+    const cm = h("textarea", { class: "k-comment", placeholder: "하고 싶은 말(선택)" });
+    screen(h("div", { class: "k-big" }, "교육은 어떠셨나요? (1점 매우 불만 ~ 5점 매우 만족)"), rows, cm,
+      h("div", { class: "k-actions" }, h("button", { class: "k-btn primary", onclick: async () => {
+        if (Object.keys(ans).length < s.survey_items.length) return toast("모든 문항에 답해 주세요");
+        await api(`/api/projects/${pid}/sessions/${sid}/survey`, { method: "POST", json: { scores: ans, comment: cm.value } });
+        screen(h("div", { class: "k-done" }, h("div", { class: "k-check" }, "✓"), h("div", { class: "k-big" }, "응답해 주셔서 고맙습니다")));
+        setTimeout(survey, 1800);
+      } }, "제출")));
+  }
+  home();
 }

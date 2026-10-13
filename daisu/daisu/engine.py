@@ -8,7 +8,7 @@ import datetime as dt
 import hashlib
 import os
 
-from . import config
+from . import config, sessions
 from .readers import read
 from .sources import (doc_kinds, classify, parse_cert, parse_records, parse_roster, parse_shift, parse_sign,
                       parse_survey)
@@ -123,6 +123,7 @@ def compute(project: dict) -> dict:
     by_name: dict[str, list] = {}
     for p in people:
         by_name.setdefault(p["name"], []).append(p)
+    records += sessions.records(project, by_id)  # 키오스크 전자 출석도 이수 기록
 
     issues = []
     cols = columns(rules, year)
@@ -168,7 +169,7 @@ def compute(project: dict) -> dict:
     # ── 기록 ↔ 교육(규칙) 분류
     unclassified: dict[str, list] = {}
     for r in records:
-        ids = match_rules(r["title"], r.get("context", ""), rules, course_map)
+        ids = r["preset_rules"] if r.get("preset_rules") is not None else match_rules(r["title"], r.get("context", ""), rules, course_map)
         r["rules"] = ids or []
         r["classified"] = ids is not None
         if ids is None:

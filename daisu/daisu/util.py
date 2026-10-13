@@ -125,3 +125,19 @@ def fmt_h(h) -> str:
     if h is None:
         return ""
     return str(int(h)) if float(h).is_integer() else f"{h:.1f}"
+
+
+def josa(word: str, pair: str = "을/를") -> str:
+    """받침에 따라 조사 고르기: josa('1회차', '을/를') → '1회차를'. 괄호·따옴표 뒤의 글자는 건너뛴다."""
+    a, b = pair.split("/")
+    core = re.sub(r"[」』)\]'\"’”\s]+$", "", word or "")
+    last = core[-1:] if core else ""
+    if "가" <= last <= "힣":
+        has = (ord(last) - 0xAC00) % 28 != 0
+        if pair == "으로/로" and (ord(last) - 0xAC00) % 28 == 8:  # ㄹ 받침은 '로'
+            has = False
+    elif last.isdigit():
+        has = last in "013678"  # 영·일·삼·육·칠·팔
+    else:
+        has = False
+    return word + (a if has else b)

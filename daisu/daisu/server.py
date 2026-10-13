@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, engine, llm, qa, reports, schedule
+from . import config, engine, llm, planning, qa, reports, schedule, sessions
 from .readers import SUPPORTED
 from .render import FORMATS
 
@@ -169,7 +169,7 @@ def get_settings():
     profiles = {k: {kk: vv for kk, vv in v.items() if kk != "api_key"} | {"has_key": bool(v.get("api_key"))}
                 for k, v in s["profiles"].items()}
     return {"org": s["org"], "schedule": s["schedule"], "active_profile": s.get("active_profile"), "profiles": profiles,
-            "remind": s.get("remind", {})}
+            "remind": s.get("remind", {}), "fees": s.get("fees", {})}
 
 
 @app.post("/api/settings")
@@ -193,6 +193,30 @@ async def post_settings(req: Request):
         if isinstance(b["schedule"].get("holidays"), list):
             sc["holidays"] = [d for d in b["schedule"]["holidays"] if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(d))]
         patch["schedule"] = sc
+    if isinstance(b.get("org"), dict) and isinstance(b["org"].get("signers"), dict):
+        patch.setdefault("org", {})["signers"] = {k: str(v)[:40] for k, v in b["org"]["signers"].items() if k in ("drafter", "reviewer", "approver")}
+    if isinstance(b.get("fees"), dict):
+        f = b["fees"]
+        fp = {}
+        if isinstance(f.get("tiers"), list):
+            tiers = []
+            for t in f["tiers"]:
+                try:
+                    tiers.append({"grade": str(t["grade"])[:20], "desc": str(t.get("desc", ""))[:60],
+                                  "first": int(t["first"]), "extra": int(t["extra"])})
+                except (KeyError, TypeError, ValueError):
+                    raise HTTPException(400, "강사료 기준은 등급·첫 1시간·추가 1시간 금액이 필요합니다.")
+                if tiers[-1]["first"] < 0 or tiers[-1]["extra"] < 0:
+                    raise HTTPException(400, "강사료는 0 이상입니다.")
+            if not tiers:
+                raise HTTPException(400, "강사료 등급이 하나 이상 있어야 합니다.")
+            fp["tiers"] = tiers
+        if "manuscript_per_page" in f:
+            try:
+                fp["manuscript_per_page"] = max(0, int(f["manuscript_per_page"]))
+            except (TypeError, ValueError):
+                raise HTTPException(400, "원고료가 숫자가 아닙니다.")
+        patch["fees"] = fp
     if b.get("active_profile"):
         if b["active_profile"] not in s["profiles"]:
             raise HTTPException(400, "없는 모델 프로필입니다.")
@@ -473,12 +497,246 @@ def survey(pid: str):
     return out
 
 
-@app.get("/api/projects/{pid}/export")
-def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign: int = -1, within: int | None = None):
+# ───────────── 집합교육 회차 운영
+def _sess(p: dict, sid: str) -> dict:
+    s = next((x for x in p.get("sessions", []) if x["id"] == sid), None)
+    if not s:
+        raise HTTPException(404, "없는 회차입니다.")
+    return s
+
+
+def _people_by_id(res):
+    return {x["id"]: x for x in res["people"]}
+
+
+@app.get("/api/projects/{pid}/sessions")
+def list_sessions(pid: str):
     p = load(pid)
     res = result(p)
-    org = config.settings()["org"]
+    fee_cfg = config.settings().get("fees", {})
+    pb = _people_by_id(res)
+    return sorted((sessions.view(s, pb, fee_cfg) for s in p.get("sessions", [])), key=lambda x: (x["date"], x["start"]))
+
+
+@app.get("/api/projects/{pid}/sessions/{sid}")
+def get_session(pid: str, sid: str):
+    p = load(pid)
+    res = result(p)
+    v = sessions.view(_sess(p, sid), _people_by_id(res), config.settings().get("fees", {}))
+    v["everyone"] = [{"id": x["id"], "name": x["name"], "dept": x["dept"], "team": x.get("team", "")} for x in res["people"]
+                     if not (x.get("left") and x["left"] <= res["base"])]
+    v["survey_items"] = sessions.SURVEY_ITEMS
+    return v
+
+
+@app.post("/api/projects/{pid}/sessions")
+async def create_sessions(pid: str, req: Request):
+    """일정 짜기 결과로 회차 만들기({col, hours}) 또는 빈 회차 하나 만들기({manual: true, col, date})."""
+    b = await body(req)
+    with LOCK:
+        p = load(pid)
+        res = result(p)
+        col = _col(res, str(b.get("col", "")))
+        c = next(x for x in res["columns"] if x["key"] == col)
+        if b.get("manual"):
+            d = str(b.get("date") or res["base"])
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+                raise HTTPException(400, "날짜 형식이 올바르지 않습니다.")
+            made = [{"id": sessions.new_id(), "col": col, "rule": c["rule"], "law": c["law"], "title": c["label"], "date": d,
+                     "start": "14:00", "end": "16:00", "hours": 2, "place": "", "targets": [],
+                     "instructor": {"name": "", "org": "", "grade": "", "income": "기타소득", "pages": 0, "travel": 0},
+                     "attend": {}, "survey": [], "created": dt.datetime.now().strftime("%Y-%m-%d %H:%M")}]
+        else:
+            hours = b.get("hours")
+            if hours not in (None, "") and not 0.5 <= float(hours) <= 8:
+                raise HTTPException(400, "회차당 시간은 0.5~8시간입니다.")
+            pl = schedule.plan(res, col, float(hours) if hours not in (None, "") else None)
+            if not pl["sessions"]:
+                raise HTTPException(400, "만들 회차가 없습니다.")
+            made = sessions.from_plan(pl, c["law"], str(b.get("place", ""))[:60])
+        p.setdefault("sessions", []).extend(made)
+        bump(p, f"집합교육 {len(made)}회차 등록")
+    return {"ids": [m["id"] for m in made]}
+
+
+@app.patch("/api/projects/{pid}/sessions/{sid}")
+async def patch_session(pid: str, sid: str, req: Request):
+    b = await body(req)
+    with LOCK:
+        p = load(pid)
+        s = _sess(p, sid)
+        for k in ("title", "place"):
+            if k in b:
+                s[k] = str(b[k])[:80]
+        for k in ("start", "end"):
+            if k in b:
+                if not re.fullmatch(r"\d{1,2}:\d{2}", str(b[k])):
+                    raise HTTPException(400, "시각은 09:00 형식입니다.")
+                s[k] = b[k]
+        if "date" in b:
+            try:
+                dt.date.fromisoformat(str(b["date"]))
+            except ValueError:
+                raise HTTPException(400, "날짜 형식이 올바르지 않습니다.")
+            s["date"] = b["date"]
+        if "hours" in b:
+            try:
+                h = float(b["hours"])
+            except (TypeError, ValueError):
+                raise HTTPException(400, "교육 시간이 숫자가 아닙니다.")
+            if not 0.5 <= h <= 16:
+                raise HTTPException(400, "교육 시간은 0.5~16시간입니다.")
+            s["hours"] = h
+        if isinstance(b.get("instructor"), dict):
+            i = b["instructor"]
+            grades = {t["grade"] for t in config.settings().get("fees", {}).get("tiers", [])}
+            if i.get("grade") and i["grade"] not in grades:
+                raise HTTPException(400, "없는 강사 등급입니다.")
+            if i.get("income") and i["income"] not in ("기타소득", "사업소득", "근로"):
+                raise HTTPException(400, "소득 구분이 올바르지 않습니다.")
+            for k in ("pages", "travel"):
+                if k in i:
+                    try:
+                        i[k] = max(0, int(i[k] or 0))
+                    except (TypeError, ValueError):
+                        raise HTTPException(400, "원고 매수·교통비는 숫자입니다.")
+            s["instructor"].update({k: (str(v)[:60] if isinstance(v, str) else v) for k, v in i.items()
+                                    if k in ("name", "org", "grade", "income", "pages", "travel")})
+        bump(p, f"회차 수정: {s['title']}")
+    return {"ok": True}
+
+
+@app.delete("/api/projects/{pid}/sessions/{sid}")
+def delete_session(pid: str, sid: str):
+    with LOCK:
+        p = load(pid)
+        s = _sess(p, sid)
+        p["sessions"].remove(s)
+        bump(p, f"회차 삭제: {s['title']}")
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/sessions/{sid}/attend")
+async def attend(pid: str, sid: str, req: Request):
+    b = await body(req)
+    with LOCK:
+        p = load(pid)
+        s = _sess(p, sid)
+        res = result(p)
+        person = str(b.get("person", ""))
+        if person not in {x["id"] for x in res["people"]}:
+            raise HTTPException(400, "명단에 없는 직원입니다.")
+        sign = b.get("sign")
+        if sign:
+            try:
+                sessions.check_sign(sign)
+            except ValueError as e:
+                raise HTTPException(400, str(e))
+        elif not b.get("manual"):
+            raise HTTPException(400, "서명이 없습니다.")
+        if person in s["attend"] and not b.get("replace"):
+            return {"ok": True, "already": True, "at": s["attend"][person]["at"]}
+        s["attend"][person] = {"at": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "sign": sign or "", "manual": bool(b.get("manual"))}
+        bump(p, "출석")
+    return {"ok": True, "count": len(s["attend"])}
+
+
+@app.delete("/api/projects/{pid}/sessions/{sid}/attend/{person}")
+def unattend(pid: str, sid: str, person: str):
+    with LOCK:
+        p = load(pid)
+        s = _sess(p, sid)
+        s["attend"].pop(person, None)
+        bump(p, "출석 취소")
+    return {"ok": True}
+
+
+@app.post("/api/projects/{pid}/sessions/{sid}/survey")
+async def session_survey(pid: str, sid: str, req: Request):
+    b = await body(req)
+    scores = b.get("scores")
+    if not isinstance(scores, dict) or set(scores) != set(sessions.SURVEY_ITEMS) or \
+            any(not isinstance(v, (int, float)) or not 1 <= v <= 5 for v in scores.values()):
+        raise HTTPException(400, "만족도는 문항마다 1~5점입니다.")
+    with LOCK:
+        p = load(pid)
+        s = _sess(p, sid)
+        s["survey"].append({"scores": scores, "comment": str(b.get("comment", ""))[:300], "at": dt.datetime.now().strftime("%Y-%m-%d %H:%M")})
+        bump(p, "만족도 응답")
+    return {"ok": True, "n": len(s["survey"])}
+
+
+# ───────────── 할 일·실적
+@app.get("/api/projects/{pid}/tasks")
+def get_tasks(pid: str):
+    p = load(pid)
+    return planning.tasks(p, result(p), config.settings().get("remind", {}))
+
+
+@app.post("/api/projects/{pid}/tasks/{key}")
+def toggle_task(pid: str, key: str):
+    with LOCK:
+        p = load(pid)
+        done = set(p.get("done_tasks", []))
+        done.symmetric_difference_update({key[:80]})
+        p["done_tasks"] = sorted(done)
+        save(p)
+    return {"done": key in done}
+
+
+@app.get("/api/projects/{pid}/stats")
+def get_stats(pid: str):
+    p = load(pid)
+    st = planning.stats(p, result(p), config.settings().get("fees", {}))
+    st.pop("hours")
+    return st
+
+
+def _mark_export(p: dict, key: str):
+    with LOCK:
+        cur = load(p["id"])
+        cur.setdefault("exported", {})[key] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        save(cur)
+
+
+@app.get("/api/projects/{pid}/export")
+def export(pid: str, doc: str = "status", fmt: str = "hwpx", col: str = "", sign: int = -1, within: int | None = None,
+           session: str = "", person: str = ""):
+    p = load(pid)
+    res = result(p)
+    st_all = config.settings()
+    org = st_all["org"]
+    fee_cfg = st_all.get("fees", {})
     stamp = res["base"].replace("-", "")
+    if doc == "stats":
+        return _file(planning.stats_excel(planning.stats(p, res, fee_cfg), res), f"교육훈련_실적집계_{stamp}.xlsx",
+                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    if doc in ("session_plan", "session_result", "session_fee", "signsheet"):
+        s = _sess(p, session)
+        pb = _people_by_id(res)
+        safe = re.sub(r"[^가-힣A-Za-z0-9]+", "_", s["title"])[:40]
+        if doc == "signsheet" and fmt == "docx":
+            _mark_export(p, f"{s['id']}:sign")
+            return _file(sessions.signsheet_docx(s, pb, org), f"서명부_{safe}.docx", FORMATS["docx"][1])
+        if doc == "session_fee" and not s["instructor"].get("name"):
+            raise HTTPException(400, "강사 정보를 먼저 입력하세요.")
+        blocks = {"session_plan": lambda: sessions.plan_doc(s, pb, org, fee_cfg), "session_result": lambda: sessions.result_doc(s, pb, org),
+                  "session_fee": lambda: sessions.fee_doc(s, org, fee_cfg), "signsheet": lambda: sessions.signsheet_blocks(s, pb, org)}[doc]()
+        name = {"session_plan": "실시계획", "session_result": "결과보고", "session_fee": "강사료지급", "signsheet": "서명부"}[doc]
+        if fmt not in FORMATS:
+            raise HTTPException(400, "형식은 hwpx·docx·md 중 하나입니다.")
+        _mark_export(p, f"{s['id']}:{doc.replace('session_', '')}")
+        fn, mime = FORMATS[fmt]
+        return _file(fn(blocks), f"{name}_{safe}.{fmt}", mime)
+    if doc == "nextplan":
+        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        return _file(fn(planning.next_plan_blocks(p, res, org, fee_cfg)), f"{res['year'] + 1}년_법정의무교육_운영계획(안).{fmt}", mime)
+    if doc == "card":
+        if person not in {x["id"] for x in res["people"]}:
+            raise HTTPException(400, "없는 직원입니다.")
+        fn, mime = FORMATS.get(fmt, FORMATS["hwpx"])
+        nm = next(x["name"] for x in res["people"] if x["id"] == person)
+        return _file(fn(planning.card_blocks(res, person, org)), f"교육이력카드_{nm}.{fmt}", mime)
     if doc == "excel":
         return _file(reports.excel(res), f"이수현황_{stamp}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
