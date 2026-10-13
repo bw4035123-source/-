@@ -470,3 +470,19 @@ td.fill, .fill-li { background: #fff7db; }
 .rp-up { padding-left: 20px; line-height: 1.55; font-size: 13.5px; }
 .rp-up li { margin-bottom: 6px; }
 @media (max-width: 1000px) { .rp-wrap { grid-template-columns: 1fr; } .rp-side { position: static; } }
+
+/* ── 탭: 모든 기능을 '올인원 드롭존' 묶음 안에 ── */
+nav.tabs .dz-nav { display: flex; align-items: center; gap: 2px; margin: 8px 0; padding: 3px 6px 3px 3px; border: 1.5px dashed #b9c9f5;
+  border-radius: 14px; background: linear-gradient(180deg, #f7f9ff, #fff); flex: 0 1 auto; min-width: 0; }
+nav.tabs .dz-nav button, nav.tabs .dz-nav button:hover { padding: 9px 7px; border-radius: 9px; }
+nav.tabs .dz-nav button:not(.tab-home):hover { background: var(--brand-soft); color: var(--brand-ink); }
+nav.tabs .dz-nav button.tab-home { display: inline-flex; align-items: center; gap: 6px; background: var(--brand); color: #fff; font-weight: 800;
+  padding: 9px 12px; white-space: nowrap; box-shadow: 0 4px 12px rgba(47, 107, 255, .28); }
+nav.tabs .dz-nav button.tab-home svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs .dz-nav button.tab-home:hover { background: var(--brand-strong); color: #fff; }
+nav.tabs .dz-nav button.tab-home.on { color: #fff; }
+nav.tabs .dz-nav-sep { width: 14px; height: 2px; background: #b9c9f5; margin: 0 4px; flex: none; border-radius: 2px; }
+nav.tabs .dz-nav button.on:not(.tab-home) { color: var(--brand-ink); background: var(--brand-soft); }
+nav.tabs .tab-ink { display: none; }
+@media (max-width: 1440px) { nav.tabs .dz-nav button, nav.tabs .dz-nav button:hover { padding: 8px 5px; font-size: 13px; } nav.tabs .dz-nav button.tab-home { padding: 8px 10px; } }
+@media (max-width: 700px) { nav.tabs .dz-nav { min-width: max-content; } }
