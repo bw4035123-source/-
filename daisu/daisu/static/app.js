@@ -105,7 +105,7 @@ async function viewHome() {
     upload: h("div", {}, drop, files, folder),
     path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(서버가 같은 PC에서 실행될 때)"), pathIn),
   };
-  const modeTabs = h("div", { class: "tabs", style: "margin:4px 0 12px" });
+  const modeTabs = h("div", { class: "seg" });
   const MODES = [["sample", "샘플로 체험"], ["upload", "파일·폴더 올리기"], ["path", "PC 폴더 경로"]];
   function setMode(m) {
     mode = m;
@@ -129,30 +129,33 @@ async function viewHome() {
         fd.append("name", name.value); fd.append("base_date", base.value);
         r = await api("/api/projects/upload", { method: "POST", body: fd });
       }
-      location.hash = `#/p/${r.id}/results`;
+      location.hash = `#/p/${r.id}/files`;
     } catch { go.disabled = false; go.textContent = "시작하기"; }
   }
+  go.classList.add("lg");
   mount(
-    h("div", { class: "grid g2" },
-      h("div", { class: "card hero" },
-        h("h1", {}, "교육 폴더를 통째로 넣으면, 보고서가 나옵니다"),
-        h("p", {}, "법정·필수·직무·외부(위탁) 교육 기록과 함께 경영평가 편람, 정부 교육 계획, 회사 교육훈련규정·여비규정, 강사수당 기준을 넣으세요. ",
-          "다이수가 규정을 읽어 계산 기준을 스스로 세우고, 모든 교육 실적을 집계해 실적 보고서·경영평가 지표·정산서까지 씁니다."),
-        h("div", { class: "steps" },
-          h("div", { class: "step" }, h("b", {}, "1. 규정을 읽는다"), h("span", { class: "small" }, "목표 시간·필수교육·여비·강사수당·평가 산식을 근거와 함께")),
-          h("div", { class: "step" }, h("b", {}, "2. 모든 교육을 맞춘다"), h("span", { class: "small" }, "명단 × 이수기록 × 기준 → 직원별·분야별 판정")),
-          h("div", { class: "step" }, h("b", {}, "3. 보고서를 쓴다"), h("span", { class: "small" }, "실적 보고, 경영평가 지표, 정산서, 내년 계획(한글)"))),
-        h("ul", { class: "small muted" },
-          h("li", {}, "규정에서 읽은 값마다 문서·조항 원문이 붙어 그대로 결재 근거가 됩니다."),
-          h("li", {}, "동명이인·이름 오타처럼 기계가 확신하지 못한 것만 사람에게 묻습니다."),
-          h("li", {}, "계산은 규칙으로 하고(AI 추측 없음), 인터넷 없이 동작합니다."))),
-      h("div", { class: "card" }, h("h2", {}, "새 작업"),
-        modeTabs, pane,
-        h("div", { class: "grid g2", style: "margin-top:12px" },
-          h("div", { class: "field" }, h("label", { class: "f" }, "작업 이름(선택)"), name),
-          h("div", { class: "field" }, h("label", { class: "f" }, "기준일(오늘 기준으로 기한 판정)"), base)),
-        h("div", { class: "row" }, go))),
-    h("h2", { style: "margin-top:8px" }, "진행 중인 작업"),
+    h("section", { class: "hero-wrap slide in-0" },
+      h("div", { class: "eyebrow" }, "교육훈련 규정 해석 · 실적 보고 자동화"),
+      h("h1", {}, "교육 폴더를 통째로 넣으면,", h("br"), h("em", {}, "보고서가 나와요")),
+      h("p", {}, "법정·필수·직무·외부 교육 기록과 규정·편람·정부 계획을 함께 넣으세요. 다이수가 규정을 읽어 기준을 세우고, 실적 보고서까지 씁니다."),
+      h("div", { class: "row" }, h("a", { class: "btn primary lg", href: "#new" , onclick: (e) => { e.preventDefault(); $("#new").scrollIntoView({ behavior: "smooth" }); } }, "시작하기"),
+        S.info.sample ? h("button", { class: "btn lg", onclick: async (e) => { e.target.disabled = true; e.target.textContent = "자료를 읽는 중…";
+          try { const r = await api("/api/projects/sample", { method: "POST" }); location.hash = `#/p/${r.id}/files`; } catch { e.target.disabled = false; e.target.textContent = "샘플로 체험"; } } }, "샘플로 체험") : null)),
+    h("div", { class: "steps" },
+      h("div", { class: "step" }, h("div", { class: "n" }, "1"), h("b", {}, "규정을 읽어요"), h("span", {}, "목표 시간·필수교육·여비·강사수당·평가 산식을 원문 근거와 함께")),
+      h("div", { class: "step" }, h("div", { class: "n" }, "2"), h("b", {}, "모든 교육을 맞춰요"), h("span", {}, "명단 × 이수기록 × 기준으로 직원별·분야별 판정")),
+      h("div", { class: "step" }, h("div", { class: "n" }, "3"), h("b", {}, "보고서를 써요"), h("span", {}, "실적 보고, 경영평가 지표, 여비 정산, 내년 계획까지 한글로"))),
+    h("div", { class: "promise" },
+      h("div", {}, h("b", {}, "근거가 붙는 숫자"), h("span", {}, "규정에서 읽은 값마다 문서·조항 원문이 붙어 그대로 결재 근거가 됩니다.")),
+      h("div", {}, h("b", {}, "확신 못 하면 묻기"), h("span", {}, "동명이인·이름 오타처럼 기계가 확신하지 못한 것만 사람에게 묻습니다.")),
+      h("div", {}, h("b", {}, "인터넷 없이"), h("span", {}, "계산은 규칙으로 하고(AI 추측 없음), 내부망 PC에서 그대로 동작합니다."))),
+    h("div", { class: "section-t", id: "new" }, "새 작업"),
+    h("div", { class: "card" }, modeTabs, pane,
+      h("div", { class: "grid g2", style: "margin-top:16px" },
+        h("div", { class: "field" }, h("label", { class: "f" }, "작업 이름(선택)"), name),
+        h("div", { class: "field" }, h("label", { class: "f" }, "기준일(오늘 기준으로 기한 판정)"), base)),
+      h("div", { class: "row" }, go)),
+    h("div", { class: "section-t" }, "진행 중인 작업"),
     list.length ? h("div", { class: "card", style: "padding:0" }, h("table", {},
       h("tr", {}, h("th", {}, "이름"), h("th", {}, "기준일"), h("th", {}, "자료"), h("th", {}, "만든 때"), h("th", {})),
       list.map((p) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${p.id}/results`) },
@@ -165,28 +168,93 @@ async function viewHome() {
 const TABS = [["files", "자료"], ["regs", "규정·기준"], ["results", "교육 실적"], ["board", "법정·필수 현황"], ["matrix", "이수 현황표"],
   ["issues", "확인 필요"], ["plan", "일정 짜기"], ["run", "교육 운영"], ["notify", "안내문"], ["report", "보고서"], ["year", "연간 계획"], ["ask", "질문하기"]];
 
+// 작업 화면은 슬라이드: 한 화면에 한 가지 이야기, ←/→·스와이프·아래 막대로 넘깁니다.
+const SLIDE = { pid: null, idx: -1 };
+const HEAD = {
+  files: (d) => [`자료 ${d.files.length}개를 읽었어요`, `직원 ${d.people.length}명 · 원본은 한 글자도 바꾸지 않았어요`],
+  regs: () => ["규정에서 계산 기준을 읽었어요", "모든 숫자에 문서·조항 원문이 붙어요"],
+  results: () => ["올해 교육 실적이에요", "법정·필수·직무·외부 교육을 한 번에 모았어요"],
+  board: () => ["법정·필수 교육 현황이에요", "기한이 다가오는 교육부터 보여 드려요"],
+  matrix: (d) => [`${d.people.length}명이 무엇을 들었는지 한눈에`, "칸을 누르면 어느 파일 몇 행에서 인정했는지 나와요"],
+  issues: (d) => d.issues.length ? [`사람이 확인할 것 ${d.issues.length}건만 남았어요`, "기계가 확신하지 못한 것만 여쭤봐요"] : ["확인할 것이 없어요", "모든 기록을 자동으로 맞췄어요"],
+  plan: () => ["근무표를 피해서 일정을 짜요", "교대 근무자도 빠짐없이 들을 수 있게"],
+  run: () => ["교육 당일, 출석과 서명을 받아요", "태블릿 서명으로 서명부와 이수 기록이 바로 생겨요"],
+  notify: () => ["안내문을 대상자별로 써 드려요", "부서장·본인에게 보낼 문장을 복사만 하세요"],
+  report: () => ["보고서를 바로 내려받으세요", "한글(HWPX)·워드·엑셀로 결재에 올릴 수 있어요"],
+  year: () => ["한 해 교육 일정을 한눈에", "기한과 미리 알림을 달력에 놓았어요"],
+  ask: () => ["궁금한 걸 물어보세요", "답에는 항상 근거 자료가 붙어요"],
+};
+function slideHead(title, sub) {
+  const t = $(".slide-head h1"), p = $(".slide-head p");
+  if (t && title) t.textContent = title;
+  if (p && sub != null) p.textContent = sub;
+}
+function slideGo(step) {
+  const parts = location.hash.replace(/^#\/?/, "").split("/");
+  if (parts[0] !== "p" || !parts[1]) return;
+  const i = SLIDE.idx + step;
+  if (i < 0 || i >= TABS.length) return;
+  location.hash = `#/p/${parts[1]}/${TABS[i][0]}`;
+}
+document.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || $("#drawer").classList.contains("open")) return;
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || "") || document.activeElement?.isContentEditable) return;
+  if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); slideGo(1); }
+  if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); slideGo(-1); }
+});
+(() => {
+  let x0 = null, y0 = 0;
+  document.addEventListener("touchstart", (e) => {
+    const t = e.target;
+    x0 = !t.closest || t.closest(".matrix-wrap, .k-canvas, input, textarea, select, .drawer, .tabs") ? null : e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) slideGo(dx < 0 ? 1 : -1);
+  }, { passive: true });
+})();
+
 async function viewProject(pid, tab, arg) {
+  const key = tab === "session" ? "run" : tab;
+  const idx = Math.max(0, TABS.findIndex(([k]) => k === key));
+  const dir = SLIDE.pid === pid && SLIDE.idx >= 0 ? Math.sign(idx - SLIDE.idx) : 0;
+  const old = $(".slide");
+  if (old && dir) old.classList.add("out-" + dir);
   const d = await api(`/api/projects/${pid}`);
+  SLIDE.pid = pid; SLIDE.idx = idx;
   S.data = d;
   const P = d.project;
-  const baseIn = h("input", { type: "date", value: d.base, style: "padding:3px 6px", onchange: async () => {
+  const baseIn = h("input", { type: "date", value: d.base, onchange: async () => {
     await api(`/api/projects/${pid}`, { method: "PATCH", json: { base_date: baseIn.value } }); toast("기준일을 바꿨습니다"); route();
   } });
   const by = Number(d.base.slice(0, 4));
-  const yearSel = h("select", { style: "padding:3px 6px", title: "판정 연도(1~2월에 지난해 실적을 정리할 때 바꿉니다)", onchange: async () => {
+  const yearSel = h("select", { title: "판정 연도(1~2월에 지난해 실적을 정리할 때 바꿉니다)", onchange: async () => {
     await api(`/api/projects/${pid}`, { method: "PATCH", json: { year: yearSel.value === String(by) ? null : yearSel.value } }); toast("판정 연도를 바꿨습니다"); route();
   } }, [by, by - 1].map((y) => h("option", { value: String(y) }, `${y}년 교육`)));
   yearSel.value = String(d.year);
   const nIssues = d.issues.length;
   const head = h("div", { class: "ph" },
-    h("div", {}, h("h1", {}, P.name),
-      h("div", { class: "row small muted", style: "margin-top:4px" }, "기준일", baseIn, yearSel, `· 자료 ${d.files.length}개 · 직원 ${d.people.length}명`,
+    h("div", { class: "row" }, h("h1", {}, P.name),
+      h("div", { class: "row small muted" }, "기준일", baseIn, yearSel, `자료 ${d.files.length}개 · 직원 ${d.people.length}명`,
         d.integrity ? h("span", { class: "badge b-done", title: "처리 전후 파일 지문(SHA-256)이 같습니다" }, "원본 변경 없음") : h("span", { class: "badge b-none" }, "자료 변경 감지"))),
-    h("a", { class: "btn", href: "#/" }, "다른 작업"));
-  const tabs = h("nav", { class: "tabs" }, TABS.map(([k, l]) => h("a", { class: "tab" + (k === tab || (k === "run" && tab === "session") ? " on" : ""), href: `#/p/${pid}/${k}` }, l,
+    h("a", { class: "btn sm", href: "#/" }, "다른 작업"));
+  const tabs = h("nav", { class: "tabs" }, TABS.map(([k, l]) => h("a", { class: "tab" + (k === key ? " on" : ""), href: `#/p/${pid}/${k}` }, l,
     k === "issues" ? h("span", { class: "cnt" + (nIssues ? "" : " ok") }, nIssues || "0") : null)));
+  const [title, sub] = (HEAD[key] || HEAD.results)(d);
   const body = h("div");
-  mount(head, tabs, body);
+  const slide = h("section", { class: "slide in-" + dir },
+    h("div", { class: "slide-head" }, h("div", { class: "eyebrow" }, String(idx + 1).padStart(2, "0"), h("span", {}, `/ ${TABS.length}  ${TABS[idx][1]}`)),
+      h("h1", {}, title), h("p", {}, sub)), body);
+  const prev = TABS[idx - 1], next = TABS[idx + 1];
+  const dock = h("nav", { class: "dock", "aria-label": "슬라이드 넘기기" },
+    h("a", { class: "nav" + (prev ? "" : " off"), href: prev ? `#/p/${pid}/${prev[0]}` : "#", title: "이전 (←)" }, "‹", h("span", { class: "lbl" }, prev ? prev[1] : "")),
+    h("div", { class: "dots" }, TABS.map(([k, l], i) => h("a", { class: i === idx ? "on" : "", href: `#/p/${pid}/${k}`, title: l, "aria-label": l }))),
+    h("a", { class: "nav next" + (next ? "" : " off"), href: next ? `#/p/${pid}/${next[0]}` : "#", title: "다음 (→)" }, h("span", { class: "lbl" }, next ? next[1] : ""), "›"));
+  mount(head, tabs, slide, dock, h("div", { class: "keyhint" }, h("kbd", {}, "←"), " ", h("kbd", {}, "→"), " 로 넘기기"));
+  tabs.querySelector(".tab.on")?.scrollIntoView({ block: "nearest", inline: "center" });
   const fn = { files: tabFiles, regs: tabRegs, results: tabResults, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, year: tabYear, ask: tabAsk }[tab] || tabBoard;
   await fn(body, d, arg);
 }
@@ -227,6 +295,7 @@ async function tabBoard(el, d) {
   const active = d.people.filter((p) => !(p.left && p.left <= d.base)).length;
   const over = man.filter((s) => s.overdue);
   const pid = d.project.id;
+  slideHead(`법정·필수 교육, 평균 ${avg}% 이수했어요`, over.length ? `기한이 지난 교육이 ${over.length}개 있어요 – 먼저 챙겨 주세요` : "기한이 지난 교육은 없어요");
   add(el,
     over.length ? h("div", { class: "alert bad" }, h("b", {}, "기한이 지난 교육이 있습니다. "),
       over.map((s) => `${s.label} ${s.overdue}명`).join(", "), " – ", h("a", { href: `#/p/${pid}/matrix/over` }, "명단 보기")) : null,
@@ -892,6 +961,7 @@ function lawCard(s) {
 // ───────────── 규정·기준(규정 문서에서 읽은 계산 기준)
 async function tabRegs(el, d) {
   const r = await api(`/api/projects/${d.project.id}/regs`);
+  if (r.items.length) slideHead(`규정에서 기준 ${r.items.length}개를 읽었어요`, `문서 ${r.docs.length}개에서 읽었고, 모든 값에 원문 근거가 붙어요`);
   const groups = {};
   r.items.forEach((it) => (groups[it.group] = groups[it.group] || []).push(it));
   const showSrc = (it) => it.src && openDrawer("규정 원문", h("div", { class: "small muted" }, `${it.src.file} · ${it.src.where}`), h("div", { class: "law-text" }, it.src.text));
@@ -911,6 +981,8 @@ async function tabRegs(el, d) {
 async function tabResults(el, d) {
   const pid = d.project.id;
   const o = await api(`/api/projects/${pid}/overview`);
+  slideHead(`직원 1명이 평균 ${o.per_capita}시간 교육받았어요`,
+    [o.target_hours ? `내규 목표 ${o.target_hours}시간` : "", o.gov_hours ? `정부 권장 ${o.gov_hours}시간` : "", `총 ${o.total_hours.toLocaleString()}시간`].filter(Boolean).join(" · "));
   const CAT = { "법정": "법정의무", "필수": "필수(내규)", "직무": "직무·역량", "외부": "외부(위탁)" };
   const kpiCards = o.kpis.map((k) => h("div", { class: "card kpi" + (k.value == null ? " warn" : "") },
     h("div", { class: "v" }, k.value == null ? "자료 필요" : `${typeof k.value === "number" ? k.value.toLocaleString() : k.value}${k.unit}`),
