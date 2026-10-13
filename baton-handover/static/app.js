@@ -274,7 +274,7 @@ function renderDraft() {
       rv.confirmed ? el("span", { class: "done-badge", title: rv.at || "" }, `전임자 확인 완료 · ${rv.by || ""} · ${(rv.at || "").slice(0, 10).replace(/-/g, ".")}`)
         : el("span", { class: "tag warn" }, "검토 중(초안)")),
     el("p", { class: "small muted" }, `인계: 전임자 → 후임자 (사람 이름 비식별) · 작성 방식: ${d.engine} · 분석 ${d.seconds}초 · 자료 ${d.docs.length}건`),
-    el("div", { class: "grid3", style: { gridTemplateColumns: "repeat(6,1fr)" } },
+    el("div", { class: "stats" },
       ...[["담당업무", cnt("rnr")], ["일정", cnt("schedule")], ["연락처", cnt("contacts")], ["현안", cnt("issues")], ["빈틈", open], ["AI 분신 질문", H.asked || 0]]
         .map(([a, b]) => el("div", { class: "stat" }, el("b", {}, b), a))),
     el("h3", {}, "업무 개요"), el("p", { style: { whiteSpace: "pre-wrap" } }, d.overview),
@@ -349,8 +349,40 @@ async function renderFlow(box) {
   box.append(
     el("div", { class: "row" }, el("h2", { style: { flex: 1, margin: 0 } }, "인수인계 순서도"),
       el("span", { class: "tag " + (f.current ? "info" : "ok") }, `${f.done}/${f.total} 단계 완료`)),
-    el("div", { class: "flow" }, steps),
+    el("div", { class: "flow" }, steps), flowArc(f, cls),
     el("div", { class: "flow-next" }, el("b", {}, f.current ? "지금 할 일 " : "완료 "), f.next));
+}
+
+// 순서도를 반원 트랙으로(브랜드 스킨의 넓은 화면에서만 보이고, 나머지는 위의 가로 순서도): 단계는 트랙 위 구간, 지금 단계에 바통
+function flowArc(f, cls) {
+  const W = 1000, Hh = 340, cx = 500, cy = 300, r = 240, n = f.steps.length;
+  const pt = (rr, deg) => [cx + rr * Math.cos(deg * Math.PI / 180), cy + rr * Math.sin(deg * Math.PI / 180)];
+  const arc = rr => `M${cx - rr} ${cy}A${rr} ${rr} 0 0 1 ${cx + rr} ${cy}`;
+  const cur = f.steps.findIndex(x => x.status === "진행 중");
+  const reach = (cur >= 0 ? cur : f.done ? n - 1 : 0) / Math.max(n - 1, 1);
+  const g = svg("svg", { viewBox: `0 0 ${W} ${Hh}`, class: "flow-arc", role: "group", "aria-label": `인수인계 순서도, ${f.done}/${f.total} 단계 완료` },
+    svg("defs", {}, svg("linearGradient", { id: "fa-g", x1: "0", y1: "0", x2: "1", y2: "0" },
+      svg("stop", { offset: "0", class: "fa-s0" }), svg("stop", { offset: "1", class: "fa-s1" }))),
+    svg("path", { class: "fa-band", d: arc(r + 22) + `L${cx + r - 22} ${cy}A${r - 22} ${r - 22} 0 0 0 ${cx - r + 22} ${cy}Z` }),
+    svg("path", { class: "fa-edge", d: arc(r + 22) }), svg("path", { class: "fa-edge", d: arc(r - 22) }), svg("path", { class: "fa-mid", d: arc(r) }),
+    svg("path", { class: "fa-prog", d: arc(r), pathLength: 1, "stroke-dasharray": `${reach} 1` }));
+  f.steps.forEach((x, i) => {
+    const deg = 180 + (180 * i) / Math.max(n - 1, 1), [px, py] = pt(r, deg), [lx, ly] = pt(r + 56, deg);
+    const anchor = Math.abs(lx - cx) < 60 ? "middle" : lx < cx ? "end" : "start";
+    const st = cls[x.status], go = () => goTab(x.tab);
+    g.append(svg("g", { class: "fa-step " + st, tabindex: 0, role: "button", "aria-label": `${i + 1}단계 ${x.name} · ${x.status}`, onclick: go,
+        onkeydown: e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } } },
+      svg("title", {}, x.next || x.detail),
+      svg("circle", { cx: px, cy: py, r: st === "now" ? 17 : 14 }),
+      svg("text", { x: px, y: py + 5, "text-anchor": "middle", class: "fa-no" }, st === "done" ? "✓" : String(x.no)),
+      svg("text", { x: lx, y: ly, "text-anchor": anchor, class: "fa-name" }, x.name),
+      svg("text", { x: lx, y: ly + 18, "text-anchor": anchor, class: "fa-sub" }, `${x.who} · ${x.detail}`)));
+  });
+  const [bx, by] = pt(r, 180 + 180 * reach);
+  g.append(svg("rect", { class: "fa-baton", x: bx - 17, y: by - 5.5, width: 34, height: 11, rx: 5.5, transform: `rotate(${90 + 180 * reach} ${bx} ${by}) translate(0 -27)` }),
+    svg("text", { x: cx, y: cy - 62, "text-anchor": "middle", class: "fa-big" }, `${f.done} / ${f.total}`),
+    svg("text", { x: cx, y: cy - 32, "text-anchor": "middle", class: "fa-sub" }, f.current ? `구간 완주 · 지금 ${f.steps[cur] ? f.steps[cur].name : ""}` : "모든 구간 완주"));
+  return g;
 }
 
 // 지식 릴레이: 업무 계보와 바통 파일(.baton) 저장
@@ -941,11 +973,167 @@ async function renderPhotos(q) {
         : el("div", { class: "empty" }, r.total ? "찾는 사진이 없습니다. 다른 낱말로 찾아 보세요." : "넣은 자료에 사진이 없습니다. 드롭존에 사진(JPG·PNG 등)을 함께 놓으면 여기에 모입니다.")));
 }
 
+// 화면 스킨 바꾸기: 정부표준(KRDS풍) ↔ 브랜드형. 고른 값은 이 브라우저에 기억한다
+function setupSkin() {
+  const paint = () => $$(".skin-sw button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.skin === document.documentElement.dataset.skin)));
+  $$(".skin-sw button").forEach(b => b.addEventListener("click", () => {
+    const s = b.dataset.skin;
+    document.documentElement.dataset.skin = s;
+    $("#skin-css").href = `/skin-${s}.css`;
+    try { localStorage.setItem("baton:skin", s); } catch (e) {}
+    paint();
+    $("#skin-css").onload = () => dispatchEvent(new Event("resize"));
+  }));
+  paint();
+}
+
+// 트랙 연출(브랜드 스킨에서만 보임): 스크롤 진행도를 CSS 변수로 넘기고, 옆 메뉴의 바통이 고른 화면으로 넘어간다
+function setupTrack() {
+  const root = document.documentElement, nav = $("nav.tabs");
+  const gauge = $(".track-gauge"), gProg = gauge && $(".tg-prog", gauge), gBaton = gauge && $(".tg-baton", gauge), gPct = gauge && $(".tg-pct", gauge);
+  const baton = el("span", { class: "nav-baton", "aria-hidden": "true" });
+  nav.prepend(baton);
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      const max = root.scrollHeight - innerHeight;
+      const sp = max > 0 ? Math.min(scrollY / max, 1) : 0;
+      root.style.setProperty("--sp", sp.toFixed(4));
+      root.style.setProperty("--sy", scrollY + "px");
+      if (gauge) {
+        // 반원(왼쪽 출발선 180° → 오른쪽 결승선 360°) 위를 바통이 달린다
+        const a = Math.PI * (1 + sp);
+        gProg.style.strokeDashoffset = String(1 - sp);
+        gBaton.setAttribute("transform", `translate(${80 + 62 * Math.cos(a)} ${80 + 62 * Math.sin(a)})`);
+        gPct.textContent = Math.round(sp * 100) + "%";
+        gauge.classList.toggle("idle", max < 200);
+      }
+    });
+  };
+  const place = () => {
+    const b = $("nav.tabs button.on");
+    if (!b) return;
+    const row = getComputedStyle(nav).flexDirection === "row";
+    baton.style.transform = row ? `translateX(${b.offsetLeft}px)` : `translateY(${b.offsetTop}px)`;
+    baton.style.width = row ? b.offsetWidth + "px" : "";
+    baton.style.height = row ? "" : b.offsetHeight + "px";
+    if (gauge) $(".tg-lbl", gauge).textContent = b.textContent.replace(/^\d/, "");
+    onScroll();
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", place);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) $$(".hero-track").forEach(x => x.pauseAnimations && x.pauseAnimations());
+  return place;
+}
+
+// ------------------------------------------------------------ 업무 간트차트 · 원클릭 체크리스트
+const GANTT = { view: "duty", months: 12, start: "", task: null, list: null };
+const KIND_COLOR = { contract: "계약", work: "공사", check: "점검", budget: "예산", report: "제출·보고", edu: "교육", renew: "보험·갱신", civil: "민원", etc: "업무" };
+const TAG_ORDER = ["기한", "주의", "절차", "빈틈", "협의", "노하우", "근거", "직접", "마무리"];
+async function renderGantt() {
+  const sec = $("#tab-gantt");
+  if (needH(sec)) return;
+  const start = GANTT.start || (H.radar && H.radar.start) || "";
+  const g = await api("GET", `/api/handovers/${H.id}/gantt?months=${GANTT.months}${start ? "&start=" + start : ""}`);
+  const t0 = new Date(g.first + "T00:00"), t1 = new Date(g.end + "T00:00");
+  const span = (t1 - t0) / 864e5 + 1;
+  const pos = iso => Math.max(0, Math.min(100, ((new Date(iso + "T00:00") - t0) / 864e5) / span * 100));
+  const startPct = pos(g.start);
+  const tasks = GANTT.view === "duty" ? g.groups : [{ id: "all", name: "", tasks: g.groups.flatMap(x => x.tasks.map(t => ({ ...t, duty: x.name })))
+    .sort((a, b) => a.segments[0].from.localeCompare(b.segments[0].from)) }];
+  const kinds = [...new Set(g.groups.flatMap(x => x.tasks.map(t => t.cls)))];
+  const bar = t => {
+    const c = t.check, done = c && c.total && c.done === c.total;
+    return el("div", { class: "g-row" + (GANTT.task === t.id ? " on" : ""), onclick: () => openChecklist(t) },
+      el("div", { class: "g-label", title: t.label },
+        el("span", { class: "g-kind k-" + t.cls }, t.kind),
+        el("span", { class: "g-name" }, t.label),
+        GANTT.view === "time" && t.duty ? el("span", { class: "g-duty" }, t.duty) : null),
+      el("div", { class: "g-track" },
+        t.segments.map(s => {
+          const l = pos(s.from), r = pos(s.to), w = Math.max(r - l + (100 / span), s.point ? 0 : 0.8);
+          return el("button", { class: `g-bar k-${t.cls}` + (s.point ? " pt" : "") + (s.to < g.start || (t.overdue && t.from === "현안") ? " late" : "") + (done ? " done" : ""),
+            style: s.point ? { left: `calc(${l}% - 6px)` } : { left: l + "%", width: w + "%" },
+            title: `${t.label}\n${fmtD(s.from)}${s.to !== s.from ? " ~ " + fmtD(s.to) : ""}${t.source ? "\n근거: " + t.source : ""}\n누르면 체크리스트`,
+            "aria-label": `${t.label} ${s.from}${s.to !== s.from ? "부터 " + s.to : ""}, 체크리스트 열기` });
+        }),
+        c ? el("span", { class: "g-prog" + (done ? " ok" : ""), style: { left: `min(calc(${pos(t.segments[t.segments.length - 1].to)}% + 14px), calc(100% - 52px))` } }, `${c.done}/${c.total}`) : null));
+  };
+  const seg2 = (val, opts, on) => el("div", { class: "g-switch", role: "group" }, opts.map(([v, label]) =>
+    el("button", { "aria-pressed": String(val === v), onclick: () => on(v) }, label)));
+  const dt = el("input", { type: "date", value: g.start, onchange: () => { GANTT.start = dt.value; renderGantt(); } });
+  const side = el("div", { class: "panel g-side", id: "g-side" });
+  sec.innerHTML = "";
+  sec.append(el("div", { class: "panel" },
+    el("div", { class: "row" },
+      el("div", { style: { flex: 1, minWidth: "240px" } }, el("h2", { style: { margin: 0 } }, "업무 간트차트"),
+        el("span", { class: "small muted" }, "분석한 일정·현안·계약 기간·레이더 착수일을 착임일부터 막대로 놓았습니다. 막대를 누르면 그 업무의 원클릭 체크리스트가 만들어집니다.")),
+      el("span", { class: "tag info" }, `업무 ${g.groups.length}묶음 · 막대 ${g.count}개`)),
+    el("div", { class: "row g-ctl" },
+      seg2(GANTT.view, [["duty", "업무별"], ["time", "기간별"]], v => { GANTT.view = v; renderGantt(); }),
+      seg2(GANTT.months, [[3, "3개월"], [6, "6개월"], [12, "12개월"]], v => { GANTT.months = v; renderGantt(); }),
+      el("label", { class: "small" }, "착임일 ", dt),
+      el("div", { class: "g-legend small" }, kinds.map(k => el("span", {}, el("i", { class: "k-" + k }), KIND_COLOR[k] || k)),
+        el("span", {}, el("i", { class: "late-i" }), "기한 지남"), el("span", {}, el("i", { class: "start-i" }), "착임일")))),
+    el("div", { class: "g-wrap" + (GANTT.task ? " with-side" : "") },
+      el("div", { class: "panel g-chart" },
+        el("div", { class: "g-head" }, el("div", { class: "g-label g-hl" }, GANTT.view === "duty" ? "담당 업무 / 할 일" : "할 일(시작 순)",
+            el("span", { class: "g-yrs" }, g.months[0].y === g.months[g.months.length - 1].y ? `${g.months[0].y}년` : `${g.months[0].y}~${g.months[g.months.length - 1].y}년`)),
+          el("div", { class: "g-months" }, g.months.map((m, i) => el("span", { style: { width: (m.days / span * 100) + "%" }, title: `${m.y}년 ${m.m}월` }, `${m.m}월`)))),
+        el("div", { class: "g-body" },
+          el("div", { class: "g-grid", "aria-hidden": "true" }, g.months.map(m => el("span", { style: { width: (m.days / span * 100) + "%" } }))),
+          el("div", { class: "g-start", style: { left: `calc(var(--lw) + (100% - var(--lw)) * ${startPct / 100})` }, title: "착임일 " + g.start }, el("span", {}, "착임 " + fmtD(g.start))),
+          tasks.map(grp => el("div", { class: "g-group" },
+            grp.name ? el("div", { class: "g-gname" }, el("b", {}, grp.name), el("span", { class: "small muted" }, `${grp.tasks.length}건`)) : null,
+            grp.tasks.map(bar))),
+          g.count ? null : el("div", { class: "empty" }, "이 기간에 놓을 일정이 없습니다. 기간을 늘리거나 착임일을 바꿔 보세요."))),
+      side));
+  if (GANTT.task) drawChecklist();
+}
+async function openChecklist(t, renew) {
+  GANTT.task = t.id;
+  GANTT.list = await api("POST", `/api/handovers/${H.id}/gantt/checklist`, { task: t.id, start: GANTT.start || (H.radar && H.radar.start) || undefined, renew: !!renew });
+  if (renew) toast("자료를 다시 읽어 체크리스트를 새로 만들었습니다(체크한 것은 그대로)");
+  await renderGantt();
+  const side = $("#g-side");
+  if (side && window.innerWidth < 1100) side.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function drawChecklist() {
+  const side = $("#g-side"), c = GANTT.list;
+  if (!side || !c) return;
+  const done = c.items.filter(x => x.done).length, pct = c.items.length ? Math.round(done / c.items.length * 100) : 0;
+  const url = `/api/handovers/${H.id}/gantt/checklist/${c.id}`;
+  const edit = async (op, extra) => { GANTT.list = await api("POST", url + "/items", { op, ...extra }); renderGantt(); };
+  const input = el("input", { class: "wide", style: { flex: 1 }, placeholder: "할 일 직접 추가(이름은 역할로 바뀝니다)",
+    onkeydown: e => { if (e.key === "Enter" && input.value.trim()) edit("add", { text: input.value }); } });
+  const groups = TAG_ORDER.map(tag => [tag, c.items.filter(x => x.tag === tag)]).filter(([, xs]) => xs.length);
+  side.innerHTML = "";
+  side.append(el("div", {},
+    el("div", { class: "row" }, el("span", { class: "tag info" }, c.kind), el("span", { class: "small muted", style: { flex: 1 } }, c.due ? "기한 " + c.due.replaceAll("-", ". ") + "." : ""),
+      el("button", { class: "small", onclick: () => { GANTT.task = null; GANTT.list = null; renderGantt(); }, "aria-label": "체크리스트 닫기" }, "닫기")),
+    el("h3", { class: "g-ctitle" }, c.title),
+    el("div", { class: "g-meter", role: "progressbar", "aria-valuenow": pct, "aria-valuemin": 0, "aria-valuemax": 100 }, el("span", { style: { width: pct + "%" } })),
+    el("div", { class: "small muted" }, `${done}/${c.items.length} 완료 · 체크하면 바로 저장되고 간트 막대에 진행률이 표시됩니다`),
+    groups.map(([tag, xs]) => el("div", { class: "g-cgroup" }, el("div", { class: "g-ctag" }, tag),
+      xs.map(x => el("label", { class: "g-item" + (x.done ? " done" : "") },
+        el("input", { type: "checkbox", checked: x.done || null, onchange: () => edit("toggle", { item: x.id }) }),
+        el("span", { class: "g-itext" }, x.text, x.src ? el("span", { class: "rp-src" }, x.src) : null),
+        el("button", { class: "g-del", title: "이 항목 지우기", "aria-label": "항목 지우기", onclick: e => { e.preventDefault(); edit("delete", { item: x.id }); } }, "×"))))),
+    el("div", { class: "row", style: { marginTop: "10px" } }, input, el("button", { onclick: () => input.value.trim() && edit("add", { text: input.value }) }, "추가")),
+    el("div", { class: "row", style: { marginTop: "10px" } },
+      el("button", { class: "small", onclick: () => openChecklist({ id: c.id }, true) }, "자료로 다시 만들기"),
+      el("span", { style: { flex: 1 } }), exportButtons(url + "/export", () => ({})))));
+}
+
 // ------------------------------------------------------------ 드롭존 허브: 드롭 한 번으로 만들어지는 것
 const HUB = [
   ["draft", "인수인계 초안", "출처가 달린 업무·일정·연락처·현안, 전임자 검토", "M4 5h16M4 10h16M4 15h10"],
   ["flags", "빈틈 스캐너", "누락·충돌·불확실·기한 지남", "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4"],
   ["radar", "D-Day 리스크 레이더", "부임 첫 주 할 일·감사 지적 우려 계약", "M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 12l6-6"],
+  ["gantt", "업무 간트차트", "업무별·기간별 막대, 누르면 체크리스트", "M4 4v16h16M8 8h6M10 12h8M7 16h5"],
   ["network", "휴먼 네트워크", "협업 상대 지도와 노하우 카드", "M6 6a2 2 0 1 0 0 .1M18 6a2 2 0 1 0 0 .1M12 18a2 2 0 1 0 0 .1M7 7l4 9M17 7l-4 9M8 6h8"],
   ["ask", "AI 전임자 분신", "자료로만 답하고 모르면 물어볼 곳 안내", "M4 5h16v10H9l-5 4z"],
   ["reports", "리포트 업그레이더", "전임자 보고서로 다음 보고서 작성", "M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"],
@@ -979,11 +1167,13 @@ async function renderHub() {
   paint();
   if (!H) return;
   const hid = H.id;
-  const [rd, net, rp] = await Promise.all([api("GET", `/api/handovers/${hid}/radar`).catch(() => null),
-    api("GET", `/api/handovers/${hid}/network`).catch(() => null), api("GET", `/api/handovers/${hid}/reports`).catch(() => null)]);
+  const [rd, net, rp, gt] = await Promise.all([api("GET", `/api/handovers/${hid}/radar`).catch(() => null),
+    api("GET", `/api/handovers/${hid}/network`).catch(() => null), api("GET", `/api/handovers/${hid}/reports`).catch(() => null),
+    api("GET", `/api/handovers/${hid}/gantt`).catch(() => null)]);
   if (!H || H.id !== hid) return;
   if (rd) metric.radar = `위험 ${rd.counts.red} · 주의 ${rd.counts.amber}`;
   if (net) metric.network = `상대 ${net.counts.nodes} · 노하우 ${net.counts.cards}`;
+  if (gt) metric.gantt = `업무 ${gt.groups.length} · 막대 ${gt.count}`;
   if (rp) metric.reports = rp.reports.length ? `보고서 ${rp.reports.length}건 발견` : "보고서 없음";
   paint();
 }
@@ -1037,10 +1227,14 @@ async function renderReports() {
 }
 
 let goTab;
-function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderRadar(); renderNetwork(); PHOTO_Q = ""; renderPhotos(); renderHub(); REPORT = null; }
+function renderAll() { renderDraft(); renderCalendar(); renderFlags(); renderDocs(); renderRadar(); renderNetwork(); GANTT.task = null; renderGantt(); PHOTO_Q = ""; renderPhotos(); renderHub(); REPORT = null; }
 document.addEventListener("DOMContentLoaded", async () => {
-  setupStart(); setupAsk(); setupManual();
-  goTab = setupTabs(id => { if (id === "history") renderHistory(); if (id === "form") renderForm(); if (id === "reports") renderReports(); if (id === "start") renderHub(); });
+  setupStart(); setupAsk(); setupManual(); setupSkin();
+  const placeBaton = setupTrack();
+  goTab = setupTabs(id => {
+    document.body.dataset.tab = id; requestAnimationFrame(placeBaton);
+    if (id === "history") renderHistory(); if (id === "form") renderForm(); if (id === "reports") renderReports(); if (id === "gantt") renderGantt(); if (id === "start") renderHub();
+  });
   $("#cur-h").onchange = e => e.target.value && select(e.target.value);
   await refreshList();
 });

@@ -60,6 +60,33 @@ class Client:
             return b if raw else json.loads(b)
 
 
+LAW_SEEN = []
+
+
+def law_mock():
+    """국가법령정보 공동활용 Open API 흉내(lawSearch.do). 받은 인증값(OC)을 기록한다."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            LAW_SEEN.append(q.get("OC", [""])[0])
+            body = {"LawSearch": {"law": [{"법령명한글": "체육시설의 설치·이용에 관한 법률", "법령일련번호": "123456",
+                                           "법령구분명": "법률", "소관부처명": "문화체육관광부", "시행일자": "20250101"}]}}
+            data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *a):
+            pass
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
 def check_baton(c):
     yield "화면 열기", c.call("GET", "/", raw=True)[:15].lower().startswith(b"<!doctype")
     h = c.call("POST", "/api/handovers", {"source": {"kind": "sample"}, "start": "2026-10-12"})
@@ -114,6 +141,28 @@ def check_baton(c):
     yield "노하우 카드 숨기기", all(k["id"] != pre[0]["id"] for k in n3["cards"]) and \
         c.status("POST", f"/api/handovers/{hid}/knowhow", {"text": " "}) == 400
     # 지식 릴레이: 1대(모의 바통) → 2대 → 3대 (계보도 사람 이름 대신 세대 이름)
+    gt = c.call("GET", f"/api/handovers/{hid}/gantt?start=2026-10-12&months=12")
+    gn = {g["name"]: [t["label"] for t in g["tasks"]] for g in gt["groups"]}
+    yield (f"업무 간트차트(업무 {len(gt['groups'])}묶음, 막대 {gt['count']}개)",
+           gt["months"][0]["m"] == 10 and len(gt["months"]) == 12 and any("예산" in k and any("예산요구서" in x for x in v) for k, v in gn.items())
+           and any("수질" in k and any("탁도" in x or "수질검사" in x for x in v) for k, v in gn.items())
+           and any("계약 기간" in x for v in gn.values() for x in v))
+    task = next(t for g in gt["groups"] for t in g["tasks"] if "청소 용역" in t["label"] and "입찰" in t["label"])
+    cl = c.call("POST", f"/api/handovers/{hid}/gantt/checklist", {"task": task["id"], "start": "2026-10-12"})
+    tags = {x["tag"] for x in cl["items"]}
+    yield (f"막대 누르면 체크리스트({len(cl['items'])}개 할 일)", {"기한", "절차", "협의", "마무리"} <= tags
+           and any("입찰공고" in x["text"] for x in cl["items"]) and any("깨끗한세상" in x["text"] for x in cl["items"] if x["tag"] == "협의"))
+    c.call("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/items", {"op": "toggle", "item": cl["items"][1]["id"]})
+    c2 = c.call("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/items", {"op": "add", "text": "문가은 주임에게 공고문 검토 요청"})
+    again = c.call("POST", f"/api/handovers/{hid}/gantt/checklist", {"task": task["id"]})
+    gt2 = c.call("GET", f"/api/handovers/{hid}/gantt?start=2026-10-12")
+    t2 = next(t for g in gt2["groups"] for t in g["tasks"] if t["id"] == task["id"])
+    yield "체크리스트 체크·추가 저장, 간트 막대에 진행률(이름은 역할로)", again["items"][1]["done"] and "문가은" not in c2["items"][-1]["text"] \
+        and t2["check"] == {"done": 1, "total": len(again["items"])} and \
+        c.status("POST", f"/api/handovers/{hid}/gantt/checklist", {"task": "g-none"}) == 404 and \
+        c.status("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/items", {"op": "x"}) == 400
+    ex = c.call("POST", f"/api/handovers/{hid}/gantt/checklist/{task['id']}/export?fmt=hwpx", {}, raw=True)
+    yield "체크리스트 한글 내보내기", ex[:2] == b"PK" and len(ex) > 500
     yield "지식 릴레이: 모의 바통 파일 이어받기", any(it.get("carried") for it in s["schedule"])
     b = c.call("POST", f"/api/handovers/{hid}/baton", {}, raw=True)
     bj = json.loads(b)
@@ -233,8 +282,10 @@ def check_baton(c):
     sec = zipfile.ZipFile(io.BytesIO(hw)).read("Contents/section0.xml").decode("utf-8")
     yield (f"표준 인수인계서(근거 법령 후보 {len(fm['a1']['laws'])}, 예산 {len(fm['a3']['budget'])}, 미결 {len(fm['a4']['issues'])})",
            sv["saved"] and len(fm["a1"]["laws"]) >= 2 and len(fm["a3"]["budget"]) >= 3 and all(f"{n}." in sec for n in range(1, 6)) and "(인)" in sec)
-    yield "법령 검색: 인증값(OC) 없으면 신청 안내", c.status("GET", "/api/law/search?q=x") == 400 and \
-        c.status("POST", "/api/law/config", {"oc": "a@b.kr"}) == 400
+    st = c.call("GET", "/api/law/status")
+    lr = c.call("GET", "/api/law/search?q=" + urllib.parse.quote("체육시설"))
+    yield f"법령 검색: 승인받은 인증값(OC)으로 연동(받은 OC {LAW_SEEN[-1:]})", st["configured"] and LAW_SEEN[-1:] == ["bw40351"] and \
+        lr["items"] and lr["items"][0]["id"] == "123456" and c.status("POST", "/api/law/config", {"oc": "a@b.kr"}) == 400
     # 내 일정으로 내보내기(.ics)
     ics = c.call("POST", f"/api/handovers/{hid}/calendar", {"start": "2026-10-12"}, raw=True).decode("utf-8")
     yield f"일정 내보내기(.ics, 일정 {ics.count('BEGIN:VEVENT')}건)", ics.startswith("BEGIN:VCALENDAR") and \
@@ -286,10 +337,12 @@ CHECKS = {"baton": check_baton, "seomu": check_seomu, "gyujeong": check_gyujeong
 
 def main():
     total = failed = 0
+    law = law_mock()
     for name, d in app_dirs():
         tmp = tempfile.mkdtemp(prefix=f"smoke-{name}-")
         port = free_port()
-        env = dict(os.environ, APP_DATA_DIR=tmp, LLM_PROVIDER="none")
+        env = dict(os.environ, APP_DATA_DIR=tmp, LLM_PROVIDER="none", LAW_API_BASE=f"http://127.0.0.1:{law.server_port}")
+        env.pop("LAW_OC", None)
         proc = subprocess.Popen([sys.executable, "run.py", "--no-browser", "--port", str(port)], cwd=d, env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:

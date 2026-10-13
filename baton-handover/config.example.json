@@ -9,5 +9,8 @@
     "api_key_env": "LLM_API_KEY",
     "temperature": 0.1,
     "timeout": 120
+  },
+  "law": {
+    "oc": "bw40351"
   }
 }

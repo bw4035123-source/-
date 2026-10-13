@@ -20,6 +20,7 @@ from core import webcommon
 
 import anon
 import engine
+import gantt
 import network
 import photos as photo_mod
 import qa
@@ -32,7 +33,8 @@ HERE = Path(__file__).resolve().parent
 SAMPLE = HERE / "sample_data" / "전임자_업무폴더_시설운영"
 SAMPLE_MESSY = HERE / "sample_data" / "전임자_뒤죽박죽_최소자료"  # 최소한의 자료를 아무렇게나 모은 경우(사진·스캔본·ZIP·중복 포함)
 
-cfg = Config(HERE, {"app_title": "업무바통", "port": 8101})
+# 법령 검색 인증값(OC): 국가법령정보 공동활용에서 승인받은 값. 화면 설정이나 LAW_OC 환경변수로 바꿀 수 있다
+cfg = Config(HERE, {"app_title": "업무바통", "port": 8101, "law": {"oc": "bw40351"}})
 llm = LLM(cfg["llm"])
 loaders.OCR = ocr.make(llm)  # 사진·스캔본 글자 읽기(Tesseract → Windows OCR → 비전 모델 순)
 store = Store(cfg.data_dir)
@@ -494,6 +496,106 @@ def save_radar(req):
     save_h(h)
     log(h["id"], "리스크 레이더 기준 저장", f"착임일 {start.isoformat()}")
     return radar.build(h)
+
+
+# ---------------------------------------------------------------- 업무 간트차트 · 업무별 체크리스트
+
+def _gantt_start(h, raw=None):
+    try:
+        return date.fromisoformat(str(raw or (h.get("radar") or {}).get("start") or date.today().isoformat()))
+    except ValueError:
+        raise HttpError(400, "착임일 형식이 올바르지 않습니다(예: 2026-10-12)")
+
+
+def _gantt(h, start, months=12):
+    return gantt.build(h, start, months, radar.build(h, start))
+
+
+def _task(h, tid, start):
+    t = next((t for g in _gantt(h, start, 24)["groups"] for t in g["tasks"] if t["id"] == tid), None)
+    if not t:
+        raise HttpError(404, "간트차트에서 그 업무를 찾을 수 없습니다(자료가 바뀌었으면 새로 고쳐 주세요)")
+    return t
+
+
+def _checklist(h, tid):
+    c = (h.get("checklists") or {}).get(tid)
+    if not c:
+        raise HttpError(404, "아직 만들지 않은 체크리스트입니다")
+    return c
+
+
+@app.get("/api/handovers/<hid>/gantt")
+def get_gantt(req):
+    h = load_h(req.params["hid"])
+    try:
+        months = int(req.query.get("months") or 12)
+    except ValueError:
+        months = 12
+    return _gantt(h, _gantt_start(h, req.query.get("start")), months)
+
+
+@app.post("/api/handovers/<hid>/gantt/checklist")
+def make_checklist(req):
+    """막대를 누르면: 저장된 체크리스트가 있으면 돌려주고, 없으면(또는 새로 만들기면) 만든다."""
+    h = load_h(req.params["hid"])
+    b = req.json
+    tid = str(b.get("task") or "")
+    have = (h.get("checklists") or {}).get(tid)
+    if have and not b.get("renew"):
+        return have
+    start = _gantt_start(h, b.get("start"))
+    c = gantt.make_checklist(h, _task(h, tid, start), store.read(f"handovers/{h['id']}/blocks.json", []), _net(h), start)
+    if have:  # 새로 만들어도 이미 체크한 것과 직접 넣은 항목은 살린다
+        done = {x["text"] for x in have["items"] if x.get("done")}
+        for x in c["items"]:
+            x["done"] = x["text"] in done
+        c["items"] += [x for x in have["items"] if x.get("tag") == "직접"]
+    c["updated"] = _now()
+    h.setdefault("checklists", {})[tid] = c
+    save_h(h)
+    log(h["id"], "체크리스트 생성", c["title"][:60])
+    return c
+
+
+@app.post("/api/handovers/<hid>/gantt/checklist/<tid>/items")
+def edit_checklist(req):
+    """op: toggle(item) · add(text) · delete(item)"""
+    h = load_h(req.params["hid"])
+    c = _checklist(h, req.params["tid"])
+    b = req.json
+    op = b.get("op")
+    if op == "add":
+        text = re.sub(r"\s+", " ", str(b.get("text") or "")).strip()[:200]
+        if not text:
+            raise HttpError(400, "할 일을 적어 주세요")
+        n = max([int(x["id"][1:]) for x in c["items"] if x["id"][1:].isdigit()] + [0]) + 1
+        c["items"].append({"id": f"c{n}", "text": clean(h, anon.pii(text)), "tag": "직접", "src": "", "done": False})
+    elif op in ("toggle", "delete"):
+        it = next((x for x in c["items"] if x["id"] == b.get("item")), None)
+        if not it:
+            raise HttpError(404, "체크리스트 항목을 찾을 수 없습니다")
+        if op == "toggle":
+            it["done"] = not it.get("done")
+        else:
+            c["items"].remove(it)
+    else:
+        raise HttpError(400, "op는 toggle·add·delete 중 하나여야 합니다")
+    c["updated"] = _now()
+    save_h(h)
+    return c
+
+
+@app.post("/api/handovers/<hid>/gantt/checklist/<tid>/export")
+def export_checklist(req):
+    h = load_h(req.params["hid"])
+    fmt = req.query.get("fmt", "hwpx")
+    if fmt not in FORMATS:
+        raise HttpError(400, f"지원하지 않는 파일 형식입니다: '{fmt}'")
+    c = _checklist(h, req.params["tid"])
+    data, ctype = export(gantt.checklist_blocks(c), fmt)
+    name = _fname("체크리스트_" + c["title"][:30])
+    return file_response(data, f"{name}.{fmt}", ctype)
 
 
 # ---------------------------------------------------------------- 휴먼 네트워크 맵 · 노하우 카드
