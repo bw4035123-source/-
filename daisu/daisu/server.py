@@ -411,7 +411,9 @@ async def create_from_path(req: Request):
 @app.post("/api/projects/upload")
 async def upload(req: Request):
     form = await req.form()
-    files = form.getlist("files")
+    # 기준 자료(규정·계획)와 교육 증빙(명단·이수·서명부 등)을 따로 받아 폴더로 구분해 둔다(종류 판정은 내용으로 다시 함)
+    files = [(f, "") for f in form.getlist("files")] + [(f, "기준자료/") for f in form.getlist("basis")] \
+        + [(f, "교육증빙/") for f in form.getlist("evidence")]
     if not files:
         raise HTTPException(400, "파일이 없습니다.")
     base = str(form.get("base_date") or "") or None
@@ -420,8 +422,8 @@ async def upload(req: Request):
     p = new_project(str(form.get("name") or "교육훈련 관리"), base)
     root = os.path.join(_pdir(p["id"]), "files")
     total = 0
-    for f in files:
-        rel = _safe_rel(getattr(f, "filename", "") or "")
+    for f, prefix in files:
+        rel = _safe_rel(prefix + (getattr(f, "filename", "") or "")) if getattr(f, "filename", "") else ""
         if not rel or os.path.splitext(rel)[1].lower() not in SUPPORTED:
             continue
         data = await f.read()

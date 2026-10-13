@@ -42,7 +42,7 @@ function ddayText(n) { return n == null ? "" : n < 0 ? `기한 ${-n}일 지남` 
 function copy(text) { (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("복사했습니다"), () => toast("복사할 수 없는 환경입니다")); }
 function dl(url) { const a = h("a", { href: url }); document.body.append(a); a.click(); a.remove(); }
 const ST = { done: "이수", partial: "부족", none: "미이수", leave: "휴직", na: "–", left: "퇴사" };
-const KIND = { roster: "직원 명단", records: "이수 기록", sign: "집합교육 서명부", cert: "수료증", shift: "근무표", survey: "만족도 조사", guide: "지침·규정", other: "읽기만 함" };
+const KIND = { roster: "직원 명단", records: "이수 기록", sign: "집합교육 서명부", cert: "수료증", shift: "근무표", survey: "만족도 조사", guide: "지침·규정", regulation: "규정·기준", budget: "교육 예산", other: "읽기만 함" };
 
 const S = { info: null, data: null };
 
@@ -81,96 +81,90 @@ function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").set
 // ───────────── 처음 화면
 async function viewHome() {
   const list = await api("/api/projects");
-  const name = h("input", { placeholder: "예) 2026년 법정의무교육", value: "" });
+  const name = h("input", { placeholder: "예) 2026년 교육훈련 실적", value: "" });
   const base = h("input", { type: "date", value: S.info.today });
-  let mode = "sample";
-  const pane = h("div");
-  const files = h("input", { type: "file", multiple: true, style: "display:none" });
-  const folder = h("input", { type: "file", multiple: true, webkitdirectory: true, style: "display:none" });
-  const pathIn = h("input", { placeholder: "예) C:\\교육자료\\2026", style: "width:100%" });
-  let picked = [];
-  const pickedInfo = h("div", { class: "small muted" });
   const okExt = new Set(S.info.supported);
-  function take(list) {
-    // 확장자로 먼저 걸러 사진·동영상 등은 읽지 않음
-    picked = [...list].filter((f) => okExt.has("." + f.name.split(".").pop().toLowerCase()) && !f.name.startsWith("~$"));
-    const skipped = list.length - picked.length;
-    pickedInfo.textContent = `${picked.length}개 선택` + (skipped ? ` (지원하지 않는 형식 ${skipped}개 제외)` : "");
+  // 자료 올리기 칸: 기준 자료(규정·계획) / 교육 증빙(명단·이수·서명부·결과) 두 곳
+  function dropZone(key, num, title, desc, examples) {
+    const st = { files: [] };
+    const files = h("input", { type: "file", multiple: true, style: "display:none" });
+    const folder = h("input", { type: "file", multiple: true, webkitdirectory: true, style: "display:none" });
+    const info = h("div", { class: "up-info" }, "선택된 파일 없음");
+    const take = (fl) => {
+      const all = [...fl];
+      st.files = all.filter((f) => okExt.has("." + f.name.split(".").pop().toLowerCase()) && !f.name.startsWith("~$"));
+      const skip = all.length - st.files.length;
+      info.textContent = st.files.length ? `${st.files.length}개 선택` + (skip ? ` (지원하지 않는 형식 ${skip}개 제외)` : "") : "선택된 파일 없음";
+      box.classList.toggle("has", st.files.length > 0);
+    };
+    files.onchange = () => take(files.files);
+    folder.onchange = () => take(folder.files);
+    const box = h("div", { class: "up-box" },
+      h("div", { class: "up-head" }, h("span", { class: "up-num" }, num), h("div", {}, h("b", {}, title), h("div", { class: "small muted" }, desc))),
+      h("ul", { class: "up-ex" }, examples.map((x) => h("li", {}, x))),
+      h("div", { class: "drop" }, "파일을 끌어다 놓거나",
+        h("div", { class: "row", style: "justify-content:center;margin-top:10px" },
+          h("button", { class: "btn sm", onclick: () => files.click() }, "파일 선택"), h("button", { class: "btn sm", onclick: () => folder.click() }, "폴더 선택")), info),
+      files, folder);
+    const drop = $(".drop", box);
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+    drop.ondragleave = () => drop.classList.remove("over");
+    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); };
+    return { key, box, st };
   }
-  files.onchange = () => take(files.files);
-  folder.onchange = () => take(folder.files);
-  const drop = h("div", { class: "drop" }, "여기에 파일을 끌어다 놓거나 ",
-    h("a", { href: "#", onclick: (e) => { e.preventDefault(); files.click(); } }, "파일 선택"), " · ",
-    h("a", { href: "#", onclick: (e) => { e.preventDefault(); folder.click(); } }, "폴더 선택"),
-    h("div", { class: "tiny", style: "margin-top:6px" }, "엑셀·CSV·한글(HWPX/HWP)·워드·PDF"), pickedInfo);
-  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
-  drop.ondragleave = () => drop.classList.remove("over");
-  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); };
-  const panes = {
-    sample: h("div", {}, h("p", { class: "small" }, "가상의 ‘가상구시설관리공단’(직원 120명, 교대 현장직 69명) 자료 18개로 전 과정을 체험합니다."),
-      h("ul", { class: "small muted" }, h("li", {}, "직원 명단, 사이버·직무교육 이수현황, 외부(위탁)교육 실적, 교육 예산(엑셀)"),
-        h("li", {}, "집합교육 서명부(한글·엑셀·워드), 수료증(PDF), 교대근무표, 만족도 조사"),
-        h("li", {}, "[모의] 교육훈련규정·여비규정·강사수당 기준·경영평가 편람·정부 교육 계획"))),
-    upload: h("div", {}, drop, files, folder),
-    path: h("div", {}, h("label", { class: "f" }, "이 PC의 폴더 경로(서버가 같은 PC에서 실행될 때)"), pathIn),
-  };
-  const modeTabs = h("div", { class: "seg" });
-  const MODES = [["sample", "샘플로 체험"], ["upload", "파일·폴더 올리기"], ["path", "PC 폴더 경로"]];
-  function setMode(m) {
-    mode = m;
-    modeTabs.replaceChildren(...MODES.map(([k, l]) => h("a", { href: "#", class: "tab" + (k === m ? " on" : ""), onclick: (e) => { e.preventDefault(); setMode(k); } }, l)));
-    pane.replaceChildren(panes[m]);
-    base.disabled = m === "sample";
-    if (m === "sample") base.value = S.info.sample_base;
-  }
-  setMode(S.info.sample ? "sample" : "upload");
-  const go = h("button", { class: "btn primary", onclick: start }, "시작하기");
+  const basis = dropZone("basis", "1", "기준 자료", "계산·판정의 기준이 되는 규정과 계획",
+    ["교육훈련규정(내규)·운영지침", "여비규정(교육여비 포함)", "강사수당 지급기준", "경영평가 편람(교육훈련 지표)", "정부·주무부처 교육훈련 계획", "교육훈련 예산"]);
+  const evid = dropZone("evidence", "2", "교육 증빙 자료", "실제로 교육을 실시·이수한 기록",
+    ["직원 명단(인사 현황)", "이수 현황(사이버·직무·외부교육)", "집합교육 서명부·출석부", "수료증·결과보고서", "교대근무표·만족도 조사"]);
+  const go = h("button", { class: "btn primary lg", onclick: start }, "등록하고 분석 시작");
   async function start() {
+    if (!basis.st.files.length && !evid.st.files.length) return toast("기준 자료 또는 교육 증빙 자료를 선택하세요");
+    if (!evid.st.files.length && !confirm("교육 증빙 자료(명단·이수 기록)가 없습니다. 기준 자료만 등록할까요?")) return;
     go.disabled = true; go.textContent = "자료를 읽는 중…";
     try {
-      let r;
-      if (mode === "sample") r = await api("/api/projects/sample", { method: "POST" });
-      else if (mode === "path") r = await api("/api/projects/path", { method: "POST", json: { path: pathIn.value, name: name.value, base_date: base.value } });
-      else {
-        if (!picked.length) throw new Error(toast("파일을 선택하세요"));
-        const fd = new FormData();
-        picked.forEach((f) => fd.append("files", f, f.webkitRelativePath || f.name));
-        fd.append("name", name.value); fd.append("base_date", base.value);
-        r = await api("/api/projects/upload", { method: "POST", body: fd });
-      }
+      const fd = new FormData();
+      for (const z of [basis, evid]) z.st.files.forEach((f) => fd.append(z.key, f, f.webkitRelativePath || f.name));
+      fd.append("name", name.value); fd.append("base_date", base.value);
+      const r = await api("/api/projects/upload", { method: "POST", body: fd });
       location.hash = `#/p/${r.id}/files`;
-    } catch { go.disabled = false; go.textContent = "시작하기"; }
+    } catch { go.disabled = false; go.textContent = "등록하고 분석 시작"; }
   }
-  go.classList.add("lg");
+  const sampleBtn = h("button", { class: "btn", onclick: async (e) => { e.target.disabled = true; e.target.textContent = "자료를 읽는 중…";
+    try { const r = await api("/api/projects/sample", { method: "POST" }); location.hash = `#/p/${r.id}/files`; } catch { e.target.disabled = false; e.target.textContent = "모의 자료로 체험"; } } }, "모의 자료로 체험");
   mount(
-    h("section", { class: "hero-wrap slide in-0" },
-      h("div", { class: "eyebrow" }, "교육훈련 규정 해석 · 실적 보고 자동화"),
-      h("h1", {}, "교육 폴더를 통째로 넣으면,", h("br"), h("em", {}, "보고서가 나와요")),
-      h("p", {}, "법정·필수·직무·외부 교육 기록과 규정·편람·정부 계획을 함께 넣으세요. 다이수가 규정을 읽어 기준을 세우고, 실적 보고서까지 씁니다."),
-      h("div", { class: "row" }, h("a", { class: "btn primary lg", href: "#new" , onclick: (e) => { e.preventDefault(); $("#new").scrollIntoView({ behavior: "smooth" }); } }, "시작하기"),
-        S.info.sample ? h("button", { class: "btn lg", onclick: async (e) => { e.target.disabled = true; e.target.textContent = "자료를 읽는 중…";
-          try { const r = await api("/api/projects/sample", { method: "POST" }); location.hash = `#/p/${r.id}/files`; } catch { e.target.disabled = false; e.target.textContent = "샘플로 체험"; } } }, "샘플로 체험") : null)),
+    h("section", { class: "gov-hero slide in-0" },
+      h("div", { class: "gov-tag" }, "공공기관 교육훈련 업무 지원"),
+      h("h1", {}, "교육훈련 규정 해석부터", h("br"), h("em", {}, "실적 보고서 작성까지")),
+      h("p", {}, "기관의 교육훈련 규정·계획과 교육 증빙 자료를 등록하면, 규정에 따라 이수 여부를 판정하고 교육훈련 실적 보고서·경영평가 지표 실적·외부교육 정산서를 작성합니다."),
+      h("div", { class: "row" }, h("a", { class: "btn primary lg", href: "#", onclick: (e) => { e.preventDefault(); $("#new").scrollIntoView({ behavior: "smooth" }); } }, "새 작업 등록"),
+        list.length ? h("a", { class: "btn lg", href: "#", onclick: (e) => { e.preventDefault(); $("#list").scrollIntoView({ behavior: "smooth" }); } }, `진행 중인 작업 ${list.length}건`) : null)),
     h("div", { class: "steps" },
-      h("div", { class: "step" }, h("div", { class: "n" }, "1"), h("b", {}, "규정을 읽어요"), h("span", {}, "목표 시간·필수교육·여비·강사수당·평가 산식을 원문 근거와 함께")),
-      h("div", { class: "step" }, h("div", { class: "n" }, "2"), h("b", {}, "모든 교육을 맞춰요"), h("span", {}, "명단 × 이수기록 × 기준으로 직원별·분야별 판정")),
-      h("div", { class: "step" }, h("div", { class: "n" }, "3"), h("b", {}, "보고서를 써요"), h("span", {}, "실적 보고, 경영평가 지표, 여비 정산, 내년 계획까지 한글로"))),
+      h("div", { class: "step" }, h("div", { class: "n" }, "1"), h("b", {}, "기준 자료 등록"), h("span", {}, "규정·지침·평가 편람·정부 계획에서 이수 기준, 여비·강사수당 기준, 평가 산식을 읽습니다. 모든 값에 원문 근거를 표시합니다.")),
+      h("div", { class: "step" }, h("div", { class: "n" }, "2"), h("b", {}, "교육 증빙 대조"), h("span", {}, "직원 명단과 이수 현황·서명부·수료증을 대조하여 직원별·교육별 이수 여부를 판정합니다.")),
+      h("div", { class: "step" }, h("div", { class: "n" }, "3"), h("b", {}, "보고서 작성"), h("span", {}, "교육훈련 실적 보고서, 경영평가 지표 실적, 외부교육 정산서, 다음 연도 계획(안)을 한글 문서로 작성합니다."))),
     h("div", { class: "promise" },
-      h("div", {}, h("b", {}, "근거가 붙는 숫자"), h("span", {}, "규정에서 읽은 값마다 문서·조항 원문이 붙어 그대로 결재 근거가 됩니다.")),
-      h("div", {}, h("b", {}, "확신 못 하면 묻기"), h("span", {}, "동명이인·이름 오타처럼 기계가 확신하지 못한 것만 사람에게 묻습니다.")),
-      h("div", {}, h("b", {}, "인터넷 없이"), h("span", {}, "계산은 규칙으로 하고(AI 추측 없음), 내부망 PC에서 그대로 동작합니다."))),
-    h("div", { class: "section-t", id: "new" }, "새 작업"),
-    h("div", { class: "card" }, modeTabs, pane,
-      h("div", { class: "grid g2", style: "margin-top:16px" },
-        h("div", { class: "field" }, h("label", { class: "f" }, "작업 이름(선택)"), name),
-        h("div", { class: "field" }, h("label", { class: "f" }, "기준일(오늘 기준으로 기한 판정)"), base)),
-      h("div", { class: "row" }, go)),
-    h("div", { class: "section-t" }, "진행 중인 작업"),
+      h("div", {}, h("b", {}, "규정에 근거한 판정"), h("span", {}, "판정과 계산은 규칙에 따라 수행하며 추정하지 않습니다. 결과마다 근거 문서와 조항을 확인할 수 있습니다.")),
+      h("div", {}, h("b", {}, "원본 자료 보호"), h("span", {}, "등록한 원본 파일은 읽기만 하며, 처리 전후 파일 지문(SHA-256)으로 변경 여부를 확인합니다.")),
+      h("div", {}, h("b", {}, "내부망 단독 운영"), h("span", {}, "인터넷 연결 없이 이 PC에서만 동작하며, 개인정보가 외부로 전송되지 않습니다."))),
+    h("div", { class: "section-t", id: "new" }, "새 작업 등록"),
+    h("div", { class: "card" },
+      h("p", { class: "small muted", style: "margin-top:0" }, "자료를 두 곳에 나누어 등록하십시오. 등록 위치를 잘못 선택하더라도 파일 내용을 확인해 종류를 다시 판별하며, 자료 화면에서 안내합니다."),
+      h("div", { class: "grid g2 up-grid" }, basis.box, evid.box),
+      h("div", { class: "grid g2", style: "margin-top:18px" },
+        h("div", { class: "field" }, h("label", { class: "f" }, "작업명(선택)"), name),
+        h("div", { class: "field" }, h("label", { class: "f" }, "기준일(이 날짜를 기준으로 기한 경과 여부 판정)"), base)),
+      h("div", { class: "row" }, go, h("span", { class: "small muted" }, "지원 형식: 엑셀·CSV·한글(HWPX/HWP)·워드·PDF"))),
+    h("div", { class: "section-t", id: "list" }, "진행 중인 작업"),
     list.length ? h("div", { class: "card", style: "padding:0" }, h("table", {},
-      h("tr", {}, h("th", {}, "이름"), h("th", {}, "기준일"), h("th", {}, "자료"), h("th", {}, "만든 때"), h("th", {})),
+      h("tr", {}, h("th", {}, "작업명"), h("th", {}, "기준일"), h("th", {}, "자료"), h("th", {}, "등록 일시"), h("th", {})),
       list.map((p) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${p.id}/results`) },
         h("td", {}, p.name), h("td", {}, p.base_date), h("td", {}, p.files + "개"), h("td", { class: "muted" }, p.created),
-        h("td", { class: "num" }, h("button", { class: "btn sm ghost", onclick: async (e) => { e.stopPropagation(); if (!confirm("이 작업을 지울까요? (원본 자료는 그대로)")) return; await api(`/api/projects/${p.id}`, { method: "DELETE" }); viewHome(); } }, "삭제"))))))
-      : h("div", { class: "card empty" }, "아직 없습니다. ‘샘플로 체험’으로 시작해 보세요."));
+        h("td", { class: "num" }, h("button", { class: "btn sm ghost", onclick: async (e) => { e.stopPropagation(); if (!confirm("이 작업을 삭제할까요? (등록한 원본 파일은 그대로 남습니다)")) return; await api(`/api/projects/${p.id}`, { method: "DELETE" }); viewHome(); } }, "삭제"))))))
+      : h("div", { class: "card empty" }, "진행 중인 작업이 없습니다."),
+    S.info.sample ? h("div", { class: "card sample-card" },
+      h("div", {}, h("b", {}, "처음 사용하십니까?"),
+        h("div", { class: "small muted" }, "가상의 ‘가상구시설관리공단’(직원 120명) 모의 자료 18종으로 전체 과정을 미리 확인할 수 있습니다. 모의 규정 문서에는 [모의] 표시가 있습니다.")),
+      sampleBtn) : null);
 }
 
 // ───────────── 작업 화면
@@ -278,11 +272,25 @@ async function viewProject(pid, tab, arg) {
 function tabFiles(el, d) {
   add(el,
     d.integrity ? h("div", { class: "alert ok" }, `원본 보호 확인: 넣은 자료 ${d.files.length}개의 지문(SHA-256)이 처리 전후 같습니다. 다이수는 자료를 읽기만 합니다.`) : null,
-    h("div", { class: "card", style: "padding:0" }, h("table", {},
-      h("tr", {}, h("th", {}, "파일"), h("th", {}, "알아낸 종류"), h("th", { class: "num" }, "직원"), h("th", { class: "num" }, "기록"), h("th", {}, "비고")),
-      d.files.map((f) => h("tr", {},
-        h("td", {}, f.rel), h("td", {}, f.kinds.map((k) => h("span", { class: "badge b-brand", style: "margin-right:4px" }, KIND[k] || k))),
-        h("td", { class: "num" }, f.n_people || ""), h("td", { class: "num" }, f.n_records || ""), h("td", { class: "small muted" }, f.note))))),
+    (() => {
+      // 등록 위치(기준 자료 / 교육 증빙)별로 묶고, 위치와 내용이 다르면 알려 줌
+      const BASIS = new Set(["regulation", "guide", "budget"]);
+      const grp = (f) => (f.rel.startsWith("기준자료/") ? "기준 자료" : f.rel.startsWith("교육증빙/") ? "교육 증빙 자료" : "등록 자료");
+      const order = ["기준 자료", "교육 증빙 자료", "등록 자료"];
+      return order.map((g) => [g, d.files.filter((f) => grp(f) === g)]).filter(([, fs]) => fs.length).map(([g, fs]) =>
+        h("div", { class: "card", style: "padding:0" }, h("h2", { style: "padding:18px 24px 4px" }, g, h("span", { class: "muted small" }, ` ${fs.length}개`)),
+          h("table", {},
+            h("tr", {}, h("th", {}, "파일"), h("th", {}, "판별한 종류"), h("th", { class: "num" }, "직원"), h("th", { class: "num" }, "기록"), h("th", {}, "비고")),
+            fs.map((f) => {
+              const isBasis = f.kinds.some((k) => BASIS.has(k)), isEvid = f.kinds.some((k) => !BASIS.has(k) && k !== "other");
+              const mis = g === "기준 자료" && isEvid && !isBasis ? "교육 증빙 자료로 판별됨 – 증빙으로 처리합니다"
+                : g === "교육 증빙 자료" && isBasis && !isEvid ? "기준 자료로 판별됨 – 기준으로 처리합니다" : "";
+              return h("tr", {},
+                h("td", {}, f.rel.replace(/^(기준자료|교육증빙)\//, "")), h("td", {}, f.kinds.map((k) => h("span", { class: "badge b-brand", style: "margin-right:4px" }, KIND[k] || k))),
+                h("td", { class: "num" }, f.n_people || ""), h("td", { class: "num" }, f.n_records || ""),
+                h("td", { class: "small muted" }, mis ? h("span", { class: "badge b-part", style: "margin-right:4px" }, mis) : null, f.note));
+            }))));
+    })(),
     h("p", { class: "small muted" }, "엑셀 머리글(사번·성명·소속·과정명·이수일·서명 등)을 보고 자료 종류를 스스로 알아냅니다. 양식이 달라도 머리글 이름이 비슷하면 됩니다."),
     d.shifts.length ? h("p", { class: "small" }, "근무표: " + d.shifts.map((s) => `${s.month} (${s.people}명)`).join(", ")) : h("div", { class: "alert warn" }, "교대근무표가 없습니다. 일정 짜기는 일근 기준으로만 계산합니다."));
 }

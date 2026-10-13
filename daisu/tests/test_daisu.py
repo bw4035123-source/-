@@ -868,3 +868,21 @@ class TestAdversarialServer(unittest.TestCase):
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(self.c.get(f"/api/projects/{self.pid}/export?doc=gantt").content))
         self.assertGreater(wb["체크리스트"].max_row, 1)
+
+
+class TestUploadGroups(unittest.TestCase):
+    def test_basis_and_evidence_folders(self):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        c = TestClient(app)
+        roster = os.path.join(BASE, "01_인사", "2026_직원현황(10월1일자).xlsx")
+        reg = glob.glob(os.path.join(BASE, "07_규정·기준", "*교육훈련규정*"))[0]
+        r = c.post("/api/projects/upload", files=[("basis", (os.path.basename(reg), _bytes(reg), None)),
+                                                    ("evidence", ("명단/" + os.path.basename(roster), _bytes(roster), None))])
+        self.assertEqual(r.status_code, 200)
+        d = c.get(f"/api/projects/{r.json()['id']}").json()
+        rels = sorted(f["rel"] for f in d["files"])
+        self.assertTrue(rels[0].startswith("교육증빙/명단/") and rels[1].startswith("기준자료/"), rels)
+        self.assertEqual(len(d["people"]), 120)
+        self.assertIn("regulation", next(f for f in d["files"] if f["rel"].startswith("기준자료/"))["kinds"])
