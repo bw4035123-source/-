@@ -131,10 +131,21 @@ def ask(res: dict, question: str) -> dict:
                f"근거: {rule['law']}"]
         if rule.get("note"):
             ans.append(f"참고: {rule['note']}")
+        law_src = []
+        try:  # 국가법령정보에서 받아 둔 조문 원문(저장본만 사용 – 질문 응답이 네트워크를 기다리지 않도록)
+            from . import lawapi
+            r0 = lawapi.refs(rule.get("law", ""))[:1]
+            if r0:
+                a = lawapi.article(r0[0]["name"], r0[0]["jo"], r0[0]["branch"], cache_only=True)
+                ans.append(f"조문 원문({a['law']} 제{a['jo']}조 {a['title']}, 시행 {a['effective']}):\n  " + a["text"][:400].replace("\n", "\n  ")
+                           + ("…" if len(a["text"]) > 400 else ""))
+                law_src.append(_src("국가법령정보", f"{a['law']} 제{a['jo']}조", a["url"]))
+        except Exception:
+            pass
         if hits:
             ans.append("기관 지침:")
             ans += [f"  “{h['text']}” [{h['file']} {h['where']}]" for h in hits[:2]]
-        return {"answer": "\n".join(ans), "sources": [_src("config/rules.json", rule["id"], rule["law"])] +
+        return {"answer": "\n".join(ans), "sources": [_src("config/rules.json", rule["id"], rule["law"])] + law_src +
                 [_src(h["file"], h["where"], h["text"]) for h in hits[:2]], "mode": "rule"}
 
     if hits:

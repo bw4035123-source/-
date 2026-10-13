@@ -27,6 +27,9 @@ def tasks(project: dict, res: dict, remind: dict) -> list[dict]:
                     "done": key in done or auto_done, "auto": auto_done,
                     "dday": (when - base).days if when else None})
 
+    from .lawapi import last_status
+    for ref in last_status().get("pending", []):
+        add(f"law:{ref}", base, f"법령 개정 확인 – {ref}", "근거 조문의 시행일자가 바뀌었습니다. 교육 규칙표(시간·대상)를 확인하세요", "settings")
     if res["issues"]:
         add("issues", base, f"확인 필요 {len(res['issues'])}건 처리", "동명이인·오타·미분류 과정을 정하면 이수 현황이 정확해집니다", "issues")
     by_due: dict[str, list] = {}

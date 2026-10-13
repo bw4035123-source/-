@@ -421,3 +421,123 @@ class TestSessionFlow(unittest.TestCase):
         c.delete(f"/api/projects/{pid}/sessions/{sid}")
         self.assertEqual(c.get(f"/api/projects/{pid}/sessions/{sid}").status_code, 404)
         self.assertEqual(c.post(f"/api/projects/{pid}/sessions", json={"manual": True, "col": "int", "date": "2026-11-20"}).status_code, 200)
+
+
+class TestLawAPI(unittest.TestCase):
+    """국가법령정보 DRF 연동: 네트워크 대신 urlopen 을 바꿔 끼워 응답 해석·저장본·개정 감지를 시험(형식 시험용 데이터)."""
+
+    def setUp(self):
+        import json as _json
+        import urllib.request
+
+        from daisu import lawapi
+        self.lawapi = lawapi
+        self.json = _json
+        self._orig = urllib.request.urlopen
+        self.calls = []
+        self.effective = "20250101"
+        self.fail = False
+        self.html = False
+        for f in ("law_cache.json", "law_status.json"):
+            p = os.path.join(config.WORKSPACE, f)
+            if os.path.exists(p):
+                os.remove(p)
+        os.environ["LAW_OC"] = "testoc"
+
+        test = self
+
+        class Resp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake(req, timeout=0):
+            url = req.full_url if hasattr(req, "full_url") else req
+            test.calls.append(url)
+            if test.fail:
+                raise urllib.error.URLError("network down")
+            if test.html:
+                return Resp("<html>등록되지 않은 IP입니다</html>".encode())
+            import urllib.parse as up
+            q = dict(up.parse_qsl(up.urlparse(url).query))
+            if "lawSearch" in url:
+                name = q["query"]
+                body = {"LawSearch": {"totalCnt": "1", "law": [{"법령명한글": name, "법령일련번호": "999" + str(len(name)), "법령ID": "001",
+                                                                 "시행일자": test.effective, "공포일자": "20241201", "현행연혁코드": "현행"}]}}
+            else:
+                body = {"법령": {"기본정보": {"법령명_한글": "x", "시행일자": test.effective, "공포일자": "20241201"},
+                                "조문": {"조문단위": [
+                                    {"조문번호": "29", "조문가지번호": "", "조문여부": "조문", "조문제목": "근로자에 대한 안전보건교육",
+                                     "조문내용": "제29조(근로자에 대한 안전보건교육)", "항": [{"항번호": "①", "항내용": "① 사업주는 정기적으로 안전보건교육을 하여야 한다.",
+                                                                                     "호": [{"호내용": "1. 예시 호"}]}]},
+                                    {"조문번호": "81", "조문가지번호": "2", "조문여부": "조문", "조문제목": "공직자 부패방지 교육",
+                                     "조문내용": "제81조의2(교육) 공직자는 매년 2시간 이상 교육을 받아야 한다."},
+                                    {"조문번호": "13", "조문가지번호": "", "조문여부": "조문", "조문제목": "직장 내 성희롱 예방 교육", "조문내용": "제13조 예시"},
+                                ]}}}
+            return Resp(test.json.dumps(body, ensure_ascii=False).encode())
+
+        urllib.request.urlopen = fake
+
+    def tearDown(self):
+        import urllib.request
+        urllib.request.urlopen = self._orig
+        os.environ.pop("LAW_OC", None)
+
+    def test_article_and_cache(self):
+        a = self.lawapi.article("산업안전보건법", "29")
+        self.assertEqual(a["title"], "근로자에 대한 안전보건교육")
+        self.assertIn("정기적으로", a["text"])
+        self.assertIn("1. 예시 호", a["text"])
+        self.assertEqual(a["effective"], "20250101")
+        self.assertIn("OC=testoc", self.calls[0])
+        self.assertTrue(self.calls[0].startswith("https://www.law.go.kr/DRF/"))
+        b = self.lawapi.article("부패방지 및 국민권익위원회의 설치와 운영에 관한 법률", "81", "2")
+        self.assertIn("2시간", b["text"])
+        n = len(self.calls)
+        self.fail = True  # 인터넷이 끊겨도 저장본으로
+        self.assertEqual(self.lawapi.article("산업안전보건법", "29", cache_only=True)["jo"], "29")
+        self.assertEqual(len(self.calls), n)
+        with self.assertRaises(self.lawapi.LawError):
+            self.lawapi.article("개인정보 보호법", "28")  # 저장본 없음 + 네트워크 실패
+
+    def test_errors(self):
+        self.html = True
+        with self.assertRaises(self.lawapi.LawError) as e:
+            self.lawapi.search("산업안전보건법")
+        self.assertIn("등록한 IP", str(e.exception))
+        os.environ.pop("LAW_OC")
+        with self.assertRaises(self.lawapi.LawError) as e:
+            self.lawapi.search("청렴")
+        self.assertIn("인증키", str(e.exception))
+
+    def test_rules_check_detects_amendment(self):
+        rules = {"courses": [c for c in config.rules()["courses"] if c["id"] in ("sr", "int")]}
+        st = self.lawapi.check_rules(rules)
+        self.assertTrue(all(i["ok"] for i in st["items"]))
+        self.assertEqual(st["pending"], [])
+        self.effective = "20260601"  # 법령 개정
+        st = self.lawapi.check_rules(rules)
+        self.assertIn("산업안전보건법 제29조", st["pending"])
+        res = engine.compute(sample_project())
+        from daisu import planning
+        tasks = planning.tasks(sample_project(), res, {})
+        self.assertTrue(any(t["title"].startswith("법령 개정 확인 – 산업안전보건법") for t in tasks))
+        a = qa.ask(res, "산업안전보건교육 몇 시간 들어야 해?")
+        self.assertIn("조문 원문", a["answer"])  # 저장본 조문을 근거로 붙임
+        self.assertEqual(self.lawapi.acknowledge()["pending"], [])
+
+    def test_server_hides_key(self):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        c = TestClient(app)
+        s = c.get("/api/settings").json()
+        self.assertTrue(s["law"]["has_oc"])
+        self.assertNotIn("testoc", self.json.dumps(s))
+        self.assertEqual(c.post("/api/settings", json={"law": {"oc": "bad key!<>"}}).status_code, 400)
+        self.assertTrue(c.get("/api/law/check").json()["ok"])
+        self.assertEqual(c.get("/api/law/article", params={"name": "산업안전보건법", "jo": "x"}).status_code, 400)
+        r = c.get("/api/law/rule/sr", params={"cache_only": False}).json()
+        self.assertTrue(r["items"][0]["ok"])

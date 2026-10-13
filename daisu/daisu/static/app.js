@@ -319,6 +319,7 @@ async function cellDrawer(d, p, c) {
       h("button", { class: "btn sm", onclick: () => dl(`/api/projects/${d.project.id}/export?doc=card&fmt=docx&person=${encodeURIComponent(p.id)}`) }, "워드")),
     h("h3", { style: "margin-top:14px" }, "근거"), h("div", { class: "small" }, c.law),
     c.note ? h("div", { class: "small muted" }, c.note) : null,
+    lawBox(c.rule),
     h("h3", { style: "margin-top:14px" }, `이 교육 관련 기록 ${mine.length}건`),
     mine.length ? h("table", {}, h("tr", {}, h("th", {}, "과정"), h("th", {}, "날짜"), h("th", { class: "num" }, "시간"), h("th", {}, "판정")),
       mine.map((r) => h("tr", {},
@@ -625,6 +626,7 @@ async function viewSettings() {
       h("div", { class: "card" }, h("h2", {}, "결재선(공문 하단)"),
         h("div", { class: "field" }, h("label", { class: "f" }, "기안자"), sg.drafter), h("div", { class: "field" }, h("label", { class: "f" }, "검토자"), sg.reviewer),
         h("div", { class: "field" }, h("label", { class: "f" }, "결재권자"), sg.approver))),
+    lawCard(s),
     h("div", { class: "row", style: "margin-bottom:16px" }, h("button", { class: "btn primary", onclick: save }, "기관·일정·모델·강사료 설정 저장")),
     h("div", { class: "card" }, h("div", { class: "row between" }, h("h2", { style: "margin:0" }, "교육 규칙표"),
       h("div", { class: "row" }, h("button", { class: "btn", onclick: async () => { if (!confirm("기본 규칙표로 되돌릴까요?")) return; await api("/api/rules/reset", { method: "POST" }); viewSettings(); toast("기본값으로 되돌렸습니다"); } }, "기본값으로"),
@@ -814,4 +816,64 @@ async function viewKiosk(pid, sid) {
       } }, "제출")));
   }
   home();
+}
+
+
+// ───────────── 국가법령정보 연동
+function lawText(a) {
+  return h("div", { class: "law" },
+    h("div", { class: "row between" }, h("b", {}, `${a.law} 제${a.jo}조${a.branch && a.branch !== "0" ? "의" + a.branch : ""} ${a.title || ""}`),
+      h("a", { href: a.url, target: "_blank", rel: "noopener", class: "small" }, "국가법령정보센터")),
+    h("div", { class: "tiny muted" }, `시행 ${a.effective || "-"} · 받은 때 ${(a.fetched || "").replace("T", " ")}`),
+    h("div", { class: "law-text" }, a.text));
+}
+function lawBox(rule) {
+  const box = h("div", { style: "margin-top:10px" }, h("div", { class: "tiny muted" }, "법령 원문 불러오는 중…"));
+  const load = async (cacheOnly) => {
+    const r = await api(`/api/law/rule/${rule}?cache_only=${cacheOnly}`).catch(() => null);
+    if (!r) return box.replaceChildren();
+    const ok = r.items.filter((x) => x.ok);
+    box.replaceChildren(
+      ok.map(lawText),
+      r.items.filter((x) => !x.ok).length ? h("div", { class: "row small", style: "margin-top:6px" },
+        r.has_oc ? h("button", { class: "btn sm", onclick: () => { box.replaceChildren(h("div", { class: "tiny muted" }, "국가법령정보센터에서 받는 중…")); load(false); } }, "국가법령정보에서 조문 원문 받기")
+          : h("span", { class: "muted" }, "설정 → 국가법령정보 연동에서 인증키를 넣으면 조문 원문을 볼 수 있습니다."),
+        !cacheOnly ? r.items.filter((x) => !x.ok).map((x) => h("div", { class: "tiny", style: "color:var(--none)" }, x.error)) : null,
+        r.items.filter((x) => !x.ok).map((x) => h("a", { href: x.url, target: "_blank", rel: "noopener", class: "tiny" }, `${x.law} 제${x.jo}조 바로 열기`))) : null);
+  };
+  load(true);
+  return box;
+}
+function lawCard(s) {
+  const ocIn = h("input", { type: "password", placeholder: s.law.has_oc ? "저장된 인증키 있음(바꿀 때만 입력)" : "인증키(OC) – 신청 승인 메일의 OC 값", style: "width:100%" });
+  const msg = h("div", { class: "small" });
+  const out = h("div");
+  const showStatus = (st) => {
+    if (!st || !st.items) return out.replaceChildren(h("p", { class: "small muted" }, "아직 확인한 적이 없습니다."));
+    const pend = new Set(st.pending || []);
+    out.replaceChildren(
+      h("div", { class: "row between", style: "margin:8px 0" }, h("span", { class: "small muted" }, `마지막 확인 ${String(st.checked || "").replace("T", " ")}`),
+        pend.size ? h("button", { class: "btn sm", onclick: async () => { showStatus(await api("/api/law/ack", { method: "POST", json: {} })); toast("개정 확인을 완료로 표시했습니다"); } }, "개정 내용 확인 완료") : null),
+      h("table", {}, h("tr", {}, h("th", {}, "교육"), h("th", {}, "근거 조문"), h("th", {}, "시행일"), h("th", {})),
+        st.items.map((i) => h("tr", {}, h("td", { class: "small" }, i.course),
+          h("td", { class: "small" }, h("a", { href: i.url, target: "_blank", rel: "noopener" }, i.ref), i.title ? h("div", { class: "tiny muted" }, i.title) : null,
+            i.ok ? null : h("div", { class: "tiny", style: "color:var(--none)" }, i.error)),
+          h("td", { class: "small" }, i.effective || "-"),
+          h("td", {}, !i.ok ? h("span", { class: "badge b-none" }, "실패") : pend.has(i.ref) ? h("span", { class: "badge b-part", title: `이전 시행일 ${i.before || ""}` }, "개정됨 – 확인 필요") : h("span", { class: "badge b-done" }, "확인"))))));
+  };
+  api("/api/law/status").then(showStatus).catch(() => {});
+  return h("div", { class: "card" }, h("h2", {}, "국가법령정보 연동"),
+    h("p", { class: "small muted" }, "국가법령정보 공동활용(open.law.go.kr)에서 받은 인증키(OC)를 넣으면 교육 규칙표의 근거 조문 원문과 시행일자를 확인하고, 법령이 개정되면 ‘할 일’에 알립니다. 인증키는 이 PC에만 저장됩니다. 신청 때 등록한 IP·도메인의 PC에서만 응답이 옵니다."),
+    h("div", { class: "row" }, h("div", { class: "grow" }, ocIn),
+      h("button", { class: "btn", onclick: async () => {
+        if (ocIn.value) { await api("/api/settings", { method: "POST", json: { law: { oc: ocIn.value } } }); ocIn.value = ""; ocIn.placeholder = "저장된 인증키 있음(바꿀 때만 입력)"; }
+        msg.textContent = "연결 확인 중…";
+        try { msg.textContent = (await api("/api/law/check")).detail; } catch (e) { msg.textContent = "연결 실패: " + e.message; }
+      } }, "저장 후 연결 확인"),
+      h("button", { class: "btn primary", onclick: async (e) => {
+        e.target.disabled = true; msg.textContent = "근거 조문을 확인하는 중…(법령 수에 따라 수십 초)";
+        try { const st = await api("/api/law/rules-check", { method: "POST" }); showStatus(st); msg.textContent = `확인 완료: ${st.items.filter((i) => i.ok).length}/${st.items.length}건` + (st.pending.length ? `, 개정 ${st.pending.length}건` : ""); }
+        catch (err) { msg.textContent = "확인 실패: " + err.message; }
+        e.target.disabled = false;
+      } }, "근거 법령 최신 확인")), msg, out);
 }

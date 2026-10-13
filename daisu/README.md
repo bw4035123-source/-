@@ -57,6 +57,16 @@
 - **휴직·퇴사·입사**: 휴직 중이면 ‘휴직(유예)’, 퇴사자는 집계 제외, 기간 이후 입사자는 대상 아님.
 - **판정 연도**: 기본은 기준일의 연도. 1~2월에 지난해 실적을 정리할 때는 화면 위 ‘판정 연도’를 지난해로.
 
+## 국가법령정보 연동(선택)
+
+국가법령정보 공동활용(open.law.go.kr)에서 승인받은 인증키(OC)를 **설정 → 국가법령정보 연동**에 넣으면
+
+- **근거 법령 최신 확인**: 교육 규칙표의 근거(예: 산업안전보건법 제29조, 같은 법 시행령 제3조)를 조문 원문·시행일자로 확인하고, **지난 확인 때와 시행일자가 다르면 ‘할 일’에 ‘법령 개정 확인’을 띄웁니다**(규칙표의 시간·대상을 다시 볼 시점).
+- **판정 근거에 조문 원문**: 이수 현황표 칸 → 서랍에 조문 원문·시행일·국가법령정보센터 링크
+- **질문하기**: 규정 질문에 받아 둔 조문 원문을 함께 표시(질문 응답은 저장본만 사용해 네트워크를 기다리지 않음)
+
+인증키는 `config/settings.local.json`(이 PC에만, 저장소 제외) 또는 환경변수 `LAW_OC`에 저장되고 화면으로 다시 나가지 않습니다. 요청은 `https://www.law.go.kr/DRF`로만 보냅니다(주소 변경 불가). 받은 원문은 `workspace/law_cache.json`에 저장해 인터넷이 끊겨도 마지막 원문을 보여 줍니다. **신청 때 등록한 IP·도메인의 PC에서만 응답**이 오므로, ‘연결 확인’이 실패하면 등록 정보를 확인하세요.
+
 ## 강사료·원천징수(설정에서 변경)
 
 - 강사료 기준: 등급별 첫 1시간·추가 1시간 금액, 원고료(1매당) – 기본값은 **예시**이므로 기관 강사료 지급 기준으로 고치세요.
@@ -102,10 +112,10 @@
 ## 개발자용
 
 ```
-python -m unittest discover -s tests     # 23개 테스트(판정, 일정 제약, 보고서 왕복, 보안, 강사료·원천징수, 공문 번호, 회차·키오스크 흐름)
+python -m unittest discover -s tests     # 27개 테스트(판정, 일정 제약, 보고서 왕복, 보안, 강사료·원천징수, 공문 번호, 회차·키오스크 흐름, 법령 API 해석·저장본·개정 감지)
 python sample_data/make_samples.py       # 모의자료 다시 만들기
 ```
 
-구성: `daisu/readers.py`(파일 읽기) → `sources.py`(자료 종류 판별·해석) → `engine.py`(매칭·판정) → `schedule.py`(일정) → `reports.py`·`render.py`(보고서·한글/워드) → `sessions.py`(회차·출석·서류) → `fees.py`(강사료) → `gongmun.py`(기안문) → `planning.py`(할 일·실적·운영계획·이력 카드) → `qa.py`(질문) → `server.py`(API·보안) → `static/`(화면)
+구성: `daisu/readers.py`(파일 읽기) → `sources.py`(자료 종류 판별·해석) → `engine.py`(매칭·판정) → `schedule.py`(일정) → `reports.py`·`render.py`(보고서·한글/워드) → `sessions.py`(회차·출석·서류) → `fees.py`(강사료) → `gongmun.py`(기안문) → `planning.py`(할 일·실적·운영계획·이력 카드) → `lawapi.py`(국가법령정보) → `qa.py`(질문) → `server.py`(API·보안) → `static/`(화면)
 
 오픈소스: FastAPI(MIT), Uvicorn(BSD), pypdf(BSD), openpyxl(MIT), olefile(BSD), python-docx(MIT), python-hwpx(Apache-2.0), python-multipart(Apache-2.0)

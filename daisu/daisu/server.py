@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, engine, llm, planning, qa, reports, schedule, sessions
+from . import config, engine, lawapi, llm, planning, qa, reports, schedule, sessions
 from .readers import SUPPORTED
 from .render import FORMATS
 
@@ -169,7 +169,8 @@ def get_settings():
     profiles = {k: {kk: vv for kk, vv in v.items() if kk != "api_key"} | {"has_key": bool(v.get("api_key"))}
                 for k, v in s["profiles"].items()}
     return {"org": s["org"], "schedule": s["schedule"], "active_profile": s.get("active_profile"), "profiles": profiles,
-            "remind": s.get("remind", {}), "fees": s.get("fees", {})}
+            "remind": s.get("remind", {}), "fees": s.get("fees", {}),
+            "law": {"has_oc": bool(lawapi.oc()), "checked": lawapi.last_status().get("checked")}}
 
 
 @app.post("/api/settings")
@@ -217,6 +218,11 @@ async def post_settings(req: Request):
             except (TypeError, ValueError):
                 raise HTTPException(400, "원고료가 숫자가 아닙니다.")
         patch["fees"] = fp
+    if isinstance(b.get("law"), dict) and "oc" in b["law"]:
+        v = str(b["law"]["oc"] or "").strip()
+        if v and not re.fullmatch(r"[A-Za-z0-9_.@-]{2,60}", v):
+            raise HTTPException(400, "인증키(OC) 형식이 올바르지 않습니다.")
+        patch["law"] = {"oc": v}
     if b.get("active_profile"):
         if b["active_profile"] not in s["profiles"]:
             raise HTTPException(400, "없는 모델 프로필입니다.")
@@ -281,6 +287,62 @@ async def put_rules(req: Request):
 def reset_rules():
     config.reset_rules()
     return config.rules()
+
+
+# ───────────── 국가법령정보 연동
+def _law(fn, *a, **k):
+    try:
+        return fn(*a, **k)
+    except lawapi.LawError as e:
+        raise HTTPException(502, str(e))
+
+
+@app.get("/api/law/check")
+def law_check():
+    found = _law(lawapi.search, "산업안전보건법")
+    if not found:
+        raise HTTPException(502, "응답은 받았지만 ‘산업안전보건법’ 검색 결과가 없습니다.")
+    f = found[0]
+    return {"ok": True, "detail": f"연결 성공: {f['name']}(시행 {f['effective']}) 등 {len(found)}건 검색됨"}
+
+
+@app.get("/api/law/article")
+def law_article(name: str, jo: str, branch: str = "0", cache_only: bool = False):
+    if not re.fullmatch(r"\d{1,4}", jo or "") or not re.fullmatch(r"\d{1,3}", branch or "0"):
+        raise HTTPException(400, "조문 번호가 올바르지 않습니다.")
+    return _law(lawapi.article, name[:80], jo, branch, cache_only=cache_only)
+
+
+@app.get("/api/law/rule/{rule_id}")
+def law_for_rule(rule_id: str, cache_only: bool = True):
+    rule = next((r for r in config.rules()["courses"] if r["id"] == rule_id), None)
+    if not rule:
+        raise HTTPException(404, "없는 교육입니다.")
+    out = []
+    for r in lawapi.refs(rule.get("law", "")):
+        try:
+            out.append(dict(lawapi.article(r["name"], r["jo"], r["branch"], cache_only=cache_only), ok=True))
+        except lawapi.LawError as e:
+            out.append({"ok": False, "law": r["name"], "jo": r["jo"], "error": str(e), "url": lawapi.link(r["name"], r["jo"], r["branch"])})
+    return {"law": rule.get("law", ""), "items": out, "has_oc": bool(lawapi.oc())}
+
+
+@app.post("/api/law/rules-check")
+def law_rules_check():
+    if not lawapi.oc():
+        raise HTTPException(400, "국가법령정보 인증키(OC)를 먼저 설정하세요.")
+    return lawapi.check_rules(config.rules())
+
+
+@app.get("/api/law/status")
+def law_status():
+    return lawapi.last_status()
+
+
+@app.post("/api/law/ack")
+async def law_ack(req: Request):
+    b = await body(req)
+    return lawapi.acknowledge(b.get("ref"))
 
 
 # ───────────── 작업(프로젝트)
