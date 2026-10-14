@@ -19,7 +19,7 @@ export default function AboutPage() {
   const [providers, setProviders] = React.useState<ProviderInfo[]>([]);
   const [lawApi, setLawApi] = React.useState<string>("mock");
   React.useEffect(() => {
-    document.title = "서비스 구조 · 모두의 법";
+    document.title = "서비스 구조 · 법이음";
     fetch("/api/providers")
       .then((r) => r.json())
       .then((j) => {
@@ -32,7 +32,7 @@ export default function AboutPage() {
   return (
     <div className="container max-w-5xl py-10">
       <h1 className="text-2xl font-extrabold">서비스 구조 · AI 검증 방식</h1>
-      <p className="mt-2 text-muted-foreground">모두의 법은 “근거 없는 답변을 하지 않는 법률 AI”를 목표로 설계되었습니다.</p>
+      <p className="mt-2 text-muted-foreground">법이음은 “근거 없는 답변을 하지 않는 법률 AI”를 목표로 설계되었습니다.</p>
 
       <section className="mt-8" aria-labelledby="pipe-h">
         <h2 id="pipe-h" className="mb-4 font-extrabold">

@@ -95,3 +95,29 @@ describe("LawService 실시간 모드(fetch 모킹)", () => {
     expect(urls.some((u) => u.includes("target=expc") && u.includes("search=2"))).toBe(false);
   });
 });
+
+describe("판례 보기(상세) 파서", () => {
+  it("판례: HTML 줄바꿈을 텍스트로, 태그 제거, 섹션 순서", async () => {
+    const { parseCaseDetail, cleanCaseText } = await import("@/lib/law-api/drf");
+    const d = parseCaseDetail(
+      { PrecService: { 사건명: "부당해고구제재심판정취소", 사건번호: "2023두54914", 법원명: "대법원", 선고일자: "20260129", 판결유형: "판결", 판시사항: "<br/> [1] 근로자 판단 기준", 판결요지: "[1] 실질<br/>[2] 종속", 판례내용: "【원고】 <b>○○</b>&nbsp;조합" } },
+      "판례",
+      "616245",
+    )!;
+    expect(d.sections.map((s) => s.label)).toEqual(["판시사항", "판결요지", "판결 전문"]);
+    expect(d.sections[1].text).toBe("[1] 실질\n[2] 종속");
+    expect(d.sections[2].text).toBe("【원고】 ○○ 조합");
+    expect(d.url).toContain("/판례/(2023%EB%91%9054914)");
+    expect(cleanCaseText("<script>x</script>a&lt;b")).toBe("xa<b");
+  });
+  it("법령해석례: 질의요지·회답·이유", async () => {
+    const { parseCaseDetail } = await import("@/lib/law-api/drf");
+    const d = parseCaseDetail({ ExpcService: { 안건명: "공공기관 해당 여부", 안건번호: "08-0204", 해석기관명: "법제처", 해석일자: "20080724", 질의요지: "q", 회답: "a", 이유: "r" } }, "법령해석례", "311671")!;
+    expect(d.sections.map((s) => s.label)).toEqual(["질의요지", "회답", "이유"]);
+    expect(d.court).toBe("법제처");
+  });
+  it("목록에 상세 조회용 일련번호 포함", async () => {
+    const { parseCaseList } = await import("@/lib/law-api/drf");
+    expect(parseCaseList({ PrecSearch: { prec: [{ 사건명: "x", 사건번호: "1", 판례일련번호: "616245" }] } }, "판례")[0].id).toBe("616245");
+  });
+});

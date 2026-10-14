@@ -98,14 +98,14 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
 
     by_key = {c["key"]: c for c in context}
     citations = [by_key[k] for k in citation_keys if k in by_key]
-    # 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정) — 없으면 질문 그대로
-    cases = svc.search_cases(topic.get("caseQuery") or query if topic else query) if mode == "officer" else []
     notices += svc.warnings
 
     result = {
         "query": query, "mode": mode,
         "provider": used, "summary": out["summary"],
-        "citations": citations, "contacts": topic["contacts"] if topic else DEFAULT_CONTACTS, "cases": cases,
+        "citations": citations, "contacts": topic["contacts"] if topic else DEFAULT_CONTACTS,
+        # 판례 검색어: 화면이 /api/cases 로 따로 불러옴(답변 속도 보호)
+        "caseQuery": topic.get("caseQuery") if topic else None,
         "relatedLaws": related_laws_of([c["key"] for c in citations]),
         "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback} if fallback else {})},
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .data import LAWS, get_law, parse_key, to_citation
-from .drf import LawApiError, drf_get, parse_case_list, parse_law_doc, parse_law_list
+from .drf import LawApiError, drf_get, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list
 from .search import search_law_names
 
 CASE_TIMEOUT = 25
@@ -105,20 +105,32 @@ class LawService:
                 out[k] = to_citation(law, art)
         return [out[k] for k in keys if k in out]
 
-    def search_cases(self, query: str) -> list[dict]:
+    def search_cases(self, query: str, limit: int = 5) -> list[dict]:
         """판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완"""
         if not self.oc or not query.strip():
             return []
+        display = str(min(max(int(limit), 1), 20))
 
         def one(target: str, kind: str) -> list[dict]:
-            by_name = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "5"}, self.oc, CASE_TIMEOUT), kind)
+            by_name = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display}, self.oc, CASE_TIMEOUT), kind)
             if len(by_name) >= 2:
                 return by_name
-            by_text = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "5", "search": "2"}, self.oc, CASE_TIMEOUT), kind)
-            return (by_name + [c for c in by_text if not any(b["caseNo"] == c["caseNo"] for b in by_name)])[:5]
+            by_text = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display, "search": "2"}, self.oc, CASE_TIMEOUT), kind)
+            return (by_name + [c for c in by_text if not any(b["id"] == c["id"] for b in by_name)])[: int(display)]
 
         try:
             return one("prec", "판례") + one("expc", "법령해석례")
         except LawApiError as e:
             self.warnings.append(str(e))
             return []
+
+    def get_case(self, kind: str, case_id: str) -> dict | None:
+        """판례·법령해석례 상세 — 실시간 연동 시에만 제공(사건 내용을 지어내지 않음)"""
+        if not self.oc or not case_id.isdigit() or len(case_id) > 12:
+            return None
+        try:
+            data = drf_get("lawService.do", {"target": "prec" if kind == "판례" else "expc", "ID": case_id}, self.oc, CASE_TIMEOUT)
+            return parse_case_detail(data, kind, case_id)
+        except LawApiError as e:
+            self.warnings.append(str(e))
+            return None

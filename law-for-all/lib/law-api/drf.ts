@@ -1,4 +1,4 @@
-import type { CaseItem, LawArticle, LawDoc, LawKind } from "./types";
+import type { CaseDetail, CaseItem, LawArticle, LawDoc, LawKind } from "./types";
 
 /**
  * 국가법령정보 공동활용 Open API(DRF) 저수준 클라이언트.
@@ -30,7 +30,7 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-for-all/1.0" }, cache: "no-store" });
+      const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-on/1.0" }, cache: "no-store" });
       raw = await res.text();
     } catch (e) {
       lastErr = e;
@@ -175,6 +175,10 @@ export function parseLawDoc(data: Json, fallback: { id: string; name: string; ms
   };
 }
 
+const caseUrl = (kind: CaseItem["kind"], caseNo: string) =>
+  // 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
+  caseNo ? `https://www.law.go.kr/${kind === "판례" ? "판례" : "법령해석례"}/(${encodeURIComponent(caseNo)})` : "https://www.law.go.kr/";
+
 export function parseCaseList(data: Json, kind: CaseItem["kind"]): CaseItem[] {
   const key = kind === "판례" ? "prec" : "expc";
   return findAll(data, key)
@@ -183,15 +187,63 @@ export function parseCaseList(data: Json, kind: CaseItem["kind"]): CaseItem[] {
       const caseNo = txt(it["사건번호"] ?? it["안건번호"]);
       return {
         kind,
+        id: txt(it["판례일련번호"] ?? it["법령해석례일련번호"]),
         title: txt(it["사건명"] ?? it["안건명"]),
         caseNo: caseNo || undefined,
         court: txt(it["법원명"] ?? it["회신기관명"]) || undefined,
         date: txt(it["선고일자"] ?? it["회신일자"]) || undefined,
-        // 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
-        url: caseNo
-          ? `https://www.law.go.kr/${kind === "판례" ? "판례" : "법령해석례"}/(${encodeURIComponent(caseNo)})`
-          : `https://www.law.go.kr/`,
+        url: caseUrl(kind, caseNo),
       };
     })
     .filter((c) => c.title);
+}
+
+/** 판례 본문의 HTML 줄바꿈·태그를 일반 텍스트로(화면에는 텍스트로만 출력 — HTML 주입 방지) */
+export function cleanCaseText(raw: string): string {
+  return raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+const PREC_SECTIONS: [string, string][] = [
+  ["판시사항", "판시사항"],
+  ["판결요지", "판결요지"],
+  ["참조조문", "참조조문"],
+  ["참조판례", "참조판례"],
+  ["판례내용", "판결 전문"],
+];
+const EXPC_SECTIONS: [string, string][] = [
+  ["질의요지", "질의요지"],
+  ["회답", "회답"],
+  ["이유", "이유"],
+];
+
+export function parseCaseDetail(data: Json, kind: CaseItem["kind"], id: string): CaseDetail | null {
+  const body = rec(findAll(data, kind === "판례" ? "PrecService" : "ExpcService")[0]);
+  const title = txt(body["사건명"] ?? body["안건명"]);
+  if (!title) return null;
+  const caseNo = txt(body["사건번호"] ?? body["안건번호"]);
+  const sections = (kind === "판례" ? PREC_SECTIONS : EXPC_SECTIONS)
+    .map(([key, label]) => ({ label, text: cleanCaseText(txt(body[key])) }))
+    .filter((x) => x.text);
+  return {
+    kind,
+    id,
+    title,
+    caseNo: caseNo || undefined,
+    court: txt(body["법원명"] ?? body["해석기관명"]) || undefined,
+    date: txt(body["선고일자"] ?? body["해석일자"]) || undefined,
+    judgmentType: txt(body["판결유형"]) || undefined,
+    sections,
+    url: caseUrl(kind, caseNo),
+  };
 }

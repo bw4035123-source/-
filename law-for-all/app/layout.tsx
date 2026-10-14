@@ -6,9 +6,9 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 
 export const metadata: Metadata = {
-  title: { default: "모두의 법 · Law For All", template: "%s · 모두의 법" },
+  title: { default: "법이음 · LAW:ON", template: "%s · 법이음" },
   description: "어려운 법률·조례·행정규칙을 시민과 공무원 누구나 쉽게 찾고, 해석하고, 바로 활용하는 AI 법률 지능형 포털",
-  applicationName: "모두의 법",
+  applicationName: "법이음",
   icons: { icon: "/icon.svg" },
 };
 

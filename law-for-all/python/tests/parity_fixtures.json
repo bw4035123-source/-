@@ -138,7 +138,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
-    "cases": [],
+    "caseQuery": "층간소음",
     "relatedLaws": [
      {
       "id": "apartment-mgmt",
@@ -300,7 +300,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
-    "cases": [],
+    "caseQuery": "층간소음",
     "relatedLaws": [
      {
       "id": "apartment-mgmt",
@@ -507,7 +507,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "전세사기",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -718,7 +718,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "전세사기",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -897,7 +897,7 @@
       "desc": "전세보증금반환보증 이행청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "임차보증금",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -1064,7 +1064,7 @@
       "desc": "전세보증금반환보증 이행청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "임차보증금",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -1198,7 +1198,7 @@
       "desc": "육아휴직 급여 온라인 신청"
      }
     ],
-    "cases": [],
+    "caseQuery": "육아휴직",
     "relatedLaws": [
      {
       "id": "gender-equality-employment",
@@ -1340,7 +1340,7 @@
       "desc": "육아휴직 급여 온라인 신청"
      }
     ],
-    "cases": [],
+    "caseQuery": "육아휴직",
     "relatedLaws": [
      {
       "id": "gender-equality-employment",
@@ -1541,7 +1541,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "cases": [],
+    "caseQuery": "민원",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -1738,7 +1738,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "cases": [],
+    "caseQuery": "민원",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -1862,7 +1862,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "퇴직금",
     "relatedLaws": [
      {
       "id": "labor-standards",
@@ -1982,7 +1982,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "퇴직금",
     "relatedLaws": [
      {
       "id": "labor-standards",
@@ -2136,7 +2136,7 @@
       "desc": "면허 취소·정지 처분 행정심판 청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "음주운전",
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -2298,7 +2298,7 @@
       "desc": "면허 취소·정지 처분 행정심판 청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "음주운전",
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -2434,7 +2434,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
-    "cases": [],
+    "caseQuery": "정보공개",
     "relatedLaws": [
      {
       "id": "info-disclosure",
@@ -2562,7 +2562,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
-    "cases": [],
+    "caseQuery": "정보공개",
     "relatedLaws": [
      {
       "id": "info-disclosure",
@@ -2755,7 +2755,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "cases": [],
+    "caseQuery": "민원",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -2952,7 +2952,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "cases": [],
+    "caseQuery": "민원",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -3155,7 +3155,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "전세사기",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -3362,7 +3362,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
-    "cases": [],
+    "caseQuery": "전세사기",
     "relatedLaws": [
      {
       "id": "housing-lease",
@@ -3524,7 +3524,7 @@
       "desc": "면허 취소·정지 처분 행정심판 청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "음주운전",
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -3686,7 +3686,7 @@
       "desc": "면허 취소·정지 처분 행정심판 청구"
      }
     ],
-    "cases": [],
+    "caseQuery": "음주운전",
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -3828,7 +3828,7 @@
       "desc": "개인정보 침해 신고·상담"
      }
     ],
-    "cases": [],
+    "caseQuery": "개인정보",
     "relatedLaws": [
      {
       "id": "privacy",
@@ -3966,7 +3966,7 @@
       "desc": "개인정보 침해 신고·상담"
      }
     ],
-    "cases": [],
+    "caseQuery": "개인정보",
     "relatedLaws": [
      {
       "id": "privacy",
@@ -4043,7 +4043,7 @@
       "desc": "무료 법률상담"
      }
     ],
-    "cases": [],
+    "caseQuery": null,
     "relatedLaws": [],
     "guard": {
      "removedCitations": [],
@@ -4111,7 +4111,7 @@
       "desc": "무료 법률상담"
      }
     ],
-    "cases": [],
+    "caseQuery": null,
     "relatedLaws": [],
     "guard": {
      "removedCitations": [],
@@ -4219,7 +4219,7 @@
       "desc": "무료 법률상담"
      }
     ],
-    "cases": [],
+    "caseQuery": null,
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -4336,7 +4336,7 @@
       "desc": "무료 법률상담"
      }
     ],
-    "cases": [],
+    "caseQuery": null,
     "relatedLaws": [
      {
       "id": "road-traffic",
@@ -4769,6 +4769,7 @@
       "desc": "소송보다 빠르고 저렴한 조정(법률구조공단 등에 설치)"
      }
     ],
+    "caseQuery": "전세사기",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -4989,6 +4990,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
+    "caseQuery": "층간소음",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -5173,6 +5175,7 @@
       "desc": "무료 법률상담·소송 지원(소득 기준 등 요건 확인)"
      }
     ],
+    "caseQuery": "퇴직금",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -5355,6 +5358,7 @@
       "desc": "부당해고 구제신청"
      }
     ],
+    "caseQuery": "부당해고",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -5570,6 +5574,7 @@
       "desc": "면허 취소·정지 처분 행정심판 청구"
      }
     ],
+    "caseQuery": "음주운전",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -5752,6 +5757,7 @@
       "desc": "부당해고 구제신청"
      }
     ],
+    "caseQuery": "부당해고",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -6092,6 +6098,7 @@
       "desc": "전세보증금반환보증 이행청구"
      }
     ],
+    "caseQuery": "임차보증금",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -6300,6 +6307,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
+    "caseQuery": "층간소음",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -6465,6 +6473,7 @@
       "desc": "어느 기관에 물어야 할지 모를 때 안내"
      }
     ],
+    "caseQuery": "정보공개",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
@@ -6509,6 +6518,7 @@
       "desc": "소관 기관 안내"
      }
     ],
+    "caseQuery": null,
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",

@@ -16,7 +16,7 @@ import { LoadingState } from "./loading-state";
 import { CitizenAnswer } from "@/components/citizen-view/citizen-answer";
 import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { OfficerReport } from "@/components/officer-view/officer-report";
-import { CasesPanel } from "@/components/officer-view/cases-panel";
+import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
 import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
@@ -161,7 +161,14 @@ export function SearchResults({ q }: { q: string }) {
             </Button>
           </motion.div>
 
-          {officer ? <CasesPanel cases={r.cases} live={r.dataSource === "live"} /> : <ContactsCard contacts={r.contacts} />}
+          {officer ? (
+            <RelatedCases query={r.caseQuery} variant="officer" />
+          ) : (
+            <>
+              <ContactsCard contacts={r.contacts} />
+              <RelatedCases query={r.caseQuery} variant="citizen" />
+            </>
+          )}
         </div>
 
         {/* 우측: 근거 조문 카드 */}

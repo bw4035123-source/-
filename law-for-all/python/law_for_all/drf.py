@@ -33,7 +33,7 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20):
     # 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
     for attempt in range(RETRIES + 1):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "law-for-all/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "law-on/1.0"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 raw = r.read().decode("utf-8", errors="replace")
             break
@@ -167,6 +167,12 @@ def parse_law_doc(data, law_id: str, name: str, mst: str) -> dict:
     }
 
 
+def _case_url(kind: str, case_no: str) -> str:
+    # 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
+    seg = "판례" if kind == "판례" else "법령해석례"
+    return f"https://www.law.go.kr/{seg}/({urllib.parse.quote(case_no)})" if case_no else "https://www.law.go.kr/"
+
+
 def parse_case_list(data, kind: str) -> list[dict]:
     key = "prec" if kind == "판례" else "expc"
     out = []
@@ -175,12 +181,40 @@ def parse_case_list(data, kind: str) -> list[dict]:
         title = txt(it.get("사건명") or it.get("안건명"))
         if not title:
             continue
-        seg = "판례" if kind == "판례" else "법령해석례"
         out.append({
-            "kind": kind, "title": title, "caseNo": case_no or None,
-            "court": txt(it.get("법원명") or it.get("회신기관명")) or None,
-            "date": txt(it.get("선고일자") or it.get("회신일자")) or None,
-            # 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
-            "url": f"https://www.law.go.kr/{seg}/({urllib.parse.quote(case_no)})" if case_no else "https://www.law.go.kr/",
+            "kind": kind, "id": txt(it.get("판례일련번호") or it.get("법령해석례일련번호")), "title": title,
+            "caseNo": case_no or None, "court": txt(it.get("법원명") or it.get("회신기관명")) or None,
+            "date": txt(it.get("선고일자") or it.get("회신일자")) or None, "url": _case_url(kind, case_no),
         })
     return out
+
+
+def clean_case_text(raw: str) -> str:
+    """판례 본문의 HTML 줄바꿈·태그를 일반 텍스트로(화면에는 텍스트로만 출력 — HTML 주입 방지)"""
+    t = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
+    t = re.sub(r"<[^>]+>", "", t)
+    for a, b in (("&nbsp;", " "), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", '"'), ("&#39;", "'"), ("&amp;", "&")):
+        t = t.replace(a, b)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+PREC_SECTIONS = [("판시사항", "판시사항"), ("판결요지", "판결요지"), ("참조조문", "참조조문"), ("참조판례", "참조판례"), ("판례내용", "판결 전문")]
+EXPC_SECTIONS = [("질의요지", "질의요지"), ("회답", "회답"), ("이유", "이유")]
+
+
+def parse_case_detail(data, kind: str, case_id: str) -> dict | None:
+    body = _rec((find_all(data, "PrecService" if kind == "판례" else "ExpcService") or [None])[0])
+    title = txt(body.get("사건명") or body.get("안건명"))
+    if not title:
+        return None
+    case_no = txt(body.get("사건번호") or body.get("안건번호"))
+    sections = [{"label": label, "text": clean_case_text(txt(body.get(key)))} for key, label in (PREC_SECTIONS if kind == "판례" else EXPC_SECTIONS)]
+    d = {
+        "kind": kind, "id": case_id, "title": title, "caseNo": case_no or None,
+        "court": txt(body.get("법원명") or body.get("해석기관명")) or None,
+        "date": txt(body.get("선고일자") or body.get("해석일자")) or None,
+        "judgmentType": txt(body.get("판결유형")) or None,
+        "sections": [x for x in sections if x["text"]], "url": _case_url(kind, case_no),
+    }
+    return d

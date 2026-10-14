@@ -17,7 +17,7 @@ export function LawPageClient() {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "법령을 찾을 수 없습니다.");
         setState({ id, data: j });
-        document.title = `${j.root.id === id ? j.root.name : j.children.find((c: LawDoc) => c.id === id)?.name ?? j.root.name} · 모두의 법`;
+        document.title = `${j.root.id === id ? j.root.name : j.children.find((c: LawDoc) => c.id === id)?.name ?? j.root.name} · 법이음`;
       })
       .catch((e) => setState({ id, error: (e as Error).message }));
   }, []);

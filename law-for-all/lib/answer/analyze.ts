@@ -78,6 +78,7 @@ export async function analyze({ situation, provider: requested }: { situation: s
     analyses,
     citations,
     contacts: contacts.length ? contacts.slice(0, 5) : DEFAULT_CONTACTS,
+    caseQuery: issues[0]?.topic.caseQuery ?? null,
     provider: usedProvider,
     guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",

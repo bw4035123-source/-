@@ -5,8 +5,8 @@ export function SiteFooter() {
     <footer className="no-print mt-20 border-t bg-navy-700 text-navy-100 dark:bg-navy-900">
       <div className="container grid gap-6 py-10 text-sm md:grid-cols-3">
         <div>
-          <p className="text-base font-extrabold text-white">모두의 법 · Law For All</p>
-          <p className="mt-2 leading-6 text-navy-200">어려운 법을 누구나 쉽게. 2026 공공 AI 대전환 챌린지 출품작.</p>
+          <p className="text-base font-extrabold text-white">법이음 · LAW:ON</p>
+          <p className="mt-2 leading-6 text-navy-200">법은 가깝게, 권리는 든든하게. 어려운 법률을 일상의 언어로 연결합니다.</p>
         </div>
         <div className="leading-6 text-navy-200">
           <p className="font-semibold text-white">법령 데이터</p>

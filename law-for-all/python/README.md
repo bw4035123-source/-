@@ -1,4 +1,4 @@
-# 모두의 법 (Law For All) — Python 실행판
+# 법이음 (LAW:ON) — Python 실행판
 
 **Python 3.9 이상만 있으면** 바로 실행됩니다. `pip install`·Node.js·인터넷 연결이 필요 없습니다(표준 라이브러리만 사용).
 

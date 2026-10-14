@@ -90,8 +90,6 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
   if (removed.length) notices.push(`근거 목록에 없는 인용 ${removed.length}건을 자동 제거했습니다.`);
 
   const citations = citationKeys.map((k) => context.find((c) => c.key === k)!).filter(Boolean);
-  // 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정) — 없으면 질문 그대로
-  const cases = mode === "officer" ? await svc.searchCases(topic?.caseQuery ?? query) : [];
   notices.push(...svc.warnings);
 
   return {
@@ -104,7 +102,8 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
     officer,
     citations,
     contacts: topic?.contacts ?? DEFAULT_CONTACTS,
-    cases,
+    // 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정)
+    caseQuery: topic?.caseQuery ?? null,
     relatedLaws: relatedLawsOf(citations.map((c) => c.key)),
     guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",

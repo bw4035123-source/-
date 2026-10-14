@@ -1,14 +1,14 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { BookOpenCheck, FileClock, GitCompareArrows, Gavel, Loader2, NotebookPen } from "lucide-react";
+import { BookOpenCheck, FileClock, GitCompareArrows, Gavel, NotebookPen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ArticleText } from "@/components/law-search/article-text";
 import { ArticleActions } from "./article-actions";
 import { ThreeTierCompare } from "./three-tier-compare";
-import { CasesPanel } from "./cases-panel";
-import type { CaseItem, LawDoc } from "@/lib/law-api/types";
+import { RelatedCases } from "@/components/cases/related-cases";
+import type { LawDoc } from "@/lib/law-api/types";
 import { articleAnchor, articleLabel } from "@/lib/law-api/util";
 import { cn, formatLawDate } from "@/lib/utils";
 import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
@@ -172,27 +172,10 @@ export function LawDocument({ root, lawsChildren, initialLawId, warnings }: Prop
                 <p className="text-sm text-muted-foreground">등록된 실무 노트가 없습니다.</p>
               )}
             </section>
-            <LiveCases query={root.name} />
+            <RelatedCases query={root.shortName ?? root.name} variant="officer" />
           </div>
         </TabsContent>
       </Tabs>
     </div>
   );
-}
-
-function LiveCases({ query }: { query: string }) {
-  const [data, setData] = React.useState<{ cases: CaseItem[]; live: boolean } | null>(null);
-  React.useEffect(() => {
-    fetch(`/api/cases?q=${encodeURIComponent(query)}`)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => setData({ cases: [], live: false }));
-  }, [query]);
-  if (!data)
-    return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> 판례·해석례 조회 중…
-      </p>
-    );
-  return <CasesPanel cases={data.cases} live={data.live} />;
 }

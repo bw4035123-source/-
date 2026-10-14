@@ -59,7 +59,7 @@ export function ReportView() {
 
       <article className="rounded-xl border bg-white p-8 text-slate-900 shadow-sm print:border-0 print:p-0 print:shadow-none">
         <header className="border-b-2 border-slate-900 pb-4">
-          <p className="text-xs font-bold tracking-widest text-teal-700">모두의 법 · {officer ? "법령 검토 요약 보고" : "생활 법률 리포트"}</p>
+          <p className="text-xs font-bold tracking-widest text-teal-700">법이음 · {officer ? "법령 검토 요약 보고" : "생활 법률 리포트"}</p>
           <h1 className="mt-2 text-2xl font-black leading-snug">{r.query}</h1>
           <p className="mt-2 text-xs text-slate-500">
             작성 {new Date(r.generatedAt).toLocaleString("ko-KR")} · {r.provider.label} · 근거 {r.citations.length}건 · {r.dataSource === "live" ? "국가법령정보 실시간 원문" : `국가법령정보센터 원문(${MOCK_DATASET_DATE} 수집)`}

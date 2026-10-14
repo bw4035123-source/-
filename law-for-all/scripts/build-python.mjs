@@ -1,5 +1,5 @@
 /**
- * Python 실행판 빌드: 정적 화면(Next.js export) + 데이터 JSON + Python 서버 → dist/law-for-all-python.zip
+ * Python 실행판 빌드: 정적 화면(Next.js export) + 데이터 JSON + Python 서버 → dist/law-on-python.zip
  *   node scripts/build-python.mjs
  */
 import { execSync } from "node:child_process";
@@ -32,11 +32,11 @@ fs.cpSync(path.join(root, "out"), web, { recursive: true });
 // 4) Python 테스트 후 zip 생성
 execSync("python3 -m unittest discover -s tests -t .", { cwd: path.join(root, "python"), stdio: "inherit" });
 const dist = path.join(root, "dist");
-const stage = path.join(dist, "law-for-all-python");
+const stage = path.join(dist, "law-on-python");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(stage, { recursive: true });
 for (const f of ["run.py", "run.sh", "run.bat", "실행.bat", "README.md", ".env.example", "law_for_all", "tests"]) {
   fs.cpSync(path.join(root, "python", f), path.join(stage, f), { recursive: true, filter: (s) => !s.includes("__pycache__") });
 }
-execSync("python3 -m zipfile -c law-for-all-python.zip law-for-all-python", { cwd: dist, stdio: "inherit" });
-console.log(`\n✔ ${path.join(dist, "law-for-all-python.zip")}`);
+execSync("python3 -m zipfile -c law-on-python.zip law-on-python", { cwd: dist, stdio: "inherit" });
+console.log(`\n✔ ${path.join(dist, "law-on-python.zip")}`);

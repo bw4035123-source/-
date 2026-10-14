@@ -79,9 +79,26 @@ export interface Citation {
 /** 판례·법령해석례 실시간 검색 결과 */
 export interface CaseItem {
   kind: "판례" | "법령해석례";
+  /** 국가법령정보 판례일련번호 / 법령해석례일련번호(상세 조회용) */
+  id: string;
   title: string;
   caseNo?: string;
   court?: string;
   date?: string;
+  url: string;
+}
+
+/** 판례·법령해석례 상세(판례 보기) */
+export interface CaseDetail {
+  kind: "판례" | "법령해석례";
+  id: string;
+  title: string;
+  caseNo?: string;
+  court?: string;
+  date?: string;
+  /** 판결/결정 등(판례) */
+  judgmentType?: string;
+  /** 판시사항·판결요지·참조조문·참조판례·전문 / 질의요지·회답·이유 */
+  sections: { label: string; text: string }[];
   url: string;
 }

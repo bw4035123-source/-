@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 모두의 법 — 원클릭 실행(macOS/Linux). 필요: Node.js 18.18 이상
+# 법이음 — 원클릭 실행(macOS/Linux). 필요: Node.js 18.18 이상
 set -e
 cd "$(dirname "$0")"
 command -v node >/dev/null || { echo "Node.js가 필요합니다: https://nodejs.org (LTS)"; exit 1; }

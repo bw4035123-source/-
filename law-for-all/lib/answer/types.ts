@@ -1,5 +1,5 @@
 /** 클라이언트·서버 공용 답변 타입(서버 전용 모듈을 import 하지 않음) */
-import type { CaseItem, Citation } from "../law-api/types";
+import type { Citation } from "../law-api/types";
 import type { Contact } from "../law-api/mock/topics";
 
 export type UserMode = "citizen" | "officer";
@@ -39,7 +39,8 @@ export interface AskResult {
   officer?: OfficerAnswer;
   citations: Citation[];
   contacts: Contact[];
-  cases: CaseItem[];
+  /** 관련 판례·해석례 검색어(화면이 /api/cases 로 따로 불러옴 — 답변 속도 보호) */
+  caseQuery: string | null;
   relatedLaws: { id: string; name: string }[];
   guard: GuardReport;
   dataSource: "mock" | "live";
@@ -89,6 +90,8 @@ export interface AnalyzeResult {
   analyses: IssueAnalysis[];
   citations: Citation[];
   contacts: Contact[];
+  /** 주 쟁점의 판례·해석례 검색어 */
+  caseQuery: string | null;
   provider: { id: string; label: string; model: string; kind: "llm" | "rule" };
   guard: GuardReport;
   dataSource: "mock" | "live";

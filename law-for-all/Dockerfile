@@ -1,4 +1,4 @@
-# ── 모두의 법(Law For All) 프로덕션 이미지 ─────────────────────────
+# ── 법이음(LAW:ON) 프로덕션 이미지 ─────────────────────────
 # 빌드: docker build -t law-for-all .   실행: docker run -p 3000:3000 law-for-all
 FROM node:20-alpine AS deps
 WORKDIR /app

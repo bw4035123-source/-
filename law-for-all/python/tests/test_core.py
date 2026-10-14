@@ -242,3 +242,29 @@ class LiveModeTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", flaky), mock.patch("time.sleep"):
             self.assertEqual(drf.drf_get("lawSearch.do", {"q": "x"}, "k"), {"ok": 1})
         self.assertEqual(n["i"], 3)
+
+
+class CaseViewerTest(unittest.TestCase):
+    def test_parse_detail(self):
+        from law_for_all.drf import parse_case_detail, parse_case_list
+        d = parse_case_detail({"PrecService": {"사건명": "부당해고", "사건번호": "2023두1", "법원명": "대법원", "판결요지": "[1] 실질<br/>[2] 종속", "판례내용": "<b>○○</b>&nbsp;조합"}}, "판례", "1")
+        self.assertEqual([s["label"] for s in d["sections"]], ["판결요지", "판결 전문"])
+        self.assertEqual(d["sections"][0]["text"], "[1] 실질\n[2] 종속")
+        self.assertEqual(d["sections"][1]["text"], "○○ 조합")
+        self.assertEqual(parse_case_list({"prec": [{"사건명": "x", "판례일련번호": "77"}]}, "판례")[0]["id"], "77")
+
+    def test_detail_route_without_key(self):
+        httpd = make_server("127.0.0.1", 0)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        try:
+            for path, code in (("/api/cases/detail?kind=prec&id=abc", 400), ("/api/cases/detail?kind=prec&id=123", 503)):
+                try:
+                    urllib.request.urlopen(base + path, timeout=5)
+                    status = 200
+                except urllib.error.HTTPError as e:
+                    status = e.code
+                self.assertEqual(status, code, path)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()

@@ -1,6 +1,6 @@
-import type { CaseItem, Citation, LawDoc, LawSummary } from "./types";
+import type { CaseDetail, CaseItem, Citation, LawDoc, LawSummary } from "./types";
 import { MOCK_LAWS, getMockLaw } from "./mock";
-import { drfGet, parseCaseList, parseLawDoc, parseLawList, LawApiError } from "./drf";
+import { drfGet, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, LawApiError } from "./drf";
 import { searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 
@@ -103,13 +103,14 @@ export class LawService {
   }
 
   /** 판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완 */
-  async searchCases(query: string): Promise<CaseItem[]> {
+  async searchCases(query: string, limit = 5): Promise<CaseItem[]> {
     if (!this.oc || !query.trim()) return [];
+    const display = String(Math.min(Math.max(limit, 1), 20));
     const one = async (target: "prec" | "expc", kind: CaseItem["kind"]) => {
-      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display: "5" }, this.oc, CASE_TIMEOUT), kind);
+      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display }, this.oc, CASE_TIMEOUT), kind);
       if (byName.length >= 2) return byName;
-      const byText = parseCaseList(await drfGet("lawSearch.do", { target, query, display: "5", search: "2" }, this.oc, CASE_TIMEOUT), kind);
-      return [...byName, ...byText.filter((c) => !byName.some((b) => b.caseNo === c.caseNo))].slice(0, 5);
+      const byText = parseCaseList(await drfGet("lawSearch.do", { target, query, display, search: "2" }, this.oc, CASE_TIMEOUT), kind);
+      return [...byName, ...byText.filter((c) => !byName.some((b) => b.id === c.id))].slice(0, Number(display));
     };
     try {
       const [prec, expc] = await Promise.all([one("prec", "판례"), one("expc", "법령해석례")]);
@@ -117,6 +118,18 @@ export class LawService {
     } catch (e) {
       this.warnings.push((e as Error).message);
       return [];
+    }
+  }
+
+  /** 판례·법령해석례 상세(판례 보기) — 실시간 연동 시에만 제공(사건 내용을 지어내지 않음) */
+  async getCase(kind: CaseItem["kind"], id: string): Promise<CaseDetail | null> {
+    if (!this.oc || !/^\d{1,12}$/.test(id)) return null;
+    try {
+      const data = await drfGet("lawService.do", { target: kind === "판례" ? "prec" : "expc", ID: id }, this.oc, CASE_TIMEOUT);
+      return parseCaseDetail(data, kind, id);
+    } catch (e) {
+      this.warnings.push((e as Error).message);
+      return null;
     }
   }
 }

@@ -9,7 +9,7 @@ export function contextBlock(citations: Citation[]): string {
     .join("\n\n");
 }
 
-const COMMON = `너는 대한민국 공공 법률 안내 AI '모두의 법'이다.
+const COMMON = `너는 대한민국 공공 법률 안내 AI '법이음'이다.
 [절대 규칙 — 환각 방지]
 1. 아래 <근거조문>에 있는 조문만 근거로 사용한다. 근거조문에 없는 법령·조문 번호·판례·금액·기간을 만들어내지 않는다.
 2. 사실을 말한 문장 끝에는 근거 조문 키를 [[키]] 형식으로 붙인다. 예: [[housing-lease:3]]

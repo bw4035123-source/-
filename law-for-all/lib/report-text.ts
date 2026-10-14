@@ -22,7 +22,7 @@ export function officerReportText(r: AskResult): string {
     if (o.adminNotes.length) lines.push("", "4. 업무 처리 유의사항", ...o.adminNotes.map((k, i) => `  ${GANADA[i]}. ${strip(k)}`));
     if (o.checklist.length) lines.push("", "5. 확인 사항", ...o.checklist.map((k) => `  □ ${strip(k)}`));
   }
-  lines.push("", draftBasisBlock(r), "", `※ 본 검토는 '모두의 법' AI 보조 결과(${r.provider.label})이며, 최종 판단 전 법령 원문을 확인하시기 바랍니다.`);
+  lines.push("", draftBasisBlock(r), "", `※ 본 검토는 '법이음' AI 보조 결과(${r.provider.label})이며, 최종 판단 전 법령 원문을 확인하시기 바랍니다.`);
   return lines.join("\n");
 }
 

@@ -80,7 +80,7 @@ def _validate_analyze(body: dict) -> dict:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = f"LawForAll/{__version__}"
+    server_version = f"LawOn/{__version__}"
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):  # 조용한 로그(오류만)
@@ -182,7 +182,23 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {**h, "warnings": svc.warnings})
         if method == "GET" and path == "/api/cases":
             svc = LawService(config.law_api_oc)
-            return self._json(200, {"cases": svc.search_cases(q), "live": svc.mode == "live", "warnings": svc.warnings})
+            try:
+                limit = min(int((qs.get("limit") or ["5"])[0]), 20)
+            except ValueError:
+                limit = 5
+            return self._json(200, {"cases": svc.search_cases(q, limit), "live": svc.mode == "live", "warnings": svc.warnings})
+        if method == "GET" and path == "/api/cases/detail":
+            kind = "법령해석례" if (qs.get("kind") or [""])[0] == "expc" else "판례"
+            case_id = (qs.get("id") or [""])[0]
+            if not re.fullmatch(r"\d{1,12}", case_id):
+                raise ApiError(400, "잘못된 판례 식별자")
+            svc = LawService(config.law_api_oc)
+            if svc.mode != "live":
+                raise ApiError(503, "판례 보기는 국가법령정보 Open API 인증키(LAW_API_OC) 설정 시 제공됩니다.")
+            detail = svc.get_case(kind, case_id)
+            if not detail:
+                raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")
+            return self._json(200, {"detail": detail})
         if method == "POST" and path in ("/api/ask", "/api/analyze"):
             ok, retry = rate_limit(f"{path}:{self._client()}", 30 if path == "/api/ask" else 20)
             if not ok:

@@ -18,15 +18,15 @@ export function HeroHeading() {
           </>
         ) : (
           <>
-            어려운 법,
-            <br className="sm:hidden" /> <span className="bg-gradient-to-r from-navy-700 to-sage-600 bg-clip-text text-transparent dark:from-white dark:to-sage-400">이제 모두의 언어로</span>
+            법은 가깝게,
+            <br className="sm:hidden" /> <span className="bg-gradient-to-r from-navy-700 to-sage-600 bg-clip-text text-transparent dark:from-white dark:to-sage-400">권리는 든든하게.</span>
           </>
         )}
       </h1>
       <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
         {officer
           ? "법령·시행령·시행규칙 3단 대조, 행정 요약 보고서, 기안문 인용문까지 한 번에 확인하세요."
-          : "일상의 말로 물어보세요. 관련 법 조항과 쉬운 설명, 지금 해야 할 일을 차근차근 알려드려요."}
+          : "어려운 법률을 일상의 언어로 연결합니다. 궁금한 상황을 물어보면 관련 법 조항과 판례, 지금 해야 할 일을 차근차근 알려드려요."}
       </p>
     </motion.div>
   );

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""모두의 법(Law For All) — Python 실행기
+"""법이음(LAW:ON) — Python 실행기
 
   python run.py                 # http://127.0.0.1:8000 에서 실행 + 브라우저 자동 열기
   python run.py --port 9000     # 포트 변경(사용 중이면 다음 빈 포트 자동 선택)
@@ -53,7 +53,7 @@ def free_port(host: str, start: int) -> int:
 
 def check() -> bool:
     ok = True
-    print(f"모두의 법 v{__version__} · Python {sys.version.split()[0]}")
+    print(f"법이음 v{__version__} · Python {sys.version.split()[0]}")
     print(f"  화면 파일(web/)   : {'있음' if (WEB / 'index.html').is_file() else '없음 ⚠'}")
     ok &= (WEB / "index.html").is_file()
     print(f"  내장 법령         : {sum(l['kind'] == '법률' for l in LAWS)}개 법률 + 하위법령 {sum(l['kind'] != '법률' for l in LAWS)}개 · 토픽 {len(TOPICS)}개 (기준 {DATASET_DATE})")
@@ -66,7 +66,7 @@ def check() -> bool:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="모두의 법 — AI 법률 지능형 포털(Python 서버)")
+    ap = argparse.ArgumentParser(description="법이음 — AI 법률 지능형 포털(Python 서버)")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--no-browser", action="store_true")
@@ -80,7 +80,7 @@ def main():
     httpd = make_server(a.host, port)
     url = f"http://{'127.0.0.1' if a.host in ('0.0.0.0', '') else a.host}:{port}"
     print("━" * 56)
-    print(f"  모두의 법 (Law For All) v{__version__}")
+    print(f"  법이음 (LAW:ON) v{__version__}")
     print(f"  ▶ {url}")
     print(f"  법령: {'국가법령정보 실시간' if config.law_api_oc else '내장 데이터'} · 기본 AI: {config.llm['defaultProvider']}")
     print("  종료: Ctrl+C")

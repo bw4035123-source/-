@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CitationProvider } from "@/components/law-search/citation-context";
 import { ContactsCard } from "@/components/citizen-view/contacts-card";
+import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
 import { analysisText } from "@/lib/report-text";
 import { AnalyzeForm } from "./analyze-form";
@@ -154,7 +155,10 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
 
         <RolePanels analyses={r.analyses} />
 
-        <ContactsCard contacts={r.contacts} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <RelatedCases query={r.caseQuery} variant="officer" title="이 쟁점의 실제 판례 · 법령해석례" />
+          <ContactsCard contacts={r.contacts} />
+        </div>
 
         <p className="rounded-xl border border-dashed p-4 text-center text-xs leading-5 text-muted-foreground">
           ⚖️ 이 화면은 법률가의 사고방식을 보여 주는 <strong>AI 역할 시뮬레이션</strong>이며 실제 변호사의 법률 자문, 검사의 처분, 법원의 판결이 아닙니다. 실제 결과는 증거와 구체적 사정에 따라 달라질 수 있으니 중요한 결정 전에는 전문가와 상담하세요(대한법률구조공단 ☎132).
