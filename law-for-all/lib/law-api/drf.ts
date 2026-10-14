@@ -9,40 +9,63 @@ import type { CaseItem, LawArticle, LawDoc, LawKind } from "./types";
  */
 export const DRF_BASE = "https://www.law.go.kr/DRF";
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6시간
+const RETRIES = 3;
 
 export class LawApiError extends Error {}
 
 type Json = unknown;
 const cache = new Map<string, { at: number; data: Json }>();
 
-export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 10000): Promise<Json> {
+export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 20000): Promise<Json> {
   const qs = new URLSearchParams({ OC: oc, type: "JSON", ...params });
   const url = `${DRF_BASE}/${path}?${qs.toString()}`;
   const cacheKey = `${path}?${new URLSearchParams(params).toString()}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-for-all/1.0" }, cache: "no-store" });
-    const raw = await res.text();
-    let data: Json;
+  // 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
+  let raw: string | null = null;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= RETRIES && raw === null; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      data = JSON.parse(raw);
-    } catch {
-      // 인증키 오류·미등록 IP 등은 JSON 대신 HTML 안내 페이지가 온다
-      const hint = raw.replace(/<[^>]+>|\s+/g, " ").trim().slice(0, 120);
-      throw new LawApiError(`국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. (${hint})`);
+      const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-for-all/1.0" }, cache: "no-store" });
+      raw = await res.text();
+    } catch (e) {
+      lastErr = e;
+      if (attempt < RETRIES) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+    } finally {
+      clearTimeout(timer);
     }
-    cache.set(cacheKey, { at: Date.now(), data });
-    return data;
-  } catch (e) {
-    if (e instanceof LawApiError) throw e;
+  }
+  if (raw === null) {
     if (hit) return hit.data; // 네트워크 장애 시 오래된 캐시라도 반환
-    throw new LawApiError(`국가법령정보센터 연결 실패: ${(e as Error).message}`);
-  } finally {
-    clearTimeout(timer);
+    const proxyHint =
+      (process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY ? " (프록시 환경이면 NODE_USE_ENV_PROXY=1 로 실행하세요)" : "";
+    throw new LawApiError(`국가법령정보센터 연결 실패: ${(lastErr as Error)?.message ?? lastErr}${proxyHint}`);
+  }
+  let data: Json;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    // 인증키 오류·미등록 IP 등은 JSON 대신 HTML 안내 페이지가 온다
+    const hint = raw.replace(/<[^>]+>|\s+/g, " ").trim().slice(0, 120);
+    throw new LawApiError(`국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. (${hint})`);
+  }
+  raiseIfRejected(data);
+  cache.set(cacheKey, { at: Date.now(), data });
+  return data;
+}
+
+/** 인증키 오류·미등록 IP는 HTTP 200 + {"result": "...", "msg": "..."} JSON으로 온다 → 명확한 오류로 변환 */
+function raiseIfRejected(data: Json): void {
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const keys = Object.keys(data as object);
+    if (keys.includes("result") && keys.every((k) => k === "result" || k === "msg")) {
+      const d = data as { result?: string; msg?: string };
+      throw new LawApiError(`국가법령정보센터 인증 실패: ${d.result ?? ""} ${d.msg ?? ""}`.trim());
+    }
   }
 }
 

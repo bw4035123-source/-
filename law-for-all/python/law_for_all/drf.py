@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 DRF_BASE = "https://www.law.go.kr/DRF"
 CACHE_TTL = 60 * 60 * 6
+RETRIES = 3
 _cache: dict[str, tuple[float, object]] = {}
 _lock = threading.Lock()
 
@@ -21,28 +22,44 @@ class LawApiError(Exception):
     pass
 
 
-def drf_get(path: str, params: dict, oc: str, timeout: float = 10):
+def drf_get(path: str, params: dict, oc: str, timeout: float = 20):
     cache_key = path + "?" + urllib.parse.urlencode(params)
     hit = _cache.get(cache_key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
     url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **params})
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "law-for-all/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            raw = r.read().decode("utf-8", errors="replace")
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+    raw = None
+    last_err: Exception | None = None
+    # 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
+    for attempt in range(RETRIES + 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "law-for-all/1.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                raw = r.read().decode("utf-8", errors="replace")
+            break
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last_err = e
+            if attempt < RETRIES:
+                time.sleep(0.8 * (attempt + 1))
+    if raw is None:
         if hit:
             return hit[1]
-        raise LawApiError(f"국가법령정보센터 연결 실패: {getattr(e, 'reason', e)}") from e
+        raise LawApiError(f"국가법령정보센터 연결 실패: {getattr(last_err, 'reason', last_err)}") from last_err
     try:
         data = json.loads(raw)
     except ValueError:
         hint = re.sub(r"<[^>]+>|\s+", " ", raw).strip()[:120]
         raise LawApiError(f"국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. ({hint})")
+    _raise_if_rejected(data)
     with _lock:
         _cache[cache_key] = (time.time(), data)
     return data
+
+
+def _raise_if_rejected(data) -> None:
+    """인증키 오류·미등록 IP는 HTTP 200 + {"result": "...", "msg": "..."} JSON으로 온다 → 명확한 오류로 변환"""
+    if isinstance(data, dict) and "result" in data and set(data) <= {"result", "msg"}:
+        raise LawApiError(f"국가법령정보센터 인증 실패: {data.get('result', '')} {data.get('msg', '')}".strip())
 
 
 # ───────────── 응답 구조 탐색(키 이름 기준)

@@ -5,6 +5,8 @@ from .data import LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, parse_case_list, parse_law_doc, parse_law_list
 from .search import search_law_names
 
+CASE_TIMEOUT = 25
+
 
 def _summary(l: dict) -> dict:
     return {"id": l["id"], "name": l["name"], "kind": l["kind"], "ministry": l["ministry"], "articleCount": len(l["articles"]), "parentId": l.get("parentId"), "source": l.get("source", "mock")}
@@ -72,7 +74,11 @@ class LawService:
             raise LawApiError(f"'{name}'을(를) 국가법령정보에서 찾지 못했습니다")
         current = [x for x in exact if not x["status"] or x["status"] == "현행"] or exact
         pick = sorted(current, key=lambda x: x["effective"], reverse=True)[0]
-        return parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": pick["mst"]}, self.oc), law_id, name, pick["mst"])
+        doc = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": pick["mst"]}, self.oc), law_id, name, pick["mst"])
+        # 본문의 기본정보.시행일자는 단계적 시행 조문 중 '마지막' 시행일일 수 있어, 목록의 현행 시행일자를 사용
+        if pick.get("effective"):
+            doc["effectiveDate"] = pick["effective"]
+        return doc
 
     def get_hierarchy(self, law_id: str) -> dict | None:
         base = self.get_law(law_id)
@@ -100,12 +106,19 @@ class LawService:
         return [out[k] for k in keys if k in out]
 
     def search_cases(self, query: str) -> list[dict]:
+        """판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완"""
         if not self.oc or not query.strip():
             return []
+
+        def one(target: str, kind: str) -> list[dict]:
+            by_name = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "5"}, self.oc, CASE_TIMEOUT), kind)
+            if len(by_name) >= 2:
+                return by_name
+            by_text = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "5", "search": "2"}, self.oc, CASE_TIMEOUT), kind)
+            return (by_name + [c for c in by_text if not any(b["caseNo"] == c["caseNo"] for b in by_name)])[:5]
+
         try:
-            prec = drf_get("lawSearch.do", {"target": "prec", "query": query, "display": "5"}, self.oc)
-            expc = drf_get("lawSearch.do", {"target": "expc", "query": query, "display": "5"}, self.oc)
-            return parse_case_list(prec, "판례") + parse_case_list(expc, "법령해석례")
+            return one("prec", "판례") + one("expc", "법령해석례")
         except LawApiError as e:
             self.warnings.append(str(e))
             return []

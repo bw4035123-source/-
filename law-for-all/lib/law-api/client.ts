@@ -4,6 +4,8 @@ import { drfGet, parseCaseList, parseLawDoc, parseLawList, LawApiError } from ".
 import { searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 
+const CASE_TIMEOUT = 25000;
+
 /**
  * 법령 저장소(Repository) — 실시간(국가법령정보 Open API)과 내장 모의데이터를 하나의 인터페이스로 제공.
  * OC 인증키가 없거나 호출이 실패하면 자동으로 내장 데이터로 대체(Fallback)하고 그 사실을 warnings 에 남긴다.
@@ -63,7 +65,9 @@ export class LawService {
     const current = exact.filter((x) => !x.status || x.status === "현행");
     const pick = (current.length ? current : exact).sort((a, b) => b.effective.localeCompare(a.effective))[0];
     const data = await drfGet("lawService.do", { target: "law", MST: pick.mst }, this.oc);
-    return parseLawDoc(data, { id, name, mst: pick.mst });
+    const doc = parseLawDoc(data, { id, name, mst: pick.mst });
+    // 본문의 기본정보.시행일자는 단계적 시행 조문 중 '마지막' 시행일일 수 있어, 목록의 현행 시행일자를 사용
+    return pick.effective ? { ...doc, effectiveDate: pick.effective } : doc;
   }
 
   /** 상위법-시행령-시행규칙 3단 구조 */
@@ -98,14 +102,18 @@ export class LawService {
     return keys.map((k) => out.find((c) => c.key === k)).filter((c): c is Citation => !!c);
   }
 
+  /** 판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완 */
   async searchCases(query: string): Promise<CaseItem[]> {
     if (!this.oc || !query.trim()) return [];
+    const one = async (target: "prec" | "expc", kind: CaseItem["kind"]) => {
+      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display: "5" }, this.oc, CASE_TIMEOUT), kind);
+      if (byName.length >= 2) return byName;
+      const byText = parseCaseList(await drfGet("lawSearch.do", { target, query, display: "5", search: "2" }, this.oc, CASE_TIMEOUT), kind);
+      return [...byName, ...byText.filter((c) => !byName.some((b) => b.caseNo === c.caseNo))].slice(0, 5);
+    };
     try {
-      const [prec, expc] = await Promise.all([
-        drfGet("lawSearch.do", { target: "prec", query, display: "5" }, this.oc),
-        drfGet("lawSearch.do", { target: "expc", query, display: "5" }, this.oc),
-      ]);
-      return [...parseCaseList(prec, "판례"), ...parseCaseList(expc, "법령해석례")];
+      const [prec, expc] = await Promise.all([one("prec", "판례"), one("expc", "법령해석례")]);
+      return [...prec, ...expc];
     } catch (e) {
       this.warnings.push((e as Error).message);
       return [];

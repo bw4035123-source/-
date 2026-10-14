@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
 import type { LawSummary } from "@/lib/law-api/types";
 import { Badge } from "@/components/ui/badge";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 /** 법령 목록(체계별) — /api/laws 조회(Node·Python 서버 공통) */
 export function LawsCatalog() {
@@ -27,7 +28,7 @@ export function LawsCatalog() {
     <div className="container py-10">
       <h1 className="text-2xl font-extrabold">법령 둘러보기</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        법률과 하위법령(시행령·시행규칙)을 체계별로 확인합니다. {data?.mode === "live" ? "국가법령정보 실시간 검색 결과를 포함합니다." : "현재 내장 시연 데이터 모드입니다."}
+        법률과 하위법령(시행령·시행규칙)을 체계별로 확인합니다. {data?.mode === "live" ? "국가법령정보 실시간 검색 결과를 포함합니다." : `국가법령정보센터 원문 스냅샷(${MOCK_DATASET_DATE} 수집)을 표시합니다.`}
       </p>
       <form className="mt-5 flex max-w-lg gap-2" action="/laws">
         <label htmlFor="law-name-q" className="sr-only">

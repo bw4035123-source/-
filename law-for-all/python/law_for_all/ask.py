@@ -98,7 +98,8 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
 
     by_key = {c["key"]: c for c in context}
     citations = [by_key[k] for k in citation_keys if k in by_key]
-    cases = svc.search_cases(topic["label"] if topic else query) if mode == "officer" else []
+    # 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정) — 없으면 질문 그대로
+    cases = svc.search_cases(topic.get("caseQuery") or query if topic else query) if mode == "officer" else []
     notices += svc.warnings
 
     result = {

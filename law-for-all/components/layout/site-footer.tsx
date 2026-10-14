@@ -11,7 +11,7 @@ export function SiteFooter() {
         <div className="leading-6 text-navy-200">
           <p className="font-semibold text-white">법령 데이터</p>
           <p>
-            국가법령정보센터 공동활용 Open API(<a className="underline" href="https://open.law.go.kr" target="_blank" rel="noreferrer">open.law.go.kr</a>) 연동 · 미연동 시 내장 시연 데이터 사용
+            국가법령정보센터 공동활용 Open API(<a className="underline" href="https://open.law.go.kr" target="_blank" rel="noreferrer">open.law.go.kr</a>) 연동 · 인증키 미설정 시 국가법령정보센터에서 수집한 원문 스냅샷 사용
           </p>
         </div>
         <div className="leading-6 text-navy-200">

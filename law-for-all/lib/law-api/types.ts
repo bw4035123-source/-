@@ -48,6 +48,8 @@ export interface LawDoc {
   source: DataSource;
   /** 실시간 조회 시 법령일련번호 */
   mst?: string;
+  /** 내장 데이터의 공식 원문 수집일(국가법령정보센터 스냅샷) */
+  officialSnapshot?: string;
   fetchedAt?: string;
 }
 

@@ -8,6 +8,7 @@ import { REPORT_STORAGE_KEY } from "@/lib/report-text";
 import { articleLabel } from "@/lib/law-api/util";
 import { ArticleText } from "@/components/law-search/article-text";
 import { useSettings } from "@/components/providers/settings-provider";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 const strip = (t: string, keys: string[]) => t.replace(/\[\[([^\]]+)\]\]/g, (_, k: string) => (keys.indexOf(k) >= 0 ? `[${keys.indexOf(k) + 1}]` : "")).trim();
 
@@ -61,7 +62,7 @@ export function ReportView() {
           <p className="text-xs font-bold tracking-widest text-teal-700">모두의 법 · {officer ? "법령 검토 요약 보고" : "생활 법률 리포트"}</p>
           <h1 className="mt-2 text-2xl font-black leading-snug">{r.query}</h1>
           <p className="mt-2 text-xs text-slate-500">
-            작성 {new Date(r.generatedAt).toLocaleString("ko-KR")} · {r.provider.label} · 근거 {r.citations.length}건 · {r.dataSource === "live" ? "국가법령정보 실시간 원문" : "내장 법령 데이터"}
+            작성 {new Date(r.generatedAt).toLocaleString("ko-KR")} · {r.provider.label} · 근거 {r.citations.length}건 · {r.dataSource === "live" ? "국가법령정보 실시간 원문" : `국가법령정보센터 원문(${MOCK_DATASET_DATE} 수집)`}
           </p>
         </header>
 

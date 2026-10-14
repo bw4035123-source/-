@@ -35,3 +35,35 @@ describe("내장 법령 데이터 무결성", () => {
     }
   });
 });
+
+describe("공식 원문 스냅샷", () => {
+  it("모든 내장 조문이 국가법령정보센터 원문 스냅샷으로 대체됨(사람이 쓴 본문이 그대로 노출되지 않음)", async () => {
+    const snap = (await import("@/lib/law-api/mock/official-snapshot.json")).default as { fetchedAt: string; laws: Record<string, { articles: Record<string, unknown> }> };
+    expect(snap.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((await import("@/lib/law-api/mock/dataset-date")).MOCK_DATASET_DATE).toBe(snap.fetchedAt);
+    for (const l of MOCK_LAWS) for (const a of l.articles) expect(snap.laws[l.id]?.articles[a.no], `${l.id}:${a.no}`).toBeDefined();
+  });
+  it("개정 반영 확인: 형법 사기 법정형, 임금체불 벌칙 조문, 층간소음 조정 절차", () => {
+    const art = (id: string, no: string) => getMockLaw(id)!.articles.find((a) => a.no === no)!.text;
+    expect(art("criminal-act", "347")).toContain("20년 이하의 징역 또는 5천만원 이하의 벌금");
+    expect(art("labor-standards", "107")).toContain("제36조");
+    expect(art("apartment-mgmt", "20")).toContain("층간소음관리위원회");
+  });
+});
+
+describe("토픽 문장 ↔ 근거 대조(환각 가드)", () => {
+  it("모든 토픽의 검수 문장에 쓰인 조문 표기가 그 토픽의 근거 조문에서 확인됨", async () => {
+    const { findUnverifiedMentions } = await import("@/lib/answer/guard");
+    const { toCitation } = await import("@/lib/law-api/util");
+    for (const t of TOPICS) {
+      const keys = Array.from(new Set([...t.refs, ...t.citizen.steps.map((s) => s.ref).filter((x): x is string => !!x)]));
+      const cites = keys.map((k) => {
+        const p = parseArticleKey(k)!;
+        const law = getMockLaw(p.lawId)!;
+        return toCitation(law, law.articles.find((a) => a.no === p.articleNo)!);
+      });
+      const text = [t.citizen.summary, t.officer.background, ...t.officer.keyPoints, ...t.officer.adminNotes].join("\n");
+      expect(findUnverifiedMentions(text, cites), t.id).toEqual([]);
+    }
+  });
+});

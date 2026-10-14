@@ -11,6 +11,7 @@ import { CasesPanel } from "./cases-panel";
 import type { CaseItem, LawDoc } from "@/lib/law-api/types";
 import { articleAnchor, articleLabel } from "@/lib/law-api/util";
 import { cn, formatLawDate } from "@/lib/utils";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 interface Props {
   root: LawDoc;
@@ -60,7 +61,7 @@ export function LawDocument({ root, lawsChildren, initialLawId, warnings }: Prop
         </p>
         <p className="mt-3 flex justify-center">
           <Badge variant={law.source === "live" ? "success" : "outline"}>
-            {law.source === "live" ? `국가법령정보 실시간 원문${law.fetchedAt ? ` · ${new Date(law.fetchedAt).toLocaleString("ko-KR")}` : ""}` : "내장 시연 데이터(발췌) · 실시간 원문은 OC 설정 시 자동 연동"}
+            {law.source === "live" ? `국가법령정보 실시간 원문${law.fetchedAt ? ` · ${new Date(law.fetchedAt).toLocaleString("ko-KR")}` : ""}` : `국가법령정보센터 원문(${law.officialSnapshot ?? MOCK_DATASET_DATE} 수집) · OC 설정 시 실시간 조회`}
           </Badge>
         </p>
         {warnings.length > 0 && <p className="mt-3 text-center text-xs text-amber-700 dark:text-amber-300">ⓘ {warnings.join(" / ")}</p>}

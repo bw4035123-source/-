@@ -82,7 +82,7 @@ export default function AboutPage() {
           <h2 className="font-extrabold">법령 데이터</h2>
           <ul className="mt-3 space-y-1.5 text-sm">
             <li>
-              · 연동 상태: <strong>{lawApi === "live" ? "국가법령정보 Open API 실시간" : "내장 시연 데이터"}</strong>
+              · 연동 상태: <strong>{lawApi === "live" ? "국가법령정보 Open API 실시간" : `내장 데이터(국가법령정보센터 원문 ${MOCK_DATASET_DATE} 수집)`}</strong>
             </li>
             <li>
               · 내장 법령: 법률 {MOCK_LAWS.filter((l) => l.kind === "법률").length}종 + 하위법령 {MOCK_LAWS.filter((l) => l.kind !== "법률").length}종 · 조문 {articleCount}개 (기준 {MOCK_DATASET_DATE})

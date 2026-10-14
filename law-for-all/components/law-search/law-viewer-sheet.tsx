@@ -10,6 +10,7 @@ import { ArticleText } from "./article-text";
 import type { Citation, LawArticle, LawDoc } from "@/lib/law-api/types";
 import { articleAnchor, articleLabel, draftQuote, formalCitation, lawGoKrUrl } from "@/lib/law-api/util";
 import { copyText } from "@/lib/clipboard";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 interface Linked {
   law: LawDoc;
@@ -64,7 +65,7 @@ export function LawViewerSheet({ citation, onOpenChange }: { citation: Citation 
             <SheetHeader>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary">{citation.lawKind}</Badge>
-                <Badge variant={citation.source === "live" ? "success" : "outline"}>{citation.source === "live" ? "국가법령정보 실시간 원문" : "내장 시연 데이터"}</Badge>
+                <Badge variant={citation.source === "live" ? "success" : "outline"}>{citation.source === "live" ? "국가법령정보 실시간 원문" : `국가법령정보센터 원문 · ${MOCK_DATASET_DATE} 수집`}</Badge>
               </div>
               <SheetTitle className="mt-1 text-xl">
                 「{citation.lawName}」 {articleLabel(citation.articleNo)}

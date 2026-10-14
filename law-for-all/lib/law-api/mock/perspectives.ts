@@ -39,7 +39,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
       evidence: ["소음 발생 일시·지속시간·종류를 적은 일지", "녹음·녹화 파일(시각 표시)", "관리사무소 신고·조치 이력", "이웃사이센터 등 전문기관 소음측정 결과"],
       strategy: [
         "관리주체에 중단·차단조치 권고 및 사실조사를 서면으로 요청 [[apartment-mgmt:20]]",
-        "조치 후에도 계속되면 공동주택관리 분쟁조정위원회 또는 환경분쟁조정위원회에 조정 신청 [[apartment-mgmt:20]]",
+        "조치 후에도 계속되면 층간소음관리위원회에 조정 신청, 그래도 계속되면 공동주택관리 분쟁조정위원회 또는 환경분쟁조정위원회에 조정 신청 [[apartment-mgmt:20]]",
         "직접 찾아가 항의하거나 보복소음을 내는 행위는 오히려 불리해질 수 있으므로 자제",
       ],
     },
@@ -80,7 +80,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
     prosecutor: {
       stance: "보증금 미반환은 원칙적으로 민사 문제입니다. 다만 계약 당시부터 돌려줄 의사나 능력이 없으면서 속였다면 사기죄 검토 대상입니다.",
       violations: ["임대인이 반환 능력이 없음을 숨기고 보증금을 받은 경우 '기망'에 의한 재물 편취로 사기죄가 성립할 수 있습니다 [[criminal-act:347]]."],
-      sanctions: ["사기: 10년 이하의 징역 또는 2천만원 이하의 벌금 [[criminal-act:347]]"],
+      sanctions: ["사기: 20년 이하의 징역 또는 5천만원 이하의 벌금 [[criminal-act:347]]"],
       proofPoints: ["계약 당시 임대인의 재산·채무 상태", "다수 임차인 피해 여부", "임대인이 사실과 다르게 설명한 내용(녹취·문자)"],
     },
     judge: {
@@ -117,9 +117,9 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
       stance: "다수 임차인 피해, 반환 능력 없는 다주택 취득 등 조직적 정황이 있으면 사기죄로 수사할 중대 사안입니다.",
       violations: [
         "반환 능력이 없음을 숨기고 보증금을 받았다면 사기죄 구성요건(기망·재물 교부)에 해당할 수 있습니다 [[criminal-act:347]].",
-        "특별법은 임대인의 기망, 반환 능력 없는 다수 주택 취득 등을 피해자 인정 요건의 정황으로 봅니다 [[jeonse-fraud:3]].",
+        "특별법은 임대인등에 대한 수사 개시, 임대인등의 기망, 반환 능력 없는 다수 주택 취득·임대 등을 피해자 인정 요건의 정황으로 봅니다 [[jeonse-fraud:3]].",
       ],
-      sanctions: ["사기: 10년 이하의 징역 또는 2천만원 이하의 벌금 [[criminal-act:347]]"],
+      sanctions: ["사기: 20년 이하의 징역 또는 5천만원 이하의 벌금 [[criminal-act:347]]"],
       proofPoints: ["계약 시점의 임대인 자력·채무 규모", "임대인·중개인 공모 여부", "동일 수법 피해자 수", "허위 시세·권리관계 설명"],
     },
     judge: {
@@ -129,7 +129,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
         { label: "주택 인도 및 전입신고", ref: "housing-lease:3", facts: ["전입", "주민등록", "이사", "살고"] },
         { label: "임대차계약서 확정일자", ref: "housing-lease:3의2", facts: ["확정일자"] },
         { label: "임차보증금 5억원 이하", ref: "jeonse-fraud:3", facts: ["억", "천만", "만원"] },
-        { label: "경매·공매 개시 등 다수 피해 발생 또는 예상", ref: "jeonse-fraud:3", facts: ["경매", "공매", "파산", "회생", "여러 세대", "다른 세입자", "피해자"] },
+        { label: "경매·공매 개시 등으로 2인 이상 임차인의 피해 발생 또는 예상", ref: "jeonse-fraud:3", facts: ["경매", "공매", "파산", "회생", "여러 세대", "다른 세입자", "피해자"] },
         { label: "임대인의 기망·반환 의도 부재 의심 정황", ref: "jeonse-fraud:3", facts: ["사기", "속", "연락 두절", "잠적", "깡통", "수사"] },
       ],
       outlook: "대항요건·확정일자를 갖춘 임차인은 경매 절차에서 우선변제 순위가 보장됩니다. 특별법상 피해자 결정은 다수 피해와 기망 정황의 입증 정도에 따라 좌우됩니다.",
@@ -249,7 +249,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
   },
 
   "unpaid-wages": {
-    extraRefs: ["labor-standards:109"],
+    extraRefs: ["labor-standards:107"],
     lawyer: {
       stance: "근로자의 대리인으로서 체불 금품의 신속한 회수를 목표로 합니다.",
       arguments: ["퇴직 후 14일 이내에 임금·퇴직금 등 모든 금품을 지급해야 합니다 [[labor-standards:36]].", "기한 연장은 당사자 합의가 있어야만 가능합니다 [[labor-standards:36]]."],
@@ -259,7 +259,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
     prosecutor: {
       stance: "금품청산 의무 위반은 형사처벌 대상입니다. 다만 피해 근로자가 처벌을 원하지 않으면 공소를 제기할 수 없습니다.",
       violations: ["퇴직일부터 14일 이내에 금품을 청산하지 않으면 위반입니다 [[labor-standards:36]]."],
-      sanctions: ["3년 이하의 징역 또는 3천만원 이하의 벌금 [[labor-standards:109]]", "반의사불벌죄: 피해자 의사에 반해 공소 제기 불가 [[labor-standards:109]]"],
+      sanctions: ["5년 이하의 징역 또는 5천만원 이하의 벌금 [[labor-standards:107]]", "반의사불벌죄: 피해자 의사에 반해 공소 제기 불가. 다만 명단 공개된 체불사업주가 공개 기간 중 위반한 경우는 예외 [[labor-standards:107]]"],
       proofPoints: ["퇴직일과 지급기일", "체불 금액", "기일 연장 합의 여부"],
     },
     judge: {

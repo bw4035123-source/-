@@ -198,3 +198,47 @@ class ServerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveModeTest(unittest.TestCase):
+    def test_case_search_fallback(self):
+        from law_for_all import service
+        calls = []
+
+        def fake(path, params, oc, timeout=20):
+            calls.append(params)
+            if params["target"] == "prec":
+                return {"PrecSearch": {"prec": [{"사건명": "본문일치", "사건번호": "2025다1"}] if params.get("search") == "2" else []}}
+            return {"Expc": {"expc": [{"안건명": "a", "안건번호": "1"}, {"안건명": "b", "안건번호": "2"}]}}
+
+        with mock.patch.object(service, "drf_get", fake):
+            cases = service.LawService("k").search_cases("층간소음")
+        self.assertEqual([c["caseNo"] for c in cases if c["kind"] == "판례"], ["2025다1"])
+        self.assertFalse(any(p["target"] == "expc" and p.get("search") == "2" for p in calls))
+
+    def test_effective_date_from_list(self):
+        from law_for_all import service
+
+        def fake(path, params, oc, timeout=20):
+            if path == "lawSearch.do":
+                return {"LawSearch": {"law": [{"법령명한글": "행정심판법", "법령일련번호": "7", "시행일자": "20230321", "현행연혁코드": "현행"}]}}
+            return {"법령": {"기본정보": {"법령명_한글": "행정심판법", "시행일자": "20280101"}, "조문": {"조문단위": [{"조문여부": "조문", "조문번호": "27", "조문제목": "t", "조문내용": "제27조(t) ① 90일"}]}}}
+
+        with mock.patch.object(service, "drf_get", fake):
+            law = service.LawService("k").get_law("admin-appeal")
+        self.assertEqual((law["source"], law["effectiveDate"]), ("live", "20230321"))
+
+    def test_retry_on_reset(self):
+        from law_for_all import drf
+        drf._cache.clear()
+        n = {"i": 0}
+
+        def flaky(req, timeout=None):
+            n["i"] += 1
+            if n["i"] < 3:
+                raise ConnectionResetError(104, "reset")
+            return FakeResp(b'{"ok": 1}')
+
+        with mock.patch("urllib.request.urlopen", flaky), mock.patch("time.sleep"):
+            self.assertEqual(drf.drf_get("lawSearch.do", {"q": "x"}, "k"), {"ok": 1})
+        self.assertEqual(n["i"], 3)

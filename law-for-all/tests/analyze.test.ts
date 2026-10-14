@@ -60,7 +60,7 @@ describe("쟁점 발견·법령 추천", () => {
     const s = "편의점에서 일하다 지난달 퇴사했는데 사장님이 마지막 월급을 3주째 안 주고 있어요.";
     const issues = spotIssues(s);
     expect(issues[0].topic.id).toBe("unpaid-wages");
-    expect(collectKeys(s, issues)).toEqual(expect.arrayContaining(["labor-standards:36", "labor-standards:109"]));
+    expect(collectKeys(s, issues)).toEqual(expect.arrayContaining(["labor-standards:36", "labor-standards:107"]));
   });
 });
 

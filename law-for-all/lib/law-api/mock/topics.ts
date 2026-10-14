@@ -16,6 +16,8 @@ export interface Topic {
   triggers: string[];
   /** 근거 조문 키(lawId:articleNo) — 중요도 순 */
   refs: string[];
+  /** 판례·해석례 사건명 검색어(국가법령정보 실시간 검색용) */
+  caseQuery: string;
   citizen: {
     summary: string;
     easyTerms: { term: string; meaning: string }[];
@@ -38,6 +40,7 @@ export const TOPICS: Topic[] = [
   {
     id: "floor-noise",
     label: "층간소음",
+    caseQuery: "층간소음",
     triggers: ["층간소음", "윗집", "위층", "아랫집", "발소리", "쿵쿵", "벽간소음", "소음 기준", "뛰는 소리"],
     refs: ["apartment-mgmt:20", "floor-noise-rule:2", "floor-noise-rule:3"],
     citizen: {
@@ -52,18 +55,19 @@ export const TOPICS: Topic[] = [
       steps: [
         { title: "기록 남기기", detail: "소음이 나는 날짜·시간·종류를 메모하고 가능하면 녹음해 두세요. 직접 찾아가 항의하는 것은 다툼이 커질 수 있어 피하는 게 좋아요." },
         { title: "관리사무소에 알리기", detail: "관리사무소에 피해 사실을 알리고 윗집에 중단·소음차단 조치를 권고해 달라고 요청하세요. 관리사무소는 세대 확인 등 조사를 할 수 있어요.", ref: "apartment-mgmt:20" },
-        { title: "전문기관·분쟁조정 신청", detail: "그래도 계속되면 층간소음 이웃사이센터에 상담·소음측정을 신청하고, 공동주택관리 분쟁조정위원회나 환경분쟁조정위원회에 조정을 신청하세요.", ref: "apartment-mgmt:20" },
+        { title: "층간소음관리위원회 → 분쟁조정", detail: "그래도 계속되면 아파트의 층간소음관리위원회에 조정을 신청하고, 그래도 해결되지 않으면 공동주택관리 분쟁조정위원회나 환경분쟁조정위원회에 조정을 신청하세요. 이웃사이센터에서 상담·소음측정도 받을 수 있어요.", ref: "apartment-mgmt:20" },
       ],
       tip: "기준 초과 여부는 전문 측정으로 판단해요. 스마트폰 소음앱 수치는 참고용이에요.",
     },
     officer: {
       background:
-        "층간소음은 공동주택관리법 제20조에 따라 입주자등의 노력의무, 관리주체의 조치ㆍ조사 권한, 분쟁조정 연계 절차가 규정되어 있으며, 범위와 수치 기준은 국토교통부ㆍ환경부 공동부령으로 위임되어 있음.",
+        "층간소음은 공동주택관리법 제20조에 따라 입주자등의 노력의무, 관리주체의 조치ㆍ조사 권한, 층간소음관리위원회 조정 및 분쟁조정위원회 연계 절차가 규정되어 있으며, 범위와 수치 기준은 국토교통부ㆍ기후에너지환경부 공동부령으로 위임되어 있음.",
       keyPoints: [
         "직접충격 소음 1분 등가소음도 기준: 주간 39dB(A), 야간 34dB(A) (2023년 강화)",
         "급수ㆍ배수 소음은 층간소음 범위에서 제외",
         "관리주체는 피해 신고 시 가해 세대에 중단ㆍ차단조치 권고 및 세대 내 확인 등 사실조사 가능",
-        "관리주체 조치 후에도 지속 시 공동주택관리 분쟁조정위원회 또는 환경분쟁조정위원회로 조정 신청",
+        "관리주체 조치 후에도 지속 시 층간소음관리위원회에 조정 신청(제4항), 그 조치에도 지속 시 공동주택관리 분쟁조정위원회 또는 환경분쟁조정위원회에 조정 신청(제11항)",
+        "대통령령으로 정하는 규모 이상 의무관리대상 공동주택은 층간소음관리위원회 구성 의무(제7항)",
       ],
       adminNotes: [
         "민원 응대 시 측정 기준(1분 Leq, 최고소음도 Lmax)과 노후 공동주택 보정치(2025년부터 +2dB) 안내 필요",
@@ -80,6 +84,7 @@ export const TOPICS: Topic[] = [
   {
     id: "deposit-return",
     label: "보증금 반환",
+    caseQuery: "임차보증금",
     triggers: ["보증금", "돌려받", "전세금", "반환", "집주인이 안", "이사 가야", "임차권등기", "만기"],
     refs: ["housing-lease:4", "housing-lease:3의3", "housing-lease:3의2", "housing-lease:3"],
     citizen: {
@@ -121,6 +126,7 @@ export const TOPICS: Topic[] = [
   {
     id: "jeonse-fraud",
     label: "전세사기 예방",
+    caseQuery: "전세사기",
     triggers: ["전세사기", "깡통전세", "전세 계약", "전세 들어", "계약 전", "사기", "최우선변제", "소액임차인", "경매", "연락 두절", "연락두절", "잠적", "다른 세입자", "피해자"],
     refs: ["housing-lease:3", "housing-lease:3의2", "housing-lease:8", "housing-lease-decree:11", "housing-lease-decree:10", "jeonse-fraud:3"],
     citizen: {
@@ -145,7 +151,7 @@ export const TOPICS: Topic[] = [
       keyPoints: [
         "대항력은 인도+주민등록 다음 날 0시 발생 — 당일 근저당 설정 시 후순위 위험",
         "최우선변제 대상 보증금(서울 1억6,500만원 이하) 및 변제액(서울 5,500만원) — 시행령 제10조ㆍ제11조",
-        "전세사기피해자 요건: 대항요건ㆍ확정일자, 보증금 5억원 이하, 다수 피해 발생ㆍ예상, 반환 의도 부재 의심(특별법 제3조)",
+        "전세사기피해자 요건: 대항요건ㆍ확정일자(임차권등기·전세권 포함), 보증금 5억원 이하(위원회가 2억원 범위에서 상향 가능), 2인 이상 임차인 피해 발생ㆍ예상, 반환 의도 부재 의심(특별법 제3조)",
       ],
       adminNotes: [
         "전입신고 접수 창구에서 확정일자 동시 신청 및 위험 안내문 배부 권장",
@@ -162,6 +168,7 @@ export const TOPICS: Topic[] = [
   {
     id: "lease-renewal",
     label: "계약갱신·임대료 인상",
+    caseQuery: "계약갱신",
     triggers: ["갱신", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "묵시적"],
     refs: ["housing-lease:6의3", "housing-lease:7", "housing-lease:6"],
     citizen: {
@@ -193,6 +200,7 @@ export const TOPICS: Topic[] = [
   {
     id: "parental-leave",
     label: "육아휴직 급여",
+    caseQuery: "육아휴직",
     triggers: ["육아휴직", "육아 휴직", "육휴", "육아휴직 급여", "육아휴직급여", "출산 후", "아이 키우"],
     refs: ["gender-equality-employment:19", "employment-insurance:70", "employment-insurance-decree:95"],
     citizen: {
@@ -215,7 +223,7 @@ export const TOPICS: Topic[] = [
         "육아휴직은 남녀고용평등법 제19조에서 허용 의무를, 고용보험법 제70조와 같은 법 시행령 제95조에서 급여 요건과 금액을 정하는 구조임(2025년 급여 상향).",
       keyPoints: [
         "대상 자녀: 만 8세 이하 또는 초등학교 2학년 이하",
-        "급여 요건: 30일 이상 휴직 + 피보험 단위기간 180일 이상",
+        "급여 요건: 육아휴직 30일(제19조제6항 육아휴직은 7일) 이상 + 피보험 단위기간 합산 180일 이상",
         "월 지급액: 1~3개월 100%(상한 250만원), 4~6개월 100%(상한 200만원), 7개월~ 80%(상한 160만원), 하한 70만원",
         "신청기한: 휴직 개시 1개월 후 ~ 종료 후 12개월 이내",
       ],
@@ -230,11 +238,12 @@ export const TOPICS: Topic[] = [
   {
     id: "petition-deadline",
     label: "민원 처리 기한",
+    caseQuery: "민원",
     triggers: ["민원", "처리 기한", "처리기한", "처리기간", "며칠", "답변이 안", "국민신문고", "질의민원", "고충민원"],
-    refs: ["civil-petition:18", "civil-petition-decree:14", "civil-petition:19", "civil-petition:17", "civil-petition:35", "civil-petition-decree:16"],
+    refs: ["civil-petition:18", "civil-petition-decree:14", "civil-petition:19", "civil-petition:17", "civil-petition:35", "civil-petition-decree:17"],
     citizen: {
       summary:
-        "민원 종류마다 처리 기한이 정해져 있어요 [[civil-petition:18]]. 법령 해석을 묻는 질의민원은 14일, 제도·절차 질의는 7일 이내 [[civil-petition-decree:14]], 고충민원은 7일 이내예요 [[civil-petition-decree:16]]. 기간은 토요일·공휴일을 빼고 계산해요 [[civil-petition:19]].",
+        "민원 종류마다 처리 기한이 정해져 있어요 [[civil-petition:18]]. 법령 해석을 묻는 질의민원은 14일, 제도·절차 질의는 7일 이내 [[civil-petition-decree:14]], 고충민원은 7일 이내예요 [[civil-petition-decree:17]]. 기간은 토요일·공휴일을 빼고 계산해요 [[civil-petition:19]].",
       easyTerms: [
         { term: "법정민원", meaning: "허가·신고·증명서 발급처럼 법령에 정해진 절차로 신청하는 민원" },
         { term: "질의민원", meaning: "법이나 제도에 대해 설명·해석을 요청하는 민원" },
@@ -248,9 +257,9 @@ export const TOPICS: Topic[] = [
     },
     officer: {
       background:
-        "민원처리법 제17조ㆍ제18조와 같은 법 시행령 제13조~제16조는 민원 유형별 처리기간을, 제19조는 기간 계산 방법을 규정함. 처리기간 경과는 민원인 불만 및 감사 지적의 주된 원인이므로 유형 분류와 기산일 관리가 핵심임.",
+        "민원처리법 제17조ㆍ제18조와 같은 법 시행령 제14조~제17조는 민원 유형별 처리기간을, 제19조는 기간 계산 방법을 규정함. 처리기간 경과는 민원인 불만 및 감사 지적의 주된 원인이므로 유형 분류와 기산일 관리가 핵심임.",
       keyPoints: [
-        "기타민원: 즉시 / 질의민원: 법령 14일, 제도ㆍ절차 7일 / 건의민원: 14일 / 고충민원: 7일(실지조사 14일 범위 별도)",
+        "기타민원: 즉시 / 질의민원: 법령 14일, 제도ㆍ절차 7일 / 건의민원: 14일 / 고충민원: 7일(현장조사 14일 범위·7일 1회 연장, 처리기간 불산입)",
         "5일 이하: 시간 단위(1일=8시간), 6일 이상: 일 단위(첫날 산입) — 토ㆍ공휴일 제외",
         "법정민원 거부처분 이의신청: 90일 이내 신청, 10일 이내 결정(10일 연장 가능)",
       ],
@@ -269,6 +278,7 @@ export const TOPICS: Topic[] = [
   {
     id: "drunk-driving",
     label: "음주운전 처벌",
+    caseQuery: "음주운전",
     triggers: ["음주운전", "음주", "술 마시고 운전", "혈중알코올", "면허취소", "면허정지", "음주측정"],
     refs: ["road-traffic:44", "road-traffic:148의2", "road-traffic:93", "road-traffic-rule:91"],
     citizen: {
@@ -290,7 +300,8 @@ export const TOPICS: Topic[] = [
       keyPoints: [
         "단속 기준: 혈중알코올농도 0.03% 이상",
         "형사처벌: 0.03~0.08% 1년 이하/500만원 이하, 0.08~0.2% 1~2년/500만~1천만원, 0.2% 이상 2~5년/1천만~2천만원",
-        "행정처분: 0.03~0.08% 벌점 100점(정지), 0.08% 이상 취소",
+        "행정처분: 0.03~0.08% 벌점 100점(정지), 0.08% 이상 또는 측정 불응 시 취소(시행규칙 별표 28)",
+        "10년 내 재위반·측정 불응·음주측정방해행위는 가중처벌(제148조의2제1항·제2항)",
       ],
       adminNotes: ["행정처분 불복은 중앙행정심판위원회(온라인행정심판) 경로 안내"],
       checklist: ["측정 수치 확인", "형사·행정처분 구분 안내", "불복 기한 안내"],
@@ -303,8 +314,9 @@ export const TOPICS: Topic[] = [
   {
     id: "unpaid-wages",
     label: "임금체불·퇴직금",
+    caseQuery: "퇴직금",
     triggers: ["임금체불", "월급", "퇴직금", "밀린", "체불", "임금", "퇴사했는데", "급여를 안"],
-    refs: ["labor-standards:36"],
+    refs: ["labor-standards:36", "labor-standards:107"],
     citizen: {
       summary:
         "회사를 그만두면 회사는 14일 이내에 월급·퇴직금 등 모든 돈을 지급해야 해요 [[labor-standards:36]]. 당사자끼리 합의하면 기한을 늦출 수 있지만, 그렇지 않다면 고용노동부에 진정을 낼 수 있어요.",
@@ -320,8 +332,8 @@ export const TOPICS: Topic[] = [
       ],
     },
     officer: {
-      background: "근로기준법 제36조는 퇴직 등 지급사유 발생일부터 14일 이내 금품청산 의무를 규정하며, 위반 시 형사처벌 대상임(반의사불벌).",
-      keyPoints: ["지급기한: 지급사유 발생일부터 14일", "당사자 합의로 기일 연장 가능", "체불 확인 시 대지급금 및 체불임금 확인서 발급 연계"],
+      background: "근로기준법 제36조는 퇴직 등 지급사유 발생일부터 14일 이내 금품청산 의무를 규정하며, 위반 시 제107조에 따라 5년 이하의 징역 또는 5천만원 이하의 벌금에 처함(반의사불벌, 단 명단 공개된 체불사업주는 예외).",
+      keyPoints: ["지급기한: 지급사유 발생일부터 14일", "당사자 합의로 기일 연장 가능", "위반 시 5년 이하 징역 또는 5천만원 이하 벌금(제107조)", "체불 확인 시 대지급금 및 체불임금 확인서 발급 연계"],
       adminNotes: ["민원 접수 시 관할 지방고용노동관서로 이송 안내"],
       checklist: ["퇴직일 확인", "체불 금액 산정", "합의 연장 여부"],
     },
@@ -330,6 +342,7 @@ export const TOPICS: Topic[] = [
   {
     id: "unfair-dismissal",
     label: "부당해고",
+    caseQuery: "부당해고",
     triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말라", "나오지 마라", "그만 나오", "나가라고"],
     refs: ["labor-standards:23", "labor-standards:26", "labor-standards:28"],
     citizen: {
@@ -347,7 +360,7 @@ export const TOPICS: Topic[] = [
     },
     officer: {
       background: "근로기준법 제23조(정당한 이유), 제26조(해고예고), 제28조(구제신청 3개월)가 부당해고 판단ㆍ구제의 기본 체계임.",
-      keyPoints: ["정당한 이유 없는 해고 등 금지", "30일 전 예고 또는 30일분 통상임금", "구제신청 제척기간 3개월"],
+      keyPoints: ["정당한 이유 없는 해고 등 금지", "30일 전 예고 또는 30일분 통상임금(계속근로 3개월 미만 등 예외)", "구제신청 기간: 부당해고등이 있었던 날부터 3개월"],
       adminNotes: ["5인 미만 사업장 적용 범위 차이 안내 필요"],
       checklist: ["해고일 확인", "서면통지 여부", "사업장 규모 확인"],
     },
@@ -356,6 +369,7 @@ export const TOPICS: Topic[] = [
   {
     id: "privacy-access",
     label: "개인정보 열람·삭제",
+    caseQuery: "개인정보",
     triggers: ["개인정보", "내 정보", "열람", "삭제 요청", "정보 유출"],
     refs: ["privacy:35", "privacy-decree:41", "privacy:36", "privacy:15"],
     citizen: {
@@ -382,6 +396,7 @@ export const TOPICS: Topic[] = [
   {
     id: "info-disclosure",
     label: "정보공개 청구",
+    caseQuery: "정보공개",
     triggers: ["정보공개", "공개 청구", "비공개", "행정 정보", "공문 공개"],
     refs: ["info-disclosure:10", "info-disclosure:11", "info-disclosure:18"],
     citizen: {
@@ -400,7 +415,7 @@ export const TOPICS: Topic[] = [
     officer: {
       background: "정보공개법은 청구(제10조), 결정 기한(제11조), 이의신청(제18조) 절차를 규정함.",
       keyPoints: ["결정 기한 10일(10일 연장 가능, 연장 시 문서 통지)", "청구 후 20일 경과 무결정 시 이의신청 가능", "이의신청 기한 30일"],
-      adminNotes: ["비공개 시 제9조 비공개 사유를 구체적으로 명시"],
+      adminNotes: ["비공개·부분공개 결정 시 법정 비공개 사유와 불복 방법을 구체적으로 통지", "이의신청은 받은 날부터 7일 이내 결정(7일 범위 연장 가능)"],
       checklist: ["접수일 확인", "제3자 의견청취 필요 여부", "비공개 사유 검토"],
     },
     contacts: [{ name: "정보공개포털", url: "https://www.open.go.kr", desc: "정보공개 청구·결과 확인" }, GOV_CALL],
@@ -408,6 +423,7 @@ export const TOPICS: Topic[] = [
   {
     id: "admin-appeal",
     label: "행정심판",
+    caseQuery: "행정심판",
     triggers: ["행정심판", "처분 취소", "불복", "행정처분", "영업정지", "과태료 불복"],
     refs: ["admin-appeal:27", "admin-appeal:23"],
     citizen: {

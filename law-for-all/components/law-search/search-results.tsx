@@ -19,6 +19,7 @@ import { OfficerReport } from "@/components/officer-view/officer-report";
 import { CasesPanel } from "@/components/officer-view/cases-panel";
 import { copyText } from "@/lib/clipboard";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 type State = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; result: AskResult };
 
@@ -106,7 +107,7 @@ export function SearchResults({ q }: { q: string }) {
           {r.provider.kind === "llm" ? ` · ${r.provider.model}` : ""}
         </Badge>
         <Badge variant="outline" className="gap-1">
-          <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : "내장 법령 데이터"}
+          <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : `법령 원문 ${MOCK_DATASET_DATE} 기준`}
         </Badge>
         <span className="text-muted-foreground">{(r.elapsedMs / 1000).toFixed(1)}초</span>
         <div className="ml-auto">

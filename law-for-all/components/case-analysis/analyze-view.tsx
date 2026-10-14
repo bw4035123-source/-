@@ -17,6 +17,7 @@ import { FactsCard } from "./facts-card";
 import { Recommendations } from "./recommendations";
 import { RolePanels } from "./role-panels";
 import { ROLES } from "./roles";
+import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 type State = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; result: AnalyzeResult };
 
@@ -130,7 +131,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
             {r.provider.kind === "llm" ? ` · ${r.provider.model}` : ""}
           </Badge>
           <Badge variant="outline" className="gap-1">
-            <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : "내장 법령 데이터"}
+            <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : `법령 원문 ${MOCK_DATASET_DATE} 기준`}
           </Badge>
           <Badge variant={r.guard.passed ? "success" : "warning"}>{r.guard.passed ? "근거 검증 통과" : `확인 필요 표현 ${r.guard.unverifiedMentions.length}건`}</Badge>
           <span className="text-muted-foreground">{(r.elapsedMs / 1000).toFixed(1)}초</span>

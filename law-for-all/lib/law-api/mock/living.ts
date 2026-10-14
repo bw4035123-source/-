@@ -25,7 +25,7 @@ export const livingLaws: LawDoc[] = [
     practiceNotes: [
       {
         title: "관리주체 조사 권한",
-        note: "관리사무소(관리주체)는 피해 세대의 요청이 있으면 세대 내 확인 등 사실조사를 할 수 있으며, 가해 세대는 협조 의무가 있음. 조치 불응 시 분쟁조정위원회로 연계.",
+        note: "관리사무소(관리주체)는 피해 세대의 요청이 있으면 세대 내 확인 등 사실조사를 할 수 있으며, 가해 세대는 협조 의무가 있음. 계속되면 층간소음관리위원회 조정(제4항) → 분쟁조정위원회·환경분쟁조정위원회(제11항)로 연계.",
         query: "층간소음 관리주체 조치",
       },
     ],
@@ -36,7 +36,7 @@ export const livingLaws: LawDoc[] = [
     shortName: "층간소음 규칙",
     kind: "공동부령",
     parentId: "apartment-mgmt",
-    ministry: "환경부·국토교통부",
+    ministry: "기후에너지환경부·국토교통부",
     source: "mock",
     revisionReason:
       "층간소음 피해 인정 기준이 실생활 체감과 괴리가 있다는 지적에 따라 직접충격 소음의 1분 등가소음도 기준을 주간 43dB(A)→39dB(A), 야간 38dB(A)→34dB(A)로 강화함(2023년 시행).",
