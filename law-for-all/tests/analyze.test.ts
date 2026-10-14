@@ -140,3 +140,13 @@ describe("임금체불 사례 정밀도", () => {
     expect(a[0].perspectives.judge.requirements.map((r) => r.status)).toEqual(["met", "met", "met"]);
   });
 });
+
+describe("일상 표현 해고 인식", () => {
+  it("'내일부터 나오지 말라' → 부당해고 쟁점·해고 의사표시 확인", () => {
+    const s = "회사에서 3년 근무했는데 어제 갑자기 내일부터 나오지 말라고 했어요";
+    const issues = spotIssues(s);
+    expect(issues[0]?.topic.id).toBe("unfair-dismissal");
+    expect(buildRuleAnalyses(s, issues, [])[0].perspectives.judge.requirements[0].status).toBe("met");
+    expect(extractFacts(s).map((f) => f.value)).toContain("해고");
+  });
+});

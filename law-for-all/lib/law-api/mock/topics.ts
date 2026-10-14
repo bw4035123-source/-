@@ -330,7 +330,7 @@ export const TOPICS: Topic[] = [
   {
     id: "unfair-dismissal",
     label: "부당해고",
-    triggers: ["해고", "잘렸", "짤렸", "부당해고", "해고예고", "권고사직"],
+    triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말라", "나오지 마라", "그만 나오", "나가라고"],
     refs: ["labor-standards:23", "labor-standards:26", "labor-standards:28"],
     citizen: {
       summary:

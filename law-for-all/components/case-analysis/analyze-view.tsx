@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, ClipboardCopy, Cpu, Database, Gavel, RefreshCw } from "lucide-react";
 import type { AnalyzeResult } from "@/lib/answer/types";
 import { useSettings } from "@/components/providers/settings-provider";
@@ -22,7 +22,6 @@ type State = { status: "idle" } | { status: "loading" } | { status: "error"; mes
 
 export function AnalyzeView() {
   const params = useSearchParams();
-  const router = useRouter();
   const initial = params.get("s") ?? "";
   const { provider, ready } = useSettings();
   const toast = useToast();
@@ -42,16 +41,21 @@ export function AnalyzeView() {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "요청 실패");
         setState({ status: "done", result: j });
-        router.replace(`/analyze?s=${encodeURIComponent(s.slice(0, 600))}`, { scroll: false });
+        // 공유 가능한 주소로 갱신 — 라우터 내비게이션 대신 history API를 써서 페이지 재마운트(→ 자동 재분석 반복)를 막음
+        try {
+          window.history.replaceState(window.history.state, "", `/analyze?s=${encodeURIComponent(s.slice(0, 600))}`);
+        } catch {
+          /* 주소 갱신 실패는 무시 */
+        }
         setTimeout(() => document.getElementById("analysis-result")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
       } catch (e) {
         setState({ status: "error", message: (e as Error).message });
       }
     },
-    [provider, router],
+    [provider],
   );
 
-  // 링크로 진입(?s=) 시 자동 분석
+  // 링크로 진입(?s=) 시 1회만 자동 분석(같은 문장 중복 실행 방지)
   const auto = React.useRef(false);
   React.useEffect(() => {
     if (ready && initial.trim().length >= 10 && !auto.current) {

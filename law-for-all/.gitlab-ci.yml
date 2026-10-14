@@ -29,3 +29,12 @@ build:
   artifacts:
     paths: [.next/standalone, .next/static]
     expire_in: 1 week
+
+# Python 실행판: 단위·통합 테스트 + TypeScript 엔진과의 결과 동등성
+python:
+  stage: check
+  image: python:3.11-slim
+  before_script: []
+  cache: {}
+  script:
+    - cd python && python -m unittest discover -s tests -t . -v

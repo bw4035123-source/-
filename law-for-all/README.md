@@ -8,13 +8,26 @@
 | 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) |
 | 핵심 가치 | ① 듀얼 모드(시민/공무원) ② 조문 근거 인용·환각 방지 ③ LLM 비종속(설정 하나로 교체) ④ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
-| 법령 데이터 | 국가법령정보 공동활용 Open API(`lawSearch.do`, `lawService.do`) + 내장 시연 데이터(법률 13종·하위법령 7종) |
+| 법령 데이터 | 국가법령정보 공동활용 Open API(`lawSearch.do`, `lawService.do`) + 내장 시연 데이터(법률 13종·하위법령 6종) |
 | LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 |
 | 라이선스 | MIT |
 
 ---
 
-## 1. 바로 실행 (3가지 방법 중 하나)
+## 1. 바로 실행
+
+### 🐍 Python 실행판 (Node.js 불필요 — 권장 배포 형태)
+`law-for-all-python.zip` 압축을 풀고 **Python 3.9 이상**으로 실행합니다. `pip install` 없이 표준 라이브러리만 사용합니다.
+
+```bash
+python run.py        # Windows는 실행.bat / run.bat 더블클릭 → http://127.0.0.1:8000
+```
+
+- 화면은 Next.js 정적 빌드, API(검색·질의응답·상황분석·환각 가드·LLM 어댑터·법령 Open API)는 Python으로 이식(`python/law_for_all/`)
+- **TypeScript 엔진과 결과 동일성 테스트**(38개 입력에 대해 응답 JSON 완전 일치) 포함, Python 3.9~3.13 검증
+- 배포판 다시 만들기: `node scripts/build-python.mjs` → `dist/law-for-all-python.zip`
+
+### Node.js 실행판 (3가지 방법 중 하나)
 
 필요 환경: **Node.js 18.18 이상**(20 LTS 권장). API 키·인터넷 없이도 모든 화면이 동작합니다.
 
@@ -96,7 +109,7 @@ law-for-all/
 │  │  ├─ drf.ts                 #   DRF 호출·캐시·응답 파서(lawSearch.do / lawService.do)
 │  │  ├─ client.ts              #   LawService: 실시간 ↔ 내장 데이터 자동 Fallback
 │  │  ├─ search.ts              #   한국어 2-gram 검색 엔진(외부 의존성 없음)
-│  │  └─ mock/                  #   법률 13종·하위법령 7종·생활 법률 토픽 12종·3관점 지식베이스
+│  │  └─ mock/                  #   법률 13종·하위법령 6종·생활 법률 토픽 12종·3관점 지식베이스
 │  ├─ llm/                      # LLM 비종속 계층(Adapter Pattern)
 │  │  ├─ types.ts               #   LLMProvider 인터페이스
 │  │  ├─ providers/             #   openai · anthropic · ollama · mock
@@ -104,6 +117,7 @@ law-for-all/
 │  └─ answer/                   # 질의응답·상황분석 파이프라인 · 사실 추출 · 프롬프트 · 환각 가드 · 규칙엔진
 ├─ tests/                       # Vitest 44개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석)
 ├─ scripts/llm-check.ts         # 설정된 LLM 전체 비교 점검
+├─ python/                     # Python 실행판(표준 라이브러리 서버 + 동등성 테스트)
 ├─ Dockerfile · docker-compose.yml · .gitlab-ci.yml
 └─ docs/JUDGE_GUIDE.md          # 예선 심사위원용 구동안내서
 ```

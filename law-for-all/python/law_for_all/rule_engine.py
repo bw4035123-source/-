@@ -1,0 +1,52 @@
+"""규칙기반 답변 조립 — 토픽 사전(검수 문장) 또는 검색된 조문 원문만 사용(생성형 문장 없음)"""
+from __future__ import annotations
+
+import re
+
+from .data import article_label
+
+
+def first_sentence(text: str, max_len: int = 90) -> str:
+    line = re.sub(r"^[①-⑳]\s*", "", text.split("\n")[0])
+    s = re.split(r"(?<=다\.)\s", line)[0]
+    return s[:max_len] + "…" if len(s) > max_len else s
+
+
+def build_rule_answer(query: str, topic: dict | None, citations: list[dict]) -> dict:
+    if topic:
+        c, o = topic["citizen"], topic["officer"]
+        citizen = {"easyTerms": c["easyTerms"], "steps": c["steps"]}
+        if c.get("tip"):
+            citizen["tip"] = c["tip"]
+        return {"summary": c["summary"], "citizen": citizen, "officer": {k: o[k] for k in ("background", "keyPoints", "adminNotes", "checklist")}}
+
+    if not citations:
+        return {
+            "summary": f"'{query}'와(과) 직접 관련된 조문을 내장 법령 데이터에서 찾지 못했어요. 더 구체적인 상황(예: \"전세 보증금\", \"육아휴직 급여\", \"민원 처리 기한\")으로 다시 검색해 보세요.",
+            "citizen": {"easyTerms": [], "steps": [
+                {"title": "검색어 바꿔 보기", "detail": "상황을 나타내는 핵심 단어(누가·무엇을·어떻게)를 넣어 다시 검색해 보세요."},
+                {"title": "정부민원안내콜센터 문의", "detail": "어느 기관 소관인지 모를 때는 110으로 전화하면 담당 기관을 안내받을 수 있어요."},
+                {"title": "무료 법률상담", "detail": "대한법률구조공단(132)에서 무료 법률상담을 받을 수 있어요."},
+            ]},
+            "officer": {
+                "background": "내장 데이터 범위에서 관련 조문이 검색되지 않음. 국가법령정보 Open API(OC) 연동 시 전체 법령에서 검색 가능.",
+                "keyPoints": [], "adminNotes": ["소관 법령이 불분명한 경우 법제처 법령해석 및 소관 부처 질의 검토"], "checklist": ["검색어 재설정", "소관 부처 확인"],
+            },
+        }
+
+    top = citations[:3]
+    lst = ", ".join(f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']}) [[{c['key']}]]" for c in top)
+    return {
+        "summary": f"질문과 관련된 조문으로 {lst}이(가) 확인돼요. 핵심 내용은 다음과 같아요: {first_sentence(top[0]['text'])} [[{top[0]['key']}]]",
+        "citizen": {"easyTerms": [], "steps": [
+            {"title": "근거 조문 원문 확인", "detail": "오른쪽 근거 조문 카드를 눌러 원문 전체를 확인하세요.", "ref": top[0]["key"]},
+            {"title": "담당 기관 상담", "detail": "정부민원안내콜센터(110)에 문의하면 소관 기관을 안내받을 수 있어요."},
+            {"title": "전문가 도움 받기", "detail": "분쟁이 생겼다면 대한법률구조공단(132)의 무료 법률상담을 이용하세요."},
+        ]},
+        "officer": {
+            "background": "검색된 관련 근거: " + ", ".join(f"「{c['lawName']}」 {article_label(c['articleNo'])}" for c in top) + ".",
+            "keyPoints": [f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']}): {first_sentence(c['text'])} [[{c['key']}]]" for c in top],
+            "adminNotes": ["규칙기반 검색 결과이므로 하위법령·행정규칙 및 최신 개정 여부를 원문에서 확인할 것"],
+            "checklist": ["현행 조문 확인", "하위법령 위임사항 확인", "관련 판례·해석례 확인"],
+        },
+    }

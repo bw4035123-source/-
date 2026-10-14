@@ -1,13 +1,11 @@
-import type { Metadata } from "next";
+"use client";
+import * as React from "react";
 import { ArrowDown, ArrowRight, CheckCircle2, CircleDashed, Database, FileCheck2, Layers3, MessageSquareText, Search, ShieldCheck } from "lucide-react";
-import { serverConfig } from "@/lib/config";
-import { listProviders } from "@/lib/llm/registry";
+import type { ProviderInfo } from "@/lib/llm/types";
 import { MOCK_LAWS, MOCK_DATASET_DATE } from "@/lib/law-api/mock";
 import { TOPICS } from "@/lib/law-api/mock/topics";
 import { Badge } from "@/components/ui/badge";
 
-export const metadata: Metadata = { title: "서비스 구조" };
-export const dynamic = "force-dynamic";
 
 const PIPELINE = [
   { icon: MessageSquareText, title: "① 질문 이해", desc: "생활 표현 토픽 라우팅 + 2-gram 조문 검색" },
@@ -17,8 +15,19 @@ const PIPELINE = [
   { icon: FileCheck2, title: "⑤ 근거 카드", desc: "AI 문장과 분리된 법령 원문 · 원문 링크 · 기안문 인용" },
 ];
 
-export default async function AboutPage() {
-  const providers = await listProviders(serverConfig.llm);
+export default function AboutPage() {
+  const [providers, setProviders] = React.useState<ProviderInfo[]>([]);
+  const [lawApi, setLawApi] = React.useState<string>("mock");
+  React.useEffect(() => {
+    document.title = "서비스 구조 · 모두의 법";
+    fetch("/api/providers")
+      .then((r) => r.json())
+      .then((j) => {
+        setProviders(j.providers ?? []);
+        setLawApi(j.lawApi ?? "mock");
+      })
+      .catch(() => {});
+  }, []);
   const articleCount = MOCK_LAWS.reduce((n, l) => n + l.articles.length, 0);
   return (
     <div className="container max-w-5xl py-10">
@@ -73,7 +82,7 @@ export default async function AboutPage() {
           <h2 className="font-extrabold">법령 데이터</h2>
           <ul className="mt-3 space-y-1.5 text-sm">
             <li>
-              · 연동 상태: <strong>{serverConfig.lawApiOc ? "국가법령정보 Open API 실시간" : "내장 시연 데이터"}</strong>
+              · 연동 상태: <strong>{lawApi === "live" ? "국가법령정보 Open API 실시간" : "내장 시연 데이터"}</strong>
             </li>
             <li>
               · 내장 법령: 법률 {MOCK_LAWS.filter((l) => l.kind === "법률").length}종 + 하위법령 {MOCK_LAWS.filter((l) => l.kind !== "법률").length}종 · 조문 {articleCount}개 (기준 {MOCK_DATASET_DATE})

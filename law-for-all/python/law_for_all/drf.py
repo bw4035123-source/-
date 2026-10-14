@@ -1,0 +1,169 @@
+"""국가법령정보 공동활용 Open API(DRF) 클라이언트 — lawSearch.do / lawService.do
+요청 호스트는 law.go.kr 로 고정(인증키가 다른 곳으로 전송되지 않도록)."""
+from __future__ import annotations
+
+import json
+import re
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+
+DRF_BASE = "https://www.law.go.kr/DRF"
+CACHE_TTL = 60 * 60 * 6
+_cache: dict[str, tuple[float, object]] = {}
+_lock = threading.Lock()
+
+
+class LawApiError(Exception):
+    pass
+
+
+def drf_get(path: str, params: dict, oc: str, timeout: float = 10):
+    cache_key = path + "?" + urllib.parse.urlencode(params)
+    hit = _cache.get(cache_key)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        return hit[1]
+    url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **params})
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "law-for-all/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+        if hit:
+            return hit[1]
+        raise LawApiError(f"국가법령정보센터 연결 실패: {getattr(e, 'reason', e)}") from e
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        hint = re.sub(r"<[^>]+>|\s+", " ", raw).strip()[:120]
+        raise LawApiError(f"국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. ({hint})")
+    with _lock:
+        _cache[cache_key] = (time.time(), data)
+    return data
+
+
+# ───────────── 응답 구조 탐색(키 이름 기준)
+def find_all(obj, key: str) -> list:
+    out: list = []
+
+    def walk(o):
+        if isinstance(o, list):
+            for v in o:
+                walk(v)
+        elif isinstance(o, dict):
+            for k, v in o.items():
+                if k == key:
+                    out.extend(v if isinstance(v, list) else [v])
+                else:
+                    walk(v)
+
+    walk(obj)
+    return out
+
+
+def txt(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, list):
+        return "\n".join(x for x in (txt(i) for i in v) if x)
+    if isinstance(v, dict):
+        return txt(v.get("content", ""))
+    return str(v).strip()
+
+
+def _as_list(v) -> list:
+    return v if isinstance(v, list) else ([v] if v else [])
+
+
+def _rec(v) -> dict:
+    return v if isinstance(v, dict) else {}
+
+
+def parse_law_list(data) -> list[dict]:
+    out = []
+    for it in map(_rec, find_all(data, "law")):
+        x = {
+            "name": txt(it.get("법령명한글")), "mst": txt(it.get("법령일련번호")), "lawId": txt(it.get("법령ID")),
+            "kind": txt(it.get("법령구분명")), "ministry": txt(it.get("소관부처명")), "effective": txt(it.get("시행일자")),
+            "status": txt(it.get("현행연혁코드")),
+        }
+        if x["name"] and x["mst"]:
+            out.append(x)
+    return out
+
+
+def to_law_kind(s: str) -> str:
+    if s in ("법률", "대통령령", "총리령", "부령"):
+        return s
+    return "부령" if "부령" in s else "법률"
+
+
+_HEAD = re.compile(r"^제\d+조(의\d+)?\s*(\([^)]*\))?\s*")
+
+
+def parse_articles(data) -> list[dict]:
+    arts = []
+    for u in map(_rec, find_all(data, "조문단위")):
+        kind = txt(u.get("조문여부"))
+        if kind and kind != "조문":
+            continue
+        lines = []
+        head = txt(u.get("조문내용"))
+        if head:
+            lines.append(head)
+        for hang in map(_rec, _as_list(u.get("항"))):
+            h = txt(hang.get("항내용"))
+            if h:
+                lines.append(h)
+            for ho in map(_rec, _as_list(hang.get("호"))):
+                t = txt(ho.get("호내용"))
+                if t:
+                    lines.append("  " + t)
+                for mok in map(_rec, _as_list(ho.get("목"))):
+                    m = txt(mok.get("목내용"))
+                    if m:
+                        lines.append("    " + m)
+        jo, branch = txt(u.get("조문번호")), txt(u.get("조문가지번호"))
+        if not jo:
+            continue
+        if lines:
+            lines[0] = _HEAD.sub("", lines[0])
+        arts.append({"no": f"{jo}의{branch}" if branch and branch != "0" else jo, "title": txt(u.get("조문제목")), "text": "\n".join(l for l in lines if l)})
+    return arts
+
+
+def parse_law_doc(data, law_id: str, name: str, mst: str) -> dict:
+    basic = _rec((find_all(data, "기본정보") or [None])[0])
+    reason = "\n".join(txt(x) for x in find_all(data, "제개정이유내용")).strip()
+
+    def content(v):
+        return txt(_rec(v).get("content") if isinstance(v, dict) else v)
+
+    return {
+        "id": law_id, "name": txt(basic.get("법령명_한글")) or name, "kind": to_law_kind(content(basic.get("법종구분"))),
+        "ministry": content(basic.get("소관부처")), "effectiveDate": txt(basic.get("시행일자")) or None,
+        "revisionReason": reason or None, "articles": parse_articles(data), "source": "live", "mst": mst,
+        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def parse_case_list(data, kind: str) -> list[dict]:
+    key = "prec" if kind == "판례" else "expc"
+    out = []
+    for it in map(_rec, find_all(data, key)):
+        case_no = txt(it.get("사건번호") or it.get("안건번호"))
+        title = txt(it.get("사건명") or it.get("안건명"))
+        if not title:
+            continue
+        seg = "판례" if kind == "판례" else "법령해석례"
+        out.append({
+            "kind": kind, "title": title, "caseNo": case_no or None,
+            "court": txt(it.get("법원명") or it.get("회신기관명")) or None,
+            "date": txt(it.get("선고일자") or it.get("회신일자")) or None,
+            # 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
+            "url": f"https://www.law.go.kr/{seg}/({urllib.parse.quote(case_no)})" if case_no else "https://www.law.go.kr/",
+        })
+    return out

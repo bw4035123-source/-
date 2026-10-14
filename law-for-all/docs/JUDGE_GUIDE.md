@@ -19,6 +19,7 @@
 
 | 환경 | 실행 |
 |---|---|
+| **Python만 있는 PC(권장)** | `law-for-all-python.zip` 압축 해제 → `실행.bat`(Windows) 또는 `python run.py` → http://127.0.0.1:8000 |
 | Windows | `start.bat` 더블클릭 → 브라우저 자동 열림 |
 | macOS / Linux | `./start.sh` |
 | Node.js 직접 | `npm install` → `npm run dev` |

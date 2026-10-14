@@ -1,25 +1,16 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { serverConfig } from "@/lib/config";
-import { LawService } from "@/lib/law-api/client";
-import { getMockLaw } from "@/lib/law-api/mock";
-import { LawDocument } from "@/components/officer-view/law-document";
+import { MOCK_LAWS, getMockLaw } from "@/lib/law-api/mock";
+import { LawPageClient } from "@/components/officer-view/law-page-client";
 
-export const dynamic = "force-dynamic";
+/** 내장 법령은 미리 생성(정적 배포·Python 서버용), 그 외(mst-…)는 서버가 placeholder("_") 페이지로 응답 */
+export function generateStaticParams() {
+  return [...MOCK_LAWS.map((l) => ({ id: l.id })), { id: "_" }];
+}
 
 export function generateMetadata({ params }: { params: { id: string } }): Metadata {
   return { title: getMockLaw(params.id)?.name ?? "법령 본문" };
 }
 
-export default async function LawPage({ params }: { params: { id: string } }) {
-  const id = decodeURIComponent(params.id);
-  if (!/^[a-z0-9-]{2,60}$/.test(id)) notFound();
-  const svc = new LawService(serverConfig.lawApiOc);
-  const h = await svc.getHierarchy(id);
-  if (!h) notFound();
-  return (
-    <div className="container py-8">
-      <LawDocument root={h.root} lawsChildren={h.children} initialLawId={id} warnings={svc.warnings} />
-    </div>
-  );
+export default function LawPage() {
+  return <LawPageClient />;
 }

@@ -286,7 +286,7 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
       stance: "해고 사유의 정당성과 절차, 구제신청 기간 준수를 판단합니다.",
       issues: ["해고에 정당한 이유가 있는가", "해고 예고 의무를 지켰는가", "3개월 이내 구제신청했는가"],
       requirements: [
-        { label: "사용자의 해고 의사표시", ref: "labor-standards:23", facts: ["해고", "잘렸", "짤렸", "나가라", "그만두라"] },
+        { label: "사용자의 해고 의사표시", ref: "labor-standards:23", facts: ["해고", "잘렸", "짤렸", "나가라", "그만두라", "나오지 말라", "나오지 마라"] },
         { label: "30일 전 해고 예고", ref: "labor-standards:26", facts: ["예고", "한 달 전"], neg: ["갑자기", "당일", "바로 나가"] },
         { label: "해고일부터 3개월 이내 구제신청", ref: "labor-standards:28", facts: ["어제", "지난주", "이번 달", "최근"], neg: ["작년", "4개월", "반년"] },
       ],
