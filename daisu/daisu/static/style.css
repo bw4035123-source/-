@@ -1,7 +1,7 @@
 /* 다이수 – 한 화면에 한 가지 이야기: 큰 제목, 넉넉한 여백, 둥근 카드, 좌우로 넘기는 슬라이드(외부 글꼴·CDN 없음) */
 :root {
   --bg: #f2f4f6; --card: #fff; --ink: #191f28; --ink2: #333d4b; --muted: #8b95a1; --line: #e5e8eb; --line2: #d1d6db; --fill: #f2f4f6;
-  --brand: #3182f6; --brand-2: #1b64da; --brand-soft: #e8f3ff;
+  --brand: #1b64da; --brand-2: #123f8c; --brand-soft: #e8f3ff;
   --done: #03a564; --done-bg: #e5f7ee; --part: #e07e00; --part-bg: #fff3df; --none: #f04452; --none-bg: #ffebee;
   --leave: #6b7684; --leave-bg: #f2f4f6; --na: #b0b8c1;
   --radius: 20px; --r-sm: 12px; --shadow: 0 1px 3px rgba(0, 27, 55, .04), 0 8px 24px rgba(0, 27, 55, .05);
