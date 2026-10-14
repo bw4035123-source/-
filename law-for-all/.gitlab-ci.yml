@@ -1,0 +1,31 @@
+# 공공 GitLab CI — 타입검사·린트·단위테스트·빌드
+image: node:20-alpine
+
+stages: [check, build]
+
+variables:
+  NEXT_TELEMETRY_DISABLED: "1"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+cache:
+  key:
+    files: [package-lock.json]
+  paths: [.npm/]
+
+before_script:
+  - npm ci --no-audit --no-fund
+
+check:
+  stage: check
+  script:
+    - npm run typecheck
+    - npm run lint
+    - npm test
+
+build:
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    paths: [.next/standalone, .next/static]
+    expire_in: 1 week

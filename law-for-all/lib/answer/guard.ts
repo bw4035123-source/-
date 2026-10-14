@@ -1,0 +1,152 @@
+import { z } from "zod";
+import type { Citation } from "../law-api/types";
+import type { CitizenAnswer, OfficerAnswer } from "./types";
+
+/**
+ * 환각(Hallucination) 방지 가드
+ *  1) 인용 키 화이트리스트: 근거 목록에 없는 [[키]]는 제거
+ *  2) 조문 언급 검증: 본문에 쓰인 "「법령」 제N조" 표현이 근거 조문에서 확인되는지 대조
+ *  3) 원문 분리: 인용 카드에는 LLM 문장이 아닌 DB/Open API 원문만 표시(답변 조립 단계에서 보장)
+ */
+
+const MARKER = /\[\[([^\]\s]+)\]\]/g;
+
+export function extractMarkers(text: string): string[] {
+  return Array.from(text.matchAll(MARKER), (m) => m[1]);
+}
+
+export function sanitizeMarkers(text: string, allowed: Set<string>): { text: string; removed: string[]; used: string[] } {
+  const removed: string[] = [];
+  const used: string[] = [];
+  const out = text.replace(MARKER, (_, key: string) => {
+    if (allowed.has(key)) {
+      if (!used.includes(key)) used.push(key);
+      return `[[${key}]]`;
+    }
+    removed.push(key);
+    return "";
+  });
+  return { text: out.replace(/\s+([.,])/g, "$1").replace(/ {2,}/g, " ").trim(), removed, used };
+}
+
+const norm = (s: string) => s.replace(/\s|ㆍ|·/g, "");
+
+/** 본문에서 근거로 확인되지 않는 조문 언급을 찾는다 */
+export function findUnverifiedMentions(text: string, citations: Citation[]): string[] {
+  const plain = text.replace(MARKER, "");
+  const corpus = citations.map((c) => norm(c.text)).join("|");
+  const bad = new Set<string>();
+
+  const named = /「([^」]{2,60})」\s*(?:시행령\s*|시행규칙\s*)?제(\d+)조(?:의(\d+))?/g;
+  const namedSpans: [number, number][] = [];
+  for (const m of Array.from(plain.matchAll(named))) {
+    namedSpans.push([m.index!, m.index! + m[0].length]);
+    const no = m[3] ? `${m[2]}의${m[3]}` : m[2];
+    const name = norm(m[1]);
+    const ok =
+      citations.some((c) => norm(c.lawName) === name && c.articleNo === no) ||
+      citations.some((c) => norm(c.lawName).startsWith(name) && c.articleNo === no) ||
+      corpus.includes(norm(m[0]));
+    if (!ok) bad.add(m[0].trim());
+  }
+
+  const bare = /(?:같은\s*법\s*)?제(\d+)조(?:의(\d+))?/g;
+  for (const m of Array.from(plain.matchAll(bare))) {
+    if (namedSpans.some(([s, e]) => m.index! >= s && m.index! < e)) continue;
+    const no = m[2] ? `${m[1]}의${m[2]}` : m[1];
+    const ok = citations.some((c) => c.articleNo === no) || corpus.includes(norm(m[0]));
+    if (!ok) bad.add(m[0].trim());
+  }
+  return Array.from(bad);
+}
+
+/** LLM 출력에서 JSON 객체만 추출(코드블록·앞뒤 설명 제거) */
+export function parseLooseJson(text: string): unknown {
+  const t = text.replace(/```(?:json)?/gi, "").trim();
+  const s = t.indexOf("{");
+  const e = t.lastIndexOf("}");
+  if (s < 0 || e <= s) throw new Error("JSON 객체를 찾지 못했습니다");
+  return JSON.parse(t.slice(s, e + 1));
+}
+
+const str = z.preprocess((v) => (v == null ? "" : typeof v === "string" ? v : JSON.stringify(v)), z.string());
+const strList = z.preprocess((v) => (Array.isArray(v) ? v : v ? [v] : []), z.array(str));
+
+export const CitizenSchema = z.object({
+  summary: str,
+  easyTerms: z.array(z.object({ term: str, meaning: str })).catch([]),
+  steps: z.array(z.object({ title: str, detail: str, ref: str.optional() })).catch([]),
+  tip: str.optional(),
+  citations: strList.catch([]),
+});
+
+export const OfficerSchema = z.object({
+  summary: str,
+  background: str.catch(""),
+  keyPoints: strList.catch([]),
+  adminNotes: strList.catch([]),
+  checklist: strList.catch([]),
+  citations: strList.catch([]),
+});
+
+export interface GuardedOutput {
+  summary: string;
+  citizen?: CitizenAnswer;
+  officer?: OfficerAnswer;
+  citationKeys: string[];
+  removed: string[];
+  unverified: string[];
+}
+
+/** LLM JSON → 검증·정제된 답변. 근거 인용이 하나도 없으면 예외(상위에서 규칙엔진으로 대체) */
+export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", context: Citation[]): GuardedOutput {
+  const allowed = new Set(context.map((c) => c.key));
+  const removed: string[] = [];
+  const used: string[] = [];
+  const clean = (s: string) => {
+    const r = sanitizeMarkers(s, allowed);
+    removed.push(...r.removed);
+    r.used.forEach((u) => !used.includes(u) && used.push(u));
+    return r.text;
+  };
+  const allText: string[] = [];
+  let summary: string;
+  let citizen: CitizenAnswer | undefined;
+  let officer: OfficerAnswer | undefined;
+  let declared: string[];
+
+  if (mode === "citizen") {
+    const p = CitizenSchema.parse(raw);
+    summary = clean(p.summary);
+    citizen = {
+      easyTerms: p.easyTerms.filter((t) => t.term && t.meaning).slice(0, 5),
+      steps: p.steps
+        .filter((s) => s.title)
+        .slice(0, 3)
+        .map((s) => ({ title: clean(s.title), detail: clean(s.detail), ref: s.ref && allowed.has(s.ref) ? s.ref : undefined })),
+      tip: p.tip ? clean(p.tip) : undefined,
+    };
+    allText.push(summary, ...citizen.steps.flatMap((s) => [s.title, s.detail]), citizen.tip ?? "");
+    declared = p.citations;
+  } else {
+    const p = OfficerSchema.parse(raw);
+    summary = clean(p.summary);
+    officer = {
+      background: clean(p.background),
+      keyPoints: p.keyPoints.map(clean).filter(Boolean).slice(0, 6),
+      adminNotes: p.adminNotes.map(clean).filter(Boolean).slice(0, 4),
+      checklist: p.checklist.map(clean).filter(Boolean).slice(0, 6),
+    };
+    allText.push(summary, officer.background, ...officer.keyPoints, ...officer.adminNotes, ...officer.checklist);
+    declared = p.citations;
+  }
+
+  for (const k of declared) {
+    if (allowed.has(k)) !used.includes(k) && used.push(k);
+    else if (!removed.includes(k)) removed.push(k);
+  }
+  if (!summary) throw new Error("요약이 비어 있습니다");
+  if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+
+  return { summary, citizen, officer, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(allText.join("\n"), context) };
+}

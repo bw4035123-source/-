@@ -1,0 +1,174 @@
+import type { CaseItem, LawArticle, LawDoc, LawKind } from "./types";
+
+/**
+ * 국가법령정보 공동활용 Open API(DRF) 저수준 클라이언트.
+ *  - lawSearch.do : 법령·판례·해석례 목록 검색
+ *  - lawService.do: 법령 본문(조문) 조회
+ * 요청 호스트는 law.go.kr 로 고정(인증키가 다른 곳으로 전송되지 않도록).
+ * 응답 구조가 버전에 따라 조금씩 달라도 동작하도록 키 이름 기반으로 탐색한다.
+ */
+export const DRF_BASE = "https://www.law.go.kr/DRF";
+const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6시간
+
+export class LawApiError extends Error {}
+
+type Json = unknown;
+const cache = new Map<string, { at: number; data: Json }>();
+
+export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 10000): Promise<Json> {
+  const qs = new URLSearchParams({ OC: oc, type: "JSON", ...params });
+  const url = `${DRF_BASE}/${path}?${qs.toString()}`;
+  const cacheKey = `${path}?${new URLSearchParams(params).toString()}`;
+  const hit = cache.get(cacheKey);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-for-all/1.0" }, cache: "no-store" });
+    const raw = await res.text();
+    let data: Json;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      // 인증키 오류·미등록 IP 등은 JSON 대신 HTML 안내 페이지가 온다
+      const hint = raw.replace(/<[^>]+>|\s+/g, " ").trim().slice(0, 120);
+      throw new LawApiError(`국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. (${hint})`);
+    }
+    cache.set(cacheKey, { at: Date.now(), data });
+    return data;
+  } catch (e) {
+    if (e instanceof LawApiError) throw e;
+    if (hit) return hit.data; // 네트워크 장애 시 오래된 캐시라도 반환
+    throw new LawApiError(`국가법령정보센터 연결 실패: ${(e as Error).message}`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ───────────── 응답 구조 탐색 유틸(순수 함수, 테스트 대상)
+export function findAll(obj: Json, key: string): Json[] {
+  const out: Json[] = [];
+  const walk = (o: Json) => {
+    if (Array.isArray(o)) o.forEach(walk);
+    else if (o && typeof o === "object") {
+      for (const [k, v] of Object.entries(o as Record<string, Json>)) {
+        if (k === key) Array.isArray(v) ? out.push(...v) : out.push(v);
+        else walk(v);
+      }
+    }
+  };
+  walk(obj);
+  return out;
+}
+
+export function txt(v: Json): string {
+  if (v == null) return "";
+  if (Array.isArray(v)) return v.map(txt).filter(Boolean).join("\n");
+  if (typeof v === "object") return txt((v as Record<string, Json>).content ?? "");
+  return String(v).trim();
+}
+
+const asList = (v: Json): Json[] => (Array.isArray(v) ? v : v ? [v] : []);
+const rec = (v: Json) => (v && typeof v === "object" ? (v as Record<string, Json>) : {});
+
+export interface DrfLawListItem {
+  name: string;
+  mst: string;
+  lawId: string;
+  kind: string;
+  ministry: string;
+  effective: string;
+  status: string;
+}
+
+export function parseLawList(data: Json): DrfLawListItem[] {
+  return findAll(data, "law")
+    .map(rec)
+    .map((it) => ({
+      name: txt(it["법령명한글"]),
+      mst: txt(it["법령일련번호"]),
+      lawId: txt(it["법령ID"]),
+      kind: txt(it["법령구분명"]),
+      ministry: txt(it["소관부처명"]),
+      effective: txt(it["시행일자"]),
+      status: txt(it["현행연혁코드"]),
+    }))
+    .filter((x) => x.name && x.mst);
+}
+
+const KIND_MAP: Record<string, LawKind> = { 법률: "법률", 대통령령: "대통령령", 총리령: "총리령", 부령: "부령" };
+export const toLawKind = (s: string): LawKind => KIND_MAP[s] ?? (s.includes("부령") ? "부령" : "법률");
+
+/** 조문단위 → LawArticle[] (항·호·목 들여쓰기 보존) */
+export function parseArticles(data: Json): LawArticle[] {
+  const arts: LawArticle[] = [];
+  for (const u of findAll(data, "조문단위").map(rec)) {
+    const kind = txt(u["조문여부"]);
+    if (kind && kind !== "조문") continue; // '전문'(장·절 제목) 제외
+    const lines: string[] = [];
+    const head = txt(u["조문내용"]);
+    if (head) lines.push(head);
+    for (const hang of asList(u["항"]).map(rec)) {
+      const h = txt(hang["항내용"]);
+      if (h) lines.push(h);
+      for (const ho of asList(hang["호"]).map(rec)) {
+        const t = txt(ho["호내용"]);
+        if (t) lines.push("  " + t);
+        for (const mok of asList(ho["목"]).map(rec)) {
+          const m = txt(mok["목내용"]);
+          if (m) lines.push("    " + m);
+        }
+      }
+    }
+    const jo = txt(u["조문번호"]);
+    const branch = txt(u["조문가지번호"]);
+    if (!jo) continue;
+    // 조문내용 첫 줄의 "제3조(대항력 등)" 머리말은 화면에서 따로 표시하므로 제거
+    if (lines[0]) lines[0] = lines[0].replace(/^제\d+조(의\d+)?\s*(\([^)]*\))?\s*/, "");
+    arts.push({
+      no: branch && branch !== "0" ? `${jo}의${branch}` : jo,
+      title: txt(u["조문제목"]),
+      text: lines.filter(Boolean).join("\n"),
+    });
+  }
+  return arts;
+}
+
+export function parseLawDoc(data: Json, fallback: { id: string; name: string; mst: string }): LawDoc {
+  const basic = rec(findAll(data, "기본정보")[0]);
+  const reason = findAll(data, "제개정이유내용").map(txt).join("\n").trim();
+  return {
+    id: fallback.id,
+    name: txt(basic["법령명_한글"]) || fallback.name,
+    kind: toLawKind(txt(rec(basic["법종구분"]).content ?? basic["법종구분"])),
+    ministry: txt(rec(basic["소관부처"]).content ?? basic["소관부처"]) || "",
+    effectiveDate: txt(basic["시행일자"]) || undefined,
+    revisionReason: reason || undefined,
+    articles: parseArticles(data),
+    source: "live",
+    mst: fallback.mst,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+export function parseCaseList(data: Json, kind: CaseItem["kind"]): CaseItem[] {
+  const key = kind === "판례" ? "prec" : "expc";
+  return findAll(data, key)
+    .map(rec)
+    .map((it) => {
+      const caseNo = txt(it["사건번호"] ?? it["안건번호"]);
+      return {
+        kind,
+        title: txt(it["사건명"] ?? it["안건명"]),
+        caseNo: caseNo || undefined,
+        court: txt(it["법원명"] ?? it["회신기관명"]) || undefined,
+        date: txt(it["선고일자"] ?? it["회신일자"]) || undefined,
+        // 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
+        url: caseNo
+          ? `https://www.law.go.kr/${kind === "판례" ? "판례" : "법령해석례"}/(${encodeURIComponent(caseNo)})`
+          : `https://www.law.go.kr/`,
+      };
+    })
+    .filter((c) => c.title);
+}

@@ -1,0 +1,37 @@
+# 기본:            docker compose up --build            → http://localhost:3000 (키 없이 완전 시연)
+# 로컬 LLM 포함:   docker compose --profile local-llm up --build
+#                  (Ollama + EXAONE 모델 자동 내려받기, 폐쇄망 온프레미스 구성 시연)
+services:
+  app:
+    build: .
+    image: law-for-all:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      # 로컬 LLM 프로필 사용 시 컨테이너 네트워크의 ollama 서비스 주소
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.5.7
+    profiles: ["local-llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    profiles: ["local-llm"]
+    depends_on: [ollama]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull ${OLLAMA_MODEL:-exaone3.5:7.8b}"]
+    restart: "no"
+
+volumes:
+  ollama:

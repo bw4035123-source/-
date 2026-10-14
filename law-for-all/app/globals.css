@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 217 33% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 17%;
+    --primary: 217 33% 17%;            /* Navy #1E293B */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 94%;
+    --secondary-foreground: 217 33% 17%;
+    --accent: 175 84% 32%;             /* Teal #0D9488 */
+    --accent-foreground: 0 0% 100%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215 19% 35%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 88%;
+    --input: 214 32% 85%;
+    --ring: 175 84% 32%;
+    --radius: 0.85rem;
+    --font-scale: 1;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 12%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 12%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 210 40% 96%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 30% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --accent: 172 66% 45%;
+    --accent-foreground: 222 47% 8%;
+    --muted: 217 30% 18%;
+    --muted-foreground: 215 20% 72%;
+    --border: 217 25% 24%;
+    --input: 217 25% 28%;
+    --ring: 172 66% 45%;
+  }
+
+  /* 고대비 모드: WCAG AAA 수준의 명암비를 목표로 색을 단순화 */
+  [data-contrast="high"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 92%;
+    --secondary-foreground: 0 0% 0%;
+    --accent: 175 100% 20%;
+    --accent-foreground: 0 0% 100%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 10%;
+    --border: 0 0% 0%;
+    --input: 0 0% 0%;
+    --ring: 220 100% 40%;
+  }
+  [data-contrast="high"].dark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 0%;
+    --card-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 60 100% 50%;
+    --accent-foreground: 0 0% 0%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 92%;
+    --border: 0 0% 100%;
+    --input: 0 0% 100%;
+    --ring: 60 100% 50%;
+  }
+  [data-contrast="high"] * { text-shadow: none !important; }
+  [data-contrast="high"] .bg-gradient-to-br,
+  [data-contrast="high"] .bg-gradient-to-r { background-image: none !important; }
+
+  html { font-size: calc(16px * var(--font-scale)); scroll-behavior: smooth; }
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer components {
+  .law-text { @apply font-serif leading-8 tracking-[-0.01em]; }
+  .skip-link { @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-accent focus:px-4 focus:py-2 focus:text-accent-foreground; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white !important; color: black !important; }
+  @page { size: A4; margin: 16mm 14mm; }
+  .print-break { break-before: page; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.75em; color: #475569; word-break: break-all; }
+}
