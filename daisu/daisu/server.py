@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -102,6 +103,8 @@ _RES: dict = {}
 
 
 def result(project: dict) -> dict:
+    if not project.get("base_pinned", True):
+        project = dict(project, base_date=dt.date.today().isoformat())
     key = (project["id"], project.get("version", 0), project.get("base_date"), project.get("year"), _rules_stamp())
     if key not in _RES:
         _RES.clear() if len(_RES) > 8 else None
@@ -378,7 +381,10 @@ def list_projects():
                 p = load(pid)
             except HTTPException:
                 continue
-            out.append({"id": p["id"], "name": p["name"], "created": p["created"], "base_date": p["base_date"], "files": len(p["files"])})
+            closed = sorted(int(y) for y in p.get("years", {}))
+            out.append({"id": p["id"], "name": p["name"], "created": p["created"], "base_date": p["base_date"], "files": len(p["files"]),
+                        "year": p.get("year") or int((p["base_date"] if p.get("base_pinned", True) else dt.date.today().isoformat())[:4]),
+                        "closed": closed})
     return sorted(out, key=lambda x: x["created"], reverse=True)
 
 
@@ -408,42 +414,86 @@ async def create_from_path(req: Request):
     return {"id": p["id"]}
 
 
-@app.post("/api/projects/upload")
-async def upload(req: Request):
-    form = await req.form()
-    # 기준 자료(규정·계획)와 교육 증빙(명단·이수·서명부 등)을 따로 받아 폴더로 구분해 둔다(종류 판정은 내용으로 다시 함)
+async def _read_uploads(form) -> list[tuple[str, bytes]]:
+    """기준 자료(규정·계획)와 교육 증빙(명단·이수·서명부 등)을 따로 받아 폴더로 구분(종류 판정은 내용으로 다시 함)."""
     files = [(f, "") for f in form.getlist("files")] + [(f, "기준자료/") for f in form.getlist("basis")] \
         + [(f, "교육증빙/") for f in form.getlist("evidence")]
     if not files:
         raise HTTPException(400, "파일이 없습니다.")
-    base = str(form.get("base_date") or "") or None
-    if base and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", base):
-        raise HTTPException(400, "기준일 형식이 올바르지 않습니다.")
-    p = new_project(str(form.get("name") or "교육훈련 관리"), base)
-    root = os.path.join(_pdir(p["id"]), "files")
-    total = 0
+    items, total = [], 0
     for f, prefix in files:
-        rel = _safe_rel(prefix + (getattr(f, "filename", "") or "")) if getattr(f, "filename", "") else ""
+        name = getattr(f, "filename", "") or ""
+        rel = _safe_rel(prefix + name) if name else ""
         if not rel or os.path.splitext(rel)[1].lower() not in SUPPORTED:
             continue
         data = await f.read()
         await f.close()
         total += len(data)
         if total > MAX_UPLOAD:
-            shutil.rmtree(_pdir(p["id"]), ignore_errors=True)
-            raise HTTPException(413, "자료가 너무 큽니다(최대 500MB).")
+            raise HTTPException(413, "자료가 너무 큽니다(한 번에 최대 500MB).")
+        items.append((rel, data))
+    return items
+
+
+def _write_uploads(p: dict, items: list[tuple[str, bytes]], batch: str = "") -> tuple[int, int]:
+    """자료를 작업에 더한다. 내용이 같은 파일(SHA-256)은 건너뛰고, 이름만 같은 새 파일은 '추가_날짜' 폴더에 따로 둔다
+    (예: 매달 받는 이수현황을 계속 넣어도 앞 자료를 덮어쓰지 않고 쌓임)."""
+    root = os.path.join(_pdir(p["id"]), "files")
+    shas = {f["sha"] for f in p["files"]}
+    rels = {f["rel"] for f in p["files"]}
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    added = skipped = 0
+    for rel, data in items:
+        sha = hashlib.sha256(data).hexdigest()
+        if sha in shas:
+            skipped += 1
+            continue
+        if rel in rels or os.path.exists(os.path.join(root, rel)):
+            rel = _safe_rel(f"{batch or '추가_' + dt.datetime.now().strftime('%Y%m%d-%H%M%S')}/{rel}")
         dst = os.path.join(root, rel)
         if not _inside(root, dst):  # 작업 폴더 밖으로는 절대 쓰지 않음
             continue
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, "wb") as out:
             out.write(data)
-        p["files"].append(engine.file_entry(dst, rel))
+        p["files"].append(engine.file_entry(dst, rel) | {"added": now})
+        shas.add(sha)
+        rels.add(rel)
+        added += 1
+    return added, skipped
+
+
+@app.post("/api/projects/upload")
+async def upload(req: Request):
+    form = await req.form()
+    items = await _read_uploads(form)
+    base = str(form.get("base_date") or "") or None
+    if base and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", base):
+        raise HTTPException(400, "기준일 형식이 올바르지 않습니다.")
+    p = new_project(str(form.get("name") or "교육훈련 관리"), base)
+    p["base_pinned"] = bool(base and base != dt.date.today().isoformat())
+    _write_uploads(p, items)
     if not p["files"]:
+        shutil.rmtree(_pdir(p["id"]), ignore_errors=True)
         raise HTTPException(400, "읽을 수 있는 자료(엑셀·한글·워드·PDF)가 없습니다.")
     with LOCK:
         bump(p, f"자료 {len(p['files'])}개 올림")
     return {"id": p["id"]}
+
+
+@app.post("/api/projects/{pid}/files")
+async def add_files(pid: str, req: Request):
+    """진행 중인 작업에 자료를 계속 더한다(연중 수시·월별 이수현황·새 규정 개정본 등)."""
+    load(pid)
+    items = await _read_uploads(await req.form())
+    if not items:
+        raise HTTPException(400, "읽을 수 있는 자료(엑셀·한글·워드·PDF)가 없습니다.")
+    with LOCK:
+        p = load(pid)
+        added, skipped = _write_uploads(p, items)
+        if added:
+            bump(p, f"자료 {added}개 추가" + (f"(같은 파일 {skipped}개 건너뜀)" if skipped else ""))
+    return {"added": added, "skipped": skipped}
 
 
 @app.delete("/api/projects/{pid}")
@@ -464,8 +514,8 @@ def get_project(pid: str):
     res = result(p)
     integrity = all(engine.sha256(f["path"]) == f["sha"] for f in p["files"] if os.path.exists(f["path"]))
     shifts = [{"month": s["month"], "file": s["file"], "people": len(s["people"])} for s in res["shifts"]]
-    return {"project": {k: p.get(k) for k in ("id", "name", "created", "base_date", "year", "log", "overrides")},
-            "base": res["base"], "year": res["year"], "files": res["files"], "summary": res["summary"], "columns": res["columns"],
+    return {"project": {k: p.get(k) for k in ("id", "name", "created", "base_date", "year", "log", "overrides")} | {"base_pinned": p.get("base_pinned", True)},
+            "base": res["base"], "year": res["year"], "year_state": res["year_state"], "years": _year_list(p, res), "files": res["files"], "summary": res["summary"], "columns": res["columns"],
             "people": _lean_people(res), "cells": res["cells"], "issues": res["issues"], "depts": res["depts"],
             "signs": res["signs"], "shifts": shifts, "has_survey": bool(res["survey"]), "has_guide": bool(res["texts"]),
             "integrity": integrity, "rules": [{"id": r["id"], "name": r["name"]} for r in res["rules"]["courses"]]}
@@ -476,7 +526,10 @@ async def patch_project(pid: str, req: Request):
     b = await body(req)
     with LOCK:
         p = load(pid)
-        if "base_date" in b:
+        if "base_date" in b and b["base_date"] in (None, ""):
+            p["base_pinned"], p["base_date"] = False, dt.date.today().isoformat()  # 기준일 = 늘 오늘
+        elif "base_date" in b:
+            p["base_pinned"] = True
             if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(b["base_date"])):
                 raise HTTPException(400, "기준일 형식이 올바르지 않습니다.")
             try:
@@ -766,6 +819,90 @@ async def session_survey(pid: str, sid: str, req: Request):
 def _overview(p: dict, res: dict) -> tuple[dict, dict]:
     ex = costs.external(res)
     return kpi.compute(res, p, ex, fee_config(res)), ex
+
+
+# ───────────── 연도(1~12월) 단위 관리와 연도 릴레이
+def _year_list(p: dict, res: dict) -> list[dict]:
+    today_year = int((p["base_date"] if p.get("base_pinned", True) else dt.date.today().isoformat())[:4])
+    closed = p.get("years", {})
+    ys = set(res["data_years"]) | {today_year, res["year"]} | {int(y) for y in closed}
+    out = []
+    for y in sorted(ys):
+        state = "마감" if str(y) in closed else ("진행 중" if y == today_year else "지난 연도" if y < today_year else "예정")
+        out.append({"year": y, "state": state, "active": y == res["year"]})
+    return out
+
+
+def _year_metrics(p: dict, y: int) -> dict:
+    q = dict(p, year=y)
+    r = result(q)
+    k, ex = _overview(q, r)
+    unresolved = []
+    for c in r["summary"]:
+        n = c["partial"] + c["none"]
+        if c["mandatory"] and n:
+            names = [x["name"] for x in r["people"] if r["cells"][x["id"]][c["key"]]["s"] in ("partial", "none")]
+            unresolved.append({"key": c["key"], "label": c["label"], "count": n, "names": names[:60]})
+    budget = k.get("budget")
+    return {"year": y, "people": k["people"], "total_hours": k["total_hours"], "per_capita": k["per_capita"],
+            "legal_rate": k["legal"]["rate"], "required_rate": k["required"]["rate"],
+            "budget_rate": round(100 * k["spend"]["total"] / budget, 1) if budget else None,
+            "external": len(ex["rows"]), "satisfaction": k["satisfaction"]["avg"], "unresolved": unresolved,
+            "unresolved_total": sum(u["count"] for u in unresolved), "files": len(p["files"])}
+
+
+@app.get("/api/projects/{pid}/years")
+def get_years(pid: str):
+    """연도별 실적 비교. 마감한 연도는 마감 당시 확정값, 나머지는 지금 자료로 계산."""
+    p = load(pid)
+    res = result(p)
+    out = []
+    for item in _year_list(p, res):
+        y = item["year"]
+        snap = p.get("years", {}).get(str(y))
+        m = snap["metrics"] if snap else (_year_metrics(p, y) if y in res["data_years"] or item["active"] or item["state"] == "진행 중" else None)
+        out.append(item | {"metrics": m, "closed_at": snap.get("closed_at") if snap else None})
+    return out
+
+
+@app.post("/api/projects/{pid}/years/{year}/close")
+def close_year(pid: str, year: int):
+    """연도 릴레이: 이 연도를 마감(실적 확정)하고 다음 연도로 넘긴다.
+    넘어가는 것 – 누적 자료·기준 문서 전부, 미이수자 목록(다음 해 '전년도 이월' 업무), 직접 추가한 업무(1년 뒤로)."""
+    if not 2000 <= year <= 2100:
+        raise HTTPException(400, "연도가 올바르지 않습니다.")
+    with LOCK:
+        p = load(pid)
+        if str(year) in p.get("years", {}):
+            raise HTTPException(400, f"{year}년은 이미 마감했습니다.")
+        m = _year_metrics(p, year)
+        p.setdefault("years", {})[str(year)] = {"closed_at": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "metrics": m}
+        w = p.setdefault("work", {})
+        carried = 0
+        for c in list(w.get("custom", [])):
+            if c["start"][:4] == str(year) and not any(x.get("from") == c["id"] for x in w["custom"]):
+                def nxt(d):
+                    d = dt.date.fromisoformat(d)
+                    try:
+                        return d.replace(year=d.year + 1).isoformat()
+                    except ValueError:  # 2월 29일
+                        return d.replace(year=d.year + 1, day=28).isoformat()
+                w["custom"].append({"id": "custom:" + uuid.uuid4().hex[:6], "title": c["title"], "start": nxt(c["start"]),
+                                    "end": nxt(c["end"]), "from": c["id"]})
+                carried += 1
+        p["year"] = year + 1
+        bump(p, f"{year}년 마감 → {year + 1}년으로 넘김")
+    return {"year": year + 1, "unresolved": m["unresolved_total"], "carried_work": carried}
+
+
+@app.delete("/api/projects/{pid}/years/{year}/close")
+def reopen_year(pid: str, year: int):
+    with LOCK:
+        p = load(pid)
+        if not p.get("years", {}).pop(str(year), None):
+            raise HTTPException(400, "마감하지 않은 연도입니다.")
+        bump(p, f"{year}년 마감 취소")
+    return {"ok": True}
 
 
 @app.get("/api/projects/{pid}/regs")

@@ -7,6 +7,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import os
+import re
 
 from . import config, regs as regs_mod, sessions
 from .readers import read
@@ -108,19 +109,55 @@ def match_rules(title: str, context: str, rules: dict, course_map: dict) -> list
 MANDATORY_HINT = ("예방", "의무", "법정", "안전보건", "인식개선")
 
 
+def pick_reg_docs(reg_docs: list[dict], year: int) -> list[dict]:
+    """자료가 해마다 쌓이므로 같은 종류의 기준 문서가 여러 개일 수 있다.
+    여비규정·강사수당·편람·정부 계획·예산은 종류별로 하나만 쓴다(파일 이름에 판정 연도가 든 것 → 없으면 가장 나중에 넣은 것).
+    교육훈련규정 등은 이름(연도·날짜 뺀)이 같으면 나중 것이 개정본으로 보고 그것만 쓴다."""
+    single = ("fee", "travel", "eval", "gov", "budget")
+    groups: dict[str, list] = {}
+    order = []
+    for d in reg_docs:
+        kind = "budget" if d.get("budget") else regs_mod.doc_kind(d["rel"], d.get("texts", []))
+        if kind in single:
+            key = kind
+        else:
+            stem = re.sub(r"\[모의\]|\(.*?\)|[\d_\-\s.]+|개정|최종|수정", "", os.path.splitext(os.path.basename(d["rel"]))[0])
+            key = f"{kind}:{stem}"
+        if key not in groups:
+            order.append(key)
+        groups.setdefault(key, []).append(d)
+    out = []
+    for key in order:
+        cands = groups[key]
+        dated = [d for d in cands if str(year) in d["rel"]]
+        if not dated and key in ("budget", "eval", "gov"):
+            # 해마다 새로 나오는 문서(예산·편람·정부 계획)는 다른 연도 것을 쓰지 않는다(연도 표기 없는 것만 허용)
+            cands = [d for d in cands if not re.search(r"20\d\d", os.path.basename(d["rel"]))]
+            if not cands:
+                continue
+        out.append((dated or cands)[-1])
+    return out
+
+
 def compute(project: dict) -> dict:
     import copy
 
     rules = copy.deepcopy(config.rules())
     base = dt.date.fromisoformat(project.get("base_date") or dt.date.today().isoformat())
-    year = int(project.get("year") or base.year)  # 1~2월에 지난해 실적을 정리할 때는 판정 연도를 따로 지정
+    year = int(project.get("year") or base.year)  # 교육은 1~12월 단위: 보고 있는 연도
+    # 연도별 기준일: 지난 연도는 다음 해 1. 1.(연말 기한까지 모두 지난 '마감' 상태), 다음 연도는 1. 1.(예정), 올해는 지정한 기준일
+    year_state = "진행 중"
+    if year < base.year or str(year) in (project.get("years") or {}):  # 지난 연도이거나 연도 릴레이로 마감한 연도
+        base, year_state = dt.date(year + 1, 1, 1), "마감"
+    elif year > base.year:
+        base, year_state = dt.date(year, 1, 1), "예정"
     ov = project.get("overrides") or {}
     person_map, course_map = ov.get("person", {}), ov.get("course", {})
 
     files, people, records, signs, shifts, survey, texts, reg_docs = [], [], [], [], [], [], [], []
     for f in project.get("files", []):
         parsed = parse_file(f["path"], f["rel"], f["sha"], year)
-        files.append({"rel": f["rel"], "size": f.get("size", 0), "kinds": parsed["kinds"], "note": parsed["note"],
+        files.append({"rel": f["rel"], "size": f.get("size", 0), "added": f.get("added", ""), "kinds": parsed["kinds"], "note": parsed["note"],
                       "n_people": len(parsed["people"]), "n_records": len(parsed["records"])})
         people += parsed["people"]
         records += [dict(r) for r in parsed["records"]]
@@ -130,7 +167,7 @@ def compute(project: dict) -> dict:
         texts += parsed["texts"]
         if parsed.get("reg"):
             reg_docs.append(parsed["reg"])
-    regs = regs_mod.extract(reg_docs)
+    regs = regs_mod.extract(pick_reg_docs(reg_docs, year))
     rules["courses"] += regs_mod.required_rules(regs)  # 내규 별표의 필수교육도 같은 방식으로 판정
 
     # 명단: 사번이 겹치면 뒤 자료가 앞 자료를 덮음(최신 명단 우선)
@@ -303,7 +340,8 @@ def compute(project: dict) -> dict:
             issues.append({"type": "file", "key": f["rel"], "text": f"{f['rel']}: {f['note']}"})
 
     depts = sorted({p["dept"] for p in people}, key=lambda d: [p["dept"] for p in people].index(d))
-    return {"base": base.isoformat(), "year": year, "files": files, "people": people, "columns": cols, "cells": cells,
+    data_years = sorted({int(r["date"][:4]) for r in records if r.get("date")} | {int(g["date"][:4]) for g in signs if g.get("date")})
+    return {"base": base.isoformat(), "year": year, "year_state": year_state, "data_years": data_years, "files": files, "people": people, "columns": cols, "cells": cells,
             "records": records, "issues": issues, "summary": summary, "depts": depts, "signs": signs, "shifts": shifts,
             "survey": survey, "texts": texts, "rules": rules, "regs": regs}
 

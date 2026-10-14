@@ -78,44 +78,46 @@ function mount(...kids) { const app = $("#app"); app.replaceChildren(); add(app,
 function openDrawer(title, ...kids) { $("#drawerTitle").textContent = title; $("#drawerBody").replaceChildren(); add($("#drawerBody"), kids); $("#drawer").classList.add("open"); $("#drawer").setAttribute("aria-hidden", "false"); }
 function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); }
 
+// ───────────── 자료 올리기 칸: 기준 자료(규정·계획) / 교육 증빙(명단·이수·서명부·결과) 두 곳
+// 자료 올리기 칸: 기준 자료(규정·계획) / 교육 증빙(명단·이수·서명부·결과) 두 곳
+function dropZone(key, num, title, desc, examples) {
+const okExt = new Set(S.info.supported);
+  const st = { files: [] };
+  const files = h("input", { type: "file", multiple: true, style: "display:none" });
+  const folder = h("input", { type: "file", multiple: true, webkitdirectory: true, style: "display:none" });
+  const info = h("div", { class: "up-info" }, "선택된 파일 없음");
+  const take = (fl) => {
+    const all = [...fl];
+    st.files = all.filter((f) => okExt.has("." + f.name.split(".").pop().toLowerCase()) && !f.name.startsWith("~$"));
+    const skip = all.length - st.files.length;
+    info.textContent = st.files.length ? `${st.files.length}개 선택` + (skip ? ` (지원하지 않는 형식 ${skip}개 제외)` : "") : "선택된 파일 없음";
+    box.classList.toggle("has", st.files.length > 0);
+  };
+  files.onchange = () => take(files.files);
+  folder.onchange = () => take(folder.files);
+  const box = h("div", { class: "up-box" },
+    h("div", { class: "up-head" }, h("span", { class: "up-num" }, num), h("div", {}, h("b", {}, title), h("div", { class: "small muted" }, desc))),
+    h("ul", { class: "up-ex" }, examples.map((x) => h("li", {}, x))),
+    h("div", { class: "drop" }, "파일을 끌어다 놓거나",
+      h("div", { class: "row", style: "justify-content:center;margin-top:10px" },
+        h("button", { class: "btn sm", onclick: () => files.click() }, "파일 선택"), h("button", { class: "btn sm", onclick: () => folder.click() }, "폴더 선택")), info),
+    files, folder);
+  const drop = $(".drop", box);
+  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+  drop.ondragleave = () => drop.classList.remove("over");
+  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); };
+  return { key, box, st };
+}
+const BASIS_EX = ["교육훈련규정(내규)·운영지침", "여비규정(교육여비 포함)", "강사수당 지급기준", "경영평가 편람(교육훈련 지표)", "정부·주무부처 교육훈련 계획", "교육훈련 예산"];
+const EVID_EX = ["직원 명단(인사 현황)", "이수 현황(사이버·직무·외부교육)", "집합교육 서명부·출석부", "수료증·결과보고서", "교대근무표·만족도 조사"];
+
 // ───────────── 처음 화면
 async function viewHome() {
   const list = await api("/api/projects");
   const name = h("input", { placeholder: "예) 2026년 교육훈련 실적", value: "" });
   const base = h("input", { type: "date", value: S.info.today });
-  const okExt = new Set(S.info.supported);
-  // 자료 올리기 칸: 기준 자료(규정·계획) / 교육 증빙(명단·이수·서명부·결과) 두 곳
-  function dropZone(key, num, title, desc, examples) {
-    const st = { files: [] };
-    const files = h("input", { type: "file", multiple: true, style: "display:none" });
-    const folder = h("input", { type: "file", multiple: true, webkitdirectory: true, style: "display:none" });
-    const info = h("div", { class: "up-info" }, "선택된 파일 없음");
-    const take = (fl) => {
-      const all = [...fl];
-      st.files = all.filter((f) => okExt.has("." + f.name.split(".").pop().toLowerCase()) && !f.name.startsWith("~$"));
-      const skip = all.length - st.files.length;
-      info.textContent = st.files.length ? `${st.files.length}개 선택` + (skip ? ` (지원하지 않는 형식 ${skip}개 제외)` : "") : "선택된 파일 없음";
-      box.classList.toggle("has", st.files.length > 0);
-    };
-    files.onchange = () => take(files.files);
-    folder.onchange = () => take(folder.files);
-    const box = h("div", { class: "up-box" },
-      h("div", { class: "up-head" }, h("span", { class: "up-num" }, num), h("div", {}, h("b", {}, title), h("div", { class: "small muted" }, desc))),
-      h("ul", { class: "up-ex" }, examples.map((x) => h("li", {}, x))),
-      h("div", { class: "drop" }, "파일을 끌어다 놓거나",
-        h("div", { class: "row", style: "justify-content:center;margin-top:10px" },
-          h("button", { class: "btn sm", onclick: () => files.click() }, "파일 선택"), h("button", { class: "btn sm", onclick: () => folder.click() }, "폴더 선택")), info),
-      files, folder);
-    const drop = $(".drop", box);
-    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
-    drop.ondragleave = () => drop.classList.remove("over");
-    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); take(e.dataTransfer.files); };
-    return { key, box, st };
-  }
-  const basis = dropZone("basis", "1", "기준 자료", "계산·판정의 기준이 되는 규정과 계획",
-    ["교육훈련규정(내규)·운영지침", "여비규정(교육여비 포함)", "강사수당 지급기준", "경영평가 편람(교육훈련 지표)", "정부·주무부처 교육훈련 계획", "교육훈련 예산"]);
-  const evid = dropZone("evidence", "2", "교육 증빙 자료", "실제로 교육을 실시·이수한 기록",
-    ["직원 명단(인사 현황)", "이수 현황(사이버·직무·외부교육)", "집합교육 서명부·출석부", "수료증·결과보고서", "교대근무표·만족도 조사"]);
+  const basis = dropZone("basis", "1", "기준 자료", "계산·판정의 기준이 되는 규정과 계획", BASIS_EX);
+  const evid = dropZone("evidence", "2", "교육 증빙 자료", "실제로 교육을 실시·이수한 기록", EVID_EX);
   const go = h("button", { class: "btn primary lg", onclick: start }, "등록하고 분석 시작");
   async function start() {
     if (!basis.st.files.length && !evid.st.files.length) return toast("기준 자료 또는 교육 증빙 자료를 선택하세요");
@@ -156,9 +158,10 @@ async function viewHome() {
       h("div", { class: "row" }, go, h("span", { class: "small muted" }, "지원 형식: 엑셀·CSV·한글(HWPX/HWP)·워드·PDF"))),
     h("div", { class: "section-t", id: "list" }, "진행 중인 작업"),
     list.length ? h("div", { class: "card", style: "padding:0" }, h("table", {},
-      h("tr", {}, h("th", {}, "작업명"), h("th", {}, "기준일"), h("th", {}, "자료"), h("th", {}, "등록 일시"), h("th", {})),
+      h("tr", {}, h("th", {}, "작업명"), h("th", {}, "운영 연도"), h("th", {}, "자료"), h("th", {}, "등록 일시"), h("th", {})),
       list.map((p) => h("tr", { class: "click", onclick: () => (location.hash = `#/p/${p.id}/results`) },
-        h("td", {}, p.name), h("td", {}, p.base_date), h("td", {}, p.files + "개"), h("td", { class: "muted" }, p.created),
+        h("td", {}, p.name), h("td", {}, `${p.year}년`, p.closed.length ? h("span", { class: "tiny muted" }, ` · 마감 ${p.closed.join(", ")}년`) : null),
+        h("td", {}, p.files + "개"), h("td", { class: "muted" }, p.created),
         h("td", { class: "num" }, h("button", { class: "btn sm ghost", onclick: async (e) => { e.stopPropagation(); if (!confirm("이 작업을 삭제할까요? (등록한 원본 파일은 그대로 남습니다)")) return; await api(`/api/projects/${p.id}`, { method: "DELETE" }); viewHome(); } }, "삭제"))))))
       : h("div", { class: "card empty" }, "진행 중인 작업이 없습니다."),
     S.info.sample ? h("div", { class: "card sample-card" },
@@ -236,18 +239,25 @@ async function viewProject(pid, tab, arg) {
   SLIDE.pid = pid; SLIDE.idx = idx;
   S.data = d;
   const P = d.project;
-  const baseIn = h("input", { type: "date", value: d.base, onchange: async () => {
-    await api(`/api/projects/${pid}`, { method: "PATCH", json: { base_date: baseIn.value } }); toast("기준일을 바꿨습니다"); route();
+  const baseIn = h("input", { type: "date", value: d.base, disabled: d.year_state !== "진행 중", onchange: async () => {
+    await api(`/api/projects/${pid}`, { method: "PATCH", json: { base_date: baseIn.value } }); toast("기준일을 고정했습니다"); route();
   } });
-  const by = Number(d.base.slice(0, 4));
-  const yearSel = h("select", { title: "판정 연도(1~2월에 지난해 실적을 정리할 때 바꿉니다)", onchange: async () => {
-    await api(`/api/projects/${pid}`, { method: "PATCH", json: { year: yearSel.value === String(by) ? null : yearSel.value } }); toast("판정 연도를 바꿨습니다"); route();
-  } }, [by, by - 1].map((y) => h("option", { value: String(y) }, `${y}년 교육`)));
-  yearSel.value = String(d.year);
+  const today = d.years.find((y) => y.state === "진행 중");
+  const pickYear = async (y) => {
+    await api(`/api/projects/${pid}`, { method: "PATCH", json: { year: today && y === today.year ? null : y } }); route();
+  };
+  // 교육은 1~12월 단위: 자료에 있는 연도·올해·마감한 연도를 띠로 보여 주고 눌러서 바꿈
+  const yearBar = h("div", { class: "yearbar", role: "tablist", "aria-label": "연도" }, d.years.map((y) =>
+    h("button", { class: "yr" + (y.active ? " on" : ""), role: "tab", "aria-selected": y.active ? "true" : "false", onclick: () => !y.active && pickYear(y.year) },
+      h("b", {}, `${y.year}년`), h("span", { class: "yr-st st-" + ({ "마감": "closed", "진행 중": "open", "예정": "plan" }[y.state] || "past") }, y.state))));
+  const baseInfo = d.year_state === "진행 중"
+    ? [h("span", {}, "기준일"), baseIn, P.base_pinned ? h("button", { class: "btn sm ghost", title: "기준일을 늘 오늘 날짜로", onclick: async () => {
+        await api(`/api/projects/${pid}`, { method: "PATCH", json: { base_date: null } }); toast("기준일을 오늘 날짜로 맞춥니다"); route(); } }, "오늘로") : h("span", { class: "tiny muted" }, "(늘 오늘)")]
+    : [h("span", {}, d.year_state === "마감" || d.year_state === "지난 연도" ? `${d.year}. 1. 1. ~ 12. 31. 마감 기준` : `${d.year}년 예정(1. 1. 기준)`)];
   const nIssues = d.issues.length;
   const head = h("div", { class: "ph" },
     h("div", { class: "row" }, h("h1", {}, P.name),
-      h("div", { class: "row small muted" }, "기준일", baseIn, yearSel, `자료 ${d.files.length}개 · 직원 ${d.people.length}명`,
+      h("div", { class: "row small muted" }, ...baseInfo, `자료 ${d.files.length}개 · 직원 ${d.people.length}명`,
         d.integrity ? h("span", { class: "badge b-done", title: "처리 전후 파일 지문(SHA-256)이 같습니다" }, "원본 변경 없음") : h("span", { class: "badge b-none" }, "자료 변경 감지"))),
     h("a", { class: "btn sm", href: "#/" }, "다른 작업"));
   const tabs = h("nav", { class: "tabs" }, TABS.map(([k, l]) => h("a", { class: "tab" + (k === key ? " on" : ""), href: `#/p/${pid}/${k}` }, l,
@@ -262,7 +272,7 @@ async function viewProject(pid, tab, arg) {
     h("a", { class: "nav" + (prev ? "" : " off"), href: prev ? `#/p/${pid}/${prev[0]}` : "#", title: "이전 (←)" }, "‹", h("span", { class: "lbl" }, prev ? prev[1] : "")),
     h("div", { class: "dots" }, TABS.map(([k, l], i) => h("a", { class: i === idx ? "on" : "", href: `#/p/${pid}/${k}`, title: l, "aria-label": l }))),
     h("a", { class: "nav next" + (next ? "" : " off"), href: next ? `#/p/${pid}/${next[0]}` : "#", title: "다음 (→)" }, h("span", { class: "lbl" }, next ? next[1] : ""), "›"));
-  mount(head, tabs, slide, dock, h("div", { class: "keyhint" }, h("kbd", {}, "←"), " ", h("kbd", {}, "→"), " 로 넘기기"));
+  mount(head, yearBar, tabs, slide, dock, h("div", { class: "keyhint" }, h("kbd", {}, "←"), " ", h("kbd", {}, "→"), " 로 넘기기"));
   tabs.querySelector(".tab.on")?.scrollIntoView({ block: "nearest", inline: "center" });
   const fn = { files: tabFiles, regs: tabRegs, results: tabResults, board: tabBoard, matrix: tabMatrix, issues: tabIssues, plan: tabPlan, run: tabRun, session: tabSession, notify: tabNotify, report: tabReport, gantt: tabGantt, ask: tabAsk }[tab] || tabBoard;
   await fn(body, d, arg);
@@ -270,6 +280,23 @@ async function viewProject(pid, tab, arg) {
 
 // ① 자료
 function tabFiles(el, d) {
+  const pid = d.project.id;
+  const basis = dropZone("basis", "1", "기준 자료 추가", "개정된 규정, 새해 편람·계획·예산", BASIS_EX);
+  const evid = dropZone("evidence", "2", "교육 증빙 추가", "이번 달 이수 현황, 새 서명부·수료증, 바뀐 명단", EVID_EX);
+  const go = h("button", { class: "btn primary", onclick: async () => {
+    if (!basis.st.files.length && !evid.st.files.length) return toast("추가할 파일을 선택하세요");
+    go.disabled = true; go.textContent = "자료를 읽는 중…";
+    try {
+      const fd = new FormData();
+      for (const z of [basis, evid]) z.st.files.forEach((f) => fd.append(z.key, f, f.webkitRelativePath || f.name));
+      const r = await api(`/api/projects/${pid}/files`, { method: "POST", body: fd });
+      toast(`자료 ${r.added}개를 더했습니다` + (r.skipped ? ` (이미 있는 파일 ${r.skipped}개 건너뜀)` : ""));
+      route();
+    } catch { go.disabled = false; go.textContent = "자료 추가"; }
+  } }, "자료 추가");
+  add(el, h("details", { class: "card add-files" }, h("summary", {}, h("b", {}, "자료 추가"),
+      h("span", { class: "small muted" }, " – 1년 내내 받는 자료를 계속 더하세요. 같은 파일은 한 번만, 같은 이름의 새 파일은 따로 쌓이고, 규정은 새 개정본을 씁니다.")),
+    h("div", { class: "grid g2 up-grid", style: "margin-top:14px" }, basis.box, evid.box), h("div", { class: "row", style: "margin-top:14px" }, go)));
   add(el,
     d.integrity ? h("div", { class: "alert ok" }, `원본 보호 확인: 넣은 자료 ${d.files.length}개의 지문(SHA-256)이 처리 전후 같습니다. 다이수는 자료를 읽기만 합니다.`) : null,
     (() => {
@@ -280,7 +307,7 @@ function tabFiles(el, d) {
       return order.map((g) => [g, d.files.filter((f) => grp(f) === g)]).filter(([, fs]) => fs.length).map(([g, fs]) =>
         h("div", { class: "card", style: "padding:0" }, h("h2", { style: "padding:18px 24px 4px" }, g, h("span", { class: "muted small" }, ` ${fs.length}개`)),
           h("table", {},
-            h("tr", {}, h("th", {}, "파일"), h("th", {}, "판별한 종류"), h("th", { class: "num" }, "직원"), h("th", { class: "num" }, "기록"), h("th", {}, "비고")),
+            h("tr", {}, h("th", {}, "파일"), h("th", {}, "판별한 종류"), h("th", { class: "num" }, "직원"), h("th", { class: "num" }, "기록"), h("th", {}, "더한 날"), h("th", {}, "비고")),
             fs.map((f) => {
               const isBasis = f.kinds.some((k) => BASIS.has(k)), isEvid = f.kinds.some((k) => !BASIS.has(k) && k !== "other");
               const mis = g === "기준 자료" && isEvid && !isBasis ? "교육 증빙 자료로 판별됨 – 증빙으로 처리합니다"
@@ -288,6 +315,7 @@ function tabFiles(el, d) {
               return h("tr", {},
                 h("td", {}, f.rel.replace(/^(기준자료|교육증빙)\//, "")), h("td", {}, f.kinds.map((k) => h("span", { class: "badge b-brand", style: "margin-right:4px" }, KIND[k] || k))),
                 h("td", { class: "num" }, f.n_people || ""), h("td", { class: "num" }, f.n_records || ""),
+                h("td", { class: "tiny muted" }, (f.added || "").slice(0, 10)),
                 h("td", { class: "small muted" }, mis ? h("span", { class: "badge b-part", style: "margin-right:4px" }, mis) : null, f.note));
             }))));
     })(),
@@ -974,6 +1002,54 @@ async function tabRegs(el, d) {
 }
 
 // ───────────── 교육 실적(모든 교육: 법정·필수·직무·외부)
+// 연도별 실적 비교 + 연도 릴레이(마감하고 다음 해로 넘기기)
+function yearCards(d) {
+  const pid = d.project.id;
+  const box = h("div", {}, h("div", { class: "card muted small" }, "연도별 실적을 계산하는 중…"));
+  api(`/api/projects/${pid}/years`).then((ys) => {
+    const rows = ys.filter((y) => y.metrics);
+    const fmt = (v, u = "") => (v == null ? "-" : `${typeof v === "number" ? v.toLocaleString() : v}${u}`);
+    const delta = (cur, prev, u) => {
+      if (cur == null || prev == null) return null;
+      const dlt = Math.round((cur - prev) * 10) / 10;
+      return h("span", { class: "delta " + (dlt > 0 ? "up" : dlt < 0 ? "down" : "") }, dlt > 0 ? ` ▲${dlt}${u}` : dlt < 0 ? ` ▼${-dlt}${u}` : " –");
+    };
+    const me = ys.find((y) => y.active);
+    const closed = me && me.state === "마감";
+    const nextY = d.year + 1;
+    const relay = h("div", { class: "card relay" },
+      h("div", { class: "relay-head" }, h("div", {},
+        h("h2", { style: "margin:0" }, closed ? `${d.year}년은 마감되었습니다` : `${d.year}년을 마감하고 ${nextY}년으로 넘기기`),
+        h("p", { class: "small muted", style: "margin:6px 0 0" }, closed ? `마감 ${me.closed_at} · 실적이 확정되어 아래 비교표에 고정됩니다.` :
+          "연말(또는 실적 확정 후)에 누르세요. 이 연도 실적을 확정하고, 다음 연도로 바톤을 넘깁니다.")),
+        closed ? h("button", { class: "btn sm ghost", onclick: async () => { if (!confirm(`${d.year}년 마감을 취소할까요? (실적이 다시 지금 자료로 계산됩니다)`)) return;
+          await api(`/api/projects/${pid}/years/${d.year}/close`, { method: "DELETE" }); toast("마감을 취소했습니다"); route(); } }, "마감 취소")
+          : h("button", { class: "btn primary", onclick: async () => {
+            if (!confirm(`${d.year}년 실적을 확정하고 ${nextY}년으로 넘길까요?\n남은 미이수자는 ${nextY}년 1분기 '전년도 이월' 업무로 옮겨집니다.`)) return;
+            const r = await api(`/api/projects/${pid}/years/${d.year}/close`, { method: "POST" });
+            toast(`${d.year}년 마감 → ${r.year}년 시작 (이월 미이수 ${r.unresolved}명·건, 업무 ${r.carried_work}건)`, 5000); route(); } }, `${d.year}년 마감 → ${nextY}년 시작`)),
+      h("div", { class: "relay-flow" },
+        h("div", {}, h("b", {}, "그대로 이어짐"), h("span", {}, "쌓인 자료 전부 · 규정·기준(새 개정본이 오면 그것으로) · 명단")),
+        h("div", { class: "relay-arrow", "aria-hidden": "true" }, "→"),
+        h("div", {}, h("b", {}, "확정·보관"), h("span", {}, `${d.year}년 실적 수치(비교표에 고정)`)),
+        h("div", { class: "relay-arrow", "aria-hidden": "true" }, "→"),
+        h("div", {}, h("b", {}, `${nextY}년으로 이월`), h("span", {}, `남은 미이수자 → 1분기 보충 업무와 체크리스트 · 직접 추가한 업무 → 1년 뒤 같은 날`))));
+    const table = h("div", { class: "card", style: "padding:0" }, h("h2", { style: "padding:18px 24px 4px" }, "연도별 실적 (1월~12월)"),
+      h("table", {}, h("tr", {}, ["연도", "상태", "인원", "1인당 교육시간", "법정 이수율", "필수 이수율", "예산 집행률", "외부교육", "남은 미이수"].map((x, i) => h("th", { class: i > 1 ? "num" : "" }, x))),
+        rows.map((y, i) => {
+          const m = y.metrics, pm = i ? rows[i - 1].metrics : null;
+          return h("tr", { class: y.active ? "yr-row on" : "yr-row" },
+            h("td", {}, h("b", {}, `${y.year}년`)), h("td", {}, h("span", { class: "yr-st st-" + ({ "마감": "closed", "진행 중": "open", "예정": "plan" }[y.state] || "past") }, y.state)),
+            h("td", { class: "num" }, fmt(m.people, "명")), h("td", { class: "num" }, fmt(m.per_capita, "시간"), delta(m.per_capita, pm && pm.per_capita, "")),
+            h("td", { class: "num" }, fmt(m.legal_rate, "%"), delta(m.legal_rate, pm && pm.legal_rate, "%p")), h("td", { class: "num" }, fmt(m.required_rate, "%")),
+            h("td", { class: "num" }, fmt(m.budget_rate, "%")), h("td", { class: "num" }, fmt(m.external, "건")), h("td", { class: "num" }, fmt(m.unresolved_total, "명·건")));
+        })),
+      h("p", { class: "tiny muted", style: "padding:0 24px 16px;margin:0" }, "마감한 연도는 마감 당시 확정값, 나머지는 지금까지 쌓인 자료로 계산합니다. ▲▼는 전년 대비."));
+    box.replaceChildren(relay, table);
+  }).catch(() => box.replaceChildren());
+  return box;
+}
+
 async function tabResults(el, d) {
   const pid = d.project.id;
   const o = await api(`/api/projects/${pid}/overview`);
@@ -1025,7 +1101,8 @@ async function tabResults(el, d) {
         ex.rows.map((x) => h("tr", {}, h("td", {}, x.name, h("div", { class: "tiny muted" }, `${x.dept} · ${x.grade}`)),
           h("td", { class: "small" }, x.title, h("div", { class: "tiny muted" }, x.inst)), h("td", { class: "small" }, `${x.start}~${(x.end || "").slice(5)} (${x.days}일)`),
           h("td", { class: "num" }, (x.cost || 0).toLocaleString()), h("td", { class: "num", title: x.notes.join(" / ") }, x.travel == null ? "-" : x.travel.toLocaleString()),
-          h("td", {}, x.report_state ? h("span", { class: "badge " + (x.report_state.includes("기한 내") ? "b-done" : x.report_state.includes("대기") ? "" : "b-none") }, x.report_state) : "")))))));
+          h("td", {}, x.report_state ? h("span", { class: "badge " + (x.report_state.includes("기한 내") ? "b-done" : x.report_state.includes("대기") ? "" : "b-none") }, x.report_state) : "")))))),
+    yearCards(d));
   draw();
 }
 

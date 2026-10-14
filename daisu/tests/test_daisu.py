@@ -291,7 +291,8 @@ class TestServer(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         pid = r.json()["id"]
         d = c.get(f"/api/projects/{pid}").json()
-        self.assertEqual(sorted(f["rel"] for f in d["files"]), ["01_인사/명단.xlsx", "02/이수.xlsx", "escape.xlsx"])
+        # escape.xlsx 는 이수.xlsx 와 내용이 같아 한 번만 저장(경로 조작도 작업 폴더 안으로)
+        self.assertEqual(sorted(f["rel"] for f in d["files"]), ["01_인사/명단.xlsx", "02/이수.xlsx"])
         self.assertEqual(len(d["people"]), 120)
         self.assertEqual(c.post("/api/projects/upload", files=[("files", ("a.jpg", b"x", "image/jpeg"))]).status_code, 400)
         r = c.post("/api/projects/path", json={"path": BASE})
@@ -886,3 +887,81 @@ class TestUploadGroups(unittest.TestCase):
         self.assertTrue(rels[0].startswith("교육증빙/명단/") and rels[1].startswith("기준자료/"), rels)
         self.assertEqual(len(d["people"]), 120)
         self.assertIn("regulation", next(f for f in d["files"] if f["rel"].startswith("기준자료/"))["kinds"])
+
+
+class TestYearsAndRelay(unittest.TestCase):
+    """자료 누적 · 1~12월 연도별 보기 · 연도 릴레이(마감 → 다음 해 이월)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from fastapi.testclient import TestClient
+
+        from daisu.server import app
+        cls.c = TestClient(app)
+
+    def test_add_files_accumulates_and_dedupes(self):
+        c = self.c
+        roster = os.path.join(BASE, "01_인사", "2026_직원현황(10월1일자).xlsx")
+        cyber = glob.glob(os.path.join(BASE, "02_이수기록", "사이버*.xlsx"))[0]
+        pid = c.post("/api/projects/upload", files=[("evidence", ("명단.xlsx", _bytes(roster), None))]).json()["id"]
+        r = c.post(f"/api/projects/{pid}/files", files=[("evidence", ("명단.xlsx", _bytes(roster), None)),
+                                                        ("evidence", ("이수현황.xlsx", _bytes(cyber), None))]).json()
+        self.assertEqual((r["added"], r["skipped"]), (1, 1))  # 같은 명단은 건너뜀
+        # 같은 이름의 새 내용(다음 달 이수현황) → 덮어쓰지 않고 따로 쌓임
+        r = c.post(f"/api/projects/{pid}/files", files=[("evidence", ("이수현황.xlsx", _bytes(cyber) + b"\0", None))]).json()
+        self.assertEqual(r["added"], 1)
+        rels = [f["rel"] for f in c.get(f"/api/projects/{pid}").json()["files"]]
+        self.assertEqual(len(rels), 3)
+        self.assertTrue(any(x.startswith("추가_") for x in rels))
+
+    def test_year_views_and_relay(self):
+        c = self.c
+        pid = c.post("/api/projects/sample").json()["id"]
+        d = c.get(f"/api/projects/{pid}").json()
+        self.assertEqual((d["year"], d["year_state"]), (2026, "진행 중"))
+        self.assertIn(2026, [y["year"] for y in d["years"]])
+        ys = c.get(f"/api/projects/{pid}/years").json()
+        now = next(y for y in ys if y["year"] == 2026)
+        self.assertEqual(now["metrics"]["per_capita"], 25.4)
+        self.assertGreater(now["metrics"]["unresolved_total"], 0)
+        # 2026년 마감 → 2027년으로
+        r = c.post(f"/api/projects/{pid}/years/2026/close").json()
+        self.assertEqual(r["year"], 2027)
+        self.assertEqual(c.post(f"/api/projects/{pid}/years/2026/close").status_code, 400)
+        d = c.get(f"/api/projects/{pid}").json()
+        self.assertEqual((d["year"], d["year_state"]), (2027, "예정"))
+        self.assertEqual(next(y for y in d["years"] if y["year"] == 2026)["state"], "마감")
+        work = c.get(f"/api/projects/{pid}/work").json()
+        carry = next(i for i in work["items"] if i["id"] == "carry:2026")
+        self.assertEqual(carry["lane"], "전년도 이월")
+        self.assertEqual((carry["start"], carry["end"]), ("2027-01-02", "2027-03-31"))
+        ck = c.post(f"/api/projects/{pid}/work/carry:2026/checklist").json()
+        self.assertTrue(ck["items"][0]["auto_ok"])
+        ys = c.get(f"/api/projects/{pid}/years").json()
+        self.assertEqual(next(y for y in ys if y["year"] == 2026)["metrics"]["per_capita"], 25.4)  # 확정값 고정
+        # 지난 연도로 돌아가 보기 → 12월까지 마감 기준
+        c.patch(f"/api/projects/{pid}", json={"year": 2026})
+        d = c.get(f"/api/projects/{pid}").json()
+        self.assertEqual((d["year_state"], d["base"]), ("마감", "2027-01-01"))
+        self.assertEqual(c.delete(f"/api/projects/{pid}/years/2026/close").status_code, 200)
+
+    def test_custom_work_carried_one_year_later(self):
+        c = self.c
+        pid = c.post("/api/projects/sample").json()["id"]
+        c.post(f"/api/projects/{pid}/work", json={"title": "강사 풀 구축", "start": "2026-03-01", "end": "2026-04-30"})
+        self.assertEqual(c.post(f"/api/projects/{pid}/years/2026/close").json()["carried_work"], 1)
+        items = c.get(f"/api/projects/{pid}/work").json()["items"]
+        self.assertTrue(any(i["title"] == "강사 풀 구축" and i["start"] == "2027-03-01" for i in items))
+
+    def test_newest_regulation_version_wins(self):
+        from daisu.engine import pick_reg_docs
+        docs = [{"rel": "기준자료/여비규정(2025).hwpx", "texts": [{"text": "여비규정"}]},
+                {"rel": "추가_x/여비규정(2026 개정).hwpx", "texts": [{"text": "여비규정"}]},
+                {"rel": "교육훈련규정.hwpx", "texts": [{"text": "교육훈련규정"}]},
+                {"rel": "2026_교육훈련_예산.xlsx", "budget": {"total": 1}}, {"rel": "2027_교육훈련_예산.xlsx", "budget": {"total": 2}}]
+        got = [d["rel"] for d in pick_reg_docs(docs, 2026)]
+        self.assertIn("추가_x/여비규정(2026 개정).hwpx", got)
+        self.assertNotIn("기준자료/여비규정(2025).hwpx", got)
+        self.assertIn("2026_교육훈련_예산.xlsx", got)  # 예산은 판정 연도 것
+        self.assertNotIn("2027_교육훈련_예산.xlsx", got)
+        self.assertFalse(any("예산" in x for x in [d["rel"] for d in pick_reg_docs(docs, 2028)]))  # 해당 연도 예산 없음

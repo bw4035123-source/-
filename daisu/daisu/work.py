@@ -12,7 +12,7 @@ import io
 
 from .util import kdate
 
-LANES = ["계획·예산", "법정교육", "필수교육", "안내·독려", "집합교육 운영", "외부(위탁)교육", "보고·평가", "직접 추가"]
+LANES = ["전년도 이월", "계획·예산", "법정교육", "필수교육", "안내·독려", "집합교육 운영", "외부(위탁)교육", "보고·평가", "직접 추가"]
 STATUS = {"done": "완료", "late": "지연", "doing": "진행 중", "todo": "예정", "past": "기간 지남"}
 
 
@@ -53,23 +53,31 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
                     "kind": kind, "status": _status(start, end, base, done, late), "progress": progress, "ctx": ctx or {},
                     "marks": marks or [], "base": res["base"]})
 
+    # 전년도 이월(연도 릴레이): 지난해를 마감할 때 남은 미이수자를 올해 1분기 보충 업무로
+    prev = (project.get("years") or {}).get(str(y - 1))
+    if prev and prev["metrics"].get("unresolved_total"):
+        un = prev["metrics"]["unresolved"]
+        add(f"carry:{y - 1}", LANES[0], f"{y - 1}년 미이수자 보충·사유 정리 ({prev['metrics']['unresolved_total']}명·건)",
+            dt.date(y, 1, 2), dt.date(y, 3, 31), " · ".join(f"{u['label']} {u['count']}명" for u in un[:4]) + (" 외" if len(un) > 4 else ""),
+            "matrix", "carry", ctx={"unresolved": un, "prev": y - 1, "closed_at": prev.get("closed_at", "")})
+
     # 계획·예산
     gov, kp, req = regs.get("gov") or {}, regs.get("kpis") or [], regs.get("required") or []
-    add("plan:annual", LANES[0], f"{y}년 교육훈련계획 수립", dt.date(y, 1, 2), dt.date(y, 1, 31),
+    add("plan:annual", LANES[1], f"{y}년 교육훈련계획 수립", dt.date(y, 1, 2), dt.date(y, 1, 31),
         "전년 실적·정부 계획·편람 지표를 반영해 연간 계획을 세웁니다", "regs", "plan",
         ctx={"gov": bool(gov.get("priorities") or gov.get("rec_hours")), "kpis": len(kp), "required": len(req),
              "budget": bool(regs.get("budget"))})
     budget = (regs.get("budget") or {}).get("total")
     if budget:
         rate = round(100 * (spend or {}).get("total", 0) / budget, 1)
-        add("budget", LANES[0], "교육훈련비 집행 관리", dt.date(y, 1, 1), dt.date(y, 12, 31),
+        add("budget", LANES[1], "교육훈련비 집행 관리", dt.date(y, 1, 1), dt.date(y, 12, 31),
             f"예산 {budget:,}원 · 집행 {(spend or {}).get('total', 0):,}원({rate}%)", "results", "budget", progress=min(100, rate),
             ctx={"budget": budget, "spent": (spend or {}).get("total", 0), "rate": rate,
                  "external": ext["total_cost"], "travel": ext["total_travel"] or 0})
 
     # 법정·필수 교육
     for s in res["summary"]:
-        lane = LANES[2] if s.get("category") == "필수" else LANES[1]
+        lane = LANES[3] if s.get("category") == "필수" else LANES[2]
         left = s["partial"] + s["none"]
         ctx = {k: s.get(k) for k in ("target", "done", "partial", "none", "leave", "overdue", "rate", "law", "group", "key", "due", "cycle")}
         ctx["left"] = left
@@ -95,7 +103,7 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
         dd = _d(due)
         left = sum(s["partial"] + s["none"] for s in ss)
         names = ", ".join(s["label"] for s in ss[:3]) + (" 외" if len(ss) > 3 else "")
-        add(f"remind:{due}", LANES[3], f"미이수자 안내·부서장 통보 ({kdate(dd, False)} 기한)", dd - dt.timedelta(days=first), dd,
+        add(f"remind:{due}", LANES[4], f"미이수자 안내·부서장 통보 ({kdate(dd, False)} 기한)", dd - dt.timedelta(days=first), dd,
             f"{names} · 남은 {left}명·건", "notify", "remind", done=left == 0, late=left > 0 and dd < base,
             ctx={"left": left, "first": first, "boss": boss, "names": names, "due": due},
             marks=[{"date": _iso(dd - dt.timedelta(days=boss)), "label": "부서장 통보"}])
@@ -106,7 +114,7 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
         ex = {k: f"{s['id']}:{k}" in exported for k in ("plan", "result", "fee")}
         inst = s.get("instructor") or {}
         done = bool(s.get("attend")) and ex["result"]
-        add(f"session:{s['id']}", LANES[4], s["title"], sd - dt.timedelta(days=14), sd + dt.timedelta(days=5),
+        add(f"session:{s['id']}", LANES[5], s["title"], sd - dt.timedelta(days=14), sd + dt.timedelta(days=5),
             f"{kdate(sd)} {s.get('start', '')}~{s.get('end', '')} {s.get('place') or ''} · 대상 {len(s.get('targets', []))}명",
             f"session/{s['id']}", "session", done=done, late=not done and sd + dt.timedelta(days=5) < base,
             ctx={"exported": ex, "instructor": inst.get("name", ""), "grade": inst.get("grade", ""), "income": inst.get("income", ""),
@@ -121,7 +129,7 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
         sd = _d(g["date"])
         same = [x for x in res["signs"] if x["title"] == g["title"] and x.get("date") == g["date"]]
         n, att = sum(x["n"] for x in same), sum(x["attended"] for x in same)
-        add(f"sign:{_h(g['title'], g['date'])}", LANES[4], g["title"], sd - dt.timedelta(days=14), sd + dt.timedelta(days=5),
+        add(f"sign:{_h(g['title'], g['date'])}", LANES[5], g["title"], sd - dt.timedelta(days=14), sd + dt.timedelta(days=5),
             f"{kdate(sd)} 실시 · 출석 {att}/{n}명 · {g['file']}", "files", "sign", done=sd + dt.timedelta(days=5) < base,
             ctx={"n": n, "attended": att, "file": g["file"], "survey": bool(res["survey"])}, marks=[{"date": g["date"], "label": "교육일"}])
 
@@ -140,7 +148,7 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
         missing = sum("미제출" in x for x in states)
         late_n = sum("지연" in x for x in states)
         submitted = all(x.startswith("기한 내") or "지연 제출" in x for x in states) if states and all(states) else False
-        add(f"ext:{_h(title, st, en)}", LANES[5], title, sd - dt.timedelta(days=21), end,
+        add(f"ext:{_h(title, st, en)}", LANES[6], title, sd - dt.timedelta(days=21), end,
             f"{rows[0]['inst']} · {len(rows)}명 · {kdate(sd)}~{kdate(ed)}" + (f" · 결과보고 기한 {kdate(max(dues))}" if dues else ""),
             "results", "external", done=submitted, late=missing > 0,
             ctx={"people": [r["name"] for r in rows], "n": len(rows), "cost": sum(r["cost"] or 0 for r in rows),
@@ -151,21 +159,21 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
             marks=[{"date": en, "label": "교육 종료"}] + ([{"date": _iso(max(dues)), "label": "결과보고 기한"}] if dues else []))
 
     # 보고·평가
-    add("plan:next", LANES[6], f"{y + 1}년 교육훈련계획(안) 수립", dt.date(y, 11, 1), dt.date(y, 12, 31),
+    add("plan:next", LANES[7], f"{y + 1}년 교육훈련계획(안) 수립", dt.date(y, 11, 1), dt.date(y, 12, 31),
         "올해 실적·미달 지표·정부 중점 과제를 반영합니다", "report", "next")
-    add("report:annual", LANES[6], f"{y}년 교육훈련 실적 보고", dt.date(y, 12, 1), dt.date(y + 1, 1, 15),
+    add("report:annual", LANES[7], f"{y}년 교육훈련 실적 보고", dt.date(y, 12, 1), dt.date(y + 1, 1, 15),
         "분야별 실적·외부교육·예산 집행·경영평가 지표를 보고서로 정리합니다", "report", "annual",
         ctx={"missing": len(ext["missing"])})
-    add("report:kpi", LANES[6], "경영평가 교육훈련 지표 실적·증빙 정리", dt.date(y + 1, 1, 2), dt.date(y + 1, 2, 28),
+    add("report:kpi", LANES[7], "경영평가 교육훈련 지표 실적·증빙 정리", dt.date(y + 1, 1, 2), dt.date(y + 1, 2, 28),
         "제출 일정은 평가 편람·평가원 안내에 맞춰 바꾸세요", "report", "kpi", ctx={"kpis": len(kp)})
     if any(s["group"] == "폭력예방" for s in res["summary"]):
-        add("report:violence", LANES[6], f"{y}년 폭력예방교육 실적 등록", dt.date(y + 1, 1, 2), dt.date(y + 1, 2, 28),
+        add("report:violence", LANES[7], f"{y}년 폭력예방교육 실적 등록", dt.date(y + 1, 1, 2), dt.date(y + 1, 2, 28),
             "주무부처 시스템 등록", "report", "violence")
 
     # 사용자가 바꾼 기간·직접 추가한 업무
     w = project.get("work", {})
     for c in w.get("custom", []):
-        add(c["id"], LANES[7], c["title"], _d(c["start"]), _d(c["end"]), c.get("detail", ""), "", "custom")
+        add(c["id"], LANES[8], c["title"], _d(c["start"]), _d(c["end"]), c.get("detail", ""), "", "custom")
     for it in out:
         dates = w.get("dates", {}).get(it["id"])
         if dates:
@@ -189,6 +197,14 @@ def analyze(project: dict, res: dict, ext: dict, remind: dict, spend: dict | Non
 def _tpl(it: dict) -> list[dict]:
     c, k = it["ctx"], it["kind"]
     T = lambda text, hint="", auto=None, link="": {"text": text, "hint": hint, "auto": auto, "link": link}  # noqa: E731
+    if k == "carry":
+        un = c["unresolved"]
+        return [T(f"{c['prev']}년 미이수자 명단 확인", f"{c['prev']}년 마감({c['closed_at']}) 시 {sum(u['count'] for u in un)}명·건", True, "matrix"),
+                T("미이수 사유 확인(휴직·파견·퇴사 예정 등)"),
+                T("보충 교육 일정 수립(사이버·집합)", "", None, "plan"),
+                T("대상자 본인·부서장 안내", "", None, "notify"),
+                T("보충 이수 결과 확인·기록"),
+                T(f"{c['prev']}년 실적 보고서에 보충 결과 반영", "", None, "report")]
     if k == "plan":
         return [T("전년도 교육 실적·만족도·미달 지표 분석", link="results"),
                 T("정부(행안부) 교육훈련 운영 계획의 중점 과제 반영", "규정·기준 탭에서 읽은 중점 과제", c.get("gov"), "regs"),
