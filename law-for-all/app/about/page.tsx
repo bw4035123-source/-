@@ -79,6 +79,7 @@ export default async function AboutPage() {
               · 내장 법령: 법률 {MOCK_LAWS.filter((l) => l.kind === "법률").length}종 + 하위법령 {MOCK_LAWS.filter((l) => l.kind !== "법률").length}종 · 조문 {articleCount}개 (기준 {MOCK_DATASET_DATE})
             </li>
             <li>· 생활 법률 상황 토픽: {TOPICS.length}개 (검수된 쉬운 설명·행동 가이드·기관 연락처)</li>
+            <li>· 상황 분석 3관점(변호사·검사·판사) 지식베이스: 토픽별 주장·증거·전략, 위법성·제재, 법률 요건 사전</li>
             <li>· 판례·해석례: Open API 연동 시 실시간 조회(시연 데이터에 사건번호를 지어내지 않음)</li>
           </ul>
         </div>

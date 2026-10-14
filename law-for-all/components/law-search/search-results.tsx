@@ -3,7 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { AlertTriangle, BookOpen, ClipboardCopy, Cpu, Database, FileDown, FileText, Link2, Phone, RefreshCw } from "lucide-react";
+import { AlertTriangle, BookOpen, Gavel, ClipboardCopy, Cpu, Database, FileDown, FileText, Link2, Phone, RefreshCw } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +150,11 @@ export function SearchResults({ q }: { q: string }) {
                 </Button>
               </>
             )}
+            <Button variant="outline" asChild>
+              <Link href={`/analyze?s=${encodeURIComponent(q)}`}>
+                <Gavel /> 변호사·검사·판사 관점 분석
+              </Link>
+            </Button>
             <Button variant="ghost" onClick={() => copy(window.location.href, "검색 결과 링크를 복사했습니다")}>
               <Link2 /> 링크 복사
             </Button>

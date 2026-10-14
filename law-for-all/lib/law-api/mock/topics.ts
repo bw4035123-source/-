@@ -121,7 +121,7 @@ export const TOPICS: Topic[] = [
   {
     id: "jeonse-fraud",
     label: "전세사기 예방",
-    triggers: ["전세사기", "깡통전세", "전세 계약", "전세 들어", "계약 전", "사기", "최우선변제", "소액임차인"],
+    triggers: ["전세사기", "깡통전세", "전세 계약", "전세 들어", "계약 전", "사기", "최우선변제", "소액임차인", "경매", "연락 두절", "연락두절", "잠적", "다른 세입자", "피해자"],
     refs: ["housing-lease:3", "housing-lease:3의2", "housing-lease:8", "housing-lease-decree:11", "housing-lease-decree:10", "jeonse-fraud:3"],
     citizen: {
       summary:

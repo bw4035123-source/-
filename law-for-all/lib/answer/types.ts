@@ -47,3 +47,52 @@ export interface AskResult {
   elapsedMs: number;
   generatedAt: string;
 }
+
+// ───────────── 상황 분석(변호사·검사·판사 관점)
+export type RoleId = "lawyer" | "prosecutor" | "judge";
+export type ReqStatus = "met" | "unclear" | "unmet";
+
+export interface ExtractedFact {
+  kind: "당사자" | "금액" | "기간·시점" | "행위·사건" | "장소";
+  value: string;
+}
+
+export interface LawRecommendation {
+  key: string;
+  relevance: "high" | "medium" | "low";
+  score: number;
+  issue?: string;
+  reason: string;
+}
+
+export interface RolePerspectives {
+  lawyer: { stance: string; arguments: string[]; evidence: string[]; strategy: string[] };
+  prosecutor: { stance: string; violations: string[]; sanctions: string[]; proofPoints: string[] };
+  judge: {
+    stance: string;
+    issues: string[];
+    requirements: { label: string; ref?: string; status: ReqStatus; basis: string }[];
+    outlook: string;
+  };
+}
+
+export interface IssueAnalysis {
+  issue: { id: string; label: string };
+  perspectives: RolePerspectives;
+}
+
+export interface AnalyzeResult {
+  situation: string;
+  facts: ExtractedFact[];
+  issues: { id: string; label: string; score: number }[];
+  recommendations: LawRecommendation[];
+  analyses: IssueAnalysis[];
+  citations: Citation[];
+  contacts: Contact[];
+  provider: { id: string; label: string; model: string; kind: "llm" | "rule" };
+  guard: GuardReport;
+  dataSource: "mock" | "live";
+  notices: string[];
+  elapsedMs: number;
+  generatedAt: string;
+}

@@ -27,3 +27,28 @@ export function officerReportText(r: AskResult): string {
 }
 
 export const REPORT_STORAGE_KEY = "law-for-all:last-report";
+
+const ROLE_NAME = { lawyer: "변호사", prosecutor: "검사", judge: "판사" } as const;
+const STATUS_TEXT = { met: "확인됨", unclear: "확인 필요", unmet: "불충족 가능" } as const;
+
+/** 상황 분석 결과 텍스트(공유·붙여넣기용) */
+export function analysisText(r: import("./answer/types").AnalyzeResult): string {
+  const keyNo = (t: string) => t.replace(/\[\[([^\]]+)\]\]/g, (_, k: string) => {
+    const i = r.citations.findIndex((c) => c.key === k);
+    return i >= 0 ? `[${i + 1}]` : "";
+  });
+  const lines = ["[AI 법률 상황 분석]", `상황: ${r.situation}`, "", `쟁점: ${r.issues.map((i) => i.label).join(", ") || "-"}`, "", "■ 추천 관련 법령"];
+  r.recommendations.forEach((rec, i) => {
+    const c = r.citations.find((x) => x.key === rec.key);
+    if (c) lines.push(`  ${i + 1}. ${formalCitation(c)} — ${rec.reason}`);
+  });
+  for (const a of r.analyses) {
+    lines.push("", `■ 쟁점: ${a.issue.label}`);
+    const p = a.perspectives;
+    lines.push(`  [${ROLE_NAME.lawyer}] ${keyNo(p.lawyer.stance)}`, ...p.lawyer.arguments.map((x) => `    - ${keyNo(x)}`));
+    lines.push(`  [${ROLE_NAME.prosecutor}] ${keyNo(p.prosecutor.stance)}`, ...[...p.prosecutor.violations, ...p.prosecutor.sanctions].map((x) => `    - ${keyNo(x)}`));
+    lines.push(`  [${ROLE_NAME.judge}] ${keyNo(p.judge.stance)}`, ...p.judge.requirements.map((q) => `    □ ${q.label}: ${STATUS_TEXT[q.status]}`), `    → ${keyNo(p.judge.outlook)}`);
+  }
+  lines.push("", "※ AI 역할 시뮬레이션 결과이며 법률 자문·판결이 아닙니다.");
+  return lines.join("\n");
+}

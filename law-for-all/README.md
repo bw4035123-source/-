@@ -8,7 +8,7 @@
 | 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) |
 | 핵심 가치 | ① 듀얼 모드(시민/공무원) ② 조문 근거 인용·환각 방지 ③ LLM 비종속(설정 하나로 교체) ④ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
-| 법령 데이터 | 국가법령정보 공동활용 Open API(`lawSearch.do`, `lawService.do`) + 내장 시연 데이터(법률 11종·하위법령 7종) |
+| 법령 데이터 | 국가법령정보 공동활용 Open API(`lawSearch.do`, `lawService.do`) + 내장 시연 데이터(법률 13종·하위법령 7종) |
 | LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 |
 | 라이선스 | MIT |
 
@@ -50,6 +50,15 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 - **제·개정 이유**, **실무 쟁점 노트**, **판례·법령해석례 실시간 조회**(Open API 연동 시)
 - **기안문 인용문 복사**: `「주택임대차보호법」 제3조(대항력 등)에 따르면, "…"라고 규정하고 있음.` / '관련 근거 가. 나. …' 블록 / 보고서 전문 복사
 
+### AI 법률 상황 분석실 (`/analyze`) — 변호사·검사·판사 3관점
+- 겪은 일을 자유롭게 서술하면 **사실관계 자동 정리**(당사자·행위·금액·시점·장소) → **법률 쟁점 발견**(복합 쟁점 최대 3개) → **관련 법령 추천 순위**(핵심/관련/참고 + 추천 사유 + 관련도 막대)
+- **AI 모의 법정**: 같은 사실을 세 법률가의 시각으로 검토
+  - **변호사**(내 편): 주장할 권리·근거, 준비할 증거, 대응 전략
+  - **검사**(공익): 위법·범죄 성립 가능성, 적용 제재(형법 사기·경범죄 인근소란·근로기준법 벌칙 등). 형벌 조항이 근거에 없으면 그렇다고 명시
+  - **판사**(중립): 쟁점 정리, **법률 요건 ↔ 사실관계 대조표**(확인됨/확인 필요/불충족 가능), 예상 판단 방향(가능성 표현)
+- 예시 상황 5종, 검색 결과에서 바로 이어보기, 분석 결과 텍스트 복사, 모바일은 역할별 탭
+- 모든 관점 문장에 조문 인용, LLM 사용 시에도 동일한 인용 화이트리스트 가드 적용(가짜 조문·요건 근거 자동 제거)
+
 ### 공통
 - 근거 조문 카드 클릭 → **원문 전문 슬라이드 오버 뷰어** + 위임 관계로 연결된 상·하위법령 조문
 - 접근성: 글자 크기 3단계(어르신 배려), 고대비 모드, 다크 모드, 키보드 탐색·스킵 링크, 스크린리더 레이블, 움직임 줄이기 설정 존중
@@ -71,27 +80,29 @@ law-for-all/
 │  ├─ page.tsx                  # 메인(히어로 검색 + 추천 키워드)
 │  ├─ search/                   # 검색 결과(시민/공무원 듀얼 뷰)
 │  ├─ laws/ , laws/[id]/        # 법령 목록 · 법제처 형식 뷰어(3단 대조·제개정이유·판례)
+│  ├─ analyze/                  # AI 법률 상황 분석실(법령 추천 + 변호사·검사·판사 관점)
 │  ├─ report/                   # 인쇄·PDF 리포트
 │  ├─ about/                    # 서비스 구조·LLM 상태·검증 방식
-│  └─ api/                      # ask · providers · laws · laws/[id] · cases · health
+│  └─ api/                      # ask · analyze · providers · laws · laws/[id] · cases · health
 ├─ components/
 │  ├─ ui/                       # shadcn/ui 패턴 컴포넌트(Button, Card, Sheet, Tabs, Switch …)
 │  ├─ law-search/               # 검색창, 결과, 인용 카드, 원문 슬라이드 뷰어, 검증 배지
 │  ├─ citizen-view/             # 시민 모드 답변, 기관 연락처, 리포트
 │  ├─ officer-view/             # 행정 보고서, 법령 문서 뷰어, 3단 대조, 판례 패널
+│  ├─ case-analysis/            # 상황 분석: 입력 폼, 사실관계, 법령 추천, 3관점 패널
 │  └─ layout/                   # 헤더(모드 토글·LLM 선택·접근성 도구), 푸터
 ├─ lib/
 │  ├─ law-api/                  # 국가법령정보 Open API 클라이언트 + Mock 엔진
 │  │  ├─ drf.ts                 #   DRF 호출·캐시·응답 파서(lawSearch.do / lawService.do)
 │  │  ├─ client.ts              #   LawService: 실시간 ↔ 내장 데이터 자동 Fallback
 │  │  ├─ search.ts              #   한국어 2-gram 검색 엔진(외부 의존성 없음)
-│  │  └─ mock/                  #   법률 11종·하위법령 7종·생활 법률 토픽 12종
+│  │  └─ mock/                  #   법률 13종·하위법령 7종·생활 법률 토픽 12종·3관점 지식베이스
 │  ├─ llm/                      # LLM 비종속 계층(Adapter Pattern)
 │  │  ├─ types.ts               #   LLMProvider 인터페이스
 │  │  ├─ providers/             #   openai · anthropic · ollama · mock
 │  │  └─ registry.ts            #   환경변수 기반 생성·선택·안전 대체
-│  └─ answer/                   # 질의응답 파이프라인 · 프롬프트 · 환각 가드 · 규칙엔진
-├─ tests/                       # Vitest 30개(데이터 무결성·검색·가드·DRF 파서·3종 LLM 파이프라인)
+│  └─ answer/                   # 질의응답·상황분석 파이프라인 · 사실 추출 · 프롬프트 · 환각 가드 · 규칙엔진
+├─ tests/                       # Vitest 44개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석)
 ├─ scripts/llm-check.ts         # 설정된 LLM 전체 비교 점검
 ├─ Dockerfile · docker-compose.yml · .gitlab-ci.yml
 └─ docs/JUDGE_GUIDE.md          # 예선 심사위원용 구동안내서
@@ -147,7 +158,7 @@ npm run llm:check -- "질의민원 처리기간" officer
 ## 6. 품질 점검
 
 ```bash
-npm run check      # 타입검사 + ESLint + 단위테스트(30개)
+npm run check      # 타입검사 + ESLint + 단위테스트(44개)
 npm run build      # 프로덕션 빌드
 ```
 

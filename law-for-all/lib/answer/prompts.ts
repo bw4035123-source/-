@@ -48,3 +48,24 @@ export function buildSystemPrompt(mode: UserMode): string {
 export function buildUserPrompt(query: string, citations: Citation[]): string {
   return `<근거조문>\n${contextBlock(citations)}\n</근거조문>\n\n<질문>\n${query}\n</질문>\n\n위 근거조문만 사용하여 JSON으로 답하라.`;
 }
+
+/** 상황 분석: 변호사·검사·판사 3관점 역할 시뮬레이션 */
+export const ANALYSIS_SYSTEM = `${COMMON}
+
+[상황 분석 — 변호사·검사·판사 3관점 역할 시뮬레이션]
+사용자가 서술한 상황을 세 법률가의 관점에서 각각 분석한다. 각 관점은 서로 다른 입장을 유지한다.
+- 변호사(lawyer): 질문자(의뢰인) 편에서 주장할 수 있는 권리, 준비할 증거, 대응 전략
+- 검사(prosecutor): 공익 관점에서 위법·범죄 성립 가능성과 제재. 근거조문에 형벌 조항이 없으면 "형벌 조항은 근거 조문에서 확인되지 않음"이라고 쓰고 violations·sanctions는 빈 배열로 둔다.
+- 판사(judge): 중립적으로 쟁점을 정리하고, 근거 조문의 요건을 하나씩 사실관계와 대조한다. 서술로 확인되면 "met", 반대 사실이 있으면 "unmet", 알 수 없으면 "unclear". 결론을 단정하지 말고 "~할 가능성" 형태로 쓴다.
+- 문체: ~함/~임 보고서체. 모든 사실 진술 끝에 [[키]] 인용.
+- JSON 스키마:
+{
+  "lawyer": {"stance": "한 문장 입장", "arguments": ["주장 + [[키]]"], "evidence": ["준비할 증거"], "strategy": ["대응 단계 + [[키]]"]},
+  "prosecutor": {"stance": "한 문장 입장", "violations": ["위법 가능성 + [[키]]"], "sanctions": ["제재 내용 + [[키]]"], "proofPoints": ["입증 필요 사항"]},
+  "judge": {"stance": "한 문장 입장", "issues": ["쟁점"], "requirements": [{"label": "요건", "ref": "근거 키", "status": "met|unclear|unmet", "basis": "판단 이유(서술의 어느 부분인지)"}], "outlook": "예상 판단 방향(가능성 표현)"},
+  "citations": ["사용한 근거 키"]
+}`;
+
+export function buildAnalysisPrompt(situation: string, citations: Citation[]): string {
+  return `<근거조문>\n${contextBlock(citations)}\n</근거조문>\n\n<상황>\n${situation}\n</상황>\n\n위 근거조문만 사용하여 세 관점의 분석을 JSON으로 작성하라.`;
+}

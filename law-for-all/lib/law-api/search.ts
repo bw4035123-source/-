@@ -8,7 +8,8 @@ import { TOPICS, type Topic } from "./mock/topics";
  * - 토픽 트리거(생활 표현) 정확 포함 시 가중치 부여
  */
 
-export const normalize = (s: string) => s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+/** 소문자화 + 공백·문장부호 제거(단, "5%" 같은 비율 표현을 위해 % 는 유지) */
+export const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}%]+/gu, "");
 
 export function bigrams(s: string): Set<string> {
   const n = normalize(s);
@@ -45,7 +46,7 @@ export function matchTopics(query: string): TopicHit[] {
     let score = 0;
     for (const t of topic.triggers) {
       const nt = normalize(t);
-      if (nt && nq.includes(nt)) score += 2 + nt.length * 0.5;
+      if (nt.length >= 2 && nq.includes(nt)) score += 2 + nt.length * 0.5;
     }
     score += overlap(qg, bigrams(topic.label + topic.triggers.join(" "))) * 2;
     return { topic, score };

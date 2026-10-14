@@ -150,3 +150,56 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
 
   return { summary, citizen, officer, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(allText.join("\n"), context) };
 }
+
+// ───────────── 상황 분석(3관점) 출력 검증
+const reqStatus = z.preprocess((v) => (v === "met" || v === "unmet" ? v : "unclear"), z.enum(["met", "unclear", "unmet"]));
+
+export const AnalysisSchema = z.object({
+  lawyer: z.object({ stance: str, arguments: strList.catch([]), evidence: strList.catch([]), strategy: strList.catch([]) }),
+  prosecutor: z.object({ stance: str, violations: strList.catch([]), sanctions: strList.catch([]), proofPoints: strList.catch([]) }),
+  judge: z.object({
+    stance: str,
+    issues: strList.catch([]),
+    requirements: z.array(z.object({ label: str, ref: str.optional(), status: reqStatus, basis: str.catch("") })).catch([]),
+    outlook: str.catch(""),
+  }),
+  citations: strList.catch([]),
+});
+
+export function guardAnalysisOutput(raw: unknown, context: Citation[]) {
+  const allowed = new Set(context.map((c) => c.key));
+  const removed: string[] = [];
+  const used: string[] = [];
+  const texts: string[] = [];
+  const clean = (s: string) => {
+    const r = sanitizeMarkers(s, allowed);
+    removed.push(...r.removed);
+    r.used.forEach((u) => !used.includes(u) && used.push(u));
+    if (r.text) texts.push(r.text);
+    return r.text;
+  };
+  const list = (a: string[], max = 6) => a.map(clean).filter(Boolean).slice(0, max);
+  const p = AnalysisSchema.parse(raw);
+  const perspectives = {
+    lawyer: { stance: clean(p.lawyer.stance), arguments: list(p.lawyer.arguments), evidence: list(p.lawyer.evidence), strategy: list(p.lawyer.strategy) },
+    prosecutor: { stance: clean(p.prosecutor.stance), violations: list(p.prosecutor.violations), sanctions: list(p.prosecutor.sanctions), proofPoints: list(p.prosecutor.proofPoints) },
+    judge: {
+      stance: clean(p.judge.stance),
+      issues: list(p.judge.issues),
+      requirements: p.judge.requirements.slice(0, 8).map((r) => {
+        const ref = r.ref && allowed.has(r.ref) ? r.ref : undefined;
+        if (ref && !used.includes(ref)) used.push(ref);
+        if (r.ref && !ref) removed.push(r.ref);
+        return { label: clean(r.label), ref, status: r.status, basis: clean(r.basis) };
+      }),
+      outlook: clean(p.judge.outlook),
+    },
+  };
+  for (const k of p.citations) {
+    if (allowed.has(k)) !used.includes(k) && used.push(k);
+    else if (!removed.includes(k)) removed.push(k);
+  }
+  if (!perspectives.lawyer.stance || !perspectives.judge.stance) throw new Error("관점 분석이 비어 있습니다");
+  if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+  return { perspectives, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(texts.join("\n"), context) };
+}
