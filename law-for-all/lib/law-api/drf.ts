@@ -16,7 +16,7 @@ export class LawApiError extends Error {}
 type Json = unknown;
 const cache = new Map<string, { at: number; data: Json }>();
 
-export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 20000): Promise<Json> {
+export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 20000, retries = RETRIES): Promise<Json> {
   const qs = new URLSearchParams({ OC: oc, type: "JSON", ...params });
   const url = `${DRF_BASE}/${path}?${qs.toString()}`;
   const cacheKey = `${path}?${new URLSearchParams(params).toString()}`;
@@ -26,7 +26,7 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
   // 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
   let raw: string | null = null;
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= RETRIES && raw === null; attempt++) {
+  for (let attempt = 0; attempt <= retries && raw === null; attempt++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -34,7 +34,7 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
       raw = await res.text();
     } catch (e) {
       lastErr = e;
-      if (attempt < RETRIES) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      if (attempt < retries) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
     } finally {
       clearTimeout(timer);
     }

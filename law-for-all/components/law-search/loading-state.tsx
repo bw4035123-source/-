@@ -8,9 +8,14 @@ const STEPS = ["질문의 의도를 분석하고 있어요", "관련 법령·조
 
 export function LoadingState() {
   const [i, setI] = React.useState(0);
+  const [slow, setSlow] = React.useState(false);
   React.useEffect(() => {
     const t = setInterval(() => setI((v) => Math.min(v + 1, STEPS.length - 1)), 900);
-    return () => clearInterval(t);
+    const s = setTimeout(() => setSlow(true), 5000);
+    return () => {
+      clearInterval(t);
+      clearTimeout(s);
+    };
   }, []);
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-live="polite">
@@ -18,6 +23,11 @@ export function LoadingState() {
         <motion.p key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 font-semibold text-accent">
           <Loader2 className="h-5 w-5 animate-spin" /> {STEPS[i]}…
         </motion.p>
+        {slow && (
+          <p className="rounded-lg bg-secondary px-4 py-2.5 text-sm text-muted-foreground">
+            국가법령정보센터에서 최신 원문을 확인하고 있어요. 응답이 늦으면 몇 초 안에 수집해 둔 공식 원문으로 먼저 보여 드려요.
+          </p>
+        )}
         <Skeleton className="h-28 w-full rounded-2xl" />
         <div className="grid gap-3 sm:grid-cols-2">
           <Skeleton className="h-20" />

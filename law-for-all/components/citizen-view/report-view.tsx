@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Printer } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import { Button } from "@/components/ui/button";
 import { REPORT_STORAGE_KEY } from "@/lib/report-text";
+import { fetchJson } from "@/lib/fetch-json";
 import { articleLabel } from "@/lib/law-api/util";
 import { ArticleText } from "@/components/law-search/article-text";
 import { useSettings } from "@/components/providers/settings-provider";
@@ -29,10 +30,9 @@ export function ReportView() {
       /* 재조회 */
     }
     if (!q) return setErr("리포트로 만들 검색 결과가 없습니다.");
-    fetch("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: q, mode, provider: provider || undefined }) })
-      .then((res) => res.json())
-      .then((j) => (j.error ? setErr(j.error) : setR(j)))
-      .catch(() => setErr("리포트를 불러오지 못했습니다."));
+    fetchJson<AskResult>("/api/ask", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: q, mode, provider: provider || undefined }) })
+      .then(setR)
+      .catch((e) => setErr((e as Error).message || "리포트를 불러오지 못했습니다."));
   }, [q, ready, mode, provider]);
 
   if (err) return <p className="container py-20 text-center text-muted-foreground">{err}</p>;

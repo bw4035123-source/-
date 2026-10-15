@@ -205,7 +205,7 @@ class LiveModeTest(unittest.TestCase):
         from law_for_all import service
         calls = []
 
-        def fake(path, params, oc, timeout=20):
+        def fake(path, params, oc, timeout=20, retries=None):
             calls.append(params)
             if params["target"] == "prec":
                 return {"PrecSearch": {"prec": [{"사건명": "본문일치", "사건번호": "2025다1"}] if params.get("search") == "2" else []}}
@@ -219,7 +219,7 @@ class LiveModeTest(unittest.TestCase):
     def test_effective_date_from_list(self):
         from law_for_all import service
 
-        def fake(path, params, oc, timeout=20):
+        def fake(path, params, oc, timeout=20, retries=None):
             if path == "lawSearch.do":
                 return {"LawSearch": {"law": [{"법령명한글": "행정심판법", "법령일련번호": "7", "시행일자": "20230321", "현행연혁코드": "현행"}]}}
             return {"법령": {"기본정보": {"법령명_한글": "행정심판법", "시행일자": "20280101"}, "조문": {"조문단위": [{"조문여부": "조문", "조문번호": "27", "조문제목": "t", "조문내용": "제27조(t) ① 90일"}]}}}
@@ -268,3 +268,24 @@ class CaseViewerTest(unittest.TestCase):
         finally:
             httpd.shutdown()
             httpd.server_close()
+
+
+class LiveBudgetTest(unittest.TestCase):
+    def test_slow_api_falls_back_within_budget(self):
+        """국가법령정보센터가 응답하지 않아도 답변은 시간 예산 안에 공식 원문 스냅샷으로 나와야 함"""
+        import time as _t
+        from law_for_all import service
+
+        def hang(*a, **k):
+            _t.sleep(3)
+            raise service.LawApiError("timeout")
+
+        with mock.patch.object(service, "drf_get", hang):
+            svc = service.LawService("k")
+            t0 = _t.time()
+            cites = svc.get_citations(["apartment-mgmt:20", "floor-noise-rule:3"], budget=0.5)
+            took = _t.time() - t0
+        self.assertLess(took, 1.5)
+        self.assertEqual([c["key"] for c in cites], ["apartment-mgmt:20", "floor-noise-rule:3"])
+        self.assertTrue(all(c["source"] == "mock" for c in cites))
+        self.assertTrue(any("응답 지연" in w for w in svc.warnings))

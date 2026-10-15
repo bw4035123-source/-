@@ -1,11 +1,20 @@
 """법령 저장소 — 실시간(Open API)과 내장 데이터를 하나의 인터페이스로, 실패 시 자동 대체"""
 from __future__ import annotations
 
-from .data import LAWS, get_law, parse_key, to_citation
+import concurrent.futures as cf
+
+from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list
 from .search import search_law_names
 
 CASE_TIMEOUT = 25
+# 답변(질의응답·상황분석)이 실시간 원문을 기다리는 최대 시간 — 넘으면 공식 원문 스냅샷으로 즉시 답변
+ANSWER_LIVE_BUDGET = 6.0
+# 법령 뷰어가 실시간 원문을 기다리는 최대 시간
+VIEWER_LIVE_BUDGET = 9.0
+FAST = {"timeout": 5, "retries": 1}
+# 기한을 넘긴 요청도 백그라운드에서 끝까지 진행 → 캐시에 저장되어 다음 요청부터 실시간
+_POOL = cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix="law-live")
 
 
 def _summary(l: dict) -> dict:
@@ -48,18 +57,20 @@ class LawService:
             self.warnings.append(str(e))
             return local
 
-    def get_law(self, law_id: str) -> dict | None:
+    def get_law(self, law_id: str, fast: bool = False) -> dict | None:
+        """fast: 짧은 제한시간·재시도 1회(시간 예산 경로용)"""
         if law_id in self._memo:
             return self._memo[law_id]
+        t = FAST if fast else {"timeout": 20, "retries": None}
         mock = get_law(law_id)
         result = mock
         if self.oc:
             try:
                 if law_id.startswith("mst-"):
                     mst = law_id[4:]
-                    result = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": mst}, self.oc), law_id, "", mst)
+                    result = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": mst}, self.oc, t["timeout"], t["retries"]), law_id, "", mst)
                 elif mock:
-                    live = self._fetch_by_name(mock["name"], law_id)
+                    live = self._fetch_by_name(mock["name"], law_id, fast)
                     result = _merge(live, mock) if live else mock
             except LawApiError as e:
                 self.warnings.append(f"{mock['name'] if mock else law_id}: {e} — 내장 데이터로 대체")
@@ -67,37 +78,69 @@ class LawService:
         self._memo[law_id] = result
         return result
 
-    def _fetch_by_name(self, name: str, law_id: str) -> dict | None:
-        lst = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": name, "display": "20"}, self.oc))
+    def _fetch_by_name(self, name: str, law_id: str, fast: bool = False) -> dict | None:
+        t = FAST if fast else {"timeout": 20, "retries": None}
+        lst = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": name, "display": "20"}, self.oc, t["timeout"], t["retries"]))
         exact = [x for x in lst if x["name"].replace(" ", "") == name.replace(" ", "")]
         if not exact:
             raise LawApiError(f"'{name}'을(를) 국가법령정보에서 찾지 못했습니다")
         current = [x for x in exact if not x["status"] or x["status"] == "현행"] or exact
         pick = sorted(current, key=lambda x: x["effective"], reverse=True)[0]
-        doc = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": pick["mst"]}, self.oc), law_id, name, pick["mst"])
+        doc = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": pick["mst"]}, self.oc, t["timeout"], t["retries"]), law_id, name, pick["mst"])
         # 본문의 기본정보.시행일자는 단계적 시행 조문 중 '마지막' 시행일일 수 있어, 목록의 현행 시행일자를 사용
         if pick.get("effective"):
             doc["effectiveDate"] = pick["effective"]
         return doc
 
-    def get_hierarchy(self, law_id: str) -> dict | None:
-        base = self.get_law(law_id)
-        if not base:
-            return None
-        root_id = base.get("parentId") or base["id"]
-        root = base if root_id == base["id"] else (self.get_law(root_id) or base)
-        children = [c for c in (self.get_law(l["id"]) for l in LAWS if l.get("parentId") == root["id"]) if c]
-        return {"root": root, "children": children}
+    def _get_laws_within(self, ids: list[str], budget: float) -> dict:
+        """여러 법령을 병렬로 조회하되 budget 초 안에 끝나지 않은 것은 공식 원문 스냅샷으로 대체"""
+        if not self.oc or not budget:
+            return {i: self.get_law(i) for i in ids}
+        def fetch(i):
+            svc = LawService(self.oc)
+            return svc.get_law(i, True), svc.warnings
 
-    def get_citations(self, keys: list[str]) -> list[dict]:
+        futs = {i: _POOL.submit(fetch, i) for i in ids}
+        done, _ = cf.wait(futs.values(), timeout=budget)
+        out = {}
+        for i, f in futs.items():
+            if f in done:
+                law, warns = f.result()
+                out[i] = law
+                # 실패 사유(인증 실패·연결 실패 등)를 그대로 전달 — 원인 진단에 필요
+                for w in warns:
+                    if w not in self.warnings:
+                        self.warnings.append(w)
+            else:
+                out[i] = get_law(i)
+                msg = f"국가법령정보센터 응답 지연({round(budget)}초 초과) — 공식 원문 스냅샷({DATASET_DATE} 수집)으로 표시했습니다. 잠시 후 다시 검색하면 실시간 원문으로 표시됩니다."
+                if msg not in self.warnings:
+                    self.warnings.append(msg)
+            self._memo[i] = out[i]
+        return out
+
+    def get_hierarchy(self, law_id: str, budget: float = VIEWER_LIVE_BUDGET) -> dict | None:
+        """상위법-시행령-시행규칙 3단 구조(병렬 조회, 시간 예산 적용)"""
+        base = get_law(law_id)
+        root_id = (base or {}).get("parentId") or law_id
+        child_ids = [l["id"] for l in LAWS if l.get("parentId") == root_id]
+        ids = list(dict.fromkeys([root_id, law_id, *child_ids]))
+        docs = self._get_laws_within(ids, budget)
+        root = docs.get(root_id) or docs.get(law_id)
+        if not root:
+            return None
+        return {"root": root, "children": [docs[c] for c in child_ids if docs.get(c)]}
+
+    def get_citations(self, keys: list[str], budget: float = ANSWER_LIVE_BUDGET) -> list[dict]:
+        """인용 키 → 인용 카드(법령별 병렬, 시간 예산 적용)"""
+        law_ids = list(dict.fromkeys(p[0] for p in (parse_key(k) for k in keys) if p))
+        docs = self._get_laws_within(law_ids, budget)
         out = {}
         for k in keys:
             p = parse_key(k)
-            if not p:
+            if not p or not docs.get(p[0]):
                 continue
-            law = self.get_law(p[0])
-            if not law:
-                continue
+            law = docs[p[0]]
             art = next((a for a in law["articles"] if a["no"] == p[1]), None)
             if not art and get_law(p[0]):
                 art = next((a for a in get_law(p[0])["articles"] if a["no"] == p[1]), None)

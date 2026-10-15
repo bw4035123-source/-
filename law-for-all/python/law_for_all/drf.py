@@ -22,7 +22,7 @@ class LawApiError(Exception):
     pass
 
 
-def drf_get(path: str, params: dict, oc: str, timeout: float = 20):
+def drf_get(path: str, params: dict, oc: str, timeout: float = 20, retries: int | None = None):
     cache_key = path + "?" + urllib.parse.urlencode(params)
     hit = _cache.get(cache_key)
     if hit and time.time() - hit[0] < CACHE_TTL:
@@ -30,8 +30,9 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20):
     url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **params})
     raw = None
     last_err: Exception | None = None
+    retries = RETRIES if retries is None else retries
     # 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
-    for attempt in range(RETRIES + 1):
+    for attempt in range(retries + 1):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "law-on/1.0"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -39,7 +40,7 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20):
             break
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
             last_err = e
-            if attempt < RETRIES:
+            if attempt < retries:
                 time.sleep(0.8 * (attempt + 1))
     if raw is None:
         if hit:

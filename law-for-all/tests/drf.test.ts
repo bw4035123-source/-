@@ -121,3 +121,21 @@ describe("판례 보기(상세) 파서", () => {
     expect(parseCaseList({ PrecSearch: { prec: [{ 사건명: "x", 사건번호: "1", 판례일련번호: "616245" }] } }, "판례")[0].id).toBe("616245");
   });
 });
+
+describe("실시간 원문 시간 예산", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+  it("국가법령정보센터가 응답하지 않아도 예산 안에 공식 원문 스냅샷으로 답변", async () => {
+    const { LawService } = await import("@/lib/law-api/client");
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch; // 영원히 응답 없음
+    const svc = new LawService("k");
+    const t0 = Date.now();
+    const cites = await svc.getCitations(["apartment-mgmt:20", "floor-noise-rule:3"], 300);
+    expect(Date.now() - t0).toBeLessThan(1500);
+    expect(cites.map((c) => c.key)).toEqual(["apartment-mgmt:20", "floor-noise-rule:3"]);
+    expect(cites.every((c) => c.source === "mock")).toBe(true);
+    expect(svc.warnings.some((w) => w.includes("응답 지연"))).toBe(true);
+  });
+});

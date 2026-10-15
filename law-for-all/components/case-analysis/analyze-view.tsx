@@ -13,6 +13,7 @@ import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
 import { analysisText } from "@/lib/report-text";
+import { fetchJson } from "@/lib/fetch-json";
 import { AnalyzeForm } from "./analyze-form";
 import { FactsCard } from "./facts-card";
 import { Recommendations } from "./recommendations";
@@ -35,13 +36,11 @@ export function AnalyzeView() {
       setSituation(s);
       setState({ status: "loading" });
       try {
-        const r = await fetch("/api/analyze", {
+        const j = await fetchJson<AnalyzeResult>("/api/analyze", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ situation: s, provider: provider || undefined }),
         });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? "요청 실패");
         setState({ status: "done", result: j });
         // 공유 가능한 주소로 갱신 — 라우터 내비게이션 대신 history API를 써서 페이지 재마운트(→ 자동 재분석 반복)를 막음
         try {

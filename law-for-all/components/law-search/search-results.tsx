@@ -18,6 +18,7 @@ import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { OfficerReport } from "@/components/officer-view/officer-report";
 import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
+import { fetchJson } from "@/lib/fetch-json";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
 import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
@@ -45,17 +46,12 @@ export function SearchResults({ q }: { q: string }) {
     }
     const ctrl = new AbortController();
     setState({ status: "loading" });
-    fetch("/api/ask", {
+    fetchJson<AskResult>("/api/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query: q, mode, provider: provider || undefined }),
       signal: ctrl.signal,
     })
-      .then(async (r) => {
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? "요청 실패");
-        return j as AskResult;
-      })
       .then((result) => {
         cache.current.set(`${anyKey}|${mode}`, result);
         setState({ status: "done", result });
