@@ -2,7 +2,7 @@
   "name": "law-for-all",
   "version": "1.0.0",
   "private": true,
-  "description": "법이음(LAW:ON) — 시민·공무원 듀얼 모드 AI 법률 지능형 포털",
+  "description": "법이음(LAW:ON) — 국민·공무원 듀얼 모드 AI 법률 지능형 포털",
   "license": "MIT",
   "scripts": {
     "dev": "next dev -p 3000",

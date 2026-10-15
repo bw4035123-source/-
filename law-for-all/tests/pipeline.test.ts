@@ -17,7 +17,7 @@ describe("ask 파이프라인", () => {
     globalThis.fetch = realFetch;
   });
 
-  it("키 없이: 규칙엔진 + 내장데이터로 시민·공무원 답변 모두 생성", async () => {
+  it("키 없이: 규칙엔진 + 내장데이터로 국민·공무원 답변 모두 생성", async () => {
     const ask = await loadAsk({});
     const r = await ask({ query: "윗집 층간소음 기준이 어떻게 되나요?", mode: "citizen" });
     expect(r.provider.id).toBe("mock");

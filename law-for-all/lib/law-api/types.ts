@@ -18,7 +18,7 @@ export interface LawArticle {
   text: string;
   /** 이 조문이 위임한 하위법령 조문(3단 대조용) */
   delegates?: ArticleRef[];
-  /** 검색 보조 키워드(시민 일상어 포함) */
+  /** 검색 보조 키워드(국민 일상어 포함) */
   keywords?: string[];
 }
 

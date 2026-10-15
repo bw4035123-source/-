@@ -8,7 +8,7 @@ import { articleLabel } from "@/lib/law-api/util";
 
 const STEP_COLORS = ["from-sage-500 to-sage-600", "from-sky-500 to-indigo-500", "from-amber-500 to-orange-500"];
 
-/** 시민 모드 답변 — 쉬운 말풍선 요약, 용어 카드, 3단계 행동 가이드 */
+/** 국민 모드 답변 — 쉬운 말풍선 요약, 용어 카드, 3단계 행동 가이드 */
 export function CitizenAnswer({ result }: { result: AskResult }) {
   const { citations, open } = useCitations();
   const c = result.citizen;

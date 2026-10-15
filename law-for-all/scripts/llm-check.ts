@@ -23,7 +23,7 @@ async function main() {
   const query = process.argv[2] ?? "윗집 층간소음 기준이 어떻게 되나요?";
   const mode = process.argv[3] === "officer" ? "officer" : "citizen";
 
-  console.log(`\n질문: ${query} (${mode === "officer" ? "공무원" : "시민"} 모드)`);
+  console.log(`\n질문: ${query} (${mode === "officer" ? "공무원" : "국민"} 모드)`);
   console.log(`법령 데이터: ${serverConfig.lawApiOc ? "국가법령정보 실시간" : "내장 시연 데이터"}\n`);
   const providers = await listProviders(serverConfig.llm);
   for (const p of providers) {
