@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>법이음 법령 API 중계 서버</title>
+<style>
+  :root { --navy:#1E293B; --teal:#0D9488; --bg:#F8FAFC; --card:#fff; --line:#E2E8F0; --muted:#64748B; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Pretendard","Malgun Gothic",system-ui,sans-serif; background:var(--bg); color:var(--navy); }
+  header { background:var(--navy); color:#fff; padding:20px 16px; }
+  header h1 { margin:0; font-size:20px; } header p { margin:6px 0 0; color:#CBD5E1; font-size:13px; }
+  main { max-width:860px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px; }
+  form { display:flex; gap:8px; flex-wrap:wrap; }
+  input, select, button { font:inherit; padding:10px 12px; border-radius:8px; border:1px solid var(--line); }
+  input { flex:1; min-width:180px; }
+  button { background:var(--teal); color:#fff; border:0; font-weight:700; cursor:pointer; }
+  .status { font-size:13px; color:var(--muted); }
+  .ok { color:var(--teal); font-weight:700; } .err { color:#DC2626; font-weight:700; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  li:hover strong { color:var(--teal); }
+  small { color:var(--muted); }
+  pre { white-space:pre-wrap; word-break:break-all; font-family:inherit; line-height:1.7; margin:0; }
+  code { background:#F1F5F9; padding:2px 6px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>법이음 · 국가법령정보 실시간 중계 서버</h1>
+  <p>브라우저 → 이 서버 → 국가법령정보센터 Open API. 인증키는 서버에만 있고 화면에는 나오지 않습니다.</p>
+</header>
+<main>
+  <div class="card">
+    <div id="status" class="status">연결 확인 중…</div>
+  </div>
+  <div class="card">
+    <form id="f">
+      <input id="q" placeholder="검색어 (예: 주택임대차, 층간소음, 해고)" value="주택임대차" required />
+      <select id="t">
+        <option value="law">법령</option>
+        <option value="prec">판례</option>
+        <option value="expc">법령해석례</option>
+        <option value="admrul">행정규칙</option>
+        <option value="ordin">자치법규</option>
+      </select>
+      <button>실시간 검색</button>
+    </form>
+  </div>
+  <div class="card"><div id="meta" class="status">검색어를 입력하세요.</div><ul id="list"></ul></div>
+  <div class="card" id="detailCard" hidden><div id="detailTitle" style="font-weight:700;margin-bottom:8px"></div><pre id="detail"></pre></div>
+  <p class="status">API 문서: <a href="/docs">/docs</a> · 예: <code>/api/search?query=층간소음&amp;target=prec</code></p>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const token = new URLSearchParams(location.search).get("token");
+  const api = (path) => fetch(path, { headers: token ? { "X-Proxy-Token": token } : {} }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  const fmt = (d) => (/^\d{8}$/.test(d || "") ? `${d.slice(0, 4)}.${d.slice(4, 6)}.${d.slice(6)}` : d || "");
+
+  api("/api/health/live").then(({ body }) => {
+    $("status").innerHTML = "";
+    const s = document.createElement("span");
+    s.className = body.ok ? "ok" : "err";
+    s.textContent = body.ok ? `● ${body.message} (${body.elapsedMs}ms)` : `● 연결 실패: ${body.error || body.message}`;
+    $("status").append(s);
+  }).catch(() => ($("status").textContent = "서버에 연결할 수 없습니다."));
+
+  $("f").onsubmit = async (e) => {
+    e.preventDefault();
+    const q = $("q").value.trim(), t = $("t").value;
+    $("meta").textContent = "국가법령정보센터 조회 중…"; $("list").innerHTML = ""; $("detailCard").hidden = true;
+    const { body } = await api(`/api/search?target=${t}&query=${encodeURIComponent(q)}&display=20`);
+    if (!body.ok) { $("meta").textContent = `오류: ${body.error || JSON.stringify(body.detail)}`; return; }
+    $("meta").textContent = `총 ${body.total.toLocaleString()}건 중 ${body.count}건 · ${new Date(body.fetchedAt).toLocaleTimeString()} 실시간 조회`;
+    for (const it of body.items) {
+      const li = document.createElement("li");
+      const strong = document.createElement("strong"); strong.textContent = it.title;
+      const small = document.createElement("small"); small.textContent = `  ${[it.kind, it.caseNo, it.agency, fmt(it.date)].filter(Boolean).join(" · ")}`;
+      li.append(strong, small);
+      li.onclick = () => openDetail(t, it);
+      $("list").append(li);
+    }
+  };
+
+  async function openDetail(t, it) {
+    $("detailCard").hidden = false; $("detailTitle").textContent = it.title; $("detail").textContent = "불러오는 중…";
+    if (t === "law") {
+      const { body } = await api(`/api/law?mst=${it.mst}`);
+      $("detail").textContent = body.ok ? body.articles.map((a) => `제${a.no}조${a.title ? `(${a.title})` : ""}\n${a.text}`).join("\n\n") : `오류: ${body.error}`;
+    } else if (t === "prec" || t === "expc") {
+      const { body } = await api(`/api/case?target=${t}&id=${it.id}`);
+      const keys = ["판시사항", "판결요지", "참조조문", "질의요지", "회답", "이유", "판례내용"];
+      $("detail").textContent = body.ok ? keys.filter((k) => body.fields[k]).map((k) => `【${k}】\n${body.fields[k]}`).join("\n\n") : `오류: ${body.error}`;
+    } else {
+      $("detail").textContent = JSON.stringify(it.raw, null, 2);
+    }
+    $("detailCard").scrollIntoView({ behavior: "smooth" });
+  }
+</script>
+</body>
+</html>
