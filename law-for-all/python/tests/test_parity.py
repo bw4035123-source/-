@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 for k in ("LAW_API_OC", "LAW_OC", "LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
     os.environ.pop(k, None)
+os.environ["LAW_PROXY_URL"] = "off"  # 테스트는 네트워크 없이(기본 중계 서버 대신 직접 모드 + 모킹)
 
 from law_for_all.analyze import analyze  # noqa: E402
 from law_for_all.ask import ask  # noqa: E402

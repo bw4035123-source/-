@@ -65,7 +65,7 @@ def env(k: str, d: str = "") -> str:
 OC = env("LAW_API_OC") or env("LAW_OC")
 CORS_ORIGINS = [o.strip() for o in env("CORS_ORIGINS", "*").split(",") if o.strip()]
 PROXY_TOKEN = env("PROXY_TOKEN")  # 설정하면 X-Proxy-Token 헤더(또는 ?token=)가 일치해야 호출 가능
-RATE_PER_MIN = int(env("RATE_LIMIT_PER_MIN", "60") or 60)
+RATE_PER_MIN = int(env("RATE_LIMIT_PER_MIN", "300") or 300)  # 앱 서버 한 대가 질문당 여러 건을 부르므로 넉넉히
 CACHE_TTL = int(env("CACHE_TTL_SEC", str(60 * 60 * 6)) or 21600)
 TIMEOUT = float(env("UPSTREAM_TIMEOUT_SEC", "15") or 15)
 RETRIES = 2

@@ -11,8 +11,8 @@ export async function GET(req: Request) {
   const kind = sp.get("kind") === "expc" ? "법령해석례" : "판례";
   const id = sp.get("id") ?? "";
   if (!/^\d{1,12}$/.test(id)) return NextResponse.json({ error: "잘못된 판례 식별자" }, { status: 400 });
-  const svc = new LawService(serverConfig.lawApiOc);
-  if (svc.mode !== "live") return NextResponse.json({ error: "판례 보기는 국가법령정보 Open API 인증키(LAW_API_OC) 설정 시 제공됩니다.", live: false }, { status: 503 });
+  const svc = new LawService(serverConfig.lawAccess);
+  if (svc.mode !== "live") return NextResponse.json({ error: "판례 보기는 법령 API 중계 서버(LAW_PROXY_URL) 또는 인증키(LAW_API_OC) 설정 시 제공됩니다.", live: false }, { status: 503 });
   const detail = await svc.getCase(kind, id);
   if (!detail) return NextResponse.json({ error: svc.warnings[0] ?? "판례를 찾을 수 없습니다." }, { status: 404 });
   return NextResponse.json({ detail });

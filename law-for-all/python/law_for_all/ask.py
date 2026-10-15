@@ -55,7 +55,7 @@ def related_laws_of(keys: list[str]) -> list[dict]:
 def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     started = time.time()
     notices: list[str] = []
-    svc = LawService(config.law_api_oc)
+    svc = LawService(config.law_access)
     topic, keys = retrieve(query)
     context = svc.get_citations(keys)
     allowed = {c["key"] for c in context}

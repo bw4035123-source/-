@@ -1,10 +1,12 @@
 import type { CaseDetail, CaseItem, LawArticle, LawDoc, LawKind } from "./types";
+import { lawProxy } from "./proxy";
 
 /**
  * 국가법령정보 공동활용 Open API(DRF) 저수준 클라이언트.
  *  - lawSearch.do : 법령·판례·해석례 목록 검색
  *  - lawService.do: 법령 본문(조문) 조회
- * 요청 호스트는 law.go.kr 로 고정(인증키가 다른 곳으로 전송되지 않도록).
+ * 기본은 법령 API 중계 서버(LAW_PROXY_URL)의 /api/raw 경유 — 인증키는 중계 서버에만 있고 여기서는 보내지 않는다.
+ * LAW_PROXY_URL=off 일 때만 LAW_API_OC 로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송).
  * 응답 구조가 버전에 따라 조금씩 달라도 동작하도록 키 이름 기반으로 탐색한다.
  */
 export const DRF_BASE = "https://www.law.go.kr/DRF";
@@ -17,8 +19,12 @@ type Json = unknown;
 const cache = new Map<string, { at: number; data: Json }>();
 
 export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Record<string, string>, oc: string, timeoutMs = 20000, retries = RETRIES): Promise<Json> {
-  const qs = new URLSearchParams({ OC: oc, type: "JSON", ...params });
-  const url = `${DRF_BASE}/${path}?${qs.toString()}`;
+  const proxy = lawProxy();
+  const url = proxy
+    ? `${proxy.url}/api/raw/${path}?${new URLSearchParams(params).toString()}`
+    : `${DRF_BASE}/${path}?${new URLSearchParams({ OC: oc, type: "JSON", ...params }).toString()}`;
+  const headers: Record<string, string> = { "User-Agent": "law-on/1.0" };
+  if (proxy?.token) headers["X-Proxy-Token"] = proxy.token;
   const cacheKey = `${path}?${new URLSearchParams(params).toString()}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
@@ -30,7 +36,7 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "law-on/1.0" }, cache: "no-store" });
+      const res = await fetch(url, { signal: ctrl.signal, headers, cache: "no-store" });
       raw = await res.text();
     } catch (e) {
       lastErr = e;
@@ -43,7 +49,8 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
     if (hit) return hit.data; // 네트워크 장애 시 오래된 캐시라도 반환
     const proxyHint =
       (process.env.HTTPS_PROXY || process.env.https_proxy) && !process.env.NODE_USE_ENV_PROXY ? " (프록시 환경이면 NODE_USE_ENV_PROXY=1 로 실행하세요)" : "";
-    throw new LawApiError(`국가법령정보센터 연결 실패: ${(lastErr as Error)?.message ?? lastErr}${proxyHint}`);
+    const where = proxy ? `법령 API 중계 서버(${proxy.url}) 연결 실패` : "국가법령정보센터 연결 실패";
+    throw new LawApiError(`${where}: ${(lastErr as Error)?.message ?? lastErr}${proxyHint}`);
   }
   let data: Json;
   try {
@@ -53,6 +60,11 @@ export async function drfGet(path: "lawSearch.do" | "lawService.do", params: Rec
     const hint = raw.replace(/<[^>]+>|\s+/g, " ").trim().slice(0, 120);
     throw new LawApiError(`국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. (${hint})`);
   }
+  // 중계 서버 오류는 {"ok": false, "error": "..."} (미등록 IP 403, 토큰 401, 호출 제한 429 등)
+  if (proxy && data && typeof data === "object" && (data as { ok?: unknown }).ok === false)
+    throw new LawApiError(`법령 API 중계 서버: ${(data as { error?: string }).error ?? "오류"}`);
+  if (proxy && data && typeof data === "object" && "detail" in (data as object) && Object.keys(data as object).length === 1)
+    throw new LawApiError(`법령 API 중계 서버: ${JSON.stringify((data as { detail: unknown }).detail)}`);
   raiseIfRejected(data);
   cache.set(cacheKey, { at: Date.now(), data });
   return data;

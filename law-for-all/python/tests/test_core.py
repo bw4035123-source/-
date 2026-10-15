@@ -13,6 +13,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 for k in ("LAW_API_OC", "LAW_OC", "LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
     os.environ.pop(k, None)
+os.environ["LAW_PROXY_URL"] = "off"  # 테스트는 네트워크 없이(기본 중계 서버 대신 직접 모드 + 모킹)
 
 from law_for_all import data  # noqa: E402
 from law_for_all.analyze import analyze  # noqa: E402
@@ -242,6 +243,32 @@ class LiveModeTest(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", flaky), mock.patch("time.sleep"):
             self.assertEqual(drf.drf_get("lawSearch.do", {"q": "x"}, "k"), {"ok": 1})
         self.assertEqual(n["i"], 3)
+
+
+class ProxyRouteTest(unittest.TestCase):
+    def test_default_and_routing(self):
+        from law_for_all import config as cfg, drf
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("LAW_PROXY_URL", None)
+            self.assertEqual(cfg.law_proxy()["url"], "https://law-proxy-api.onrender.com")
+        seen = []
+
+        class R(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake(req, timeout=None):
+            seen.append((req.full_url, req.headers.get("X-proxy-token")))
+            return R(b'{"LawSearch": {"law": []}}')
+
+        with mock.patch.dict(os.environ, {"LAW_PROXY_URL": "https://p.example/", "LAW_PROXY_TOKEN": "tok"}), mock.patch("urllib.request.urlopen", fake):
+            drf.drf_get("lawSearch.do", {"target": "law", "query": "proxy-test"}, "SECRET", 1, 0)
+        self.assertTrue(seen[0][0].startswith("https://p.example/api/raw/lawSearch.do?target=law"))
+        self.assertNotIn("SECRET", seen[0][0])
+        self.assertEqual(seen[0][1], "tok")
 
 
 class CaseViewerTest(unittest.TestCase):

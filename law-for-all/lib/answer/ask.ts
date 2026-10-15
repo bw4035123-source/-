@@ -28,7 +28,7 @@ export interface AskInput {
 export async function ask({ query, mode, provider: requested }: AskInput): Promise<AskResult> {
   const started = Date.now();
   const notices: string[] = [];
-  const svc = new LawService(serverConfig.lawApiOc);
+  const svc = new LawService(serverConfig.lawAccess);
 
   const { topic, keys } = retrieve(query);
   const context = await svc.getCitations(keys);

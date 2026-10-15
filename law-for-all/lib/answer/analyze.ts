@@ -21,7 +21,7 @@ const DEFAULT_CONTACTS: Contact[] = [
 export async function analyze({ situation, provider: requested }: { situation: string; provider?: string }): Promise<AnalyzeResult> {
   const started = Date.now();
   const notices: string[] = [];
-  const svc = new LawService(serverConfig.lawApiOc);
+  const svc = new LawService(serverConfig.lawAccess);
 
   const facts = extractFacts(situation);
   const issues = spotIssues(situation);

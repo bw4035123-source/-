@@ -1,5 +1,6 @@
 """국가법령정보 공동활용 Open API(DRF) 클라이언트 — lawSearch.do / lawService.do
-요청 호스트는 law.go.kr 로 고정(인증키가 다른 곳으로 전송되지 않도록)."""
+기본은 법령 API 중계 서버(LAW_PROXY_URL, Render)의 /api/raw 경유 — 인증키는 중계 서버에만 있고 여기서는 보내지 않는다.
+LAW_PROXY_URL=off 일 때만 LAW_API_OC 로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송)."""
 from __future__ import annotations
 
 import json
@@ -10,6 +11,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
+
+from .config import law_proxy
 
 DRF_BASE = "https://www.law.go.kr/DRF"
 CACHE_TTL = 60 * 60 * 6
@@ -27,16 +30,26 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20, retries: int 
     hit = _cache.get(cache_key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
-    url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **params})
+    proxy = law_proxy()
+    if proxy:
+        url = f"{proxy['url']}/api/raw/{path}?" + urllib.parse.urlencode(params)
+    else:
+        url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **params})
+    headers = {"User-Agent": "law-on/1.0"}
+    if proxy and proxy["token"]:
+        headers["X-Proxy-Token"] = proxy["token"]
     raw = None
     last_err: Exception | None = None
     retries = RETRIES if retries is None else retries
     # 국가법령정보센터는 간헐적으로 연결을 끊는 경우가 있어 짧게 재시도(총 4회)
     for attempt in range(retries + 1):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "law-on/1.0"})
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 raw = r.read().decode("utf-8", errors="replace")
+            break
+        except urllib.error.HTTPError as e:  # 중계 서버의 401·403·429 등은 본문(JSON 오류)을 그대로 해석
+            raw = e.read().decode("utf-8", errors="replace")
             break
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
             last_err = e
@@ -45,12 +58,18 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20, retries: int 
     if raw is None:
         if hit:
             return hit[1]
-        raise LawApiError(f"국가법령정보센터 연결 실패: {getattr(last_err, 'reason', last_err)}") from last_err
+        where = f"법령 API 중계 서버({proxy['url']}) 연결 실패" if proxy else "국가법령정보센터 연결 실패"
+        raise LawApiError(f"{where}: {getattr(last_err, 'reason', last_err)}") from last_err
     try:
         data = json.loads(raw)
     except ValueError:
         hint = re.sub(r"<[^>]+>|\s+", " ", raw).strip()[:120]
         raise LawApiError(f"국가법령정보센터가 JSON이 아닌 응답을 보냈습니다. OC 인증키와 등록 IP/도메인을 확인하세요. ({hint})")
+    if proxy and isinstance(data, dict):
+        if data.get("ok") is False:
+            raise LawApiError(f"법령 API 중계 서버: {data.get('error', '오류')}")
+        if set(data) == {"detail"}:
+            raise LawApiError(f"법령 API 중계 서버: {data['detail']}")
     _raise_if_rejected(data)
     with _lock:
         _cache[cache_key] = (time.time(), data)

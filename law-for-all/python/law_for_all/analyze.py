@@ -174,7 +174,7 @@ def build_rule_analyses(text: str, issues: list[dict], citations: list[dict]) ->
 def analyze(situation: str, provider: str | None = None) -> dict:
     started = time.time()
     notices: list[str] = []
-    svc = LawService(config.law_api_oc)
+    svc = LawService(config.law_access)
     facts = extract_facts(situation)
     issues = spot_issues(situation)
     keys = collect_keys(situation, issues)

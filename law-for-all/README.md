@@ -89,7 +89,7 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 - 항목을 누르면 **판례 뷰어**: 판시사항 · 판결요지 · 참조조문 · 참조판례 · 판결 전문(법령해석례는 질의요지 · 회답 · 이유), 국민 모드에는 각 항목의 쉬운 설명
 - **인용 표기 복사**(예: `대법원 2026. 1. 29. 선고 2023두54914 판결`), 국가법령정보센터 원문 링크
 - 판례만 따로 찾는 **판례 보기** 메뉴(사건명 검색 → 부족하면 본문 검색으로 보완)
-- 국가법령정보 Open API 인증키(`LAW_API_OC`) 설정 시 실시간 제공 — 확인되지 않은 사건번호·판결 내용을 만들어 보여 주지 않음
+- 법령 API 중계 서버(기본 `https://law-proxy-api.onrender.com`)를 통해 실시간 제공 — 확인되지 않은 사건번호·판결 내용을 만들어 보여 주지 않음
 
 ### 공통
 - 근거 조문 카드 클릭 → **원문 전문 슬라이드 오버 뷰어** + 위임 관계로 연결된 상·하위법령 조문
@@ -157,7 +157,9 @@ law-for-all/
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `LAW_API_OC` | 국가법령정보 Open API 인증키(OC). [open.law.go.kr](https://open.law.go.kr)에서 신청 후 서버 IP/도메인 등록 | (비움 → 내장 데이터) |
+| `LAW_PROXY_URL` | 법령 API 중계 서버 주소. 실시간 법령·판례 조회는 모두 여기를 거침(`off` → 직접 호출) | `https://law-proxy-api.onrender.com` |
+| `LAW_PROXY_TOKEN` | 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 | (비움) |
+| `LAW_API_OC` | `LAW_PROXY_URL=off`일 때만 사용 — 국가법령정보 Open API 인증키(OC), 이 PC IP 등록 필요 | (비움) |
 | `LLM_PROVIDER` | 기본 LLM: `mock` · `openai` · `anthropic` · `ollama` | `mock` |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | OpenAI 또는 OpenAI 호환 서버(Upstage Solar, vLLM, LM Studio 등) | `gpt-4o-mini`, `https://api.openai.com/v1` |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic Claude | `claude-sonnet-5-5` |
@@ -199,8 +201,8 @@ npm run build      # 프로덕션 빌드
 
 ## 7. 유의사항
 
-본 서비스는 **법률 정보 제공** 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 내장 시연 데이터는 주요 조문을 발췌·요약한 것으로, 실제 업무에는 `LAW_API_OC`를 설정하여 국가법령정보센터 현행 원문을 사용하십시오.
+본 서비스는 **법률 정보 제공** 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 내장 시연 데이터는 주요 조문을 발췌·요약한 것으로, 실제 업무에는 법령 API 중계 서버(`LAW_PROXY_URL`)를 통해 국가법령정보센터 현행 원문을 사용하십시오.
 
 ## 법령 API 중계 서버(FastAPI)
 
-브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.
+브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 운영 주소는 **https://law-proxy-api.onrender.com** (Render)이며, Next.js·Python 두 실행판 모두 기본으로 이 주소를 거쳐 조회합니다(`LAW_PROXY_URL`로 변경, `off`면 직접 호출). 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.

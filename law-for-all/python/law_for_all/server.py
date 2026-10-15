@@ -163,11 +163,11 @@ class Handler(BaseHTTPRequestHandler):
     def _api(self, method: str, path: str, qs: dict):
         q = (qs.get("q") or [""])[0][:100]
         if method == "GET" and path == "/api/health":
-            return self._json(200, {"status": "ok", "runtime": "python", "lawApi": "live" if config.law_api_oc else "mock", "llm": config.llm["defaultProvider"], "time": datetime.now(timezone.utc).isoformat()})
+            return self._json(200, {"status": "ok", "runtime": "python", "lawApi": "live" if config.law_access else "mock", "llm": config.llm["defaultProvider"], "time": datetime.now(timezone.utc).isoformat()})
         if method == "GET" and path == "/api/providers":
-            return self._json(200, {"providers": list_providers(config.llm), "lawApi": "live" if config.law_api_oc else "mock"})
+            return self._json(200, {"providers": list_providers(config.llm), "lawApi": "live" if config.law_access else "mock"})
         if method == "GET" and path == "/api/laws":
-            svc = LawService(config.law_api_oc)
+            svc = LawService(config.law_access)
             laws = svc.list_laws(q)
             return self._json(200, {"laws": laws, "mode": svc.mode, "warnings": svc.warnings})
         m = re.fullmatch(r"/api/laws/([^/]+)", path)
@@ -175,13 +175,13 @@ class Handler(BaseHTTPRequestHandler):
             law_id = m.group(1)
             if not re.fullmatch(r"[a-z0-9-]{2,60}", law_id):
                 raise ApiError(400, "잘못된 법령 식별자")
-            svc = LawService(config.law_api_oc)
+            svc = LawService(config.law_access)
             h = svc.get_hierarchy(law_id)
             if not h:
                 raise ApiError(404, "법령을 찾을 수 없습니다.")
             return self._json(200, {**h, "warnings": svc.warnings})
         if method == "GET" and path == "/api/cases":
-            svc = LawService(config.law_api_oc)
+            svc = LawService(config.law_access)
             try:
                 limit = min(int((qs.get("limit") or ["5"])[0]), 20)
             except ValueError:
@@ -192,9 +192,9 @@ class Handler(BaseHTTPRequestHandler):
             case_id = (qs.get("id") or [""])[0]
             if not re.fullmatch(r"\d{1,12}", case_id):
                 raise ApiError(400, "잘못된 판례 식별자")
-            svc = LawService(config.law_api_oc)
+            svc = LawService(config.law_access)
             if svc.mode != "live":
-                raise ApiError(503, "판례 보기는 국가법령정보 Open API 인증키(LAW_API_OC) 설정 시 제공됩니다.")
+                raise ApiError(503, "판례 보기는 법령 API 중계 서버(LAW_PROXY_URL) 또는 인증키(LAW_API_OC) 설정 시 제공됩니다.")
             detail = svc.get_case(kind, case_id)
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")

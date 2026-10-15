@@ -26,12 +26,33 @@ def env(k: str, d: str = "") -> str:
     return (os.environ.get(k) or d).strip()
 
 
+DEFAULT_LAW_PROXY_URL = "https://law-proxy-api.onrender.com"
+_OFF = {"off", "none", "direct", "false", "0"}
+
+
+def law_proxy() -> dict | None:
+    """법령 API 중계 서버(기본: Render). LAW_PROXY_URL=off 면 None → LAW_API_OC 로 law.go.kr 직접 호출"""
+    raw = os.environ.get("LAW_PROXY_URL", DEFAULT_LAW_PROXY_URL).strip()
+    if not raw or raw.lower() in _OFF:
+        return None
+    return {"url": raw.rstrip("/"), "token": env("LAW_PROXY_TOKEN")}
+
+
 class Config:
     """요청 시점마다 환경변수를 읽어 재시작 없이 테스트에서 바꿀 수 있게 함"""
 
     @property
     def law_api_oc(self) -> str:
         return env("LAW_API_OC") or env("LAW_OC")
+
+    @property
+    def law_proxy(self) -> dict | None:
+        return law_proxy()
+
+    @property
+    def law_access(self) -> str:
+        """실시간 조회 가능 여부 겸 LawService 인자: 중계 서버가 있으면 그것으로, 없으면 OC 로"""
+        return "proxy" if law_proxy() else self.law_api_oc
 
     @property
     def llm(self) -> dict:

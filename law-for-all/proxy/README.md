@@ -87,7 +87,7 @@ cloudflared tunnel --url http://localhost:8787
 ```
 PROXY_TOKEN=아무도모르는긴문자열     # 토큰 없는 /api/* 호출은 401
 CORS_ORIGINS=https://내프런트주소    # 허용 출처 제한
-RATE_LIMIT_PER_MIN=60                # IP당 분당 호출 제한(초과 시 429)
+RATE_LIMIT_PER_MIN=300                # IP당 분당 호출 제한(초과 시 429)
 ```
 
 토큰을 쓰면 테스트 화면은 `https://….trycloudflare.com/?token=토큰`으로 엽니다.

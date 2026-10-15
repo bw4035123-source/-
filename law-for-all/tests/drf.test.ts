@@ -139,3 +139,38 @@ describe("실시간 원문 시간 예산", () => {
     expect(svc.warnings.some((w) => w.includes("응답 지연"))).toBe(true);
   });
 });
+
+describe("법령 API 중계 서버 경유", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    process.env.LAW_PROXY_URL = "off";
+    delete process.env.LAW_PROXY_TOKEN;
+  });
+
+  it("기본 주소는 Render 중계 서버, off 면 직접 호출", async () => {
+    const { lawProxy, DEFAULT_LAW_PROXY_URL } = await import("@/lib/law-api/proxy");
+    expect(DEFAULT_LAW_PROXY_URL).toBe("https://law-proxy-api.onrender.com");
+    delete process.env.LAW_PROXY_URL;
+    expect(lawProxy()?.url).toBe(DEFAULT_LAW_PROXY_URL);
+    process.env.LAW_PROXY_URL = "off";
+    expect(lawProxy()).toBeNull();
+  });
+
+  it("/api/raw 로 보내고 OC 는 보내지 않음, 토큰 헤더 전달, 중계 오류는 명확히", async () => {
+    process.env.LAW_PROXY_URL = "https://proxy.example/";
+    process.env.LAW_PROXY_TOKEN = "tok";
+    const { drfGet, LawApiError } = await import("@/lib/law-api/drf");
+    const seen: { url: string; token?: string }[] = [];
+    globalThis.fetch = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      seen.push({ url: String(url), token: (init?.headers as Record<string, string>)["X-Proxy-Token"] });
+      if (String(url).includes("query=bad")) return new Response(JSON.stringify({ ok: false, error: "인증 실패: 미등록 IP" }), { status: 403 });
+      return new Response(JSON.stringify({ LawSearch: { law: [] } }));
+    }) as unknown as typeof fetch;
+    await drfGet("lawSearch.do", { target: "law", query: "민법" }, "SECRET", 1000, 0);
+    expect(seen[0].url).toBe("https://proxy.example/api/raw/lawSearch.do?target=law&query=%EB%AF%BC%EB%B2%95");
+    expect(seen[0].url).not.toContain("SECRET");
+    expect(seen[0].token).toBe("tok");
+    await expect(drfGet("lawSearch.do", { target: "law", query: "bad" }, "", 1000, 0)).rejects.toBeInstanceOf(LawApiError);
+  });
+});

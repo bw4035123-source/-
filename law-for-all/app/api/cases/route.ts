@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const q = (sp.get("q") ?? "").slice(0, 100);
   const limit = Math.min(Number(sp.get("limit")) || 5, 20);
-  const svc = new LawService(serverConfig.lawApiOc);
+  const svc = new LawService(serverConfig.lawAccess);
   const cases = await svc.searchCases(q, limit);
   return NextResponse.json({ cases, live: svc.mode === "live", warnings: svc.warnings });
 }

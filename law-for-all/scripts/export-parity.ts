@@ -41,6 +41,7 @@ const strip = <T extends Record<string, unknown>>(o: T) => {
 
 async function main() {
   for (const k of ["LAW_API_OC", "LAW_OC", "LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]) delete process.env[k];
+  process.env.LAW_PROXY_URL = "off"; // 네트워크 없이 내장 데이터 기준으로 비교
   const out = { ask: [] as unknown[], analyze: [] as unknown[] };
   for (const q of QUERIES) for (const mode of ["citizen", "officer"] as const) out.ask.push({ input: { query: q, mode }, output: strip((await ask({ query: q, mode })) as never) });
   for (const s of SITUATIONS) out.analyze.push({ input: { situation: s }, output: strip((await analyze({ situation: s })) as never) });

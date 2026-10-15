@@ -47,16 +47,19 @@ ENV_LOCAL = ROOT / ".env.local"
 
 
 def test_live(oc: str) -> tuple[bool, str]:
-    """국가법령정보센터에 실제로 한 번 질의해 인증키·IP 등록 상태를 확인"""
+    """국가법령정보센터(기본: 중계 서버 경유)에 실제로 한 번 질의해 연결 상태를 확인"""
     from law_for_all.drf import LawApiError, drf_get, parse_law_list
     try:
-        items = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": "형법", "display": "3"}, oc, 15, 2))
+        items = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": "형법", "display": "3"}, oc, 70 if config.law_proxy else 15, 2))
         if items:
             return True, f"연결 성공 — 실제 법령 데이터 수신(예: {items[0]['name']}, 시행 {items[0]['effective']})"
         return False, "응답은 왔지만 법령 목록이 비어 있습니다."
     except LawApiError as e:
         msg = str(e)
-        if "인증 실패" in msg or "검증" in msg:
+        if config.law_proxy:
+            msg += f"\n    → 중계 서버({config.law_proxy['url']})의 Render 환경변수 LAW_API_OC 와, open.law.go.kr 에 Render 의 Outbound IP 가 등록됐는지 확인하세요."
+            msg += "\n      (무료 Render 는 잠들어 있다가 첫 요청에 30~60초 걸릴 수 있습니다 — 잠시 후 다시 확인)"
+        elif "인증 실패" in msg or "검증" in msg:
             msg += "\n    → open.law.go.kr 로그인 → [OPEN API] → 인증키의 서버 IP/도메인 등록에 이 PC의 공인 IP를 추가하세요."
             msg += "\n      (현재 공인 IP 확인: https://checkip.amazonaws.com)"
         return False, msg
@@ -107,6 +110,14 @@ def free_port(host: str, start: int) -> int:
     raise SystemExit(f"{start}~{start + 49} 포트가 모두 사용 중입니다. --port 로 다른 포트를 지정하세요.")
 
 
+def law_mode() -> str:
+    if config.law_proxy:
+        return f"실시간 — 법령 API 중계 서버 경유({config.law_proxy['url']})"
+    if config.law_api_oc:
+        return "실시간 — 국가법령정보센터 직접 호출(인증키 설정됨)"
+    return "내장 원문(LAW_PROXY_URL=off 이고 인증키 없음)"
+
+
 def check() -> bool:
     ok = True
     print(f"법이음 v{__version__} · Python {sys.version.split()[0]}")
@@ -114,8 +125,8 @@ def check() -> bool:
     ok &= (WEB / "index.html").is_file()
     print(f"  내장 법령         : {sum(l['kind'] == '법률' for l in LAWS)}개 법률 + 하위법령 {sum(l['kind'] != '법률' for l in LAWS)}개 · 토픽 {len(TOPICS)}개 (기준 {DATASET_DATE})")
     print(f"  설정 파일         : {'.env.local 있음' if ENV_LOCAL.is_file() else '.env.local 없음 — 인증키 설정: 키설정.bat 또는 python run.py --setup-key'}")
-    print(f"  국가법령정보 API  : {'인증키 설정됨' if config.law_api_oc else '인증키 없음 → 내장 원문 모드'}")
-    if config.law_api_oc:
+    print(f"  국가법령정보 API  : {law_mode()}")
+    if config.law_access:
         live_ok, msg = test_live(config.law_api_oc)
         print(f"  실제 연결 확인    : {'✓' if live_ok else '✗'} {msg}")
     print("  LLM 공급자        :")
@@ -145,10 +156,10 @@ def main():
     print("━" * 56)
     print(f"  법이음 (LAW:ON) v{__version__}")
     print(f"  ▶ {url}")
-    print(f"  법령: {'국가법령정보 실시간(인증키 설정됨)' if config.law_api_oc else '내장 원문(인증키 없음 → 키설정.bat 으로 설정)'} · 기본 AI: {config.llm['defaultProvider']}")
+    print(f"  법령: {law_mode()} · 기본 AI: {config.llm['defaultProvider']}")
     print("  종료: Ctrl+C")
     print("━" * 56)
-    if config.law_api_oc:
+    if config.law_access:
         # 실행 직후 실제 연결을 한 번 확인해 콘솔에 결과 표시(화면 사용은 바로 가능)
         def report():
             ok, msg = test_live(config.law_api_oc)

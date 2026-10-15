@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
-  test: { environment: "node", include: ["tests/**/*.test.ts"] },
+  // 테스트는 네트워크 없이: 기본 중계 서버(Render) 대신 직접 모드 + fetch 모킹
+  test: { environment: "node", include: ["tests/**/*.test.ts"], env: { LAW_PROXY_URL: "off" } },
   resolve: {
     alias: {
       "@": r("./"),
