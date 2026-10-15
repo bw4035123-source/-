@@ -6,26 +6,10 @@ import { ArrowRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/components/providers/settings-provider";
 import { cn } from "@/lib/utils";
+import { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } from "@/lib/suggestions";
 
-export const SUGGESTED = [
-  { label: "층간소음", query: "윗집 층간소음 기준이 어떻게 되나요?" },
-  { label: "전세사기 예방", query: "전세 계약할 때 전세사기 예방하려면 뭘 확인해야 하나요?" },
-  { label: "보증금 반환", query: "계약이 끝났는데 집주인이 보증금을 안 돌려줘요" },
-  { label: "육아휴직 급여", query: "육아휴직 급여는 얼마나 받을 수 있나요?" },
-  { label: "민원 처리 기한", query: "민원 처리 기한은 며칠인가요?" },
-  { label: "임금체불", query: "퇴사했는데 마지막 월급을 안 줘요" },
-  { label: "음주운전 처벌", query: "음주운전 처벌 기준이 궁금해요" },
-  { label: "정보공개 청구", query: "정보공개 청구하면 언제까지 결정해야 하나요?" },
-];
-
-const OFFICER_SUGGESTED = [
-  { label: "질의민원 처리기간", query: "질의민원 처리기간과 기간 계산 방법" },
-  { label: "최우선변제 기준", query: "주택임대차 소액임차인 최우선변제 기준 금액" },
-  { label: "층간소음 기준", query: "공동주택 층간소음 기준 데시벨과 관리주체 조치" },
-  { label: "육아휴직 급여 산정", query: "육아휴직 급여 월 지급액 상한액 기준" },
-  { label: "정보공개 결정기한", query: "정보공개 청구 결정 기한과 이의신청 기간" },
-  { label: "행정심판 청구기간", query: "행정심판 청구기간 90일 180일 기준" },
-];
+/** 이전 이름 호환 */
+export const SUGGESTED = CITIZEN_SUGGESTIONS;
 
 interface Props {
   defaultValue?: string;
@@ -46,7 +30,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
   };
 
   const hero = variant === "hero";
-  const chips = mode === "officer" ? OFFICER_SUGGESTED : SUGGESTED;
+  const chips = mode === "officer" ? OFFICER_SUGGESTIONS : CITIZEN_SUGGESTIONS;
   const placeholder =
     mode === "officer" ? "법령명·조문·쟁점을 입력하세요 (예: 질의민원 처리기간, 최우선변제 기준)" : "궁금한 상황을 편하게 적어 주세요 (예: 윗집 층간소음 기준이 어떻게 되나요?)";
 

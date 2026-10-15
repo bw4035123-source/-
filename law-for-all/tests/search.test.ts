@@ -35,3 +35,10 @@ describe("검색 엔진", () => {
     expect(r.keys).toContain("housing-lease-decree:10");
   });
 });
+
+describe("추천 해시태그 라우팅", async () => {
+  const { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } = await import("@/lib/suggestions");
+  it.each([...CITIZEN_SUGGESTIONS, ...OFFICER_SUGGESTIONS].map((s) => [s.label, s.query, s.topic]))("#%s → %s", (_l, q, topic) => {
+    expect(matchTopics(q)[0]?.topic.id).toBe(topic);
+  });
+});

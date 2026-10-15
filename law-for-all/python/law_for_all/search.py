@@ -36,8 +36,8 @@ def match_topics(query: str) -> list[dict]:
     hits = []
     for topic in TOPICS:
         score = 0.0
-        for t in topic["triggers"]:
-            nt = normalize(t)
+        # 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산
+        for nt in dict.fromkeys(normalize(t) for t in topic["triggers"]):
             if len(nt) >= 2 and nt in nq:
                 score += 2 + len(nt) * 0.5
         score += _overlap(qg, bigrams(topic["label"] + " ".join(topic["triggers"]))) * 2

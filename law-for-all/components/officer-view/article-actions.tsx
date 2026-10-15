@@ -5,10 +5,12 @@ import { useToast } from "@/components/ui/toast";
 import type { LawArticle, LawDoc } from "@/lib/law-api/types";
 import { articleAnchor, draftQuote, formalCitation, lawGoKrUrl, toCitation } from "@/lib/law-api/util";
 import { copyText } from "@/lib/clipboard";
+import { useSettings } from "@/components/providers/settings-provider";
 
 /** 조문별 공문서 인용 도구 */
 export function ArticleActions({ law, article }: { law: LawDoc; article: LawArticle }) {
   const toast = useToast();
+  const { mode } = useSettings();
   const c = toCitation(law, article);
   const copy = async (t: string, m: string) => toast((await copyText(t)) ? m : "복사 실패");
   const btn = "inline-flex items-center gap-1 rounded-md border bg-card px-2 py-1 text-xs font-semibold hover:border-accent hover:text-accent";
@@ -28,9 +30,11 @@ export function ArticleActions({ law, article }: { law: LawDoc; article: LawArti
       >
         <Hash className="h-3.5 w-3.5" />
       </button>
-      <Link className={btn} href={`/drafting?law=${encodeURIComponent(law.id)}&no=${encodeURIComponent(article.no)}`}>
-        <FilePenLine className="h-3.5 w-3.5" /> 개정안 작성
-      </Link>
+      {mode === "officer" && (
+        <Link className={btn} href={`/drafting?law=${encodeURIComponent(law.id)}&no=${encodeURIComponent(article.no)}`}>
+          <FilePenLine className="h-3.5 w-3.5" /> 개정안 작성
+        </Link>
+      )}
       <a className={btn} href={lawGoKrUrl(law.name, article.no)} target="_blank" rel="noreferrer" aria-label="국가법령정보센터에서 보기">
         <ExternalLink className="h-3.5 w-3.5" />
       </a>

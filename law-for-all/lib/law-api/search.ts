@@ -44,8 +44,8 @@ export function matchTopics(query: string): TopicHit[] {
   const qg = bigrams(query);
   return TOPICS.map((topic) => {
     let score = 0;
-    for (const t of topic.triggers) {
-      const nt = normalize(t);
+    // 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산
+    for (const nt of Array.from(new Set(topic.triggers.map(normalize)))) {
       if (nt.length >= 2 && nq.includes(nt)) score += 2 + nt.length * 0.5;
     }
     score += overlap(qg, bigrams(topic.label + topic.triggers.join(" "))) * 2;

@@ -370,7 +370,7 @@ export const TOPICS: Topic[] = [
     id: "privacy-access",
     label: "개인정보 열람·삭제",
     caseQuery: "개인정보",
-    triggers: ["개인정보", "내 정보", "열람", "삭제 요청", "정보 유출"],
+    triggers: ["개인정보", "개인정보 열람", "열람 요구", "정보주체", "내 정보", "열람", "삭제 요청", "정보 유출"],
     refs: ["privacy:35", "privacy-decree:41", "privacy:36", "privacy:15"],
     citizen: {
       summary:
