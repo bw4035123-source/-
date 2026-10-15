@@ -5,13 +5,16 @@
   python run.py --port 9000     # 포트 변경(사용 중이면 다음 빈 포트 자동 선택)
   python run.py --host 0.0.0.0  # 같은 네트워크의 다른 PC에서 접속 허용
   python run.py --no-browser    # 브라우저 자동 열기 끔
-  python run.py --check         # 환경·데이터·LLM 설정 점검만 하고 종료
+  python run.py --check         # 환경·데이터·LLM 설정 + 국가법령정보 실제 연결 점검 후 종료
+  python run.py --setup-key     # 국가법령정보 API 인증키(OC) 입력 → .env.local 자동 생성 → 연결 확인
 
 외부 라이브러리 설치가 필요 없습니다(Python 3.9 이상 표준 라이브러리만 사용).
 """
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import socket
 import sys
 import threading
@@ -39,6 +42,59 @@ from law_for_all.data import DATASET_DATE, LAWS, TOPICS  # noqa: E402
 from law_for_all.llm import list_providers  # noqa: E402
 from law_for_all.server import WEB, make_server  # noqa: E402
 
+ROOT = Path(__file__).resolve().parent
+ENV_LOCAL = ROOT / ".env.local"
+
+
+def test_live(oc: str) -> tuple[bool, str]:
+    """국가법령정보센터에 실제로 한 번 질의해 인증키·IP 등록 상태를 확인"""
+    from law_for_all.drf import LawApiError, drf_get, parse_law_list
+    try:
+        items = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": "형법", "display": "3"}, oc, 15, 2))
+        if items:
+            return True, f"연결 성공 — 실제 법령 데이터 수신(예: {items[0]['name']}, 시행 {items[0]['effective']})"
+        return False, "응답은 왔지만 법령 목록이 비어 있습니다."
+    except LawApiError as e:
+        msg = str(e)
+        if "인증 실패" in msg or "검증" in msg:
+            msg += "\n    → open.law.go.kr 로그인 → [OPEN API] → 인증키의 서버 IP/도메인 등록에 이 PC의 공인 IP를 추가하세요."
+            msg += "\n      (현재 공인 IP 확인: https://checkip.amazonaws.com)"
+        return False, msg
+
+
+def setup_key() -> int:
+    """인증키를 입력받아 .env.local 에 LAW_API_OC 로 저장(다른 설정은 유지)"""
+    print("━" * 56)
+    print("  국가법령정보 Open API 인증키(OC) 설정")
+    print("  (open.law.go.kr 에서 신청한 OC 값 — 보통 가입한 이메일의 @ 앞부분)")
+    print("━" * 56)
+    try:
+        oc = input("  인증키(OC)를 입력하고 Enter: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\n취소했습니다.")
+        return 1
+    if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,64}", oc):
+        print("  ✗ 인증키 형식이 올바르지 않습니다(영문·숫자만, 공백 없이).")
+        return 1
+    if ENV_LOCAL.is_file():
+        text = ENV_LOCAL.read_text(encoding="utf-8")
+    elif (ROOT / ".env.example").is_file():
+        text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    else:
+        text = ""
+    if re.search(r"^LAW_API_OC=.*$", text, flags=re.M):
+        text = re.sub(r"^LAW_API_OC=.*$", "LAW_API_OC=" + oc, text, count=1, flags=re.M)
+    else:
+        text = text.rstrip("\n") + ("\n" if text else "") + "LAW_API_OC=" + oc + "\n"
+    ENV_LOCAL.write_text(text, encoding="utf-8")
+    print(f"  ✓ 저장했습니다: {ENV_LOCAL}")
+    print("  … 국가법령정보센터 연결을 확인하는 중")
+    ok, msg = test_live(oc)
+    print(f"  {'✓' if ok else '✗'} {msg}")
+    if ok:
+        print("\n  이제 실행.bat(또는 python run.py)으로 실행하면 실시간 원문·판례가 표시됩니다.")
+    return 0 if ok else 2
+
 
 def free_port(host: str, start: int) -> int:
     for p in range(start, start + 50):
@@ -57,7 +113,11 @@ def check() -> bool:
     print(f"  화면 파일(web/)   : {'있음' if (WEB / 'index.html').is_file() else '없음 ⚠'}")
     ok &= (WEB / "index.html").is_file()
     print(f"  내장 법령         : {sum(l['kind'] == '법률' for l in LAWS)}개 법률 + 하위법령 {sum(l['kind'] != '법률' for l in LAWS)}개 · 토픽 {len(TOPICS)}개 (기준 {DATASET_DATE})")
-    print(f"  국가법령정보 API  : {'실시간(LAW_API_OC 설정됨)' if config.law_api_oc else '내장 데이터 모드'}")
+    print(f"  설정 파일         : {'.env.local 있음' if ENV_LOCAL.is_file() else '.env.local 없음 — 인증키 설정: 키설정.bat 또는 python run.py --setup-key'}")
+    print(f"  국가법령정보 API  : {'인증키 설정됨' if config.law_api_oc else '인증키 없음 → 내장 원문 모드'}")
+    if config.law_api_oc:
+        live_ok, msg = test_live(config.law_api_oc)
+        print(f"  실제 연결 확인    : {'✓' if live_ok else '✗'} {msg}")
     print("  LLM 공급자        :")
     for p in list_providers(config.llm):
         mark = "●" if p["configured"] else "○"
@@ -71,8 +131,11 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--setup-key", action="store_true")
     a = ap.parse_args()
 
+    if a.setup_key:
+        sys.exit(setup_key())
     if a.check:
         sys.exit(0 if check() else 1)
 
@@ -82,9 +145,16 @@ def main():
     print("━" * 56)
     print(f"  법이음 (LAW:ON) v{__version__}")
     print(f"  ▶ {url}")
-    print(f"  법령: {'국가법령정보 실시간' if config.law_api_oc else '내장 데이터'} · 기본 AI: {config.llm['defaultProvider']}")
+    print(f"  법령: {'국가법령정보 실시간(인증키 설정됨)' if config.law_api_oc else '내장 원문(인증키 없음 → 키설정.bat 으로 설정)'} · 기본 AI: {config.llm['defaultProvider']}")
     print("  종료: Ctrl+C")
     print("━" * 56)
+    if config.law_api_oc:
+        # 실행 직후 실제 연결을 한 번 확인해 콘솔에 결과 표시(화면 사용은 바로 가능)
+        def report():
+            ok, msg = test_live(config.law_api_oc)
+            print(f"  [국가법령정보] {'✓' if ok else '✗'} {msg}")
+
+        threading.Thread(target=report, daemon=True).start()
     if not a.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:

@@ -35,7 +35,7 @@ const dist = path.join(root, "dist");
 const stage = path.join(dist, "law-on-python");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(stage, { recursive: true });
-for (const f of ["run.py", "run.sh", "run.bat", "실행.bat", "README.md", ".env.example", "law_for_all", "tests"]) {
+for (const f of ["run.py", "run.sh", "run.bat", "실행.bat", "키설정.bat", "setup-key.bat", "README.md", ".env.example", "law_for_all", "tests"]) {
   fs.cpSync(path.join(root, "python", f), path.join(stage, f), { recursive: true, filter: (s) => !s.includes("__pycache__") });
 }
 execSync("python3 -m zipfile -c law-on-python.zip law-on-python", { cwd: dist, stdio: "inherit" });
