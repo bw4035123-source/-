@@ -4,7 +4,8 @@
 
 - 인증키(OC)는 .env.local 에서만 읽고, 응답·오류·로그 어디에도 내보내지 않는다.
 - 국가법령정보센터는 '이 서버가 돌아가는 PC'의 IP만 보므로, 그 PC의 IP만 등록하면 된다.
-  (Cloudflare Tunnel 로 외부에 공개해도 법령센터로 나가는 요청은 여전히 이 PC에서 출발)
+  (Cloudflare Tunnel 로 외부에 공개해도 법령센터로 나가는 요청은 여전히 이 서버에서 출발)
+- 클라우드에 둘 때는 고정 공인 IP가 있는 VM 에 배포(deploy/setup-vm.sh). /api/egress-ip 로 등록할 IP 확인.
 - 요청 호스트는 www.law.go.kr 로 고정, target 은 허용 목록만 통과(임의 주소 중계 방지).
 
 실행:  uvicorn main:app --host 0.0.0.0 --port 8787
@@ -181,7 +182,7 @@ async def drf_get(path: str, params: dict[str, Any]) -> Any:
         raise UpstreamError(_scrub(f"JSON이 아닌 응답입니다. OC 인증키와 등록 IP를 확인하세요. ({hint})"))
     # 미등록 IP·잘못된 키는 HTTP 200 + {"result": "...", "msg": "..."} 로 온다
     if isinstance(data, dict) and "result" in data and set(data) <= {"result", "msg"}:
-        raise UpstreamError(_scrub(f"인증 실패: {data.get('result', '')} {data.get('msg', '')}".strip()) + " — 이 PC의 공인 IP가 open.law.go.kr 에 등록되어 있는지 확인하세요.", 403)
+        raise UpstreamError(_scrub(f"인증 실패: {data.get('result', '')} {data.get('msg', '')}".strip()) + " — 이 서버의 외부 IP(/api/egress-ip)가 open.law.go.kr 에 등록되어 있는지 확인하세요.", 403)
     _cache[cache_key] = (time.time(), data)
     if len(_cache) > 2000:  # 단순 상한
         for k in list(_cache)[:500]:
@@ -312,6 +313,21 @@ async def health_live():
                 "elapsedMs": round((time.perf_counter() - t0) * 1000)}
     except UpstreamError as e:
         return fail(e)
+
+
+@app.get("/api/egress-ip", summary="이 서버가 외부로 나갈 때 쓰는 공인 IP(open.law.go.kr 에 등록할 값)")
+async def egress_ip():
+    assert _client is not None
+    ips: list[str] = []
+    for _ in range(3):  # 유동 IP 환경이면 호출마다 값이 달라짐 → 여러 번 확인
+        try:
+            r = await _client.get("https://checkip.amazonaws.com", timeout=5)
+            ips.append(r.text.strip())
+        except httpx.HTTPError:
+            pass
+    uniq = sorted(set(ips))
+    return {"ok": bool(uniq), "ip": uniq[0] if len(uniq) == 1 else None, "observed": uniq, "stable": len(uniq) == 1,
+            "hint": "3회 모두 같은 IP입니다. 클라우드 콘솔에서 이 IP가 고정(Reserved/Static) IP인지 확인한 뒤 open.law.go.kr 에 등록하세요." if len(uniq) == 1 else "외부 IP가 호출마다 바뀝니다 — 고정 IP VM으로 옮기세요(deploy/README.md)."}
 
 
 @app.get("/api/search", summary="법령·판례·해석례·행정규칙·자치법규 검색")

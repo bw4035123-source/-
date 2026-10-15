@@ -53,6 +53,7 @@ curl "http://127.0.0.1:8787/api/case?id=618229"                         # 판례
 | `GET /api/case?id=&target=prec\|expc\|detc` | 판시사항·판결요지·전문 / 질의요지·회답·이유 |
 | `GET /api/raw/lawSearch.do?target=...` | 원본 JSON 그대로(OC는 서버가 붙임) |
 | `GET /health`, `GET /api/health/live` | 상태 / 실제 연결 확인 |
+| `GET /api/egress-ip` | 이 서버가 외부로 나갈 때 쓰는 공인 IP(open.law.go.kr 에 등록할 값, 유동 여부) |
 
 모든 응답은 `{"ok": true, ...}` 형식입니다. 실패하면 `{"ok": false, "error": "..."}`가 오고, 미등록 IP는 HTTP 403을 받습니다.
 
@@ -66,7 +67,11 @@ const res = await fetch(`${BASE}/api/search?query=${encodeURIComponent("층간�
 const { ok, items, error } = await res.json();
 ```
 
-## 4. 외부 공개 — Cloudflare Tunnel(무료, 가입 불필요)
+## 24시간 운영(클라우드) — 고정 IP VM
+
+Render 무료 같은 PaaS는 나가는 IP가 계속 바뀌어 국가법령정보센터 인증을 통과하지 못하고, 15분 동안 요청이 없으면 잠듭니다. **고정 IP VM(Oracle Cloud 무료 / AWS Lightsail 서울)** 에 `sudo bash deploy/setup-vm.sh` 한 번이면 HTTPS·자동 재시작까지 설정됩니다. 순서는 [deploy/README.md](deploy/README.md)를 보세요.
+
+## 4. 외부 공개(임시) — Cloudflare Tunnel(무료, 가입 불필요)
 
 ```powershell
 # 1) 설치 (한 번만)
