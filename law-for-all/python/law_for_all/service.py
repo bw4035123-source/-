@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import concurrent.futures as cf
+import time
 
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list
 from .search import search_law_names
 
 CASE_TIMEOUT = 25
+# 판례 검색 전체 대기 한도(초)
+CASE_BUDGET = 12.0
 # 답변(질의응답·상황분석)이 실시간 원문을 기다리는 최대 시간 — 넘으면 공식 원문 스냅샷으로 즉시 답변
 ANSWER_LIVE_BUDGET = 6.0
 # 법령 뷰어가 실시간 원문을 기다리는 최대 시간
@@ -148,24 +151,49 @@ class LawService:
                 out[k] = to_citation(law, art)
         return [out[k] for k in keys if k in out]
 
-    def search_cases(self, query: str, limit: int = 5) -> list[dict]:
-        """판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완"""
+    def search_cases(self, query: str, limit: int = 5, budget: float = CASE_BUDGET) -> list[dict]:
+        """판례·법령해석례: 사건명 검색 우선, 부족하면 본문 검색(search=2) 보완.
+        판례·해석례를 병렬로, 전체 budget 초 안에서만 기다림(넘으면 생략 — 요청은 계속되어 캐시에 저장)."""
         if not self.oc or not query.strip():
             return []
         display = str(min(max(int(limit), 1), 20))
+        oc = self.oc
 
-        def one(target: str, kind: str) -> list[dict]:
-            by_name = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display}, self.oc, CASE_TIMEOUT), kind)
-            if len(by_name) >= 2:
-                return by_name
-            by_text = parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display, "search": "2"}, self.oc, CASE_TIMEOUT), kind)
-            return (by_name + [c for c in by_text if not any(b["id"] == c["id"] for b in by_name)])[: int(display)]
+        def name_search(target, kind):
+            return parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display}, oc, 8, 1), kind)
 
-        try:
-            return one("prec", "판례") + one("expc", "법령해석례")
-        except LawApiError as e:
-            self.warnings.append(str(e))
-            return []
+        def text_search(target, kind):
+            return parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display, "search": "2"}, oc, CASE_TIMEOUT, 1), kind)
+
+        deadline = time.time() + budget
+        names = {t: _POOL.submit(name_search, t, k) for t, k in (("prec", "판례"), ("expc", "법령해석례"))}
+        result: dict[str, list[dict]] = {}
+        slow = False
+        for t, k in (("prec", "판례"), ("expc", "법령해석례")):
+            try:
+                result[t] = names[t].result(timeout=max(0.1, deadline - time.time()))
+            except cf.TimeoutError:
+                result[t], slow = [], True
+            except LawApiError as e:
+                result[t] = []
+                if str(e) not in self.warnings:
+                    self.warnings.append(str(e))
+        need = [(t, k) for t, k in (("prec", "판례"), ("expc", "법령해석례")) if len(result[t]) < 2 and not self.warnings]
+        if need and deadline - time.time() <= 1.5:
+            slow, need = True, []  # 본문 검색을 시작할 시간이 부족 → 생략 안내
+        texts = {t: _POOL.submit(text_search, t, k) for t, k in need}
+        for t, f in texts.items():
+            try:
+                extra = f.result(timeout=max(0.1, deadline - time.time()))
+                result[t] = (result[t] + [c for c in extra if not any(b["id"] == c["id"] for b in result[t])])[: int(display)]
+            except cf.TimeoutError:
+                slow = True
+            except LawApiError as e:
+                if str(e) not in self.warnings:
+                    self.warnings.append(str(e))
+        if slow:
+            self.warnings.append("국가법령정보센터 본문 검색이 지연되어 일부 결과를 생략했습니다. 잠시 후 다시 검색하면 더 많은 판례가 표시됩니다.")
+        return result["prec"] + result["expc"]
 
     def get_case(self, kind: str, case_id: str) -> dict | None:
         """판례·법령해석례 상세 — 실시간 연동 시에만 제공(사건 내용을 지어내지 않음)"""

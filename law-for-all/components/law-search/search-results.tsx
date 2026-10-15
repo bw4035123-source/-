@@ -17,6 +17,7 @@ import { CitizenAnswer } from "@/components/citizen-view/citizen-answer";
 import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { OfficerReport } from "@/components/officer-view/officer-report";
 import { RelatedCases } from "@/components/cases/related-cases";
+import { DocumentPack } from "@/components/officer-view/document-pack";
 import { copyText } from "@/lib/clipboard";
 import { fetchJson } from "@/lib/fetch-json";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
@@ -127,7 +128,8 @@ export function SearchResults({ q }: { q: string }) {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="no-print flex flex-wrap gap-2 rounded-xl border bg-card p-3">
             {officer ? (
               <>
-                <Button variant="accent" onClick={() => copy(draftBasisBlock(r), "기안문 '관련 근거' 인용문을 복사했습니다")}>
+                <DocumentPack result={r} />
+                <Button variant="outline" onClick={() => copy(draftBasisBlock(r), "기안문 '관련 근거' 인용문을 복사했습니다")}>
                   <ClipboardCopy /> 기안문 인용문 복사
                 </Button>
                 <Button variant="outline" onClick={() => copy(officerReportText(r), "검토 보고서 전문을 복사했습니다")}>

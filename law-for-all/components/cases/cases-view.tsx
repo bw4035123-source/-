@@ -12,11 +12,13 @@ export function CasesView() {
   const initial = (useSearchParams().get("q") ?? "").slice(0, 100);
   const [q, setQ] = React.useState(initial);
   const [query, setQuery] = React.useState(initial);
+  const [run, setRun] = React.useState(0);
   const go = (v: string) => {
     const t = v.trim();
     if (!t) return;
     setQ(t);
     setQuery(t);
+    setRun((n) => n + 1); // 같은 검색어로 다시 눌러도 새로 검색
     try {
       window.history.replaceState(window.history.state, "", `/cases?q=${encodeURIComponent(t)}`);
     } catch {
@@ -63,7 +65,7 @@ export function CasesView() {
           </button>
         ))}
       </div>
-      <div className="mt-8">{query ? <RelatedCases query={query} variant="page" limit={10} /> : <p className="text-center text-sm text-muted-foreground">검색어를 입력하거나 추천 키워드를 눌러 보세요.</p>}</div>
+      <div className="mt-8">{query ? <RelatedCases key={`${query}-${run}`} query={query} variant="page" limit={10} /> : <p className="text-center text-sm text-muted-foreground">검색어를 입력하거나 추천 키워드를 눌러 보세요.</p>}</div>
     </div>
   );
 }

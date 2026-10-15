@@ -1,5 +1,6 @@
 "use client";
-import { ClipboardCopy, ExternalLink, Hash } from "lucide-react";
+import Link from "next/link";
+import { ClipboardCopy, ExternalLink, FilePenLine, Hash } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import type { LawArticle, LawDoc } from "@/lib/law-api/types";
 import { articleAnchor, draftQuote, formalCitation, lawGoKrUrl, toCitation } from "@/lib/law-api/util";
@@ -27,6 +28,9 @@ export function ArticleActions({ law, article }: { law: LawDoc; article: LawArti
       >
         <Hash className="h-3.5 w-3.5" />
       </button>
+      <Link className={btn} href={`/drafting?law=${encodeURIComponent(law.id)}&no=${encodeURIComponent(article.no)}`}>
+        <FilePenLine className="h-3.5 w-3.5" /> 개정안 작성
+      </Link>
       <a className={btn} href={lawGoKrUrl(law.name, article.no)} target="_blank" rel="noreferrer" aria-label="국가법령정보센터에서 보기">
         <ExternalLink className="h-3.5 w-3.5" />
       </a>

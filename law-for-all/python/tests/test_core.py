@@ -289,3 +289,23 @@ class LiveBudgetTest(unittest.TestCase):
         self.assertEqual([c["key"] for c in cites], ["apartment-mgmt:20", "floor-noise-rule:3"])
         self.assertTrue(all(c["source"] == "mock" for c in cites))
         self.assertTrue(any("응답 지연" in w for w in svc.warnings))
+
+
+class CaseBudgetTest(unittest.TestCase):
+    def test_slow_fulltext_is_skipped_within_budget(self):
+        """사건명 검색 결과가 없고 본문 검색이 느려도 예산 안에 응답(본문 검색 생략 안내)"""
+        import time as _t
+        from law_for_all import service
+
+        def fake(path, params, oc, timeout=20, retries=None):
+            if params.get("search") == "2":
+                _t.sleep(3)
+            return {"PrecSearch": {"prec": []}} if params["target"] == "prec" else {"Expc": {"expc": []}}
+
+        with mock.patch.object(service, "drf_get", fake):
+            svc = service.LawService("k")
+            t0 = _t.time()
+            svc.search_cases("층간소음", budget=1.0)
+            took = _t.time() - t0
+        self.assertLess(took, 2.0)
+        self.assertTrue(any("본문 검색이 지연" in w for w in svc.warnings))

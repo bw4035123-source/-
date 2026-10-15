@@ -6,6 +6,9 @@ import { parseArticleKey, toCitation } from "./util";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
 
 const CASE_TIMEOUT = 25000;
+/** 판례 검색 전체 대기 한도 */
+export const CASE_BUDGET_MS = 12000;
+const CASE_FAST = { timeoutMs: 8000, retries: 1 };
 /** 답변(질의응답·상황분석)이 실시간 원문을 기다리는 최대 시간 — 넘으면 공식 원문 스냅샷으로 즉시 답변 */
 export const ANSWER_LIVE_BUDGET_MS = 6000;
 /** 법령 뷰어가 실시간 원문을 기다리는 최대 시간 */
@@ -146,23 +149,42 @@ export class LawService {
     return keys.map((k) => out.find((c) => c.key === k)).filter((c): c is Citation => !!c);
   }
 
-  /** 판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완 */
-  async searchCases(query: string, limit = 5): Promise<CaseItem[]> {
+  /**
+   * 판례·법령해석례: 사건명 검색 우선, 결과가 부족하면 본문 검색(search=2)으로 보완.
+   * 판례·해석례를 병렬로, 전체 CASE_BUDGET_MS 안에서만 기다린다(본문 검색은 느릴 수 있어 넘으면 생략 —
+   * 요청은 계속되어 캐시에 저장되므로 다시 검색하면 표시).
+   */
+  async searchCases(query: string, limit = 5, budgetMs = CASE_BUDGET_MS): Promise<CaseItem[]> {
     if (!this.oc || !query.trim()) return [];
     const display = String(Math.min(Math.max(limit, 1), 20));
-    const one = async (target: "prec" | "expc", kind: CaseItem["kind"]) => {
-      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display }, this.oc, CASE_TIMEOUT), kind);
+    const deadline = Date.now() + budgetMs;
+    let slowSkipped = false;
+    const one = async (target: "prec" | "expc", kind: CaseItem["kind"]): Promise<CaseItem[]> => {
+      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display }, this.oc, CASE_FAST.timeoutMs, CASE_FAST.retries), kind);
       if (byName.length >= 2) return byName;
-      const byText = parseCaseList(await drfGet("lawSearch.do", { target, query, display, search: "2" }, this.oc, CASE_TIMEOUT), kind);
+      const remaining = deadline - Date.now();
+      if (remaining < 1500) {
+        slowSkipped = true;
+        return byName;
+      }
+      const byText = await withDeadline(
+        drfGet("lawSearch.do", { target, query, display, search: "2" }, this.oc, CASE_TIMEOUT, 1).then((d) => parseCaseList(d, kind)),
+        remaining,
+        () => {
+          slowSkipped = true;
+          return [] as CaseItem[];
+        },
+      );
       return [...byName, ...byText.filter((c) => !byName.some((b) => b.id === c.id))].slice(0, Number(display));
     };
-    try {
-      const [prec, expc] = await Promise.all([one("prec", "판례"), one("expc", "법령해석례")]);
-      return [...prec, ...expc];
-    } catch (e) {
-      this.warnings.push((e as Error).message);
-      return [];
-    }
+    const settle = (p: Promise<CaseItem[]>) =>
+      p.catch((e: Error) => {
+        if (!this.warnings.includes(e.message)) this.warnings.push(e.message);
+        return [] as CaseItem[];
+      });
+    const [prec, expc] = await Promise.all([settle(one("prec", "판례")), settle(one("expc", "법령해석례"))]);
+    if (slowSkipped) this.warnings.push("국가법령정보센터 본문 검색이 지연되어 일부 결과를 생략했습니다. 잠시 후 다시 검색하면 더 많은 판례가 표시됩니다.");
+    return [...prec, ...expc];
   }
 
   /** 판례·법령해석례 상세(판례 보기) — 실시간 연동 시에만 제공(사건 내용을 지어내지 않음) */
