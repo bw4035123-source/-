@@ -46,6 +46,8 @@ def parse_key(key: str):
 
 
 def article_label(no: str) -> str:
+    if not no[:1].isdigit():  # 조문 형식이 아닌 행정규칙 본문 등
+        return no
     main, _, branch = no.partition("의")
     return f"제{main}조" + (f"의{branch}" if branch else "")
 

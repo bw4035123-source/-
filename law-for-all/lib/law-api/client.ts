@@ -1,7 +1,7 @@
 import type { CaseDetail, CaseItem, Citation, LawDoc, LawSummary } from "./types";
 import { MOCK_LAWS, getMockLaw } from "./mock";
-import { drfGet, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, LawApiError } from "./drf";
-import { searchLawNames } from "./search";
+import { drfGet, findAll, txt, type DrfLawListItem, parseAdmrulDoc, parseAdmrulList, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, parseOrdinDoc, parseOrdinList, LawApiError } from "./drf";
+import { bigramOverlap, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
 
@@ -13,6 +13,10 @@ const CASE_FAST = { timeoutMs: 8000, retries: 1 };
 export const ANSWER_LIVE_BUDGET_MS = 6000;
 /** 법령 뷰어가 실시간 원문을 기다리는 최대 시간 */
 export const VIEWER_LIVE_BUDGET_MS = 9000;
+/** 내장 토픽 밖 질문: 전체 법령 검색(법령명 검색 + 본문 조회)을 기다리는 최대 시간 */
+export const LIVE_SEARCH_BUDGET_MS = 15000;
+/** 내장 사본이 없는 법령(전체 법령·행정규칙·자치법규)을 기다리는 최대 시간 */
+export const LIVE_ONLY_BUDGET_MS = 30000;
 /** 시간 예산 안에서 쓰는 빠른 호출 설정(재시도 1회) */
 const FAST = { timeoutMs: 5000, retries: 1 };
 
@@ -33,6 +37,8 @@ function withDeadline<T>(p: Promise<T>, ms: number, onTimeout: () => T): Promise
   });
 }
 
+export type LawListKind = "law" | "admrul" | "ordin";
+
 /**
  * 법령 저장소(Repository) — 실시간(국가법령정보 Open API)과 내장 모의데이터를 하나의 인터페이스로 제공.
  * OC 인증키가 없거나 호출이 실패하면 자동으로 내장 데이터로 대체(Fallback)하고 그 사실을 warnings 에 남긴다.
@@ -50,15 +56,27 @@ export class LawService {
     return { id: l.id, name: l.name, kind: l.kind, ministry: l.ministry, articleCount: l.articles.length, parentId: l.parentId, source: l.source };
   }
 
-  async listLaws(query = ""): Promise<LawSummary[]> {
-    const local = searchLawNames(query).map((l) => this.summarize(l));
+  /**
+   * 법령 목록 검색. kind: law(법률·시행령·시행규칙) | admrul(행정규칙: 훈령·예규·고시) | ordin(자치법규: 조례·규칙)
+   * 실시간 모드에서는 국가법령정보 전체 법령을 검색한다(내장 데이터는 법령 검색에만 함께 표시).
+   */
+  async listLaws(query = "", kind: LawListKind = "law"): Promise<LawSummary[]> {
+    const local = kind === "law" ? searchLawNames(query).map((l) => this.summarize(l)) : [];
     if (!this.oc || !query.trim()) return local;
     try {
-      const data = await drfGet("lawSearch.do", { target: "law", query, display: "20" }, this.oc);
+      if (kind === "admrul") {
+        const list = parseAdmrulList(await drfGet("lawSearch.do", { target: "admrul", query, display: "50" }, this.oc));
+        return list.map<LawSummary>((x) => ({ id: `adm-${x.key}`, name: x.name, kind: "행정규칙", subKind: x.subKind, ministry: x.org, articleCount: 0, source: "live", effectiveDate: x.effective }));
+      }
+      if (kind === "ordin") {
+        const list = parseOrdinList(await drfGet("lawSearch.do", { target: "ordin", query, display: "50" }, this.oc));
+        return list.map<LawSummary>((x) => ({ id: `ord-${x.key}`, name: x.name, kind: "자치법규", subKind: x.subKind, ministry: x.org, articleCount: 0, source: "live", effectiveDate: x.effective }));
+      }
+      const data = await drfGet("lawSearch.do", { target: "law", query, display: "50" }, this.oc);
       const known = new Set(MOCK_LAWS.map((l) => l.name.replace(/\s/g, "")));
       const live = parseLawList(data)
-        .filter((x) => !known.has(x.name.replace(/\s/g, "")))
-        .map<LawSummary>((x) => ({ id: `mst-${x.mst}`, name: x.name, kind: (x.kind as LawSummary["kind"]) || "법률", ministry: x.ministry, articleCount: 0, source: "live" }));
+        .filter((x) => !known.has(x.name.replace(/\s/g, "")) && (!x.status || x.status === "현행"))
+        .map<LawSummary>((x) => ({ id: `mst-${x.mst}`, name: x.name, kind: (x.kind as LawSummary["kind"]) || "법률", ministry: x.ministry, articleCount: 0, source: "live", effectiveDate: x.effective }));
       return [...local, ...live];
     } catch (e) {
       this.warnings.push((e as Error).message);
@@ -66,11 +84,85 @@ export class LawService {
     }
   }
 
+  /**
+   * 내장 토픽에 없는 질문: 국가법령정보 Open API로 관련 법령을 찾아 조문 단위 근거 키를 만든다.
+   * 질문 → 검색어 추출 → 법령명 검색(현행) → 상위 법령 본문 조회 → 검색어가 많이 맞는 조문.
+   */
+  async searchLiveKeys(query: string, budgetMs = LIVE_SEARCH_BUDGET_MS, maxArticles = 4): Promise<string[]> {
+    if (!this.oc) return [];
+    const terms = queryTerms(query);
+    if (!terms.length) return [];
+    const work = (async () => {
+      // 검색어마다 법령명 검색 + 본문 검색(본문 검색 결과 수가 적은 '드문 말'일수록 가중치 큼)
+      const get = (t: string, body: boolean) =>
+        drfGet("lawSearch.do", { target: "law", query: t, display: body ? "100" : "10", ...(body ? { search: "2" } : {}) }, this.oc, FAST.timeoutMs, FAST.retries)
+          .then((d) => ({ list: parseLawList(d), total: Number(txt(findAll(d, "totalCnt")[0] ?? "")) || 0 }))
+          .catch(() => ({ list: [], total: 0 }));
+      // 여러 말을 한꺼번에 넣은 본문 검색은 AND 조건 → 모두 들어 있는 법령(결과가 적어 정확)
+      const combos = terms.length >= 2 ? Array.from(new Set([terms.join(" "), terms.slice(0, 2).join(" ")])) : [];
+      const [res, andRes] = await Promise.all([Promise.all(terms.flatMap((t) => [get(t, false), get(t, true)])), Promise.all(combos.map((c) => get(c, true)))]);
+      // 점수: 드문 말일수록 큰 가중치(IDF). 본문 검색은 결과가 100건을 넘으면 가나다순 앞부분만 오므로
+      // (관련도와 무관) 100건 이하로 '전부' 받은 경우만 근거로 쓴다.
+      const idf = (n: number, base: number, hi: number) => (n > 0 ? Math.min(hi, Math.max(0.3, Math.log2(base / n))) : 0);
+      const complete = (r: { total: number; list: unknown[] }) => r.total > 0 && r.total <= 100;
+      const cand = new Map<string, { mst: string; name: string; score: number }>();
+      const add = (x: DrfLawListItem, v: number) => {
+        if (x.status && x.status !== "현행") return;
+        const c = cand.get(x.mst) ?? { mst: x.mst, name: x.name, score: (x.kind === "법률" ? 0.5 : 0) - x.name.length / 40 + bigramOverlap(x.name, terms) * 3 };
+        c.score += v;
+        cand.set(x.mst, c);
+      };
+      terms.forEach((t, ti) => {
+        const byName = res[ti * 2];
+        const byBody = res[ti * 2 + 1];
+        // 법령명 일치: 이름이 검색어에 가까울수록(짧을수록) 크게 — "주차장" → 주차장법
+        const wName = idf(byName.total || byName.list.length, 300, 6) * 2;
+        byName.list.filter((x) => x.name.includes(t)).forEach((x) => add(x, wName * Math.sqrt(t.length / x.name.replace(/\s/g, "").length)));
+        if (complete(byBody)) byBody.list.forEach((x) => add(x, idf(byBody.total, 3000, 8)));
+      });
+      // 여러 말이 모두 들어 있는 법령(AND 본문 검색)
+      andRes.forEach((r, i) => {
+        if (complete(r)) r.list.forEach((x) => add(x, (i === 0 ? 5 : 3) * (x.kind === "법률" ? 1 : 0.6)));
+      });
+      // 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분을 법령명 유사도로만 비교
+      if (!cand.size) terms.forEach((_, ti) => res[ti * 2 + 1].list.forEach((x) => add(x, 0.1)));
+      // 같은 법령의 여러 판(시행 예정 등)은 하나만
+      const seen = new Set<string>();
+      const top = Array.from(cand.values())
+        .sort((a, b) => b.score - a.score)
+        .filter((c) => (seen.has(c.name) ? false : (seen.add(c.name), true)))
+        .slice(0, 2);
+      const docs = await Promise.all(top.map((c) => this.getLaw(`mst-${c.mst}`)));
+      const scored: { key: string; score: number }[] = [];
+      for (const doc of docs) {
+        if (!doc) continue;
+        for (const a of doc.articles) {
+          const sc = scoreArticleByTerms(a, terms);
+          if (sc > 0) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
+        }
+      }
+      return scored.sort((a, b) => b.score - a.score).slice(0, maxArticles).map((x) => x.key);
+    })();
+    return withDeadline(work, budgetMs, () => {
+      const msg = "국가법령정보센터 검색이 늦어 일부 근거를 표시하지 못했습니다. 잠시 후 다시 검색해 주세요.";
+      if (!this.warnings.includes(msg)) this.warnings.push(msg);
+      return [];
+    });
+  }
+
   /** id: 내장 법령 id 또는 "mst-<법령일련번호>". fast: 짧은 제한시간·재시도 1회(시간 예산 경로용) */
   async getLaw(id: string, fast = false): Promise<LawDoc | null> {
     const mock = getMockLaw(id);
     if (!this.oc) return mock ?? null;
     try {
+      if (id.startsWith("adm-")) {
+        const t = fast ? FAST : { timeoutMs: 20000, retries: undefined };
+        return parseAdmrulDoc(await drfGet("lawService.do", { target: "admrul", ID: id.slice(4) }, this.oc, t.timeoutMs, t.retries), id);
+      }
+      if (id.startsWith("ord-")) {
+        const t = fast ? FAST : { timeoutMs: 20000, retries: undefined };
+        return parseOrdinDoc(await drfGet("lawService.do", { target: "ordin", MST: id.slice(4) }, this.oc, t.timeoutMs, t.retries), id);
+      }
       if (id.startsWith("mst-")) {
         const mst = id.slice(4);
         const data = fast ? await drfGet("lawService.do", { target: "law", MST: mst }, this.oc, FAST.timeoutMs, FAST.retries) : await drfGet("lawService.do", { target: "law", MST: mst }, this.oc);
@@ -104,6 +196,13 @@ export class LawService {
    */
   private getLawWithin(id: string, budgetMs: number): Promise<LawDoc | null> {
     if (!this.oc || !budgetMs) return this.getLaw(id);
+    // 내장 사본이 없는 법령(전체 법령 검색 결과·행정규칙·자치법규)은 대체할 것이 없으므로 더 기다린다
+    if (!getMockLaw(id))
+      return withDeadline(this.getLaw(id), Math.max(budgetMs, LIVE_ONLY_BUDGET_MS), () => {
+        const msg = `국가법령정보센터 응답이 늦어 법령을 불러오지 못했습니다(${Math.round(Math.max(budgetMs, LIVE_ONLY_BUDGET_MS) / 1000)}초 초과). 잠시 후 다시 시도해 주세요.`;
+        if (!this.warnings.includes(msg)) this.warnings.push(msg);
+        return null;
+      });
     return withDeadline(this.getLaw(id, true), budgetMs, () => {
       const mock = getMockLaw(id) ?? null;
       const msg = `국가법령정보센터 응답 지연(${Math.round(budgetMs / 1000)}초 초과) — 공식 원문 스냅샷(${MOCK_DATASET_DATE} 수집)으로 표시했습니다. 잠시 후 다시 검색하면 실시간 원문으로 표시됩니다.`;

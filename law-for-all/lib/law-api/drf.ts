@@ -187,6 +187,113 @@ export function parseLawDoc(data: Json, fallback: { id: string; name: string; ms
   };
 }
 
+// ───────────── 행정규칙(훈령·예규·고시) · 자치법규(조례·규칙)
+export interface DrfRuleListItem {
+  /** 상세 조회 키: 행정규칙일련번호 / 자치법규일련번호(MST) */
+  key: string;
+  name: string;
+  /** 고시·훈령·예규 / 조례·규칙 */
+  subKind: string;
+  /** 소관부처 / 지자체 */
+  org: string;
+  effective: string;
+}
+
+export function parseAdmrulList(data: Json): DrfRuleListItem[] {
+  return findAll(data, "admrul")
+    .map(rec)
+    .map((it) => ({ key: txt(it["행정규칙일련번호"]), name: txt(it["행정규칙명"]), subKind: txt(it["행정규칙종류"]), org: txt(it["소관부처명"]), effective: txt(it["시행일자"]) }))
+    .filter((x) => x.key && x.name);
+}
+
+export function parseOrdinList(data: Json): DrfRuleListItem[] {
+  return findAll(data, "law")
+    .map(rec)
+    .map((it) => ({ key: txt(it["자치법규일련번호"]), name: txt(it["자치법규명"]), subKind: txt(it["자치법규종류"]), org: txt(it["지자체기관명"]), effective: txt(it["시행일자"]) }))
+    .filter((x) => x.key && x.name);
+}
+
+/** 붙어서 오는 항·호 번호 앞에 줄바꿈을 넣고 HTML 흔적 제거 */
+export function tidyRuleText(t: string): string {
+  return cleanCaseText(t.replace(/<img[^>]*>(<\/img>)?/gi, ""))
+    .replace(/\s*([①-⑳])/g, "\n$1")
+    .replace(/(?:\u3000|[ \t]{2,})+(\d{1,2}\.\s*)(?=[“"「‘가-힣])/g, "\n$1")
+    .replace(/([.다])\s*(\d{1,2}\.\s*)(?=[“"「‘가-힣])/g, "$1\n  $2")
+    .replace(/([.다])\s*([가-하]\.\s*)(?=[“"「‘가-힣])/g, "$1\n    $2")
+    .replace(/^\n+/, "")
+    .trim();
+}
+
+/** "제3조(목적) 본문…" 형태 문자열들을 조문으로. 조문 형식이 아니면 '본문' 하나로 */
+export function splitRuleArticles(texts: string[]): LawArticle[] {
+  const joined = texts.map((t) => t.trim()).filter(Boolean).join("\n");
+  const parts = joined.split(/\n?(?=제\s*\d+\s*조(?:\s*의\s*\d+)?\s*[(（])/).filter((x) => x.trim());
+  const arts: LawArticle[] = [];
+  for (const part of parts) {
+    const m = part.match(/^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*[(（]([^)）]*)[)）]\s*([\s\S]*)$/);
+    if (m) arts.push({ no: m[2] ? `${m[1]}의${m[2]}` : m[1], title: m[3].trim(), text: tidyRuleText(m[4]) });
+    else if (!arts.length) arts.push({ no: "본문", title: "", text: tidyRuleText(part) });
+    else arts[arts.length - 1].text += "\n" + tidyRuleText(part);
+  }
+  return arts;
+}
+
+const reasonText = (data: Json) =>
+  findAll(data, "제개정이유내용")
+    .map((v) => (Array.isArray(v) ? v.flat(3).map((x) => txt(x as Json)).join("\n") : txt(v)))
+    .join("\n")
+    .trim();
+
+export function parseAdmrulDoc(data: Json, id: string): LawDoc {
+  const b = rec(findAll(data, "행정규칙기본정보")[0]);
+  const body = findAll(data, "조문내용").flatMap((v) => (Array.isArray(v) ? v.flat(3).map((x) => txt(x as Json)) : [txt(v)]));
+  return {
+    id,
+    name: txt(b["행정규칙명"]),
+    kind: "행정규칙",
+    ministry: [txt(b["소관부처명"]), txt(b["행정규칙종류"])].filter(Boolean).join(" · "),
+    effectiveDate: txt(b["시행일자"]) || undefined,
+    revisionReason: reasonText(data) || undefined,
+    articles: splitRuleArticles(body),
+    source: "live",
+    mst: txt(b["행정규칙일련번호"]) || id.slice(4),
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+const ORDIN_KIND: Record<string, string> = { C0001: "조례", C0002: "규칙", C0003: "훈령", C0004: "예규" };
+
+export function parseOrdinDoc(data: Json, id: string): LawDoc {
+  const b = rec(findAll(data, "자치법규기본정보")[0]);
+  const arts: LawArticle[] = [];
+  for (const u of findAll(data, "조").map(rec)) {
+    if (txt(u["조문여부"]) && txt(u["조문여부"]) !== "Y") continue;
+    const raw = asList(u["조문번호"]).map(txt)[0] ?? "";
+    const main = Number(raw.slice(0, 4));
+    const branch = Number(raw.slice(4, 6));
+    const content = txt(u["조내용"]);
+    if (!main && !content) continue;
+    arts.push({
+      no: main ? (branch ? `${main}의${branch}` : String(main)) : String(arts.length + 1),
+      title: txt(u["조제목"]),
+      text: tidyRuleText(content.replace(/^제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:[(（][^)）]*[)）])?\s*/, "")),
+    });
+  }
+  const kind = txt(b["자치법규종류"]);
+  return {
+    id,
+    name: txt(b["자치법규명"]),
+    kind: "자치법규",
+    ministry: [txt(b["지자체기관명"]), ORDIN_KIND[kind] ?? kind].filter(Boolean).join(" · "),
+    effectiveDate: txt(b["시행일자"]) || undefined,
+    revisionReason: reasonText(data) || undefined,
+    articles: arts,
+    source: "live",
+    mst: txt(b["자치법규일련번호"]) || id.slice(4),
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 const caseUrl = (kind: CaseItem["kind"], caseNo: string) =>
   // 공개 주소 형식(인증키를 브라우저로 노출하지 않음)
   caseNo ? `https://www.law.go.kr/${kind === "판례" ? "판례" : "법령해석례"}/(${encodeURIComponent(caseNo)})` : "https://www.law.go.kr/";

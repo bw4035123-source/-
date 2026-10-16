@@ -168,7 +168,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"providers": list_providers(config.llm), "lawApi": "live" if config.law_access else "mock"})
         if method == "GET" and path == "/api/laws":
             svc = LawService(config.law_access)
-            laws = svc.list_laws(q)
+            kind = (qs.get("kind") or ["law"])[0]
+            laws = svc.list_laws(q, kind if kind in ("law", "admrul", "ordin") else "law")
             return self._json(200, {"laws": laws, "mode": svc.mode, "warnings": svc.warnings})
         m = re.fullmatch(r"/api/laws/([^/]+)", path)
         if method == "GET" and m:
@@ -178,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
             svc = LawService(config.law_access)
             h = svc.get_hierarchy(law_id)
             if not h:
-                raise ApiError(404, "법령을 찾을 수 없습니다.")
+                raise ApiError(404, svc.warnings[0] if svc.warnings else "법령을 찾을 수 없습니다.")
             return self._json(200, {**h, "warnings": svc.warnings})
         if method == "GET" and path == "/api/cases":
             svc = LawService(config.law_access)

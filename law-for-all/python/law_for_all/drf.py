@@ -238,3 +238,99 @@ def parse_case_detail(data, kind: str, case_id: str) -> dict | None:
         "sections": [x for x in sections if x["text"]], "url": _case_url(kind, case_no),
     }
     return d
+
+
+# ───────────── 행정규칙(훈령·예규·고시) · 자치법규(조례·규칙)
+def parse_admrul_list(data) -> list[dict]:
+    out = []
+    for it in map(_rec, find_all(data, "admrul")):
+        x = {"key": txt(it.get("행정규칙일련번호")), "name": txt(it.get("행정규칙명")), "subKind": txt(it.get("행정규칙종류")), "org": txt(it.get("소관부처명")), "effective": txt(it.get("시행일자"))}
+        if x["key"] and x["name"]:
+            out.append(x)
+    return out
+
+
+def parse_ordin_list(data) -> list[dict]:
+    out = []
+    for it in map(_rec, find_all(data, "law")):
+        x = {"key": txt(it.get("자치법규일련번호")), "name": txt(it.get("자치법규명")), "subKind": txt(it.get("자치법규종류")), "org": txt(it.get("지자체기관명")), "effective": txt(it.get("시행일자"))}
+        if x["key"] and x["name"]:
+            out.append(x)
+    return out
+
+
+def tidy_rule_text(t: str) -> str:
+    """붙어서 오는 항·호 번호 앞에 줄바꿈을 넣고 HTML 흔적 제거"""
+    t = clean_case_text(re.sub(r"<img[^>]*>(</img>)?", "", t, flags=re.I))
+    t = re.sub(r"\s*([①-⑳])", r"\n\1", t)
+    t = re.sub(r"(?:\u3000|[ \t]{2,})+(\d{1,2}\.\s*)(?=[“\"「‘가-힣])", r"\n\1", t)
+    t = re.sub(r"([.다])\s*(\d{1,2}\.\s*)(?=[“\"「‘가-힣])", r"\1\n  \2", t)
+    t = re.sub(r"([.다])\s*([가-하]\.\s*)(?=[“\"「‘가-힣])", r"\1\n    \2", t)
+    return t.lstrip("\n").strip()
+
+
+_RULE_HEAD = re.compile(r"^제\s*(\d+)\s*조(?:\s*의\s*(\d+))?\s*[(（]([^)）]*)[)）]\s*([\s\S]*)$")
+
+
+def split_rule_articles(texts: list[str]) -> list[dict]:
+    joined = "\n".join(t.strip() for t in texts if t and t.strip())
+    parts = [x for x in re.split(r"\n?(?=제\s*\d+\s*조(?:\s*의\s*\d+)?\s*[(（])", joined) if x.strip()]
+    arts: list[dict] = []
+    for part in parts:
+        m = _RULE_HEAD.match(part)
+        if m:
+            arts.append({"no": f"{m[1]}의{m[2]}" if m[2] else m[1], "title": m[3].strip(), "text": tidy_rule_text(m[4])})
+        elif not arts:
+            arts.append({"no": "본문", "title": "", "text": tidy_rule_text(part)})
+        else:
+            arts[-1]["text"] += "\n" + tidy_rule_text(part)
+    return arts
+
+
+def _flat(v) -> list:
+    if isinstance(v, list):
+        return [y for x in v for y in _flat(x)]
+    return [v]
+
+
+def _reason_text(data) -> str:
+    return "\n".join("\n".join(txt(x) for x in _flat(v)) for v in find_all(data, "제개정이유내용")).strip()
+
+
+def parse_admrul_doc(data, law_id: str) -> dict:
+    b = _rec((find_all(data, "행정규칙기본정보") or [None])[0])
+    body = [txt(x) for v in find_all(data, "조문내용") for x in _flat(v)]
+    return {
+        "id": law_id, "name": txt(b.get("행정규칙명")), "kind": "행정규칙",
+        "ministry": " · ".join(x for x in (txt(b.get("소관부처명")), txt(b.get("행정규칙종류"))) if x),
+        "effectiveDate": txt(b.get("시행일자")) or None, "revisionReason": _reason_text(data) or None,
+        "articles": split_rule_articles(body), "source": "live", "mst": txt(b.get("행정규칙일련번호")) or law_id[4:],
+        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+_ORDIN_KIND = {"C0001": "조례", "C0002": "규칙", "C0003": "훈령", "C0004": "예규"}
+
+
+def parse_ordin_doc(data, law_id: str) -> dict:
+    b = _rec((find_all(data, "자치법규기본정보") or [None])[0])
+    arts: list[dict] = []
+    for u in map(_rec, find_all(data, "조")):
+        if txt(u.get("조문여부")) and txt(u.get("조문여부")) != "Y":
+            continue
+        raw = ([txt(x) for x in _as_list(u.get("조문번호"))] or [""])[0]
+        main = int(raw[:4]) if raw[:4].isdigit() else 0
+        branch = int(raw[4:6]) if raw[4:6].isdigit() else 0
+        content = txt(u.get("조내용"))
+        if not main and not content:
+            continue
+        body = re.sub(r"^제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:[(（][^)）]*[)）])?\s*", "", content)
+        arts.append({"no": (f"{main}의{branch}" if branch else str(main)) if main else str(len(arts) + 1), "title": txt(u.get("조제목")), "text": tidy_rule_text(body)})
+    kind = txt(b.get("자치법규종류"))
+    return {
+        "id": law_id, "name": txt(b.get("자치법규명")), "kind": "자치법규",
+        "ministry": " · ".join(x for x in (txt(b.get("지자체기관명")), _ORDIN_KIND.get(kind, kind)) if x),
+        "effectiveDate": txt(b.get("시행일자")) or None, "revisionReason": _reason_text(data) or None,
+        "articles": arts, "source": "live", "mst": txt(b.get("자치법규일련번호")) or law_id[4:],
+        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+    }

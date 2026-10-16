@@ -1,11 +1,11 @@
 /**
- * 법령 API 중계 서버(proxy/main.py, Render 배포) 설정.
- * 브라우저·앱 서버가 국가법령정보센터를 직접 부르면 미등록 IP로 차단되므로,
- * 기본값으로 모든 실시간 조회를 아래 중계 서버의 /api/raw 로 보낸다(인증키는 중계 서버에만 보관).
- *  - LAW_PROXY_URL=off  → 중계 서버를 쓰지 않고 LAW_API_OC 로 law.go.kr 직접 호출
- *  - LAW_PROXY_TOKEN    → 중계 서버에 PROXY_TOKEN 을 설정했다면 같은 값
+ * 법령 API 중계 서버(proxy/main.py) 설정 — 선택 사항.
+ * 기본은 중계 서버 없이 앱 서버가 LAW_API_OC(법제처 Open API 인증키)로 www.law.go.kr 을 직접 호출한다
+ * (인증키에 등록한 IP의 PC·서버에서 실행).
+ *  - LAW_PROXY_URL=https://…  → 그 중계 서버의 /api/raw 로 대신 호출(인증키는 중계 서버에 보관)
+ *  - LAW_PROXY_TOKEN          → 중계 서버에 PROXY_TOKEN 을 설정했다면 같은 값
  */
-export const DEFAULT_LAW_PROXY_URL = "https://law-proxy-api.onrender.com";
+export const DEFAULT_LAW_PROXY_URL = "";
 
 const OFF = new Set(["off", "none", "direct", "false", "0"]);
 

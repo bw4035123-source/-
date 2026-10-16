@@ -1,6 +1,14 @@
 import "server-only";
 import { serverConfig } from "../config";
 import { LawService } from "../law-api/client";
+import { queryTerms } from "../law-api/search";
+import { getMockLaw } from "../law-api/mock";
+import { parseArticleKey } from "../law-api/util";
+
+const getMockArticle = (key: string) => {
+  const p = parseArticleKey(key);
+  return p ? getMockLaw(p.lawId)?.articles.find((a) => a.no === p.articleNo) : undefined;
+};
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
 import { buildSystemPrompt, buildUserPrompt } from "./prompts";
@@ -30,7 +38,13 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
   const notices: string[] = [];
   const svc = new LawService(serverConfig.lawAccess);
 
-  const { topic, keys } = retrieve(query);
+  const { topic, keys: localKeys } = retrieve(query);
+  // 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
+  const liveKeys = !topic && svc.mode === "live" ? await svc.searchLiveKeys(query) : [];
+  // 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있는 것만 남긴다
+  const terms = queryTerms(query);
+  const local = !topic && svc.mode === "live" ? localKeys.filter((k) => terms.filter((t) => (getMockArticle(k)?.title ?? "").includes(t)).length >= 2) : localKeys;
+  const keys = [...liveKeys, ...local.filter((k) => !liveKeys.includes(k))];
   const context = await svc.getCitations(keys);
 
   const { provider, notice } = resolveProvider(serverConfig.llm, requested);
@@ -103,8 +117,11 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
     citations,
     contacts: topic?.contacts ?? DEFAULT_CONTACTS,
     // 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정)
-    caseQuery: topic?.caseQuery ?? null,
-    relatedLaws: relatedLawsOf(citations.map((c) => c.key)),
+    caseQuery: topic?.caseQuery ?? (liveKeys.length ? terms[0] ?? null : null),
+    relatedLaws: [
+      ...relatedLawsOf(citations.map((c) => c.key)),
+      ...Array.from(new Map(citations.filter((c) => liveKeys.includes(c.key)).map((c) => [c.lawId, { id: c.lawId, name: c.lawName }])).values()),
+    ],
     guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",
     notices: Array.from(new Set(notices)),

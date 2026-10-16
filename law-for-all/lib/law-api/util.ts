@@ -13,6 +13,7 @@ export const articleAnchor = (no: string) => `jo-${no.replace(/의/g, "-")}`;
 
 /** "3의2" → "제3조의2" */
 export const articleLabel = (no: string) => {
+  if (!/^\d/.test(no)) return no; // 조문 형식이 아닌 행정규칙 본문 등
   const [main, branch] = no.split("의");
   return `제${main}조${branch ? `의${branch}` : ""}`;
 };

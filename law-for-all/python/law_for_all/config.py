@@ -26,12 +26,12 @@ def env(k: str, d: str = "") -> str:
     return (os.environ.get(k) or d).strip()
 
 
-DEFAULT_LAW_PROXY_URL = "https://law-proxy-api.onrender.com"
+DEFAULT_LAW_PROXY_URL = ""  # 기본: 중계 서버 없이 LAW_API_OC 로 law.go.kr 직접 호출
 _OFF = {"off", "none", "direct", "false", "0"}
 
 
 def law_proxy() -> dict | None:
-    """법령 API 중계 서버(기본: Render). LAW_PROXY_URL=off 면 None → LAW_API_OC 로 law.go.kr 직접 호출"""
+    """법령 API 중계 서버(선택). LAW_PROXY_URL 이 비어 있거나 off 면 None → LAW_API_OC 로 law.go.kr 직접 호출"""
     raw = os.environ.get("LAW_PROXY_URL", DEFAULT_LAW_PROXY_URL).strip()
     if not raw or raw.lower() in _OFF:
         return None

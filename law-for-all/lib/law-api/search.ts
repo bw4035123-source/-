@@ -97,3 +97,46 @@ export function searchLawNames(query: string): LawDoc[] {
     .sort((a, b) => b.s - a.s)
     .map((x) => x.law);
 }
+
+// ───────────── 실시간(국가법령정보 Open API) 검색용 질의어 추출
+const STOP = new Set(["필요", "가능", "문제", "상황", "사람", "정도", "이유", "때문", "되나", "하나", "어디", "누가", "뭐가", "무슨", "있나", "없나", "어떻게", "어떤", "무엇", "뭔가요", "궁금", "궁금해요", "알려", "알려주세요", "있나요", "되나요", "하나요", "인가요", "경우", "관련", "대해", "대한", "기준", "방법", "절차", "내용", "얼마", "언제", "까지", "그리고", "하는", "하면", "해야", "있는", "없는", "됩니다", "합니다", "주세요", "싶어요", "문의"]);
+const SUFFIX = /(으로부터|에서는|에게서|으로는|이라도|에서|에게|으로|이나|이랑|까지|부터|보다|처럼|마다|은|는|이|가|을|를|에|의|로|와|과|도|만|요|나|랑)$/;
+
+/** 생활어 → 법령 용어(법령명·본문 검색이 잘 되는 말) */
+const SYNONYM: Record<string, string> = {"술": "주류", "팔": "판매", "파는": "판매", "팔아": "판매", "강아지": "동물", "반려견": "동물", "고양이": "동물", "월급": "임금", "집주인": "임대인", "세입자": "임차인", "알바": "근로자", "담배": "담배", "차": "자동차"};
+const VERB = /(받나요|받으면|받는|받나|받아|받|했는데요|했는데|했어요|되나요|하나요|됩니다|합니다|하려면|되려면|으려면|려면|하면|되면|되나|하나|되는|하는|되어|해서|해요|돼요|되|하|해|으면|면)$/;
+/** 끝 글자가 조사처럼 보여도 명사의 일부인 말 */
+const KEEP = /(허가|평가|국가|대가|단가|원가|시가|휴가|증가|추가|참가|전문가|주가|지가|차이|나이|아이|거리|자리|자료|도로|경로|진로|근로|노무|임대료|과태료|수수료|보험료)$/;
+
+/** 질문 → 법령명·조문 검색어(2글자 이상 명사 위주, 조사 제거, 중복 제거, 긴 말 우선) */
+export function queryTerms(query: string, max = 4): string[] {
+  const out: string[] = [];
+  for (const raw of query.split(/[^\p{L}\p{N}]+/u)) {
+    let w = raw.trim();
+    for (let i = 0; i < 2 && w.length > 2 && SUFFIX.test(w) && !KEEP.test(w); i++) w = w.replace(SUFFIX, "");
+    if (w.length >= 2 && VERB.test(w) && !KEEP.test(w)) w = w.replace(VERB, "");
+    if (SYNONYM[raw] || SYNONYM[w]) {
+      const syn = SYNONYM[raw] ?? SYNONYM[w];
+      if (!out.includes(syn)) out.push(syn);
+      if (w.length < 2) continue;
+    }
+    if (w.length < 2 || STOP.has(w) || /^\d+$/.test(w)) continue;
+    if (!out.includes(w)) out.push(w);
+  }
+  return out.sort((a, b) => b.length - a.length).slice(0, max);
+}
+
+/** 법령명과 검색어들의 2-gram 겹침 비율(0~1) */
+export function bigramOverlap(name: string, terms: string[]): number {
+  return overlap(bigrams(terms.join("")), bigrams(name));
+}
+
+/** 조문 관련도: 제목 일치 3점, 본문 일치 1점(검색어별) */
+export function scoreArticleByTerms(article: Pick<LawArticle, "title" | "text">, terms: string[]): number {
+  const title = normalize(article.title);
+  const text = normalize(article.text);
+  return terms.reduce((n, t) => {
+    const k = normalize(t);
+    return n + (title.includes(k) ? 3 : 0) + (text.includes(k) ? 1 : 0);
+  }, 0);
+}

@@ -61,6 +61,9 @@ export interface LawSummary {
   articleCount: number;
   parentId?: string;
   source: DataSource;
+  /** 행정규칙·자치법규 세부 종류(고시·훈령·조례·규칙 등) */
+  subKind?: string;
+  effectiveDate?: string;
 }
 
 /** 답변에 인용되는 근거 조문 카드 */

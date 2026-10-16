@@ -250,7 +250,7 @@ class ProxyRouteTest(unittest.TestCase):
         from law_for_all import config as cfg, drf
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAW_PROXY_URL", None)
-            self.assertEqual(cfg.law_proxy()["url"], "https://law-proxy-api.onrender.com")
+            self.assertIsNone(cfg.law_proxy())  # 기본: 법제처 API 직접 호출
         seen = []
 
         class R(io.BytesIO):
@@ -336,3 +336,48 @@ class CaseBudgetTest(unittest.TestCase):
             took = _t.time() - t0
         self.assertLess(took, 2.0)
         self.assertTrue(any("본문 검색이 지연" in w for w in svc.warnings))
+
+
+class LiveSearchTest(unittest.TestCase):
+    """토픽 밖 질문 → 법제처 Open API 전체 법령 검색 순위(실제 응답 고정 데이터로 재현, Next.js 판과 같은 결과)"""
+
+    def test_ranking(self):
+        import urllib.parse
+        from law_for_all import service
+        fx = json.loads((Path(__file__).resolve().parents[2] / "tests/fixtures/live-search.json").read_text(encoding="utf-8"))
+
+        def fake(path, params, oc, timeout=20, retries=None):
+            k = path + "?" + urllib.parse.urlencode(sorted(params.items()))
+            if k not in fx:
+                raise service.LawApiError("no fixture " + k)
+            return fx[k]
+
+        cases = [("반려견 목줄 안하면 과태료 있나요", "동물보호법", "16"), ("청소년에게 술 팔면 처벌받나요", "청소년 보호법", "28"),
+                 ("건축허가 받으려면 뭐가 필요해요", "건축법", "11"), ("학교폭력 신고하면 어떻게 처리되나요", "학교폭력예방 및 대책에 관한 법률", "20"),
+                 ("주차장 설치 기준은 어떻게 되나요?", "주차장법", "12")]
+        with mock.patch.object(service, "drf_get", fake):
+            for q, law, no in cases:
+                svc = service.LawService("test")
+                keys = svc.search_live_keys(q, budget=60)
+                cites = svc.get_citations(keys, 0)
+                self.assertIn(f"{law}:{no}", [f"{c['lawName']}:{c['articleNo']}" for c in cites], q)
+
+
+class RuleParserTest(unittest.TestCase):
+    """행정규칙·자치법규 파서 — Next.js 판(tests/rules.test.ts)과 같은 실제 응답·같은 결과"""
+
+    def test_parsers(self):
+        from law_for_all.drf import parse_admrul_doc, parse_ordin_doc
+        from law_for_all.data import article_label
+        fx = json.loads((Path(__file__).resolve().parents[2] / "tests/fixtures/rules.json").read_text(encoding="utf-8"))
+        o = parse_ordin_doc(fx["ordin"], "ord-2118167")
+        self.assertEqual([o["name"], o["kind"], o["ministry"]], ["강화군 공동주택 층간소음 방지 조례", "자치법규", "인천광역시 강화군 · 조례"])
+        self.assertEqual([(a["no"], a["title"]) for a in o["articles"]], [("1", "목적"), ("2", "정의"), ("3", "군수의 책무")])
+        self.assertRegex(o["articles"][1]["text"].split("\n")[1], r"^ {2}1\. “공동주택”이란")
+        a = parse_admrul_doc(fx["admrul"], "adm-2100000265232")
+        self.assertEqual([a["name"], a["ministry"], a["articles"][0]["no"], article_label("본문")], ["층간소음 전문기관 지정 고시", "기후에너지환경부 · 고시", "본문", "본문"])
+        self.assertNotIn("<img", a["articles"][0]["text"])
+        self.assertRegex(a["articles"][0]["text"].split("\n")[1], r"^2\. 재검토기한")
+        b = parse_admrul_doc(fx["admrulArticles"], "adm-99")
+        self.assertEqual([x["no"] for x in b["articles"]], ["1", "2", "2의2"])
+        self.assertEqual(b["articles"][1]["text"], "① 이 지침은 공무원에게 적용한다.\n② 다만, 다음 각 호는 제외한다.\n  1. 계약직2. 위촉직")

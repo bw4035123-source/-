@@ -45,9 +45,8 @@
 
 | 변수 | 설명 |
 |---|---|
-| `LAW_PROXY_URL` | 법령 API 중계 서버(기본 `https://law-proxy-api.onrender.com`) → 실시간 원문·판례 조회. `off`면 직접 호출 |
-| `LAW_PROXY_TOKEN` | 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 |
-| `LAW_API_OC` | `LAW_PROXY_URL=off`일 때만 — 국가법령정보 Open API 인증키(이 PC IP 등록 필요) |
+| `LAW_API_OC` | 법제처 국가법령정보 Open API 인증키(이 PC 공인 IP 등록) → 법령·행정규칙·자치법규·판례 전체 실시간 조회 |
+| `LAW_PROXY_URL`, `LAW_PROXY_TOKEN` | (선택) 법령 API 중계 서버를 쓸 때만 — 비우면 인증키로 직접 호출 |
 | `LLM_PROVIDER` | 기본 AI: `mock`(기본) · `openai` · `anthropic` · `ollama` |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | OpenAI 또는 호환 서버(Upstage Solar, vLLM 등) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Anthropic Claude |
@@ -73,4 +72,4 @@ tests/               단위·통합 테스트 + Next.js 판과의 결과 동등�
 
 테스트: `python -m unittest discover -s tests -t .`
 
-※ 법률 정보 제공 목적이며 법률 자문이 아닙니다. 내장 데이터는 주요 조문 발췌로, 실제 업무에는 법령 API 중계 서버를 통한 현행 원문을 사용하세요.
+※ 법률 정보 제공 목적이며 법률 자문이 아닙니다. 내장 데이터는 주요 조문 발췌로, 실제 업무에는 `LAW_API_OC`를 설정해 현행 원문을 사용하세요.

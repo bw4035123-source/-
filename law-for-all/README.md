@@ -78,6 +78,12 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 - 검증된 답변·근거 조문 원문·관련 판례만 공문서 서식(가. 나. / 1) 2) / 붙임 / 끝.)에 배치, 보고서체·회신문체 자동 변환
 - 부서·담당자·연락처 입력(브라우저에만 저장), 편집 후 복사 · Word(.doc, 한글 호환) 저장 · 인쇄 · 4종 한 파일 저장
 
+### 법제처 Open API 전체 법령 연동 (`LAW_API_OC`)
+- **법령 둘러보기**(`/laws`): **법령**(법률·대통령령·총리령·부령) · **행정규칙**(훈령·예규·고시) · **자치법규**(조례·규칙) 탭에서 국가법령정보 전체를 실시간 검색 → 원문 전문 뷰어
+- **토픽 밖 질문도 전체 법령에서 근거 검색**: 질문 → 검색어 추출(조사·어미 제거, 생활어→법령 용어) → 법령명 검색 + 본문 검색(드문 말 가중치, 여러 말 AND 검색) → 상위 법령 본문 조회 → 질문과 맞는 조문을 인용 카드로
+  - 예: "반려견 목줄 안 하면 과태료?" → 「동물보호법」 제16조·제101조, "청소년에게 술 팔면?" → 「청소년 보호법」 제28조, "건축허가 받으려면?" → 「건축법」 제11조
+- 인증키가 없거나 호출이 실패하면 내장 핵심 법령 23종(국가법령정보센터 원문 스냅샷)으로 자동 대체하고 화면에 안내
+
 ### 사규·내규 교차 검증 (`/compliance`) *(공직자·공기업 모드 전용)*
 - 기관 유형(공기업·준정부기관 / 지방공기업 / 지방자치단체 / 기타)을 고르고 사규·내규 **파일을 끌어다 놓으면**(한글 HWP·HWPX, PDF, Word DOCX, TXT) **조문 단위로 상위법령과 대조** — 직접 붙여넣기도 가능
   - 문서 텍스트 추출은 **브라우저 안에서만** 처리(파일을 서버로 보내지 않음). 스캔 이미지 PDF·배포용(열람 제한)·암호 문서는 안내 메시지 표시
@@ -105,7 +111,7 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 - 항목을 누르면 **판례 뷰어**: 판시사항 · 판결요지 · 참조조문 · 참조판례 · 판결 전문(법령해석례는 질의요지 · 회답 · 이유), 국민 모드에는 각 항목의 쉬운 설명
 - **인용 표기 복사**(예: `대법원 2026. 1. 29. 선고 2023두54914 판결`), 국가법령정보센터 원문 링크
 - 판례만 따로 찾는 **판례 보기** 메뉴(사건명 검색 → 부족하면 본문 검색으로 보완)
-- 법령 API 중계 서버(기본 `https://law-proxy-api.onrender.com`)를 통해 실시간 제공 — 확인되지 않은 사건번호·판결 내용을 만들어 보여 주지 않음
+- 법제처 국가법령정보 Open API(`LAW_API_OC`)로 실시간 제공 — 확인되지 않은 사건번호·판결 내용을 만들어 보여 주지 않음
 
 ### 공통
 - 근거 조문 카드 클릭 → **원문 전문 슬라이드 오버 뷰어** + 위임 관계로 연결된 상·하위법령 조문
@@ -174,9 +180,9 @@ law-for-all/
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `LAW_PROXY_URL` | 법령 API 중계 서버 주소. 실시간 법령·판례 조회는 모두 여기를 거침(`off` → 직접 호출) | `https://law-proxy-api.onrender.com` |
-| `LAW_PROXY_TOKEN` | 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 | (비움) |
-| `LAW_API_OC` | `LAW_PROXY_URL=off`일 때만 사용 — 국가법령정보 Open API 인증키(OC), 이 PC IP 등록 필요 | (비움) |
+| `LAW_API_OC` | 법제처 국가법령정보 Open API 인증키(OC). [open.law.go.kr](https://open.law.go.kr)에서 신청하고 실행하는 PC·서버의 공인 IP 등록. 넣으면 **법령·행정규칙·자치법규·판례 전체 실시간 조회** | (비움 → 내장 핵심 법령 23종) |
+| `LAW_PROXY_URL` | (선택) 법령 API 중계 서버 주소 — 비우면 위 인증키로 www.law.go.kr 직접 호출 | (비움) |
+| `LAW_PROXY_TOKEN` | (선택) 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 | (비움) |
 | `LLM_PROVIDER` | 기본 LLM: `mock` · `openai` · `anthropic` · `ollama` | `mock` |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | OpenAI 또는 OpenAI 호환 서버(Upstage Solar, vLLM, LM Studio 등) | `gpt-4o-mini`, `https://api.openai.com/v1` |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic Claude | `claude-sonnet-5-5` |
@@ -218,8 +224,8 @@ npm run build      # 프로덕션 빌드
 
 ## 7. 유의사항
 
-본 서비스는 **법률 정보 제공** 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 내장 시연 데이터는 주요 조문을 발췌·요약한 것으로, 실제 업무에는 법령 API 중계 서버(`LAW_PROXY_URL`)를 통해 국가법령정보센터 현행 원문을 사용하십시오.
+본 서비스는 **법률 정보 제공** 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 내장 시연 데이터는 주요 조문을 발췌·요약한 것으로, 실제 업무에는 `LAW_API_OC`를 설정해 법제처 국가법령정보 Open API의 현행 원문을 사용하십시오.
 
 ## 법령 API 중계 서버(FastAPI)
 
-브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 운영 주소는 **https://law-proxy-api.onrender.com** (Render)이며, Next.js·Python 두 실행판 모두 기본으로 이 주소를 거쳐 조회합니다(`LAW_PROXY_URL`로 변경, `off`면 직접 호출). 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.
+브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 기본 구성에서는 쓰지 않으며(앱이 `LAW_API_OC`로 법제처 API를 직접 호출), 인증키를 앱과 다른 서버에 두고 싶을 때 `LAW_PROXY_URL`로 지정합니다. 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.

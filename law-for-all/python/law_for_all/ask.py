@@ -5,12 +5,12 @@ import time
 from datetime import datetime, timezone
 
 from .config import config
-from .data import LAWS, article_key
+from .data import LAWS, article_key, get_law, parse_key
 from .guard import find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
 from .llm import resolve_provider
 from .prompts import system_prompt, user_prompt
 from .rule_engine import build_rule_answer
-from .search import match_topics, search_articles
+from .search import match_topics, query_terms, search_articles
 from .service import LawService
 
 DEFAULT_CONTACTS = [
@@ -52,11 +52,24 @@ def related_laws_of(keys: list[str]) -> list[dict]:
     return [{"id": i, "name": by[i]["name"]} for i in ids if i in by]
 
 
+def _mock_article(key: str) -> dict | None:
+    p = parse_key(key)
+    law = get_law(p[0]) if p else None
+    return next((a for a in law["articles"] if a["no"] == p[1]), None) if law else None
+
+
 def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     started = time.time()
     notices: list[str] = []
     svc = LawService(config.law_access)
-    topic, keys = retrieve(query)
+    topic, local_keys = retrieve(query)
+    # 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
+    live_keys = svc.search_live_keys(query) if not topic and svc.mode == "live" else []
+    # 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있는 것만 남긴다
+    terms = query_terms(query)
+    if not topic and svc.mode == "live":
+        local_keys = [k for k in local_keys if sum(1 for t in terms if t in (_mock_article(k) or {}).get("title", "")) >= 2]
+    keys = live_keys + [k for k in local_keys if k not in live_keys]
     context = svc.get_citations(keys)
     allowed = {c["key"] for c in context}
 
@@ -105,8 +118,8 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         "provider": used, "summary": out["summary"],
         "citations": citations, "contacts": topic["contacts"] if topic else DEFAULT_CONTACTS,
         # 판례 검색어: 화면이 /api/cases 로 따로 불러옴(답변 속도 보호)
-        "caseQuery": topic.get("caseQuery") if topic else None,
-        "relatedLaws": related_laws_of([c["key"] for c in citations]),
+        "caseQuery": topic.get("caseQuery") if topic else ((terms or [None])[0] if live_keys else None),
+        "relatedLaws": related_laws_of([c["key"] for c in citations]) + list({c["lawId"]: {"id": c["lawId"], "name": c["lawName"]} for c in citations if c["key"] in live_keys}.values()),
         "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback} if fallback else {})},
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",
         "notices": list(dict.fromkeys(notices)),

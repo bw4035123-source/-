@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import concurrent.futures as cf
+import math
 import time
 
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
-from .drf import LawApiError, drf_get, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list
-from .search import search_law_names
+from .drf import LawApiError, drf_get, find_all, txt, parse_admrul_doc, parse_admrul_list, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list, parse_ordin_doc, parse_ordin_list
+from .search import bigram_overlap, query_terms, score_article_by_terms, search_law_names
 
 CASE_TIMEOUT = 25
 # 판례 검색 전체 대기 한도(초)
@@ -15,6 +16,10 @@ CASE_BUDGET = 12.0
 ANSWER_LIVE_BUDGET = 6.0
 # 법령 뷰어가 실시간 원문을 기다리는 최대 시간
 VIEWER_LIVE_BUDGET = 9.0
+# 내장 토픽 밖 질문: 전체 법령 검색(법령명 검색 + 본문 조회)을 기다리는 최대 시간
+LIVE_SEARCH_BUDGET = 15.0
+# 내장 사본이 없는 법령(전체 법령·행정규칙·자치법규)을 기다리는 최대 시간
+LIVE_ONLY_BUDGET = 30.0
 FAST = {"timeout": 5, "retries": 1}
 # 기한을 넘긴 요청도 백그라운드에서 끝까지 진행 → 캐시에 저장되어 다음 요청부터 실시간
 _POOL = cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix="law-live")
@@ -44,21 +49,117 @@ class LawService:
     def mode(self) -> str:
         return "live" if self.oc else "mock"
 
-    def list_laws(self, query: str = "") -> list[dict]:
-        local = [_summary(l) for l in search_law_names(query)]
+    def list_laws(self, query: str = "", kind: str = "law") -> list[dict]:
+        """kind: law(법률·시행령·시행규칙) | admrul(행정규칙) | ordin(자치법규). 실시간 모드면 전체 법령 검색"""
+        local = [_summary(l) for l in search_law_names(query)] if kind == "law" else []
         if not self.oc or not query.strip():
             return local
         try:
+            if kind == "admrul":
+                return [{"id": f"adm-{x['key']}", "name": x["name"], "kind": "행정규칙", "subKind": x["subKind"], "ministry": x["org"], "articleCount": 0, "source": "live", "effectiveDate": x["effective"]}
+                        for x in parse_admrul_list(drf_get("lawSearch.do", {"target": "admrul", "query": query, "display": "50"}, self.oc))]
+            if kind == "ordin":
+                return [{"id": f"ord-{x['key']}", "name": x["name"], "kind": "자치법규", "subKind": x["subKind"], "ministry": x["org"], "articleCount": 0, "source": "live", "effectiveDate": x["effective"]}
+                        for x in parse_ordin_list(drf_get("lawSearch.do", {"target": "ordin", "query": query, "display": "50"}, self.oc))]
             known = {l["name"].replace(" ", "") for l in LAWS}
             live = [
-                {"id": f"mst-{x['mst']}", "name": x["name"], "kind": x["kind"] or "법률", "ministry": x["ministry"], "articleCount": 0, "source": "live"}
-                for x in parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": query, "display": "20"}, self.oc))
-                if x["name"].replace(" ", "") not in known
+                {"id": f"mst-{x['mst']}", "name": x["name"], "kind": x["kind"] or "법률", "ministry": x["ministry"], "articleCount": 0, "source": "live", "effectiveDate": x["effective"]}
+                for x in parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": query, "display": "50"}, self.oc))
+                if x["name"].replace(" ", "") not in known and (not x["status"] or x["status"] == "현행")
             ]
             return local + live
         except LawApiError as e:
             self.warnings.append(str(e))
             return local
+
+    def search_live_keys(self, query: str, budget: float = LIVE_SEARCH_BUDGET, max_articles: int = 4) -> list[str]:
+        """내장 토픽에 없는 질문: Open API로 관련 법령을 찾아 조문 근거 키(질문 → 검색어 → 법령명 검색 → 본문 → 조문 점수)"""
+        if not self.oc:
+            return []
+        terms = query_terms(query)
+        if not terms:
+            return []
+        oc = self.oc
+
+        def work() -> list[str]:
+            # 검색어마다 법령명 검색 + 본문 검색(본문 검색 결과 수가 적은 '드문 말'일수록 가중치 큼)
+            def get(arg):
+                t, body = arg
+                params = {"target": "law", "query": t, "display": "100" if body else "10", **({"search": "2"} if body else {})}
+                try:
+                    d = drf_get("lawSearch.do", params, oc, FAST["timeout"], FAST["retries"])
+                    tot = txt((find_all(d, "totalCnt") or [""])[0])
+                    return {"list": parse_law_list(d), "total": int(tot) if tot.isdigit() else 0}
+                except LawApiError:
+                    return {"list": [], "total": 0}
+
+            # 여러 말을 한꺼번에 넣은 본문 검색은 AND 조건 → 모두 들어 있는 법령(결과가 적어 정확)
+            combos = list(dict.fromkeys([" ".join(terms), " ".join(terms[:2])])) if len(terms) >= 2 else []
+            allres = list(_POOL.map(get, [(t, b) for t in terms for b in (False, True)] + [(c, True) for c in combos]))
+            res, and_res = allres[: len(terms) * 2], allres[len(terms) * 2:]
+            # 점수: 드문 말일수록 큰 가중치(IDF). 본문 검색은 결과가 100건을 넘으면 가나다순 앞부분만 오므로
+            # (관련도와 무관) 100건 이하로 '전부' 받은 경우만 근거로 쓴다.
+            def idf(n, base, hi):
+                return min(hi, max(0.3, math.log2(base / n))) if n > 0 else 0.0
+
+            def complete(r):
+                return 0 < r["total"] <= 100
+
+            cand: dict[str, dict] = {}
+
+            def add(x, v):
+                if x["status"] and x["status"] != "현행":
+                    return
+                c = cand.setdefault(x["mst"], {"mst": x["mst"], "name": x["name"], "score": (0.5 if x["kind"] == "법률" else 0) - len(x["name"]) / 40 + bigram_overlap(x["name"], terms) * 3})
+                c["score"] += v
+
+            for ti, t in enumerate(terms):
+                by_name, by_body = res[ti * 2], res[ti * 2 + 1]
+                # 법령명 일치: 이름이 검색어에 가까울수록(짧을수록) 크게 — "주차장" → 주차장법
+                w_name = idf(by_name["total"] or len(by_name["list"]), 300, 6) * 2
+                for x in by_name["list"]:
+                    if t in x["name"]:
+                        add(x, w_name * math.sqrt(len(t) / len(x["name"].replace(" ", ""))))
+                if complete(by_body):
+                    for x in by_body["list"]:
+                        add(x, idf(by_body["total"], 3000, 8))
+            # 여러 말이 모두 들어 있는 법령(AND 본문 검색)
+            for i, r in enumerate(and_res):
+                if complete(r):
+                    for x in r["list"]:
+                        add(x, (5 if i == 0 else 3) * (1 if x["kind"] == "법률" else 0.6))
+            # 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분을 법령명 유사도로만 비교
+            if not cand:
+                for ti in range(len(terms)):
+                    for x in res[ti * 2 + 1]["list"]:
+                        add(x, 0.1)
+            # 같은 법령의 여러 판(시행 예정 등)은 하나만
+            top, seen = [], set()
+            for c in sorted(cand.values(), key=lambda c: c["score"], reverse=True):
+                if c["name"] not in seen:
+                    seen.add(c["name"])
+                    top.append(c)
+            top = top[:2]
+            scored = []
+            for c in top:
+                doc = LawService(oc).get_law(f"mst-{c['mst']}")
+                if not doc:
+                    continue
+                for a in doc["articles"]:
+                    sc = score_article_by_terms(a, terms)
+                    if sc > 0:
+                        scored.append((sc, f"{doc['id']}:{a['no']}"))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return [k for _, k in scored[:max_articles]]
+
+        fut = _POOL.submit(work)
+        try:
+            return fut.result(timeout=budget)
+        except cf.TimeoutError:
+            msg = "국가법령정보센터 검색이 늦어 일부 근거를 표시하지 못했습니다. 잠시 후 다시 검색해 주세요."
+            if msg not in self.warnings:
+                self.warnings.append(msg)
+            return []
 
     def get_law(self, law_id: str, fast: bool = False) -> dict | None:
         """fast: 짧은 제한시간·재시도 1회(시간 예산 경로용)"""
@@ -69,7 +170,11 @@ class LawService:
         result = mock
         if self.oc:
             try:
-                if law_id.startswith("mst-"):
+                if law_id.startswith("adm-"):
+                    result = parse_admrul_doc(drf_get("lawService.do", {"target": "admrul", "ID": law_id[4:]}, self.oc, t["timeout"], t["retries"]), law_id)
+                elif law_id.startswith("ord-"):
+                    result = parse_ordin_doc(drf_get("lawService.do", {"target": "ordin", "MST": law_id[4:]}, self.oc, t["timeout"], t["retries"]), law_id)
+                elif law_id.startswith("mst-"):
                     mst = law_id[4:]
                     result = parse_law_doc(drf_get("lawService.do", {"target": "law", "MST": mst}, self.oc, t["timeout"], t["retries"]), law_id, "", mst)
                 elif mock:
@@ -101,9 +206,13 @@ class LawService:
             return {i: self.get_law(i) for i in ids}
         def fetch(i):
             svc = LawService(self.oc)
-            return svc.get_law(i, True), svc.warnings
+            # 내장 사본이 있으면 빠른 호출(늦으면 사본으로), 없으면 보통 제한시간으로
+            return svc.get_law(i, get_law(i) is not None), svc.warnings
 
         futs = {i: _POOL.submit(fetch, i) for i in ids}
+        # 내장 사본이 없는 법령(전체 법령 검색 결과·행정규칙·자치법규)은 대체할 것이 없으므로 더 기다린다
+        if any(get_law(i) is None for i in ids):
+            budget = max(budget, LIVE_ONLY_BUDGET)
         done, _ = cf.wait(futs.values(), timeout=budget)
         out = {}
         for i, f in futs.items():
@@ -116,7 +225,7 @@ class LawService:
                         self.warnings.append(w)
             else:
                 out[i] = get_law(i)
-                msg = f"국가법령정보센터 응답 지연({round(budget)}초 초과) — 공식 원문 스냅샷({DATASET_DATE} 수집)으로 표시했습니다. 잠시 후 다시 검색하면 실시간 원문으로 표시됩니다."
+                msg = f"국가법령정보센터 응답이 늦어 법령을 불러오지 못했습니다({round(budget)}초 초과). 잠시 후 다시 시도해 주세요." if out[i] is None else f"국가법령정보센터 응답 지연({round(budget)}초 초과) — 공식 원문 스냅샷({DATASET_DATE} 수집)으로 표시했습니다. 잠시 후 다시 검색하면 실시간 원문으로 표시됩니다."
                 if msg not in self.warnings:
                     self.warnings.append(msg)
             self._memo[i] = out[i]
