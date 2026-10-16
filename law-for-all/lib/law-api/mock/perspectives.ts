@@ -1,3 +1,5 @@
+import { PUBLIC_PERSPECTIVES } from "./perspectives-public";
+
 /**
  * 상황 분석 — 변호사·검사·판사 3가지 관점 지식베이스(규칙기반 엔진용, 사람이 검수한 문장).
  * 모든 [[키]]는 내장 법령에 실존하는 조문이어야 하며 tests/data.test.ts 에서 검증된다.
@@ -26,7 +28,7 @@ export interface Perspectives {
 
 const NO_CRIME = "근거 조문에서 이 상황 자체를 직접 처벌하는 형벌 조항은 확인되지 않습니다. 원칙적으로 민사·행정 절차로 해결할 사안입니다.";
 
-export const PERSPECTIVES: Record<string, Perspectives> = {
+const LIVING_PERSPECTIVES: Record<string, Perspectives> = {
   "floor-noise": {
     extraRefs: ["minor-offenses:3"],
     lawyer: {
@@ -353,3 +355,5 @@ export const PERSPECTIVES: Record<string, Perspectives> = {
     },
   },
 };
+
+export const PERSPECTIVES: Record<string, Perspectives> = { ...LIVING_PERSPECTIVES, ...PUBLIC_PERSPECTIVES };

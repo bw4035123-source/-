@@ -1,4 +1,4 @@
-/** 메인 검색 추천 해시태그 — 국민: 생활 상황 / 공무원: 실무 업무(처리기간 산정·불복 처리·행정처분 기준 등) */
+/** 메인 검색 추천 해시태그 — 국민: 생활 상황 / 공직자·공기업: 실무 핵심 법령(근로기준법·지방공기업법·공직선거법·청탁금지법·공유재산법) */
 export interface Suggestion {
   label: string;
   query: string;
@@ -18,14 +18,9 @@ export const CITIZEN_SUGGESTIONS: Suggestion[] = [
 ];
 
 export const OFFICER_SUGGESTIONS: Suggestion[] = [
-  { label: "민원 처리기간 산정", query: "질의민원·고충민원 처리기간 산정과 연장 통지 기준", topic: "petition-deadline" },
-  { label: "법정민원 거부·이의신청", query: "법정민원 거부처분 이의신청 기한과 결정 기간", topic: "petition-deadline" },
-  { label: "정보공개 결정·연장 통지", query: "정보공개 청구 결정기한 연장 통지와 이의신청 처리 기한", topic: "info-disclosure" },
-  { label: "개인정보 열람 처리", query: "개인정보 열람 요구 처리 기한과 연기·거절 통지", topic: "privacy-access" },
-  { label: "행정심판 청구기간 판단", query: "행정심판 청구기간 90일 180일 기산과 불복 고지", topic: "admin-appeal" },
-  { label: "층간소음 민원 처리절차", query: "층간소음 민원 관리주체 조치와 층간소음관리위원회 분쟁조정 안내", topic: "floor-noise" },
-  { label: "확정일자·최우선변제 안내", query: "전입신고 확정일자 창구 안내와 소액임차인 최우선변제 기준 금액", topic: "jeonse-fraud" },
-  { label: "음주운전 행정처분 기준", query: "음주운전 면허 취소·정지 행정처분 기준과 벌점", topic: "drunk-driving" },
-  { label: "체불임금 진정 처리", query: "임금체불 진정 접수 시 금품청산 기한과 벌칙 안내", topic: "unpaid-wages" },
-  { label: "육아휴직 급여 산정", query: "육아휴직 급여 월 지급액 상한액 산정 기준", topic: "parental-leave" },
+  { label: "근로기준법", query: "취업규칙(사규)의 근로시간·연장근로·연차휴가 기준이 근로기준법에 맞는지 검토", topic: "work-rules" },
+  { label: "지방공기업법", query: "지방공기업법상 지방공사 사장·이사·감사 임기와 임원추천위원회 절차", topic: "local-public-enterprise" },
+  { label: "공직선거법", query: "공직선거법상 선거기간 중 공무원·공사 상근 임원의 행사·출장·홍보 제한", topic: "election-neutrality" },
+  { label: "부정청탁금지법", query: "부정청탁금지법상 공기업 임직원 금품수수 금지 기준과 외부강의 신고", topic: "anti-graft" },
+  { label: "공유재산법", query: "공유재산법상 행정재산 사용허가기간과 일반재산 대부기간 상한", topic: "public-property" },
 ];

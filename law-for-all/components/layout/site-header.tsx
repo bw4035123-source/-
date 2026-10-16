@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpenText, FilePenLine, Gavel, Landmark, Scale } from "lucide-react";
+import { BookOpenText, FilePenLine, Gavel, Landmark, Scale, ScanSearch } from "lucide-react";
 import { ModeToggle } from "./mode-toggle";
 import { OnlyMode } from "./mode-gate";
 import { ModelSelect } from "./model-select";
@@ -30,6 +30,10 @@ export function SiteHeader() {
             판례 보기
           </Link>
           <OnlyMode mode="officer">
+            <Link href="/compliance" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
+              <ScanSearch className="h-4 w-4" aria-hidden />
+              사규 교차검증
+            </Link>
             <Link href="/drafting" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
               <FilePenLine className="h-4 w-4" aria-hidden />
               제·개정 지원
@@ -60,6 +64,9 @@ export function SiteHeader() {
           <Landmark className="h-3.5 w-3.5" aria-hidden /> 판례
         </Link>
         <OnlyMode mode="officer">
+          <Link href="/compliance" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
+            <ScanSearch className="h-3.5 w-3.5" aria-hidden /> 사규 검증
+          </Link>
           <Link href="/drafting" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
             <FilePenLine className="h-3.5 w-3.5" aria-hidden /> 제·개정
           </Link>

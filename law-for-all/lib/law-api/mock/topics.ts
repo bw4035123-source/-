@@ -1,3 +1,5 @@
+import { PUBLIC_TOPICS } from "./topics-public";
+
 /**
  * 생활 법률 상황(토픽) 사전 — 규칙기반 엔진(LLM 없이 동작)과 검색 라우팅에 사용.
  * 모든 가이드 문장은 refs 로 지정된 조문에 근거하며, 조문 원문은 인용 카드로 별도 표시된다.
@@ -36,7 +38,7 @@ export interface Topic {
 const LAW_AID: Contact = { name: "대한법률구조공단", phone: "132", url: "https://www.klac.or.kr", desc: "무료 법률상담·소송 지원(소득 기준 등 요건 확인)" };
 const GOV_CALL: Contact = { name: "정부민원안내콜센터", phone: "110", desc: "어느 기관에 물어야 할지 모를 때 안내" };
 
-export const TOPICS: Topic[] = [
+const LIVING_TOPICS: Topic[] = [
   {
     id: "floor-noise",
     label: "층간소음",
@@ -450,3 +452,5 @@ export const TOPICS: Topic[] = [
 ];
 
 export const getTopic = (id: string) => TOPICS.find((t) => t.id === id);
+
+export const TOPICS: Topic[] = [...LIVING_TOPICS, ...PUBLIC_TOPICS];

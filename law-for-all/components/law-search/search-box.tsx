@@ -32,7 +32,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
   const hero = variant === "hero";
   const chips = mode === "officer" ? OFFICER_SUGGESTIONS : CITIZEN_SUGGESTIONS;
   const placeholder =
-    mode === "officer" ? "법령명·조문·쟁점을 입력하세요 (예: 질의민원 처리기간, 최우선변제 기준)" : "궁금한 상황을 편하게 적어 주세요 (예: 윗집 층간소음 기준이 어떻게 되나요?)";
+    mode === "officer" ? "법령명·조문·쟁점을 입력하세요 (예: 취업규칙 연차휴가 기준, 공기업 임직원 금품수수 한도)" : "궁금한 상황을 편하게 적어 주세요 (예: 윗집 층간소음 기준이 어떻게 되나요?)";
 
   return (
     <div className="w-full">
