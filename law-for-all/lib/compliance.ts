@@ -74,6 +74,7 @@ export function parseRegulation(text: string): RegArticle[] {
   let cur: RegArticle | null = null;
   for (const line of lines) {
     if (/^\s*부\s*칙/.test(line)) break; // 부칙(시행일·경과조치)은 검증 대상에서 제외
+    if (/^\s*제\s*\d+\s*(장|절|관)(\s|$)/.test(line)) continue; // 장·절 제목
     const m = line.match(HEAD);
     if (m) {
       cur = { no: m[2] ? `${m[1]}의${m[2]}` : m[1], title: (m[3] ?? "").trim(), text: (m[4] ?? "").trim() };

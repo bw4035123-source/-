@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileUp, Info, Loader2, ScanSearch, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, Info, Loader2, ScanSearch, ShieldCheck, X } from "lucide-react";
 import type { Citation, LawDoc } from "@/lib/law-api/types";
 import { articleLabel, toCitation } from "@/lib/law-api/util";
 import {
@@ -20,6 +20,7 @@ import {
   type Severity,
 } from "@/lib/compliance";
 import { diffWords } from "@/lib/drafting";
+import { ACCEPT, ExtractError, extractText, type Extracted } from "@/lib/doc-extract";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,10 @@ export function ComplianceView() {
   const [filter, setFilter] = React.useState<Severity | "all">("all");
   const [viewing, setViewing] = React.useState<Citation | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+  const [extracting, setExtracting] = React.useState<string | null>(null);
+  const [loaded, setLoaded] = React.useState<{ name: string; info: Extracted; articles: number } | null>(null);
+  const [fileError, setFileError] = React.useState("");
 
   // 대조할 상위법령 원문(실시간 연결 시 전체 조문, 아니면 공식 원문 스냅샷)
   React.useEffect(() => {
@@ -90,21 +95,47 @@ export function ComplianceView() {
     setRegName(s.name);
     setText(s.text);
     setReport(null);
+    setLoaded(null);
+    setFileError("");
   };
 
-  const onFile = (f: File | undefined) => {
+  const onFile = async (f: File | undefined) => {
     if (!f) return;
-    if (!/\.(txt|md|csv)$/i.test(f.name) && f.type && !f.type.startsWith("text/")) {
-      toast("텍스트(.txt) 파일만 불러올 수 있어요. 한글·Word 문서는 내용을 복사해 붙여 넣어 주세요.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setText(String(reader.result ?? ""));
-      if (!regName) setRegName(f.name.replace(/\.[^.]+$/, ""));
+    setFileError("");
+    setExtracting(f.name);
+    try {
+      const info = await extractText(f);
+      setText(info.text);
+      setRegName((v) => v || f.name.replace(/\.[^.]+$/, ""));
       setReport(null);
-    };
-    reader.readAsText(f, "utf-8");
+      const articles = (info.text.match(/^\s*제\s*\d+\s*조(?:\s*의\s*\d+)?/gm) ?? []).length;
+      setLoaded({ name: f.name, info, articles });
+      toast(`${info.format} 문서에서 ${articles ? `${articles}개 조문을` : "내용을"} 불러왔어요.`);
+    } catch (e) {
+      setLoaded(null);
+      setFileError(e instanceof ExtractError ? e.message : "문서를 읽지 못했어요. 내용을 복사해 붙여 넣어 주세요.");
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  // 화면 어디에 떨어뜨려도 받되, 입력 영역 위에서만 강조 표시
+  const dragProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setDragging(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const f = e.dataTransfer.files?.[0];
+      if (f) void onFile(f);
+    },
   };
 
   const reportText = report ? complianceReport(report, lawName) : "";
@@ -134,11 +165,11 @@ export function ComplianceView() {
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
           <ScanSearch className="h-7 w-7 text-accent" /> 사규·내규 교차 검증
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground sm:text-base">기관의 사규·내규를 붙여 넣으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</p>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">기관의 사규·내규 파일(한글·PDF·Word)을 끌어다 놓거나 붙여 넣으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm" aria-label="검증할 내규">
+        <section {...dragProps} className={cn("space-y-4 rounded-2xl border bg-card p-5 shadow-sm transition", dragging && "border-accent ring-2 ring-accent/40")} aria-label="검증할 내규">
           <div className="grid gap-2">
             <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
               기관 유형
@@ -154,18 +185,63 @@ export function ComplianceView() {
             </label>
           </div>
           <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <p className="text-sm font-bold">내규 원문</p>
-              <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline">
-                <FileUp className="h-3.5 w-3.5" /> .txt 불러오기
-              </button>
-              <input ref={fileRef} type="file" accept=".txt,.md,text/plain" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+            <p className="mb-1.5 text-sm font-bold">내규 원문</p>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="내규 파일 올리기: 한글, PDF, Word, 텍스트 파일을 끌어다 놓거나 눌러서 선택"
+              onClick={() => fileRef.current?.click()}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), fileRef.current?.click())}
+              className={cn(
+                "mb-2 flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-5 text-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                dragging ? "border-accent bg-accent/10" : "border-muted-foreground/30 bg-secondary/30 hover:border-accent hover:bg-accent/5",
+              )}
+            >
+              {extracting ? (
+                <>
+                  <Loader2 className="h-6 w-6 animate-spin text-accent" />
+                  <p className="text-sm font-semibold">‘{extracting}’ 읽는 중…</p>
+                </>
+              ) : (
+                <>
+                  <FileUp className={cn("h-6 w-6", dragging ? "text-accent" : "text-muted-foreground")} />
+                  <p className="text-sm font-semibold">{dragging ? "여기에 놓으세요" : "파일을 끌어다 놓거나 눌러서 선택"}</p>
+                  <p className="text-[11px] text-muted-foreground">한글(HWP·HWPX) · PDF · Word(DOCX) · TXT — 파일은 서버로 보내지 않고 이 브라우저에서만 읽어요</p>
+                </>
+              )}
             </div>
+            <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }} />
+            {fileError && (
+              <p role="alert" className="mb-2 flex items-start gap-1.5 rounded-lg border border-rose-300 bg-rose-50 p-2 text-xs text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {fileError}
+              </p>
+            )}
+            {loaded && !fileError && (
+              <div className="mb-2 flex items-start justify-between gap-2 rounded-lg border bg-secondary/40 p-2 text-xs">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-accent" />
+                    <span className="truncate">{loaded.name}</span>
+                    <Badge variant="secondary" className="text-[10px]">{loaded.info.format}</Badge>
+                  </p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    {loaded.articles ? `조문 ${loaded.articles}개` : "조문 표시 없음"}
+                    {loaded.info.pages ? ` · ${loaded.info.pages}쪽` : ""} · {loaded.info.text.length.toLocaleString()}자 — 아래에서 고친 뒤 검증할 수 있어요
+                  </p>
+                  {loaded.info.warnings.map((w) => (
+                    <p key={w} className="mt-0.5 text-amber-700 dark:text-amber-300">△ {w}</p>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setLoaded(null)} className="shrink-0 text-muted-foreground hover:text-foreground" aria-label="불러온 파일 정보 닫기">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              rows={14}
-              placeholder={"제1조(목적) …\n제2조(근로시간) ① …\n\n조문(제N조) 단위로 붙여 넣으면 조문별로 대조합니다."}
+              rows={12}
+              placeholder={"또는 여기에 직접 붙여 넣으세요.\n제1조(목적) …\n제2조(근로시간) ① …"}
               className="w-full rounded-md border bg-card p-2.5 font-mono text-[13px] leading-6 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <div className="mt-2 flex flex-wrap gap-1.5">

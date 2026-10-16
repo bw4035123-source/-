@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "llm:check": "tsx --conditions=react-server scripts/llm-check.ts"
+    "llm:check": "tsx --conditions=react-server scripts/llm-check.ts",
+    "sync:pdf-worker": "node -e \"require('fs').copyFileSync(require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'),'public/pdf.worker.min.js')\""
   },
   "engines": {
     "node": ">=18.18"
@@ -24,9 +25,11 @@
     "@radix-ui/react-tabs": "1.1.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "fflate": "0.8.2",
     "framer-motion": "11.11.17",
     "lucide-react": "0.460.0",
     "next": "14.2.35",
+    "pdfjs-dist": "4.10.38",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "server-only": "0.0.1",
@@ -38,6 +41,7 @@
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "autoprefixer": "10.4.20",
+    "cfb": "1.2.2",
     "eslint": "8.57.1",
     "eslint-config-next": "14.2.35",
     "postcss": "8.4.49",
