@@ -1,6 +1,6 @@
 import type { LawDoc } from "../types";
 
-/** 공직자·공기업 실무 분야 — 지방공기업법, 공직선거법, 청탁금지법, 공유재산법 (조문 본문은 공식 원문 스냅샷) */
+/** 공직자 실무 분야 — 지방공기업법, 공직선거법, 청탁금지법, 공유재산법 (조문 본문은 공식 원문 스냅샷) */
 export const publicSectorLaws: LawDoc[] = [
   {
     id: "local-public-enterprise",

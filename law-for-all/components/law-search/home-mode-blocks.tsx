@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 
-/** 메인 화면 큰 바로가기 — 국민: AI 법률 상황 분석실 / 공직자·공기업: 사규·내규 교차 검증 */
+/** 메인 화면 큰 바로가기 — 국민: AI 법률 상황 분석실 / 공직자: 사규·내규 교차 검증 */
 export function ModeCta() {
   const { mode, ready } = useSettings();
   if (!ready) return <div className="mt-6 h-[84px] w-full max-w-3xl" aria-hidden />;

@@ -1,6 +1,6 @@
 import type { Perspectives } from "./perspectives";
 
-/** 공직자·공기업 실무 토픽의 변호사·검사·판사 관점(모든 [[키]]는 내장 조문에 실존) */
+/** 공직자 실무 토픽의 변호사·검사·판사 관점(모든 [[키]]는 내장 조문에 실존) */
 const NO_CRIME = "근거 조문에서 이 상황 자체를 직접 처벌하는 형벌 조항은 확인되지 않습니다. 원칙적으로 규정 개정·행정 절차로 해결할 사안입니다.";
 
 export const PUBLIC_PERSPECTIVES: Record<string, Perspectives> = {

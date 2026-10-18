@@ -30,7 +30,7 @@ function loadProfile(): Profile {
   }
 }
 
-/** 공직자·공기업 실무: 검토 보고서·기안문·민원 회신문·붙임을 한 번에 작성(편집·복사·Word·인쇄) */
+/** 공직자 실무: 검토 보고서·기안문·민원 회신문·붙임을 한 번에 작성(편집·복사·Word·인쇄) */
 export function DocumentPack({ result }: { result: AskResult }) {
   const toast = useToast();
   const [open, setOpen] = React.useState(false);

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { BookOpenText, Briefcase, FilePenLine, Gavel, Landmark, Scale, ScanSearch } from "lucide-react";
+import { BookOpenText, FilePenLine, Gavel, Landmark, Scale, ScanSearch } from "lucide-react";
+import { ModeToggle } from "./mode-toggle";
 import { OnlyMode } from "./mode-gate";
 import { ModelSelect } from "./model-select";
 import { A11yControls } from "./a11y-controls";
@@ -49,9 +50,7 @@ export function SiteHeader() {
         <div className="ml-auto flex items-center gap-2">
           <ModelSelect className="hidden 2xl:flex" />
           <A11yControls className="hidden 2xl:flex" />
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-accent/30 bg-secondary px-3 py-1.5 text-xs font-bold text-secondary-foreground sm:inline-flex">
-            <Briefcase className="h-4 w-4 text-accent" aria-hidden /> 공직자·공기업 전용
-          </span>
+          <ModeToggle />
         </div>
       </div>
       {/* 작은 화면: 보조 도구를 둘째 줄로 */}

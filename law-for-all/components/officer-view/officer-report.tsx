@@ -17,7 +17,7 @@ function Section({ no, title, icon: Icon, children }: { no: string; title: strin
   );
 }
 
-/** 공직자·공기업 모드 답변 — 행정 요약 보고서 형식 */
+/** 공직자 모드 답변 — 행정 요약 보고서 형식 */
 export function OfficerReport({ result }: { result: AskResult }) {
   const o = result.officer;
   const today = new Date(result.generatedAt).toLocaleDateString("ko-KR");
