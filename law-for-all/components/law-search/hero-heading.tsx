@@ -8,7 +8,7 @@ export function HeroHeading() {
   return (
     <motion.div key={mode} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <p className="mx-auto inline-flex items-center gap-2 rounded-full border bg-card/80 px-3 py-1 text-xs font-bold text-accent shadow-sm">
-        {officer ? "공직자·공기업 모드" : "국민 모드"} · AI 법률 지능형 포털
+        {officer ? "공직자·공기업 전용" : "국민 모드"} · AI 법률 지능형 포털
       </p>
       <h1 className="mt-5 text-balance text-3xl font-black leading-tight tracking-tight sm:text-5xl">
         {officer ? (

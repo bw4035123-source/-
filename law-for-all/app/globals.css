@@ -4,25 +4,26 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 217 33% 17%;
+    /* 화이트 & 블루 단일 테마 */
+    --background: 0 0% 100%;           /* 흰 바탕 */
+    --foreground: 222 39% 14%;         /* 본문 #151F33 */
     --card: 0 0% 100%;
-    --card-foreground: 217 33% 17%;
+    --card-foreground: 222 39% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 217 33% 17%;
-    --primary: 217 33% 17%;            /* Navy #1E293B */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 94%;
-    --secondary-foreground: 217 33% 17%;
-    --accent: 175 84% 32%;             /* Teal #0D9488 */
+    --popover-foreground: 222 39% 14%;
+    --primary: 224 64% 33%;            /* 짙은 블루 #1E3A8A */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 60% 96%;          /* 아주 옅은 블루 #EEF4FC */
+    --secondary-foreground: 224 64% 25%;
+    --accent: 221 83% 53%;             /* 포인트 블루 #2563EB (흰 글자 대비 5.2:1) */
     --accent-foreground: 0 0% 100%;
-    --muted: 210 40% 94%;
-    --muted-foreground: 215 19% 35%;
+    --muted: 214 50% 97%;
+    --muted-foreground: 218 17% 38%;   /* 보조 글자 #505E75 */
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 88%;
-    --input: 214 32% 85%;
-    --ring: 175 84% 32%;
+    --border: 216 40% 89%;             /* #DAE3F0 */
+    --input: 216 33% 82%;
+    --ring: 221 83% 53%;
     --radius: 0.85rem;
     --font-scale: 1;
   }

@@ -1,5 +1,5 @@
 "use client";
-import { Contrast, Moon, Sun } from "lucide-react";
+import { Contrast } from "lucide-react";
 import { useSettings, type FontScale } from "@/components/providers/settings-provider";
 import { cn } from "@/lib/utils";
 
@@ -9,9 +9,9 @@ const SCALES: { v: FontScale; label: string; aria: string }[] = [
   { v: 1.3, label: "가++", aria: "아주 큰 글자" },
 ];
 
-/** 접근성 도구: 글자 크기(어르신 배려)·고대비·다크 모드 */
+/** 접근성 도구: 글자 크기·고대비 */
 export function A11yControls({ className }: { className?: string }) {
-  const { fontScale, setFontScale, highContrast, setHighContrast, dark, setDark } = useSettings();
+  const { fontScale, setFontScale, highContrast, setHighContrast } = useSettings();
   return (
     <div className={cn("flex shrink-0 items-center gap-1", className)} role="group" aria-label="보기 설정">
       <div className="flex shrink-0 rounded-full border bg-card p-0.5">
@@ -37,16 +37,6 @@ export function A11yControls({ className }: { className?: string }) {
         className={cn("rounded-full border p-1.5", highContrast ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground")}
       >
         <Contrast className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => setDark(!dark)}
-        aria-pressed={dark}
-        aria-label="어두운 화면"
-        title="어두운 화면"
-        className="rounded-full border bg-card p-1.5 text-muted-foreground hover:text-foreground"
-      >
-        {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
     </div>
   );

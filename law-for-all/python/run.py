@@ -65,16 +65,21 @@ def test_live(oc: str) -> tuple[bool, str]:
         return False, msg
 
 
-def setup_key() -> int:
-    """인증키를 입력받아 .env.local 에 LAW_API_OC 로 저장(다른 설정은 유지)"""
+def setup_key(optional: bool = False) -> int:
+    """인증키를 입력받아 .env.local 에 LAW_API_OC 로 저장(다른 설정은 유지). optional: Enter 로 건너뛰기 허용"""
     print("━" * 56)
     print("  국가법령정보 Open API 인증키(OC) 설정")
     print("  (open.law.go.kr 에서 신청한 OC 값 — 보통 가입한 이메일의 @ 앞부분)")
+    if optional:
+        print("  인증키가 없으면 판례 보기·전체 법령 검색이 꺼지고 내장 원문만 표시됩니다.")
     print("━" * 56)
     try:
-        oc = input("  인증키(OC)를 입력하고 Enter: ").strip()
+        oc = input("  인증키(OC)를 입력하고 Enter" + (" (건너뛰려면 그냥 Enter)" if optional else "") + ": ").strip()
     except (EOFError, KeyboardInterrupt):
         print("\n취소했습니다.")
+        return 1
+    if optional and not oc:
+        print("  → 내장 원문 모드로 시작합니다. 나중에 키설정.bat 으로 설정할 수 있습니다.")
         return 1
     if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,64}", oc):
         print("  ✗ 인증키 형식이 올바르지 않습니다(영문·숫자만, 공백 없이).")
@@ -90,6 +95,7 @@ def setup_key() -> int:
     else:
         text = text.rstrip("\n") + ("\n" if text else "") + "LAW_API_OC=" + oc + "\n"
     ENV_LOCAL.write_text(text, encoding="utf-8")
+    os.environ["LAW_API_OC"] = oc  # 이번 실행에도 바로 적용
     print(f"  ✓ 저장했습니다: {ENV_LOCAL}")
     print("  … 국가법령정보센터 연결을 확인하는 중")
     ok, msg = test_live(oc)
@@ -149,6 +155,10 @@ def main():
         sys.exit(setup_key())
     if a.check:
         sys.exit(0 if check() else 1)
+
+    # 인증키가 없으면(새 폴더에 압축을 푼 경우 등) 첫 실행 때 바로 물어봄 — 창이 있는 실행에서만
+    if not config.law_access and not a.no_browser and sys.stdin and sys.stdin.isatty():
+        setup_key(optional=True)
 
     port = free_port(a.host, a.port)
     httpd = make_server(a.host, port)

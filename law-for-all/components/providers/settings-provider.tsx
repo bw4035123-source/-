@@ -21,7 +21,8 @@ interface Ctx extends Settings {
   ready: boolean;
 }
 
-const DEFAULTS: Settings = { mode: "citizen", fontScale: 1, highContrast: false, dark: false, provider: "" };
+/** 공직자·공기업 전용 서비스: 모드는 항상 officer, 화면은 화이트&블루 단일 테마(어두운 화면 없음) */
+const DEFAULTS: Settings = { mode: "officer", fontScale: 1, highContrast: false, dark: false, provider: "" };
 const KEY = "law-for-all:settings:v1";
 const SettingsCtx = React.createContext<Ctx | null>(null);
 
@@ -42,8 +43,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const loaded = load();
-    const url = new URL(window.location.href).searchParams.get("mode");
-    if (url === "citizen" || url === "officer") loaded.mode = url;
+    loaded.mode = "officer";
+    loaded.dark = false;
     setS(loaded);
     setReady(true);
   }, []);
@@ -66,10 +67,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ...s,
       ready,
-      setMode: (mode) => setS((p) => ({ ...p, mode })),
+      setMode: () => setS((p) => ({ ...p, mode: "officer" })),
       setFontScale: (fontScale) => setS((p) => ({ ...p, fontScale })),
       setHighContrast: (highContrast) => setS((p) => ({ ...p, highContrast })),
-      setDark: (dark) => setS((p) => ({ ...p, dark })),
+      setDark: () => setS((p) => ({ ...p, dark: false })),
       setProvider: (provider) => setS((p) => ({ ...p, provider })),
     }),
     [s, ready],

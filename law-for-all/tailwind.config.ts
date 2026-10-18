@@ -20,13 +20,14 @@ const config: Config = {
         destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
+        // 화이트 & 블루 단일 테마: navy = 짙은 블루, sage = 포인트 블루
         navy: {
-          50: "#F1F5F9", 100: "#E2E8F0", 200: "#CBD5E1", 400: "#64748B",
-          600: "#334155", 700: "#1E293B", 800: "#172033", 900: "#0F172A",
+          50: "#F5F8FF", 100: "#E6EEFC", 200: "#C7D7F5", 400: "#5B7BB8",
+          600: "#1E3A8A", 700: "#1E3A8A", 800: "#172E6E", 900: "#0F1F4D",
         },
         sage: {
-          50: "#F0FDFA", 100: "#CCFBF1", 200: "#99F6E4", 400: "#2DD4BF",
-          500: "#14B8A6", 600: "#0D9488", 700: "#0F766E", 800: "#115E59",
+          50: "#EFF6FF", 100: "#DBEAFE", 200: "#BFDBFE", 400: "#60A5FA",
+          500: "#3B82F6", 600: "#2563EB", 700: "#1D4ED8", 800: "#1E40AF",
         },
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
