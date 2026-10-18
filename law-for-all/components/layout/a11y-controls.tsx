@@ -1,5 +1,4 @@
 "use client";
-import { Contrast } from "lucide-react";
 import { useSettings, type FontScale } from "@/components/providers/settings-provider";
 import { cn } from "@/lib/utils";
 
@@ -9,9 +8,9 @@ const SCALES: { v: FontScale; label: string; aria: string }[] = [
   { v: 1.3, label: "가++", aria: "아주 큰 글자" },
 ];
 
-/** 접근성 도구: 글자 크기·고대비 */
+/** 접근성 도구: 글자 크기 */
 export function A11yControls({ className }: { className?: string }) {
-  const { fontScale, setFontScale, highContrast, setHighContrast } = useSettings();
+  const { fontScale, setFontScale } = useSettings();
   return (
     <div className={cn("flex shrink-0 items-center gap-1", className)} role="group" aria-label="보기 설정">
       <div className="flex shrink-0 rounded-full border bg-card p-0.5">
@@ -28,16 +27,6 @@ export function A11yControls({ className }: { className?: string }) {
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={() => setHighContrast(!highContrast)}
-        aria-pressed={highContrast}
-        aria-label="고대비 모드"
-        title="고대비 모드"
-        className={cn("rounded-full border p-1.5", highContrast ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:text-foreground")}
-      >
-        <Contrast className="h-4 w-4" />
-      </button>
     </div>
   );
 }

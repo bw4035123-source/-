@@ -81,7 +81,7 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 ### 2026 공공 AI 대전환 챌린지 테마
 - 독립 파일 `public/gov-challenge-2026.css` · `public/gov-challenge-2026.js` — React 화면 코드는 그대로 두고 색·글꼴·입체감만 덧입힘
   - 정부·공공 웹 글꼴 **Pretendard GOV**(SIL OFL 1.1, `public/fonts/pretendard-gov/`, 필요한 글자 구간만 내려받는 분할 글꼴 — 폐쇄망에서도 동작)
-  - 딥네이비 `#0F172A` + 인디고·바이올렛 `--ai-btn-gradient` 버튼, 카드·입력창 입체 호버, 글래스모피즘 헤더, 키보드 포커스 링(고대비·어두운 화면·움직임 줄이기·인쇄 대응)
+  - 화이트 & 블루 단일 테마(짙은 블루 `#1E3A8A` · 포인트 블루 `#2563EB`), 카드·입력창 입체 호버, 유리 효과 헤더, 키보드 포커스 링, 한글 낱말 단위 줄바꿈
   - 상단 고정 배너: `/api/health`로 실제 연동 상태를 확인해 표시(인증키 미설정이면 '연동 대기'), React 하이드레이션 후 주입
 - Python 실행판: `python patch_gov_theme.py`가 `law_for_all/web/`의 모든 HTML `</head>` 앞에 CSS, `</body>` 앞에 JS를 삽입(중복 없음, `--dry-run`·`--revert`). 빌드(`scripts/build-python.mjs`) 때 자동 실행
 
@@ -122,7 +122,7 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 
 ### 공통
 - 근거 조문 카드 클릭 → **원문 전문 슬라이드 오버 뷰어** + 위임 관계로 연결된 상·하위법령 조문
-- 접근성: 글자 크기 3단계(어르신 배려), 고대비 모드, 다크 모드, 키보드 탐색·스킵 링크, 스크린리더 레이블, 움직임 줄이기 설정 존중
+- 접근성: 글자 크기 3단계(어르신 배려), 키보드 탐색·스킵 링크, 스크린리더 레이블, 움직임 줄이기 설정 존중
 
 ---
 

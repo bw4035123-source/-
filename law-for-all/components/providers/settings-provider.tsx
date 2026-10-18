@@ -42,7 +42,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const loaded = load();
-    loaded.dark = false; // 화이트 & 블루 단일 테마(어두운 화면 없음)
+    loaded.dark = false; // 화이트 & 블루 단일 테마(어두운 화면·고대비 없음)
+    loaded.highContrast = false;
     const url = new URL(window.location.href).searchParams.get("mode");
     if (url === "citizen" || url === "officer") loaded.mode = url;
     setS(loaded);
@@ -69,7 +70,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       ready,
       setMode: (mode) => setS((p) => ({ ...p, mode })),
       setFontScale: (fontScale) => setS((p) => ({ ...p, fontScale })),
-      setHighContrast: (highContrast) => setS((p) => ({ ...p, highContrast })),
+      setHighContrast: () => setS((p) => ({ ...p, highContrast: false })),
       setDark: () => setS((p) => ({ ...p, dark: false })),
       setProvider: (provider) => setS((p) => ({ ...p, provider })),
     }),
