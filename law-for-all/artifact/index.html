@@ -1,0 +1,73 @@
+<title>법이음 LAW:ON</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="어려운 법률을 일상의 언어로 연결하는 AI 법률 지능형 포털 — 국민 모드·공직자 모드">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@400;600&display=swap">
+<style>
+/*@@CSS@@*/
+</style>
+
+<div class="banner" role="note">
+  <div class="wrap banner-in">
+    <span class="banner-chip">2026 공공 AI 대전환 챌린지</span>
+    <span class="banner-text"><span class="dot" aria-hidden="true"></span><span id="banner-data">국가법령정보센터 공식 원문 스냅샷</span> · 규칙기반 엔진 + 근거 인용 가드레일 · 브라우저 단독 실행</span>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="#home" aria-label="법이음 처음 화면">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></span>
+      <span class="brand-text"><strong>법이음</strong><small>LAW:ON</small></span>
+    </a>
+    <nav class="nav" id="nav" aria-label="주 메뉴"></nav>
+    <div class="header-tools">
+      <div class="mode-toggle" role="group" aria-label="이용 모드">
+        <button type="button" data-mode="citizen" id="mode-citizen">국민</button>
+        <button type="button" data-mode="officer" id="mode-officer">공직자</button>
+      </div>
+      <div class="font-size" role="group" aria-label="글자 크기">
+        <button type="button" data-font="0" aria-label="글자 기본">가</button>
+        <button type="button" data-font="1" aria-label="글자 크게">가+</button>
+        <button type="button" data-font="2" aria-label="글자 아주 크게">가++</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1"></main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div>
+      <p class="footer-title">법이음 · LAW:ON</p>
+      <p>법은 가깝게, 권리는 든든하게. 어려운 법률을 일상의 언어로 연결합니다.</p>
+    </div>
+    <div>
+      <p class="footer-title">법령 데이터</p>
+      <p>국가법령정보센터 공동활용 Open API(open.law.go.kr)에서 수집한 공식 원문 스냅샷 <span id="footer-date"></span>. 이 공유판은 서버 없이 내장 원문만 사용합니다.</p>
+    </div>
+    <div>
+      <p class="footer-title">안내</p>
+      <p>본 서비스는 법률 정보 제공 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 중요한 결정 전에는 반드시 원문과 전문가 상담을 확인하세요.</p>
+    </div>
+  </div>
+</footer>
+
+<dialog id="viewer" aria-labelledby="viewer-title">
+  <div class="viewer-head">
+    <div class="viewer-titles">
+      <p class="eyebrow" id="viewer-kind"></p>
+      <h2 id="viewer-title"></h2>
+    </div>
+    <button type="button" class="icon-btn" data-action="close-viewer" aria-label="닫기">✕</button>
+  </div>
+  <div class="viewer-body" id="viewer-body"></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>/*@@PDF_WORKER@@*/</script>
+<script>/*@@ENGINE@@*/</script>
+<script>/*@@APP@@*/</script>
