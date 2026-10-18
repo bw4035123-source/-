@@ -28,6 +28,8 @@ try {
 const web = path.join(root, "python/law_for_all/web");
 fs.rmSync(web, { recursive: true, force: true });
 fs.cpSync(path.join(root, "out"), web, { recursive: true });
+// 3-1) 2026 공공 AI 대전환 챌린지 테마(CSS·배너 JS)를 모든 HTML에 적용 — 이미 들어 있으면 건너뜀
+execSync("python3 patch_gov_theme.py", { cwd: path.join(root, "python"), stdio: "inherit" });
 
 // 4) Python 테스트 후 zip 생성
 execSync("python3 -m unittest discover -s tests -t .", { cwd: path.join(root, "python"), stdio: "inherit" });
@@ -35,7 +37,7 @@ const dist = path.join(root, "dist");
 const stage = path.join(dist, "law-on-python");
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(stage, { recursive: true });
-for (const f of ["run.py", "run.sh", "run.bat", "실행.bat", "키설정.bat", "setup-key.bat", "README.md", ".env.example", "law_for_all", "tests"]) {
+for (const f of ["run.py", "run.sh", "run.bat", "실행.bat", "키설정.bat", "setup-key.bat", "README.md", ".env.example", "patch_gov_theme.py", "run_cloud.py", "Procfile", "render.yaml", "requirements.txt", "law_for_all", "tests"]) {
   fs.cpSync(path.join(root, "python", f), path.join(stage, f), { recursive: true, filter: (s) => !s.includes("__pycache__") });
 }
 execSync("python3 -m zipfile -c law-on-python.zip law-on-python", { cwd: dist, stdio: "inherit" });

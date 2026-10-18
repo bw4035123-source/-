@@ -1,0 +1,287 @@
+/*!
+ * 법이음(LAW:ON) — 2026 공공 AI 대전환 챌린지 테마
+ * - 기존 화면 구조·동작(React 번들)은 그대로 두고 색·글꼴·입체감만 덧입히는 독립 스타일시트
+ * - 정부·공공 웹 글꼴: Pretendard GOV(SIL OFL 1.1, fonts/pretendard-gov/LICENSE.txt) — 앱에 포함되어 폐쇄망에서도 동작
+ * - 고대비 모드([data-contrast="high"])는 접근성을 위해 색을 바꾸지 않음
+ */
+@import url("./fonts/pretendard-gov/pretendardvariable-gov-dynamic-subset.css");
+
+/* ───────────────────────── 1. 디자인 토큰 */
+:root {
+  --gov-navy: #0f172a; /* 딥네이비: 공공성·신뢰 */
+  --gov-navy-2: #1e293b;
+  --gov-navy-3: #334155;
+  --ai-indigo: #4f46e5;
+  --ai-violet: #7c3aed;
+  --ai-btn-gradient: linear-gradient(135deg, #4f46e5 0%, #6d28d9 55%, #7c3aed 100%); /* AI 기술감 */
+  --ai-btn-gradient-hover: linear-gradient(135deg, #4338ca 0%, #5b21b6 55%, #6d28d9 100%);
+  --ai-glow: 0 10px 28px -10px rgba(79, 70, 229, 0.55);
+  --gc-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+  --gc-card-shadow-hover: 0 4px 10px -2px rgba(15, 23, 42, 0.08), 0 18px 38px -14px rgba(15, 23, 42, 0.24);
+  --gc-focus: #6366f1;
+  --gc-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --gc-banner-h: 0px; /* gov-challenge-2026.js 가 배너 높이로 채움 */
+
+  /* 기존 Tailwind 글꼴 변수에 Pretendard GOV 연결(법령 원문 명조체 .law-text 는 유지) */
+  --font-sans: "Pretendard GOV Variable", "Pretendard GOV", "Pretendard Variable", Pretendard;
+}
+
+/* 기존 색 체계(HSL 변수)를 딥네이비 + 인디고로 — 모든 컴포넌트가 함께 바뀜 */
+:root:not(.dark):not([data-contrast="high"]) {
+  --primary: 222 47% 11%; /* #0F172A */
+  --primary-foreground: 210 40% 98%;
+  --accent: 243 75% 59%; /* #4F46E5, 흰 글자 대비 6.3:1 */
+  --accent-foreground: 0 0% 100%;
+  --ring: 239 84% 67%;
+  --background: 220 33% 98%;
+}
+:root.dark:not([data-contrast="high"]) {
+  --accent: 234 89% 74%; /* #818CF8 */
+  --accent-foreground: 222 47% 8%;
+  --ring: 234 89% 74%;
+  --ai-btn-gradient: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  --ai-btn-gradient-hover: linear-gradient(135deg, #818cf8 0%, #8b5cf6 100%);
+  --gc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --gc-card-shadow-hover: 0 18px 38px -14px rgba(0, 0, 0, 0.7);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+body {
+  font-feature-settings: "ss06", "tnum" 0;
+  letter-spacing: -0.005em;
+}
+::selection {
+  background: rgba(99, 102, 241, 0.22);
+}
+
+/* ───────────────────────── 2. 글래스모피즘 헤더 */
+header.sticky {
+  top: var(--gc-banner-h) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 8px 24px -18px rgba(15, 23, 42, 0.35);
+}
+.dark header.sticky {
+  background: rgba(15, 23, 42, 0.72) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.14) !important;
+  box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.8);
+}
+[data-contrast="high"] header.sticky {
+  background: hsl(var(--background)) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* ───────────────────────── 3. AI 그라데이션 버튼 */
+:root:not([data-contrast="high"]) :is(button, a, input[type="submit"]):is(.bg-accent, .bg-primary):not([role="switch"]):not([role="tab"]) {
+  background-image: var(--ai-btn-gradient);
+  background-color: var(--ai-indigo);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--ai-glow);
+  transition: transform 0.18s var(--gc-ease), box-shadow 0.18s var(--gc-ease), filter 0.18s var(--gc-ease);
+}
+:root:not([data-contrast="high"]) :is(button, a, input[type="submit"]):is(.bg-accent, .bg-primary):not([role="switch"]):not([role="tab"]):not(:disabled):hover {
+  background-image: var(--ai-btn-gradient-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px -12px rgba(79, 70, 229, 0.65);
+}
+:root:not([data-contrast="high"]) :is(button, a):is(.bg-accent, .bg-primary):not([role="switch"]):active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+:is(button, a):disabled,
+button[disabled] {
+  box-shadow: none !important;
+  transform: none !important;
+}
+/* 토글 스위치 켜짐 상태도 같은 포인트 색 */
+:root:not([data-contrast="high"]) [role="switch"][data-state="checked"] {
+  background-image: var(--ai-btn-gradient);
+}
+
+/* 테두리형·보조 버튼 */
+:is(button, a).border:not(.bg-accent):not(.bg-primary):not([role="switch"]) {
+  transition: border-color 0.18s var(--gc-ease), color 0.18s var(--gc-ease), background-color 0.18s var(--gc-ease), transform 0.18s var(--gc-ease), box-shadow 0.18s var(--gc-ease);
+}
+:root:not([data-contrast="high"]) :is(button, a).rounded-full.border:not(.bg-accent):not(.bg-primary):hover {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 4px 14px -8px rgba(79, 70, 229, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ───────────────────────── 4. 카드: 입체 호버 */
+:is(.rounded-2xl, .rounded-xl).border.bg-card {
+  box-shadow: var(--gc-card-shadow);
+  transition: transform 0.22s var(--gc-ease), box-shadow 0.22s var(--gc-ease), border-color 0.22s var(--gc-ease);
+}
+:root:not([data-contrast="high"]) :is(.rounded-2xl, .rounded-xl).border.bg-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--gc-card-shadow-hover);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+/* 입력 영역을 감싼 큰 패널·고정 요소는 들썩이지 않게 */
+:is(.rounded-2xl, .rounded-xl).border.bg-card:has(textarea, input:not([type="hidden"]), select):hover,
+header :is(.rounded-2xl, .rounded-xl).border.bg-card:hover,
+[role="dialog"] :is(.rounded-2xl, .rounded-xl).border.bg-card:hover {
+  transform: none;
+}
+
+/* ───────────────────────── 5. 입력창 */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]), textarea, select) {
+  transition: border-color 0.18s var(--gc-ease), box-shadow 0.18s var(--gc-ease), background-color 0.18s var(--gc-ease);
+}
+:root:not([data-contrast="high"]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]), textarea, select).border:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+}
+:root:not([data-contrast="high"]) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="file"]), textarea, select):focus {
+  border-color: var(--gc-focus);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.18);
+}
+/* 메인 검색창(검색 폼) 강조 */
+:root:not([data-contrast="high"]) form[role="search"] > div:first-child {
+  transition: box-shadow 0.2s var(--gc-ease), border-color 0.2s var(--gc-ease), transform 0.2s var(--gc-ease);
+}
+:root:not([data-contrast="high"]) form[role="search"] > div:first-child:focus-within {
+  border-color: var(--gc-focus) !important;
+  box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.16), 0 18px 40px -20px rgba(79, 70, 229, 0.55);
+}
+
+/* 히어로 강조 문구: 딥네이비 → 인디고·바이올렛 */
+:root:not([data-contrast="high"]) h1 .bg-clip-text.text-transparent {
+  background-image: linear-gradient(90deg, #0f172a 0%, #4f46e5 55%, #7c3aed 100%);
+}
+:root.dark:not([data-contrast="high"]) h1 .bg-clip-text.text-transparent {
+  background-image: linear-gradient(90deg, #ffffff 0%, #a5b4fc 55%, #c4b5fd 100%);
+}
+
+/* ───────────────────────── 6. 포커스 링(키보드 사용자) */
+:focus-visible {
+  outline: 3px solid var(--gc-focus) !important;
+  outline-offset: 2px !important;
+}
+[data-contrast="high"] :focus-visible {
+  outline: 4px solid #0000ff !important;
+}
+/* 검색창은 바깥 상자(focus-within 빛)로 표시하므로 안쪽 입력칸의 링은 생략 */
+:root:not([data-contrast="high"]) form[role="search"] input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* 마우스 클릭 시에는 링 숨김(키보드 포커스만 표시) */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ───────────────────────── 7. 챌린지 배너(gov-challenge-2026.js 가 주입) */
+#gc2026-banner {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 34px;
+  padding: 0.35rem 1rem;
+  background: linear-gradient(90deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+  color: #e0e7ff;
+  font: 600 12.5px/1.35 var(--font-sans), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid rgba(129, 140, 248, 0.35);
+  box-shadow: 0 6px 18px -12px rgba(15, 23, 42, 0.9);
+  text-align: center;
+}
+#gc2026-banner .gc-badge {
+  flex-shrink: 0;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  background: var(--ai-btn-gradient);
+  color: #fff;
+  font-weight: 800;
+  font-size: 11.5px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+#gc2026-banner .gc-sep {
+  opacity: 0.45;
+}
+#gc2026-banner .gc-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
+  animation: gc-pulse 2s infinite;
+}
+#gc2026-banner[data-live="false"] .gc-dot {
+  background: #fbbf24;
+  animation: none;
+}
+#gc2026-banner[data-live="unknown"] .gc-dot {
+  background: #94a3b8;
+  animation: none;
+}
+@keyframes gc-pulse {
+  70% {
+    box-shadow: 0 0 0 7px rgba(52, 211, 153, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+}
+html.gc-has-banner body {
+  padding-top: var(--gc-banner-h);
+}
+html.gc-has-banner .skip-link:focus {
+  top: calc(var(--gc-banner-h) + 1rem) !important;
+}
+[data-contrast="high"] #gc2026-banner {
+  background: #000;
+  color: #fff;
+  border-bottom: 2px solid #fff;
+}
+@media (max-width: 640px) {
+  #gc2026-banner {
+    font-size: 11px;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+  }
+  #gc2026-banner .gc-long {
+    display: none;
+  }
+}
+
+/* ───────────────────────── 8. 움직임 줄이기·인쇄 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  :is(.rounded-2xl, .rounded-xl).border.bg-card:hover,
+  :is(button, a):hover {
+    transform: none !important;
+  }
+}
+@media print {
+  #gc2026-banner {
+    display: none !important;
+  }
+  html.gc-has-banner body {
+    padding-top: 0 !important;
+  }
+  :is(.rounded-2xl, .rounded-xl).border.bg-card {
+    box-shadow: none !important;
+  }
+}

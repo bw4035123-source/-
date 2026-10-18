@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: law-for-all
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: ""
+    startCommand: "python run_cloud.py"
+    envVars:
+      - key: LAW_API_OC
+        sync: false

@@ -30,6 +30,7 @@ SECURITY_HEADERS = {
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("text/x-component", ".txt")  # Next.js RSC 페이로드
 
 # ───────────── 간이 요청 제한(고정 창)

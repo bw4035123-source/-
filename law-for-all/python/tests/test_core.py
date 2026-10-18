@@ -381,3 +381,30 @@ class RuleParserTest(unittest.TestCase):
         b = parse_admrul_doc(fx["admrulArticles"], "adm-99")
         self.assertEqual([x["no"] for x in b["articles"]], ["1", "2", "2의2"])
         self.assertEqual(b["articles"][1]["text"], "① 이 지침은 공무원에게 적용한다.\n② 다만, 다음 각 호는 제외한다.\n  1. 계약직2. 위촉직")
+
+
+class GovThemePatchTest(unittest.TestCase):
+    """2026 챌린지 테마 적용기: </head>·</body> 바로 앞 삽입, 중복 없음, 되돌리면 원본과 동일"""
+
+    def test_patch_idempotent_and_revert(self):
+        import tempfile
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        import patch_gov_theme as g
+        html = '<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"/><title>t</title></head><body><main>x</main><script>self.__next_f.push([1,"</body> 문자열"])</script></body></html>'
+        with tempfile.TemporaryDirectory() as d:
+            web = Path(d)
+            (web / "laws").mkdir()
+            for p in (web / "index.html", web / "laws" / "a.html"):
+                p.write_text(html, encoding="utf-8")
+            (web / "data.txt").write_text("</body>", encoding="utf-8")
+            s = g.run(web, quiet=True)
+            self.assertEqual((s["scanned"], s["changed"]), (2, 2))
+            out = (web / "laws" / "a.html").read_text(encoding="utf-8")
+            self.assertIn(g.CSS_TAG + "</head>", out)
+            self.assertTrue(out.endswith(g.JS_TAG + "</body></html>"))
+            self.assertIn('"</body> 문자열"', out)  # 데이터 안의 문자열은 그대로
+            self.assertEqual(out.count("gov-challenge-2026.css"), 1)
+            self.assertEqual(g.run(web, quiet=True)["changed"], 0)  # 다시 실행해도 변경 없음
+            self.assertEqual((web / "data.txt").read_text(encoding="utf-8"), "</body>")  # .html 만 대상
+            g.run(web, revert=True, quiet=True)
+            self.assertEqual((web / "index.html").read_text(encoding="utf-8"), html)
