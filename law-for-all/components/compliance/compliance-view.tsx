@@ -40,7 +40,7 @@ const ICON: Record<Severity, React.ElementType> = { conflict: AlertTriangle, rev
 
 type LawState = { status: "loading" | "ready" | "error"; docs: Map<string, LawDoc> };
 
-/** 사규·내규 ↔ 상위법령 교차 검증 */
+/** 우리 기관 규정 ↔ 상위법령 교차 검증 */
 export function ComplianceView() {
   const toast = useToast();
   const [orgType, setOrgType] = React.useState<OrgType>("공기업·준정부기관");
@@ -152,7 +152,7 @@ export function ComplianceView() {
       .join("");
     downloadWord(`${report.regName}_교차검증`, [
       { title: "교차 검증 결과 보고", body: reportText },
-      { title: "조문별 대조표", html: `<table border="1" cellspacing="0" cellpadding="4"><tr><th>내규 조문</th><th>판정</th><th>검토 내용·근거</th><th>개정안</th></tr>${rows}</table>` },
+      { title: "조문별 대조표", html: `<table border="1" cellspacing="0" cellpadding="4"><tr><th>규정 조문</th><th>판정</th><th>검토 내용·근거</th><th>개정안</th></tr>${rows}</table>` },
     ]);
   };
 
@@ -163,13 +163,13 @@ export function ComplianceView() {
       <header className="mb-6">
         <p className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-bold text-accent">공직자 실무</p>
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
-          <ScanSearch className="h-7 w-7 text-accent" /> 사규·내규 교차 검증
+          <ScanSearch className="h-7 w-7 text-accent" /> 내규 교차검증
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground sm:text-base">기관의 사규·내규 파일(한글·PDF·Word)을 끌어다 놓거나 붙여 넣으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</p>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">우리 기관 규정 파일(한글·PDF·Word)을 끌어다 놓거나 붙여 넣으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <section {...dragProps} className={cn("space-y-4 rounded-2xl border bg-card p-5 shadow-sm transition", dragging && "border-accent ring-2 ring-accent/40")} aria-label="검증할 내규">
+        <section {...dragProps} className={cn("space-y-4 rounded-2xl border bg-card p-5 shadow-sm transition", dragging && "border-accent ring-2 ring-accent/40")} aria-label="검증할 기관 규정">
           <div className="grid gap-2">
             <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
               기관 유형
@@ -185,11 +185,11 @@ export function ComplianceView() {
             </label>
           </div>
           <div>
-            <p className="mb-1.5 text-sm font-bold">내규 원문</p>
+            <p className="mb-1.5 text-sm font-bold">규정 원문</p>
             <div
               role="button"
               tabIndex={0}
-              aria-label="내규 파일 올리기: 한글, PDF, Word, 텍스트 파일을 끌어다 놓거나 눌러서 선택"
+              aria-label="규정 파일 올리기: 한글, PDF, Word, 텍스트 파일을 끌어다 놓거나 눌러서 선택"
               onClick={() => fileRef.current?.click()}
               onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), fileRef.current?.click())}
               className={cn(
@@ -275,7 +275,7 @@ export function ComplianceView() {
             <div className="grid h-full min-h-[320px] place-items-center rounded-2xl border border-dashed bg-card/60 p-8 text-center text-sm text-muted-foreground">
               <div>
                 <ScanSearch className="mx-auto h-10 w-10 text-accent/60" />
-                <p className="mt-3 font-semibold text-foreground">내규를 붙여 넣거나 예시를 고른 뒤 교차 검증을 눌러 주세요.</p>
+                <p className="mt-3 font-semibold text-foreground">규정을 붙여 넣거나 예시를 고른 뒤 교차 검증을 눌러 주세요.</p>
                 <p className="mt-1">근로시간·연차·가산수당, 금품 수수 한도, 선거운동, 임원 임기, 사용허가·대부기간, 인용 조문의 현행 여부를 점검합니다.</p>
               </div>
             </div>

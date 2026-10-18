@@ -20,7 +20,7 @@ export function ModeGate({ mode, feature, children }: { mode: UserMode; feature:
       </span>
       <h1 className="mt-4 text-xl font-extrabold">{feature}은(는) {LABEL[mode]} 전용 기능이에요</h1>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        현재 {LABEL[current]}입니다. {mode === "citizen" ? "생활 속 법률 상황을 변호사·검사·판사의 시각으로 살펴보는 기능은 국민 모드에서 제공해요." : "사규 교차 검증·규정 제·개정 같은 실무 기능은 공직자 모드에서 제공해요."}
+        현재 {LABEL[current]}입니다. {mode === "citizen" ? "생활 속 법률 상황을 변호사·검사·판사의 시각으로 살펴보는 기능은 국민 모드에서 제공해요." : "우리 기관 규정 검증·규정 제·개정 같은 실무 기능은 공직자 모드에서 제공해요."}
       </p>
       <Button variant="accent" size="lg" className="mt-6" onClick={() => setMode(mode)}>
         <Icon /> {LABEL[mode]}로 전환

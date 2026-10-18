@@ -1,8 +1,8 @@
 /**
- * 사규·내규 ↔ 상위법령 교차 검증 엔진(순수 함수, 브라우저·서버 공통).
- *  1) 내규 원문을 조문 단위로 나눈다(제N조(제목) …).
- *  2) 내규가 인용한 상위법령 조문이 실제로 존재하는지 확인한다(실시간 원문이면 전체 조문 기준).
- *  3) 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법의 수치·절차 기준과 내규 조항을 대조한다.
+ * 우리 기관 규정 ↔ 상위법령 교차 검증 엔진(순수 함수, 브라우저·서버 공통).
+ *  1) 규정 원문을 조문 단위로 나눈다(제N조(제목) …).
+ *  2) 기관 규정이 인용한 상위법령 조문이 실제로 존재하는지 확인한다(실시간 원문이면 전체 조문 기준).
+ *  3) 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법의 수치·절차 기준과 규정 조항을 대조한다.
  *  4) 위반 신호가 없는 조문은 관련 상위 조문만 연결한다.
  * 판정은 정해진 규칙과 조문 원문으로만 하며, 생성형 문장으로 위반 여부를 단정하지 않는다.
  */
@@ -42,7 +42,7 @@ export interface Finding {
   title: string;
   detail: string;
   basis: BasisRef[];
-  /** 내규 문구 → 고친 문구(수치 위반 등 자동 제안이 가능한 경우) */
+  /** 규정 문구 → 고친 문구(수치 위반 등 자동 제안이 가능한 경우) */
   fix?: { before: string; after: string };
 }
 
@@ -59,7 +59,7 @@ export interface CheckReport {
   regName: string;
   results: ArticleResult[];
   counts: Record<Severity, number>;
-  /** 내규가 인용한 상위 조문 검증 결과 수 */
+  /** 기관 규정이 인용한 상위 조문 검증 결과 수 */
   refsChecked: number;
   /** 실시간 원문으로 검증했는지(법령 id별) */
   liveLaws: string[];
@@ -349,10 +349,10 @@ const RULES: Rule[] = [
     if (/전대|다른\s*자에게\s*사용/.test(a.text) && PERMIT.test(a.text) && !/아니\s*된다|할\s*수\s*없|금지/.test(a.text)) out.push({ rule: "prop-lease-sublet", severity: "conflict", title: "대부 재산의 전대 허용", detail: "대부를 받은 자는 그 일반재산을 다른 자에게 사용하게 할 수 없습니다.", basis: [{ lawId: Y, articleNo: "29" }] });
     return out;
   },
-  // 내규로 형벌·과태료를 정한 경우
+  // 기관 규정으로 형벌·과태료를 정한 경우
   ({ a }) =>
     /(징역|벌금|과태료)[^.\n]{0,15}(에\s*처|를\s*부과|부과한다)/.test(a.text)
-      ? [{ rule: "penalty", severity: "review", title: "내규에서 형벌·과태료를 정한 조항", detail: "징역·벌금·과태료는 법률(또는 법률의 위임을 받은 조례)로만 정할 수 있습니다. 내규에서는 징계 등 내부 제재로 정하고, 형벌·과태료는 근거 법률 조항을 안내하는 방식으로 고치세요.", basis: [] }]
+      ? [{ rule: "penalty", severity: "review", title: "기관 규정에서 형벌·과태료를 정한 조항", detail: "징역·벌금·과태료는 법률(또는 법률의 위임을 받은 조례)로만 정할 수 있습니다. 기관 규정에서는 징계 등 내부 제재로 정하고, 형벌·과태료는 근거 법률 조항을 안내하는 방식으로 고치세요.", basis: [] }]
       : [],
 ];
 
@@ -440,7 +440,7 @@ export function complianceReport(rep: CheckReport, lawName: (id: string) => stri
   return lines.join("\n");
 }
 
-/** 시연용 예시 내규(의도적으로 상위법과 어긋난 조항 포함) */
+/** 시연용 예시 규정(의도적으로 상위법과 어긋난 조항 포함) */
 export const SAMPLE_REGULATIONS: { label: string; orgType: OrgType; name: string; text: string }[] = [
   {
     label: "○○도시공사 취업규칙",

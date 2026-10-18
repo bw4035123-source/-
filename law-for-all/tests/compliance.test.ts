@@ -7,7 +7,7 @@ const laws = TARGET_LAWS.map((l) => getMockLaw(l.id)!).filter(Boolean);
 const run = (text: string, orgType: Parameters<typeof crossCheck>[0]["orgType"] = "공기업·준정부기관", ls: LawDoc[] = laws) => crossCheck({ text, orgType, laws: ls });
 const rules = (text: string, org?: Parameters<typeof crossCheck>[0]["orgType"]) => run(text, org).results.flatMap((r) => r.findings.map((f) => `${f.rule}:${f.severity}`));
 
-describe("사규 교차 검증 — 조문 분리·인용", () => {
+describe("우리 기관 규정 검증 — 조문 분리·인용", () => {
   it("제N조(제목) 단위로 나누고 항은 이어 붙이며 부칙은 제외", () => {
     const a = parseRegulation("제1조(목적) 목적이다.\n제2조의2(정의) ① 가\n② 나\n부칙\n제1조(시행일) 공포한 날부터 시행한다.");
     expect(a.map((x) => [x.no, x.title])).toEqual([["1", "목적"], ["2의2", "정의"]]);
@@ -27,7 +27,7 @@ describe("사규 교차 검증 — 조문 분리·인용", () => {
   });
 });
 
-describe("사규 교차 검증 — 근로기준법", () => {
+describe("우리 기관 규정 검증 — 근로기준법", () => {
   it("근로시간·연장·휴게·가산·연차·해고예고·금품청산 미달을 상충으로", () => {
     const r = rules(
       "제10조(근로시간) ① 1일 근로시간은 휴게시간을 제외하고 8시간으로 하며, 1주 44시간으로 한다.\n② 휴게시간은 근로시간 4시간마다 20분을 부여한다.\n제11조(연장근로) 합의하여 1주 15시간 이내에서 연장근로를 시킬 수 있다.\n제12조(수당) 연장근로와 야간근로에 대하여는 통상임금의 100분의 30을 가산하여 지급한다.\n제15조(연차휴가) 1년간 80퍼센트 이상 출근한 직원에게는 12일의 유급휴가를 준다.\n제20조(퇴직) 직원이 퇴직한 경우 30일 이내에 임금을 지급한다.\n제25조(해고의 예고) 해고하려면 적어도 15일 전에 예고하여야 한다.",
@@ -50,7 +50,7 @@ describe("사규 교차 검증 — 근로기준법", () => {
   });
 });
 
-describe("사규 교차 검증 — 청탁금지법·공직선거법", () => {
+describe("우리 기관 규정 검증 — 청탁금지법·공직선거법", () => {
   it("금품 허용 한도 초과·직무관련 허용·외부강의 신고기한·서면 신고", () => {
     const r = rules("제8조(금품) ① 직무관련자로부터 1회 10만원 이하의 선물은 받을 수 있다.\n② 동일인으로부터 연간 500만원 이내의 경조사비를 받을 수 있다.\n③ 동일인으로부터 1회 150만원까지의 금품을 받을 수 있다.\n제10조(외부강의) 사례금을 받는 외부강의는 마친 날부터 30일 이내에 신고하여야 한다.\n제5조(신고) 부정청탁을 받은 경우 감사실에 신고하여야 한다.");
     expect(r).toEqual(expect.arrayContaining(["graft-duty:review", "graft-yearly:conflict", "graft-once:conflict", "lecture-deadline:conflict", "graft-report-form:review"]));
@@ -61,7 +61,7 @@ describe("사규 교차 검증 — 청탁금지법·공직선거법", () => {
   });
 });
 
-describe("사규 교차 검증 — 지방공기업법·공유재산법", () => {
+describe("우리 기관 규정 검증 — 지방공기업법·공유재산법", () => {
   it("임원 임기·연임 단위·추천 절차(지방공기업)", () => {
     const r = rules("제15조(임원) 이사장의 임기는 2년으로 하며, 2년 단위로 연임할 수 있다.\n제16조(임명) 상임이사는 이사장이 임명한다.", "지방공기업");
     expect(r).toEqual(expect.arrayContaining(["lpe-term:conflict", "lpe-renew:conflict", "lpe-recommend:review"]));
