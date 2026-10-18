@@ -107,8 +107,8 @@
 
   // ───────────────────────── 첫 화면
   var HERO = {
-    citizen: { title: '법은 가깝게, <em class="nowrap">권리는 든든하게.</em>', sub: ["어려운 법률을 일상의 언어로 연결합니다.", "궁금한 상황을 물어보면 관련 법 조항과 판례, 해야 할 일을 차근차근 알려드려요."], ph: "예) 집주인이 보증금을 안 돌려줘요" },
-    officer: { title: '정확한 근거로, <em class="nowrap">빠른 행정 판단</em>', sub: ["근거 조문·판례 검토부터 우리 기관 규정 검증까지,", "검토 보고서·기안문과 규정 제·개정 초안을 한 곳에서 처리하세요."], ph: "예) 청탁금지법상 외부강의 사례금 상한은?" },
+    citizen: { title: '<span class="phrase">법은 가깝게,</span> <em class="phrase">권리는 든든하게.</em>', sub: [["어려운 법률을", "일상의 언어로 연결합니다."], ["궁금한 상황을 물어보면", "관련 법 조항과 판례,", "해야 할 일을", "차근차근 알려드려요."]], ph: "예) 집주인이 보증금을 안 돌려줘요" },
+    officer: { title: '<span class="phrase">정확한 근거로,</span> <em class="phrase">빠른 행정 판단</em>', sub: [["근거 조문·판례 검토부터", "우리 기관 규정 검증까지,"], ["검토 보고서·기안문과", "규정 제·개정 초안을", "한 곳에서 처리하세요."]], ph: "예) 청탁금지법상 외부강의 사례금 상한은?" },
   };
   var FEATURES = {
     citizen: [
@@ -137,9 +137,8 @@
       : '<a class="cta" href="#analyze"><span class="cta-icon">' + ico("gavel") + '</span><span style="flex:1;min-width:0"><strong>복잡한 상황이라면? AI 법률 상황 분석실</strong><span class="desc">겪은 일을 이야기하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 검토해 드려요.</span></span>' + ico("arrow") + "</a>";
     return (
       '<section class="hero"><div class="wrap">' +
-      '<span class="pill">' + (m === "officer" ? "공직자 모드" : "국민 모드") + " · AI 법률 지능형 포털</span>" +
       "<h1>" + H.title + "</h1>" +
-      '<p class="sub">' + H.sub.map(function (l) { return '<span class="block">' + esc(l) + "</span>"; }).join("") + "</p>" +
+      '<p class="sub">' + H.sub.map(function (l) { return '<span class="block balance">' + l.map(function (ph) { return '<span class="phrase">' + esc(ph) + "</span>"; }).join(" ") + "</span>"; }).join("") + "</p>" +
       '<form class="search" data-form="ask" role="search"><input id="q" name="q" autocomplete="off" aria-label="법률 질문" placeholder="' + esc(H.ph) + '" value="' + esc(state.ask.query) + '"><button class="btn btn-primary" type="submit">' + ico("search") + "검색</button></form>" +
       '<div class="chips">' + chips + "</div>" + cta +
       "</div></section>" +
