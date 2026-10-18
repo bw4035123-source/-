@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import { BookA, Footprints, Lightbulb, MessageCircleHeart, Sparkles } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
-import { CitedText } from "@/components/law-search/cited-text";
+import { CitedLines, CitedText } from "@/components/law-search/cited-text";
 import { useCitations } from "@/components/law-search/citation-context";
 import { articleLabel } from "@/lib/law-api/util";
 
@@ -23,9 +23,8 @@ export function CitizenAnswer({ result }: { result: AskResult }) {
           <p className="mb-1 flex items-center gap-1 text-xs font-bold text-sage-700 dark:text-sage-400">
             <Sparkles className="h-3.5 w-3.5" /> 법도우미가 쉽게 알려드려요
           </p>
-          <p className="text-[1.05rem] leading-8">
-            <CitedText text={result.summary} />
-          </p>
+          {/* 문장마다 한 줄, 근거 번호가 문장 앞 */}
+          <CitedLines text={result.summary} className="space-y-2 text-[1.05rem] leading-8" />
         </div>
       </motion.section>
 

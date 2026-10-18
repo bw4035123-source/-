@@ -54,6 +54,10 @@ main p, main li {
 main article p, main article li, main section article p, [role="dialog"] p {
   text-align: left;
 }
+/* 가운데 정렬 문구는 줄 길이를 고르게(한 줄에 한두 글자만 남는 줄 방지) */
+.text-center :is(p, span, h1, h2, h3) {
+  text-wrap: balance;
+}
 /* 숫자(조문 번호·금액·날짜)는 폭을 맞춰 정렬 */
 .tabular-nums, time, td {
   font-variant-numeric: tabular-nums;
