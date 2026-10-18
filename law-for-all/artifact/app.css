@@ -214,7 +214,7 @@ button.num:hover { background: var(--blue-600); color: #fff; }
 .fact { border-radius: 8px; background: var(--bg-soft); border: 1px solid var(--line); padding: 3px 9px; font-size: 0.8rem; }
 .fact b { color: var(--blue-600); font-weight: 800; margin-right: 4px; }
 
-/* ── 내규 교차검증 */
+/* ── 자체규정 점검 */
 .drop { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; border: 2px dashed var(--line-strong); background: var(--bg-soft); border-radius: 12px; padding: 20px 14px; transition: border-color 0.15s, background 0.15s; }
 .drop:hover, .drop.drag { border-color: var(--blue-600); background: var(--blue-50); }
 .drop .ico { width: 24px; height: 24px; color: var(--muted); }

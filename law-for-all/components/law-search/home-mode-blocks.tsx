@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 
-/** 메인 화면 큰 바로가기 — 국민: AI 법률 상황 분석실 / 공직자: 내규 교차검증 */
+/** 메인 화면 큰 바로가기 — 국민: AI 법률 상황 분석실 / 공직자: 자체규정 점검 */
 export function ModeCta() {
   const { mode, ready } = useSettings();
   if (!ready) return <div className="mt-6 h-[84px] w-full max-w-3xl" aria-hidden />;
@@ -15,7 +15,7 @@ export function ModeCta() {
           <ScanSearch className="h-5 w-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-extrabold">내규 교차검증</span>
+          <span className="block font-extrabold">자체규정 점검</span>
           <span className="block text-sm text-muted-foreground">우리 기관 규정 파일(한글·PDF·Word)을 넣으면 상위법령과 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</span>
         </span>
         <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
@@ -47,7 +47,7 @@ const CITIZEN = [
 const OFFICER = [
   { icon: Building2, title: "행정 검토 보고", desc: "검토 결론·근거 체계·쟁점·유의사항·체크리스트를 보고서 형식으로 정리해요." },
   { icon: FileStack, title: "보고서 한 번에 작성", desc: "검토 보고서·기안문·민원 회신문·붙임을 한 번에 만들고 Word로 저장해요." },
-  { icon: ScanSearch, title: "내규 교차검증", desc: "우리 기관 규정을 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해요." },
+  { icon: ScanSearch, title: "자체규정 점검", desc: "우리 기관 규정을 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해요." },
   { icon: FilePenLine, title: "규정 제·개정 지원", desc: "개정안·신구조문 대비표·정합성 점검·개정이유·부칙·입법예고문 초안." },
   { icon: ShieldCheck, title: "근거 인용·환각 방지", desc: "근거 밖 인용 자동 제거, 원문 대조, 인용 표기 복사로 공문서에 바로 활용." },
 ];

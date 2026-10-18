@@ -6,7 +6,7 @@ import { parseRegulation } from "@/lib/compliance";
 
 const enc = (s: string) => strToU8(s);
 
-describe("내규 문서 텍스트 추출", () => {
+describe("자체규정 문서 텍스트 추출", () => {
   it("HWPX: 섹션 순서대로 문단·탭·표 안 문단까지", async () => {
     const sec = (paras: string[]) => `<?xml version="1.0"?><hs:sec xmlns:hs="x" xmlns:hp="y">${paras.map((p) => `<hp:p id="1"><hp:run><hp:t>${p}</hp:t></hp:run></hp:p>`).join("")}</hs:sec>`;
     const zip = zipSync({

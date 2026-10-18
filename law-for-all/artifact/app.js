@@ -83,7 +83,7 @@
 
   var NAV = {
     citizen: [["analyze", "상황 분석", "gavel"], ["cases", "판례 보기", "landmark"], ["laws", "법령 둘러보기", "book"]],
-    officer: [["compliance", "내규 교차검증", "scan"], ["cases", "판례 보기", "landmark"], ["laws", "법령 둘러보기", "book"]],
+    officer: [["compliance", "자체규정 점검", "scan"], ["cases", "판례 보기", "landmark"], ["laws", "법령 둘러보기", "book"]],
   };
   var VIEWS = ["home", "search", "analyze", "compliance", "cases", "laws"];
   var currentView = function () {
@@ -121,7 +121,7 @@
     officer: [
       ["building", "행정 검토 보고", "검토 결론·근거 체계·쟁점·유의사항·체크리스트를 보고서 형식으로 정리해요."],
       ["list", "보고서 한 번에 작성", "검토 보고서·기안문·민원 회신문·붙임을 한 번에 만들고 Word로 저장해요."],
-      ["scan", "내규 교차검증", "우리 기관 규정을 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해요."],
+      ["scan", "자체규정 점검", "우리 기관 규정을 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해요."],
       ["pen", "규정 제·개정 지원", "개정안·신구조문 대비표·정합성 점검·개정이유·부칙·입법예고문 초안."],
       ["shield", "근거 인용·환각 방지", "근거 밖 인용 자동 제거, 원문 대조, 인용 표기 복사로 공문서에 바로 활용."],
     ],
@@ -133,7 +133,7 @@
       .map(function (c) { return '<button type="button" class="chip" data-action="ask" data-q="' + esc(c.query) + '"># ' + esc(c.label) + "</button>"; })
       .join("");
     var cta = m === "officer"
-      ? '<a class="cta" href="#compliance"><span class="cta-icon">' + ico("scan") + '</span><span style="flex:1;min-width:0"><strong>내규 교차검증</strong><span class="desc">우리 기관 규정 파일(한글·PDF·Word)을 넣으면 상위법령과 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</span></span>' + ico("arrow") + "</a>"
+      ? '<a class="cta" href="#compliance"><span class="cta-icon">' + ico("scan") + '</span><span style="flex:1;min-width:0"><strong>자체규정 점검</strong><span class="desc">우리 기관 규정 파일(한글·PDF·Word)을 넣으면 상위법령과 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</span></span>' + ico("arrow") + "</a>"
       : '<a class="cta" href="#analyze"><span class="cta-icon">' + ico("gavel") + '</span><span style="flex:1;min-width:0"><strong>복잡한 상황이라면? AI 법률 상황 분석실</strong><span class="desc">겪은 일을 이야기하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 검토해 드려요.</span></span>' + ico("arrow") + "</a>";
     return (
       '<section class="hero"><div class="wrap">' +
@@ -264,7 +264,7 @@
     });
   }
 
-  // ───────────────────────── 내규 교차검증
+  // ───────────────────────── 자체규정 점검
   var SEV = ["conflict", "review", "ok", "info"];
   var SEV_MARK = { conflict: "✕", review: "!", ok: "✓", info: "i" };
   function diffHtml(parts) {
@@ -280,7 +280,7 @@
   }
   function viewCompliance() {
     if (state.mode !== "officer") {
-      return '<div class="wrap page"><div class="empty"><div>' + ico("scan") + '<strong>내규 교차검증은 공직자 모드에서 제공해요.</strong><p class="small">우리 기관 규정 검증·규정 제·개정 같은 실무 기능은 공직자 모드에서 제공해요.</p><button type="button" class="btn btn-primary" style="margin-top:14px" data-action="set-mode" data-mode-to="officer">공직자 모드로 전환</button></div></div></div>';
+      return '<div class="wrap page"><div class="empty"><div>' + ico("scan") + '<strong>자체규정 점검은 공직자 모드에서 제공해요.</strong><p class="small">우리 기관 규정 검증·규정 제·개정 같은 실무 기능은 공직자 모드에서 제공해요.</p><button type="button" class="btn btn-primary" style="margin-top:14px" data-action="set-mode" data-mode-to="officer">공직자 모드로 전환</button></div></div></div>';
     }
     var c = state.comp;
     state.citations = [];
@@ -323,7 +323,7 @@
       if (!shown.length) right += '<p class="card small muted">해당 판정의 조문이 없어요.</p>';
       right += "</div>";
     }
-    return '<div class="wrap page"><header class="stack" style="gap:6px;margin-bottom:22px"><span class="pill" style="align-self:flex-start">공직자 실무</span><h1 class="row" style="font-size:clamp(1.5rem,3.6vw,1.9rem);font-weight:900;gap:8px;flex-wrap:nowrap"><span style="color:var(--blue-600);display:inline-flex">' + ico("scan") + '</span>내규 교차검증</h1><p class="muted" style="line-height:1.85"><span class="block">우리 기관 규정 파일(한글·PDF·Word)을 넣으면</span><span class="block balance">상위법령과 대조해 <span class="nowrap">상충·검토 필요 조항,</span> <span class="nowrap">근거 조문, 개정안을</span> 보여 드려요.</span></p></header>' +
+    return '<div class="wrap page"><header class="stack" style="gap:6px;margin-bottom:22px"><span class="pill" style="align-self:flex-start">공직자 실무</span><h1 class="row" style="font-size:clamp(1.5rem,3.6vw,1.9rem);font-weight:900;gap:8px;flex-wrap:nowrap"><span style="color:var(--blue-600);display:inline-flex">' + ico("scan") + '</span>자체규정 점검</h1><p class="muted" style="line-height:1.85"><span class="block">우리 기관 규정 파일(한글·PDF·Word)을 넣으면</span><span class="block balance">상위법령과 대조해 <span class="nowrap">상충·검토 필요 조항,</span> <span class="nowrap">근거 조문, 개정안을</span> 보여 드려요.</span></p></header>' +
       '<div class="grid-2">' + left + '<section id="compliance-result" style="min-width:0" aria-label="교차 검증 결과" aria-live="polite">' + right + "</section></div></div>";
   }
   function runCheck() {

@@ -74,7 +74,7 @@ describe("우리 기관 규정 검증 — 지방공기업법·공유재산법", 
   });
 });
 
-describe("예시 내규·보고서", () => {
+describe("예시 자체규정·보고서", () => {
   it("예시 3종 모두 상충을 찾고, 근거 조문은 모두 내장 원문에 실존", () => {
     for (const s of SAMPLE_REGULATIONS) {
       const rep = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws });
