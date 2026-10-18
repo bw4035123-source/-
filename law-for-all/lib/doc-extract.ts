@@ -1,12 +1,12 @@
 /**
  * 기관 규정 문서 → 텍스트 추출(브라우저에서 처리, 서버로 파일을 보내지 않음).
  *  - 한글: HWP(5.0, OLE 복합문서), HWPX(OWPML zip)
- *  - PDF(텍스트 레이어), Word DOCX, TXT(UTF-8·EUC-KR)
+ *  - PDF(텍스트 레이어), Word DOCX
  * 스캔 이미지 PDF·배포용(암호화) 한글 문서는 텍스트를 꺼낼 수 없으므로 안내 메시지를 낸다.
  */
 import { inflateSync, unzipSync, strFromU8 } from "fflate";
 
-export type DocFormat = "HWP" | "HWPX" | "PDF" | "DOCX" | "TXT";
+export type DocFormat = "HWP" | "HWPX" | "PDF" | "DOCX";
 export interface Extracted {
   text: string;
   format: DocFormat;
@@ -16,7 +16,7 @@ export interface Extracted {
 
 export class ExtractError extends Error {}
 
-export const ACCEPT = ".hwp,.hwpx,.pdf,.docx,.txt,.md";
+export const ACCEPT = ".hwp,.hwpx,.pdf,.docx";
 export const MAX_BYTES = 30 * 1024 * 1024;
 
 const startsWith = (b: Uint8Array, sig: number[]) => sig.every((x, i) => b[i] === x);
@@ -39,7 +39,7 @@ export async function extractFromBytes(buf: Uint8Array, name = ""): Promise<Extr
     if (ext === "doc") throw new ExtractError("예전 Word(.doc) 형식은 읽을 수 없어요. Word에서 .docx 로 저장해 올려 주세요.");
     out = extractHwp5(buf);
   } else if (["hwp", "hwpx", "pdf", "docx"].includes(ext)) throw new ExtractError(`${ext.toUpperCase()} 파일 형식이 아니거나 손상된 파일이에요.`);
-  else out = { text: decodeText(buf), format: "TXT", warnings: [] };
+  else throw new ExtractError("한글(HWP·HWPX), PDF, Word(DOCX) 파일만 올릴 수 있어요. 다른 문서는 내용을 복사해 붙여 넣어 주세요.");
   out.text = tidy(out.text);
   if (!out.text.trim()) {
     throw new ExtractError(
@@ -48,20 +48,6 @@ export async function extractFromBytes(buf: Uint8Array, name = ""): Promise<Extr
   }
   if (!/제\s*\d+\s*조/.test(out.text)) out.warnings.push("조문(제N조) 표시를 찾지 못해 문서 전체를 하나의 조문으로 검사해요.");
   return out;
-}
-
-// ───────────────────────────── TXT
-function decodeText(buf: Uint8Array): string {
-  const utf8 = new TextDecoder("utf-8").decode(buf);
-  const bad = (utf8.match(/�/g) ?? []).length;
-  if (bad > 3) {
-    try {
-      return new TextDecoder("euc-kr").decode(buf); // 한글 윈도우 메모장(ANSI) 저장 파일
-    } catch {
-      /* 디코더 미지원 환경 */
-    }
-  }
-  return utf8.replace(/^﻿/, "");
 }
 
 // ───────────────────────────── XML 공통(브라우저·Node 공통 정규식 처리)

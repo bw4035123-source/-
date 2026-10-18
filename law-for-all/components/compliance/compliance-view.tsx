@@ -165,7 +165,10 @@ export function ComplianceView() {
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
           <ScanSearch className="h-7 w-7 text-accent" /> 내규 교차검증
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground sm:text-base">우리 기관 규정 파일(한글·PDF·Word)을 끌어다 놓거나 붙여 넣으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</p>
+        <p className="mt-2 text-sm leading-7 text-muted-foreground sm:text-base">
+          <span className="block">우리 기관 규정 파일(한글·PDF·Word)을 넣으면</span>
+          <span className="block text-balance">상위법령과 대조해 <span className="whitespace-nowrap">상충·검토 필요 조항,</span> <span className="whitespace-nowrap">근거 조문, 개정안을</span> 보여 드려요.</span>
+        </p>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
@@ -189,7 +192,7 @@ export function ComplianceView() {
             <div
               role="button"
               tabIndex={0}
-              aria-label="규정 파일 올리기: 한글, PDF, Word, 텍스트 파일을 끌어다 놓거나 눌러서 선택"
+              aria-label="규정 파일 올리기: 한글, PDF, Word 파일을 끌어다 놓거나 눌러서 선택"
               onClick={() => fileRef.current?.click()}
               onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), fileRef.current?.click())}
               className={cn(
@@ -206,7 +209,10 @@ export function ComplianceView() {
                 <>
                   <FileUp className={cn("h-6 w-6", dragging ? "text-accent" : "text-muted-foreground")} />
                   <p className="text-sm font-semibold">{dragging ? "여기에 놓으세요" : "파일을 끌어다 놓거나 눌러서 선택"}</p>
-                  <p className="text-[11px] text-muted-foreground">한글(HWP·HWPX) · PDF · Word(DOCX) · TXT — 파일은 서버로 보내지 않고 이 브라우저에서만 읽어요</p>
+                  <p className="text-[11px] leading-5 text-muted-foreground">
+                    <span className="block font-semibold">한글(HWP·HWPX) · PDF · Word(DOCX)</span>
+                    <span className="block">파일은 서버로 보내지 않고 이 브라우저에서만 읽어요</span>
+                  </p>
                 </>
               )}
             </div>

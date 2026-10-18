@@ -16,7 +16,7 @@ export function ModeCta() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block font-extrabold">내규 교차검증</span>
-          <span className="block text-sm text-muted-foreground">우리 기관 규정을 붙여 넣으면 상위법령과 조문 단위로 대조해 상충 조항·근거 조문·개정안을 보여 드려요.</span>
+          <span className="block text-sm text-muted-foreground">우리 기관 규정 파일(한글·PDF·Word)을 넣으면 상위법령과 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</span>
         </span>
         <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
       </Link>

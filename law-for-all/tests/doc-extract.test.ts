@@ -58,16 +58,16 @@ describe("내규 문서 텍스트 추출", () => {
     await expect(extractFromBytes(makeHwp(["x"], { compressed: true, flags: 0x2 }), "a.hwp")).rejects.toThrow(/암호/);
   });
 
-  it("TXT: UTF-8, 한글 윈도우(EUC-KR) 저장 파일", async () => {
-    expect((await extractFromBytes(enc("﻿제1조(목적) 가"), "a.txt")).text).toBe("제1조(목적) 가");
-    const euckr = new Uint8Array([0xc1, 0xa6, 0x31, 0xc1, 0xb6, 0x28, 0xb8, 0xf1, 0xc0, 0xfb, 0x29]); // 제1조(목적)
-    expect((await extractFromBytes(euckr, "a.txt")).text).toBe("제1조(목적)");
+  it("TXT 등 지원하지 않는 형식은 안내(붙여 넣기 권유)", async () => {
+    await expect(extractFromBytes(enc("제1조(목적) 가"), "a.txt")).rejects.toThrow(/붙여 넣어/);
+    await expect(extractFromBytes(enc("제1조(목적) 가"), "a.md")).rejects.toBeInstanceOf(ExtractError);
   });
 
   it("확장자만 바꾼 파일·빈 문서·조문 없는 문서", async () => {
+    const docx = (t: string) => zipSync({ "word/document.xml": enc(`<w:document xmlns:w="w"><w:body><w:p><w:r><w:t>${t}</w:t></w:r></w:p></w:body></w:document>`) });
     await expect(extractFromBytes(enc("hello"), "a.pdf")).rejects.toBeInstanceOf(ExtractError);
-    await expect(extractFromBytes(enc("   "), "a.txt")).rejects.toThrow(/글자/);
-    expect((await extractFromBytes(enc("근로시간은 1주 40시간"), "a.txt")).warnings[0]).toMatch(/조문/);
+    await expect(extractFromBytes(docx("   "), "a.docx")).rejects.toThrow(/글자/);
+    expect((await extractFromBytes(docx("근로시간은 1주 40시간"), "a.docx")).warnings[0]).toMatch(/조문/);
   });
 
   it("PDF 워커 파일(public/pdf.worker.min.js)이 설치된 pdfjs-dist 와 같은 버전", async () => {
