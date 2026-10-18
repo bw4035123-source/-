@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>참가신청서 — 법이음(LAW:ON)</title>
+<link rel="stylesheet" href="../public/fonts/pretendard-gov/pretendardvariable-gov-dynamic-subset.css">
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Pretendard GOV Variable", "Pretendard GOV", "Noto Sans KR", sans-serif; color: #111827; font-size: 9.6pt; line-height: 1.55; word-break: keep-all; margin: 0; }
+  h1 { text-align: center; font-size: 17pt; margin: 0 0 10px; letter-spacing: -0.02em; }
+  h2 { font-size: 10.5pt; margin: 12px 0 4px; color: #1e3a8a; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #9aa9c2; padding: 5px 7px; vertical-align: middle; }
+  th { background: #eef3fb; font-weight: 700; text-align: center; white-space: nowrap; }
+  .fill { color: #9ca3af; }
+  .box { display: inline-block; width: 10px; height: 10px; border: 1px solid #111; margin-right: 4px; vertical-align: -1px; }
+  .box.on { background: #111; box-shadow: inset 0 0 0 2px #fff; }
+  .note { font-size: 8.4pt; color: #4b5563; }
+  td.left { text-align: left; }
+  .sum li { margin: 1px 0; }
+  .sum { margin: 0; padding-left: 15px; }
+  .sign { margin-top: 10px; text-align: center; line-height: 2.1; }
+  .agree p { margin: 3px 0; }
+</style>
+</head>
+<body>
+<h1>[양식 1] 참가신청서</h1>
+
+<h2>❶ 참가 정보</h2>
+<table>
+  <tr><th rowspan="2" style="width:20mm">참가<br>구분</th><td colspan="3"><span class="box"></span>개인 &nbsp;&nbsp; <span class="box"></span>팀 (팀명: <span class="fill">______________________</span>)</td></tr>
+  <tr><td colspan="3"><span class="box on"></span><b>세션 1 자유주제</b> &nbsp;&nbsp; <span class="box"></span>세션 2 지정과제 중 선택 1 — 과제: <span class="box"></span>업무바통(인수인계) <span class="box"></span>서무비서 <span class="box"></span>규정 제·개정 에이전트</td></tr>
+  <tr><th rowspan="2">기관<br>정보</th><th style="width:28mm">기관명</th><td colspan="2" class="fill">(기관명 기재)</td></tr>
+  <tr><th>AI 담당부서명</th><td colspan="2" class="fill">(부서명 기재)</td></tr>
+</table>
+
+<h2>❷ 참가자(팀/개인) 정보 <span class="note">* 개인인 경우 팀원 1만 기재</span></h2>
+<table>
+  <tr><th>구분</th><th>성명</th><th>부서</th><th>직급</th><th>직위(호칭)</th><th>연락처</th><th>이메일</th><th>역할</th></tr>
+  <tr><th>팀원1<br>(접수대표)</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  <tr><th>팀원2</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+
+<h2>❸ 개발물 개요</h2>
+<table>
+  <tr><th style="width:34mm">과제명(도구 이름)</th><td class="left"><b>법이음(LAW:ON)</b> — 국민·공직자 듀얼 모드 AI 법률 지능형 포털</td></tr>
+  <tr><th>결과물 형태<br>(웹·데스크톱·문서형 등)</th><td class="left">웹(반응형: PC·태블릿·모바일) · 추가 설치 없는 <b>Python 실행판</b>(Windows·macOS·Linux) · Node.js/Docker 배포판<br><span class="note">시연 주소: https://lawon.onrender.com</span></td></tr>
+  <tr><th>사용 모델명/<br>교체 가능여부</th><td class="left"><b>교체 가능</b>(어댑터 구조, 설정 파일·화면 메뉴로 전환, 코드 수정 없음)<br>· 폐쇄망: Ollama — EXAONE 3.5, Gemma, Llama, Solar, GPT-OSS 등 &nbsp;· OpenAI 호환 API — vLLM·LM Studio 사내 서버, Upstage Solar, GPT &nbsp;· Anthropic Claude<br>· 기본값: LLM 없이 동작하는 <b>규칙기반 엔진</b>(근거 조문 기반 답변)</td></tr>
+  <tr><th>공공 GitLab<br>프로젝트 링크</th><td class="left fill">https://gitlab.aigov.go.kr/________________ (등록 후 기재)</td></tr>
+  <tr><th>개요 및 주요 기능<br>(핵심 요약)</th><td class="left">
+    <p style="margin:0 0 3px">어려운 법률·조례·행정규칙을 국민은 <b>쉬운 말과 해야 할 일</b>로, 공직자는 <b>근거 체계와 공문서 초안</b>으로 받아 보는 법률 포털. 모든 답변은 국가법령정보센터 <b>공식 조문 원문을 먼저 찾아 인용</b>하고, 근거 밖 인용은 자동 제거해 AI의 가짜 조문·판례를 막는다.</p>
+    <ul class="sum">
+      <li><b>국민 모드</b>: 일상 언어 질문 → 문장별 근거 번호가 붙은 쉬운 요약, 용어 풀이, 지금 해야 할 3단계, 기관 연락처, PDF 리포트 / <b>상황 분석</b>: 사실관계 정리·관련 법령 추천·변호사·검사·판사 3관점 검토</li>
+      <li><b>공직자 모드</b>: 검토 결론·근거 체계·쟁점·체크리스트 → 검토 보고서·기안문·민원 회신문·붙임 4종 동시 작성, 상위법–시행령–시행규칙 3단 대조</li>
+      <li><b>자체규정 점검</b>: 기관 규정 파일(한글·PDF·Word)을 끌어다 놓으면 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위 대조 → 상충·검토 필요 조항, 근거 조문, 개정안 / <b>제·개정 지원</b>: 신·구조문 대비표·개정이유·부칙·입법예고문 초안</li>
+      <li><b>판례·법령해석례</b>와 법령·행정규칙·자치법규 전체를 법제처 Open API로 실시간 조회(키 없으면 내장 공식 원문 23개 법령으로 자동 대체)</li>
+      <li>LLM 비종속, 인증키·LLM 없이도 전 기능 시연, 문서는 브라우저 안에서만 처리(서버 전송 없음)</li>
+    </ul>
+  </td></tr>
+</table>
+
+<h2>■ 개인정보 수집·이용 동의(심사·시상·연락 목적) <span class="note">※ 미동의 시 신청 불가합니다.</span></h2>
+<div class="agree">
+  <p><span class="box"></span>신청인은 개인정보(성명·연락처·이메일 등) 수집·이용에 동의합니다.<br><span class="note">(수집·이용기관: 행정안전부 / 대회 운영·심사 목적, 종료 후 1년 내 폐기)</span></p>
+  <p><span class="box"></span>신청인은 수상 시 행정안전부에 산출물의 복제·수정·배포·2차적저작물 작성·범정부 공동활용 구축(위탁업체 사용 허락 포함)에 대한 무상 사용권을 기간 제한 없이 부여하며, 정식활용 시 다른 수상작과 통합·보완 재구성될 수 있음에 동의합니다.</p>
+  <p><span class="box"></span>대회 관련 사진·영상이 홍보 목적(언론 배포 포함)으로 활용될 수 있음에 동의합니다.</p>
+  <p><span class="box"></span>신청인은 본 대회 제반 규정을 준수하며, 표절·도용·저작권 침해 등 부정행위 시 심사 제외 및 수상 취소·환수에 동의합니다.</p>
+</div>
+
+<div class="sign">
+  2026년 &nbsp;&nbsp;&nbsp;&nbsp; 월 &nbsp;&nbsp;&nbsp;&nbsp; 일<br>
+  참가자 &nbsp;성명 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (서명)<br>
+  참가자 &nbsp;성명 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (서명)<br>
+  <b style="font-size:12pt">행정안전부장관 귀하</b>
+</div>
+</body>
+</html>

@@ -106,7 +106,7 @@ export function ComplianceView() {
     try {
       const info = await extractText(f);
       setText(info.text);
-      setRegName((v) => v || f.name.replace(/\.[^.]+$/, ""));
+      setRegName((v) => v || f.name.replace(/\.[^.]+$/, "").replace(/_+/g, " ").trim());
       setReport(null);
       const articles = (info.text.match(/^\s*제\s*\d+\s*조(?:\s*의\s*\d+)?/gm) ?? []).length;
       setLoaded({ name: f.name, info, articles });

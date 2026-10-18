@@ -1,6 +1,6 @@
 """국가법령정보 공동활용 Open API(DRF) 클라이언트 — lawSearch.do / lawService.do
-기본은 법령 API 중계 서버(LAW_PROXY_URL, Render)의 /api/raw 경유 — 인증키는 중계 서버에만 있고 여기서는 보내지 않는다.
-LAW_PROXY_URL=off 일 때만 LAW_API_OC 로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송)."""
+기본은 LAW_API_OC 인증키로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송).
+LAW_PROXY_URL 을 설정한 경우에만 법령 API 중계 서버의 /api/raw 를 경유한다(인증키는 중계 서버에만 두고 여기서는 보내지 않음)."""
 from __future__ import annotations
 
 import json

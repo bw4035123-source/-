@@ -196,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(400, "잘못된 판례 식별자")
             svc = LawService(config.law_access)
             if svc.mode != "live":
-                raise ApiError(503, "판례 보기는 법령 API 중계 서버(LAW_PROXY_URL) 또는 인증키(LAW_API_OC) 설정 시 제공됩니다.")
+                raise ApiError(503, "판례 보기는 법제처 국가법령정보 인증키(LAW_API_OC)를 설정하면 제공됩니다.")
             detail = svc.get_case(kind, case_id)
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")

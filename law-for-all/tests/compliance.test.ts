@@ -72,6 +72,11 @@ describe("우리 기관 규정 검증 — 지방공기업법·공유재산법", 
     const r = rules("제5조(사용허가) ① 수의의 방법으로 사용허가를 할 수 있다.\n② 사용허가를 받은 자는 다른 자에게 전대할 수 있다.\n제6조(사용허가기간) 사용허가기간은 10년으로 하며, 기간이 끝나면 자동으로 연장된다.\n제10조(대부기간) 토지와 건물의 대부기간은 7년 이내로 한다.");
     expect(r).toEqual(expect.arrayContaining(["prop-bid:review", "prop-sublet:conflict", "prop-permit-term:conflict", "prop-auto-renew:conflict", "prop-lease-land:conflict"]));
   });
+  it("표현이 달라도 잡음: '다른 사람에게 사용하게', '보수 규정', 부정청탁 구두 보고", () => {
+    expect(rules("제4조(사용허가) ② 사용허가를 받은 자는 승인 없이 그 재산을 다른 사람에게 사용하게 할 수 있다.")).toContain("prop-sublet:conflict");
+    expect(rules("제1조(목적) 이 규정은 복무 및 보수 규정이다.\n제35조(규정의 개정) 이 규정의 개정은 인사위원회의 심의를 거쳐 이사장이 정한다.")).toContain("change-procedure:review");
+    expect(rules("제4조(부정청탁의 처리) 임직원은 부정청탁을 받은 경우 구두로 부서장에게 알릴 수 있다.")).toContain("graft-report-form:review");
+  });
 });
 
 describe("예시 자체규정·보고서", () => {

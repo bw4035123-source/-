@@ -262,7 +262,7 @@ const RULES: Rule[] = [
       : [],
   // 취업규칙 변경 절차(의견청취·불이익 변경 동의)
   ({ a, doc }) =>
-    /취업규칙|사규|인사규정|복무규정|보수규정/.test(doc) && (/개정|변경/.test(a.title) || /(규정|규칙|사규)의?\s*(개정|변경)/.test(a.text)) && !/과반수|노동조합|근로자\s*대표|동의|의견/.test(a.text)
+    /취업규칙|사규|(?:인사|복무|보수)\s*규정/.test(doc) && (/개정|변경/.test(a.title) || /(규정|규칙|사규)의?\s*(개정|변경)/.test(a.text)) && !/과반수|노동조합|근로자\s*대표|동의|의견/.test(a.text)
       ? [{ rule: "change-procedure", severity: "review", title: "규정 개정 절차에 근로자 의견청취·동의 절차 누락", detail: "취업규칙을 작성·변경할 때는 근로자 과반수로 조직된 노동조합(없으면 근로자 과반수)의 의견을 들어야 하고, 근로자에게 불리하게 변경할 때는 그 동의를 받아야 합니다.", basis: [{ lawId: L, articleNo: "94" }] }]
       : [],
   // 청탁금지법 — 금품 수수 허용 범위
@@ -290,7 +290,7 @@ const RULES: Rule[] = [
   },
   // 부정청탁 신고 절차
   ({ a }) =>
-    /부정청탁/.test(a.text) && /신고/.test(a.text) && !/서면|전자문서/.test(a.text)
+    /부정청탁/.test(a.text) && /신고|보고|알리|알릴/.test(a.text) && !/서면|전자문서/.test(a.text)
       ? [{ rule: "graft-report-form", severity: "review", title: "부정청탁 신고 방식(서면) 미기재", detail: "부정청탁을 받으면 거절 의사를 명확히 표시하고, 동일한 부정청탁을 다시 받은 경우 소속기관장에게 서면(전자문서 포함)으로 신고해야 합니다.", basis: [{ lawId: G, articleNo: "7" }] }]
       : [],
   // 공직선거법 — 선거운동·정치활동 허용
@@ -332,7 +332,7 @@ const RULES: Rule[] = [
       for (const n of nums(s, /(\d+)\s*년/g)) if (n.value > 5) out.push({ rule: "prop-permit-term", severity: "conflict", title: `사용허가기간 ${n.value}년 — 법정 5년 초과`, detail: "행정재산의 사용허가기간은 허가받은 날부터 5년 이내입니다(기부채납 무상사용은 총 20년 한도의 별도 기준).", basis: [{ lawId: Y, articleNo: "21" }], fix: { before: n.raw, after: replaceNum(n.raw, n.value, 5) } });
     if (/자동\s*(으로)?\s*(연장|갱신)/.test(a.text)) out.push({ rule: "prop-auto-renew", severity: "conflict", title: "사용허가 자동 연장·갱신 조항", detail: "사용허가 갱신은 기간이 끝나기 1개월 전 신청을 받아 하며, 수의 방법으로 사용·수익할 수 있는 경우가 아니면 한 차례(1회 5년 범위)만 갱신할 수 있습니다. 자동 연장은 법률 절차와 맞지 않습니다.", basis: [{ lawId: Y, articleNo: "21" }] });
     if (/일반입찰|입찰/.test(a.text) === false && /수의/.test(a.text) && !/대통령령|시행령|법\s*제/.test(a.text)) out.push({ rule: "prop-bid", severity: "review", title: "수의 사용허가 사유 미한정", detail: "사용허가는 일반입찰이 원칙이고, 대통령령으로 정하는 경우에만 제한·지명경쟁 또는 수의 방법으로 허가할 수 있습니다.", basis: [{ lawId: Y, articleNo: "20" }] });
-    if (/전대|다른\s*자에게\s*사용/.test(a.text) && PERMIT.test(a.text) && !/아니\s*된다|할\s*수\s*없|금지/.test(a.text)) out.push({ rule: "prop-sublet", severity: "conflict", title: "사용허가 재산의 전대 허용", detail: "사용허가를 받은 자는 그 행정재산을 다른 자에게 사용·수익하게 할 수 없습니다(기부자 등은 승인을 받은 경우만 예외).", basis: [{ lawId: Y, articleNo: "20" }] });
+    if (/전대|(?:다른|제3)\s*(?:자|사람)에게\s*사용/.test(a.text) && PERMIT.test(a.text) && !/아니\s*된다|할\s*수\s*없|금지/.test(a.text)) out.push({ rule: "prop-sublet", severity: "conflict", title: "사용허가 재산의 전대 허용", detail: "사용허가를 받은 자는 그 행정재산을 다른 자에게 사용·수익하게 할 수 없습니다(기부자 등은 승인을 받은 경우만 예외).", basis: [{ lawId: Y, articleNo: "20" }] });
     return out;
   },
   // 공유재산법 — 대부기간
@@ -346,7 +346,7 @@ const RULES: Rule[] = [
         else if (!land && n.value > 1) out.push({ rule: "prop-lease-other", severity: "review", title: `대부기간 ${n.value}년 — 재산 종류 확인 필요`, detail: "토지와 그 정착물은 5년, 그 밖의 재산은 1년을 초과할 수 없습니다. 대상 재산 종류를 명시하세요.", basis: [{ lawId: Y, articleNo: "31" }] });
       }
     }
-    if (/전대|다른\s*자에게\s*사용/.test(a.text) && PERMIT.test(a.text) && !/아니\s*된다|할\s*수\s*없|금지/.test(a.text)) out.push({ rule: "prop-lease-sublet", severity: "conflict", title: "대부 재산의 전대 허용", detail: "대부를 받은 자는 그 일반재산을 다른 자에게 사용하게 할 수 없습니다.", basis: [{ lawId: Y, articleNo: "29" }] });
+    if (/전대|(?:다른|제3)\s*(?:자|사람)에게\s*사용/.test(a.text) && PERMIT.test(a.text) && !/아니\s*된다|할\s*수\s*없|금지/.test(a.text)) out.push({ rule: "prop-lease-sublet", severity: "conflict", title: "대부 재산의 전대 허용", detail: "대부를 받은 자는 그 일반재산을 다른 자에게 사용하게 할 수 없습니다.", basis: [{ lawId: Y, articleNo: "29" }] });
     return out;
   },
   // 기관 규정으로 형벌·과태료를 정한 경우

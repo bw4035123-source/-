@@ -90,7 +90,7 @@ export function RelatedCases({ query, variant = "officer", limit = 5, title }: P
         </p>
       ) : !data.live ? (
         <p className="text-sm leading-6 text-muted-foreground">
-          판례·법령해석례는 법령 API 중계 서버(LAW_PROXY_URL)를 통해 실시간으로 조회돼요. 확인되지 않은 사건번호를 임의로 보여 주지 않습니다.
+          판례·법령해석례는 법제처 국가법령정보 인증키(LAW_API_OC)를 설정하면 실시간으로 보여 드려요. 확인되지 않은 사건번호를 임의로 만들어 보여 주지 않습니다.
         </p>
       ) : data.retrying && !data.cases.length ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">

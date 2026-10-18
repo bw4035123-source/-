@@ -342,7 +342,7 @@
     render();
     L.extractText(file).then(function (info) {
       c.text = info.text;
-      if (!c.regName) c.regName = file.name.replace(/\.[^.]+$/, "");
+      if (!c.regName) c.regName = file.name.replace(/\.[^.]+$/, "").replace(/_+/g, " ").trim();
       c.loaded = { name: file.name, format: info.format, pages: info.pages, chars: info.text.length, warnings: info.warnings, articles: (info.text.match(/^\s*제\s*\d+\s*조/gm) || []).length };
       c.report = null;
     }, function (e) {

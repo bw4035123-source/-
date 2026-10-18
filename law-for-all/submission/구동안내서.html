@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>구동안내서 — 법이음(LAW:ON)</title>
+<link rel="stylesheet" href="../public/fonts/pretendard-gov/pretendardvariable-gov-dynamic-subset.css">
+<style>
+  @page { size: A4; margin: 13mm 14mm 12mm; }
+  :root { --blue: #1e3a8a; --point: #2563eb; --line: #c9d6ea; --soft: #f2f6fc; --ink: #111827; --muted: #4b5563; }
+  * { box-sizing: border-box; }
+  body { font-family: "Pretendard GOV Variable", "Pretendard GOV", "Noto Sans KR", sans-serif; color: var(--ink); font-size: 9.1pt; line-height: 1.52; word-break: keep-all; margin: 0; }
+  h1 { font-size: 17pt; margin: 0; letter-spacing: -0.02em; }
+  .head { border-bottom: 2.5px solid var(--blue); padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .head p { margin: 2px 0 0; color: var(--muted); font-size: 9pt; }
+  .tag { background: var(--blue); color: #fff; font-weight: 700; font-size: 8.5pt; padding: 2px 9px; border-radius: 4px; white-space: nowrap; }
+  table.form { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  table.form > tbody > tr > th { width: 22mm; background: var(--soft); color: var(--blue); font-weight: 800; text-align: center; vertical-align: middle; border: 1px solid var(--line); padding: 6px 4px; font-size: 9.5pt; }
+  table.form > tbody > tr > td { border: 1px solid var(--line); padding: 5px 8px; vertical-align: top; }
+  .note { color: var(--muted); font-size: 8.3pt; }
+  ul, ol { margin: 2px 0; padding-left: 16px; }
+  li { margin: 1px 0; }
+  code, .mono { font-family: "D2Coding", Consolas, monospace; font-size: 8.6pt; background: #eef2f8; padding: 0 4px; border-radius: 3px; }
+  pre { font-family: Consolas, monospace; font-size: 8.4pt; background: #0f1f4d; color: #e5edff; padding: 6px 9px; border-radius: 5px; margin: 4px 0; white-space: pre-wrap; line-height: 1.5; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .shot { border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .shot img { width: 100%; height: 66mm; object-fit: cover; object-position: top; display: block; }
+  .shot p { margin: 0; padding: 3px 7px; font-size: 8pt; color: var(--muted); background: var(--soft); }
+  table.mini { width: 100%; border-collapse: collapse; margin: 3px 0; font-size: 8.8pt; }
+  table.mini th, table.mini td { border: 1px solid var(--line); padding: 2px 5px; text-align: left; vertical-align: top; }
+  table.mini th { background: var(--soft); font-weight: 700; }
+  b.k { color: var(--point); }
+  .flow { counter-reset: f; }
+  .flow > li { list-style: none; position: relative; padding-left: 0; margin: 0 0 5px; }
+  .flow h4 { margin: 0 0 1px; font-size: 9.8pt; color: var(--blue); }
+  .pb { break-before: page; }
+  .story p { margin: 0 0 5px; }
+  .story h4 { margin: 6px 0 2px; color: var(--blue); font-size: 9.8pt; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div>
+    <h1>[양식 2] 구동 안내서 — 법이음(LAW:ON)</h1>
+    <p>국민·공직자 듀얼 모드 AI 법률 지능형 포털 · 근거 조문 인용 + 환각 방지 + 자체규정 점검</p>
+  </div>
+  <span class="tag">세션 1 · 자유주제</span>
+</div>
+
+<table class="form"><tbody>
+<tr><th>실행 환경</th><td>
+  <table class="mini">
+    <tr><th style="width:24%">방법</th><th>필요 환경</th><th style="width:30%">비고</th></tr>
+    <tr><td><b class="k">① 웹 접속</b>(설치 없음)</td><td>최신 Chrome·Edge·Whale·Safari(PC·모바일)</td><td><span class="mono">https://lawon.onrender.com</span></td></tr>
+    <tr><td><b class="k">② Python 실행판</b>(권장)</td><td>Windows 10/11·macOS·Linux, <b>Python 3.9 이상</b>, 추가 설치(pip) 없음</td><td>메모리 200MB 내외, 인터넷 없어도 동작</td></tr>
+    <tr><td>③ Node.js·Docker</td><td>Node.js 18.18+(20 LTS 권장) 또는 Docker</td><td>개발·정식 구축용</td></tr>
+  </table>
+  <p class="note">· 인증키·LLM 키가 없어도 <b>내장 공식 원문(국가법령정보센터 23개 법령, 2026-10-15 수집) + 규칙기반 엔진</b>으로 모든 화면이 동작합니다.<br>· 웹 시연 서버는 무료 클라우드라 15분간 접속이 없으면 첫 화면까지 30초~1분 걸릴 수 있습니다.</p>
+</td></tr>
+
+<tr><th>설치·실행<br>절차</th><td>
+  <b>Python 실행판</b>(공공 GitLab 산출물의 <span class="mono">law-on-python.zip</span>)
+  <ol>
+    <li>압축을 풉니다(<span class="mono">law-on-python</span> 폴더).</li>
+    <li>Windows는 <span class="mono">run.bat</span> 더블클릭, macOS·Linux는 터미널에서 아래를 실행합니다.
+<pre>cd law-on-python
+python3 run.py            # 브라우저가 자동으로 http://127.0.0.1:8000 을 엽니다</pre></li>
+    <li>처음 실행 시 법제처 인증키를 물으면 <b>엔터</b>로 건너뛰어도 됩니다(내장 원문으로 동작). 키가 있으면 입력하면 <span class="mono">.env.local</span>에만 저장됩니다.</li>
+    <li>동작 점검만 하려면 <span class="mono">python3 run.py --check</span>(법령 연결·LLM 상태 출력), 포트 변경은 <span class="mono">--port 8080</span>.</li>
+  </ol>
+  <b>Node.js 실행판</b>: <span class="mono">npm install && npm run dev</span> → http://localhost:3000 · Docker: <span class="mono">docker compose up --build</span>
+</td></tr>
+
+<tr><th>LLM 연결<br>설정</th><td>
+  <span class="mono">.env.example</span>을 <span class="mono">.env.local</span>로 복사해 값만 넣으면 되며, 화면 왼쪽 위 <b>‘AI 모델’ 선택 메뉴</b>에서 설정된 모델끼리 즉시 바꿀 수 있습니다. 키는 서버에만 두고 브라우저로 보내지 않습니다.
+  <table class="mini">
+    <tr><th style="width:20%">공급자</th><th>설정(.env.local)</th><th style="width:34%">연결 가능 모델 예</th></tr>
+    <tr><td>Ollama(폐쇄망)</td><td><span class="mono">LLM_PROVIDER=ollama</span> <span class="mono">OLLAMA_MODEL=exaone3.5:7.8b</span></td><td><b>EXAONE·Gemma·Llama·Solar</b>·GPT-OSS(행안부 AI 공통기반 지원 모델)</td></tr>
+    <tr><td>OpenAI 호환</td><td><span class="mono">OPENAI_BASE_URL</span> · <span class="mono">OPENAI_API_KEY</span> · <span class="mono">OPENAI_MODEL</span></td><td>vLLM·LM Studio 사내 서버, Upstage Solar, HyperCLOVA X 호환 게이트웨이, GPT</td></tr>
+    <tr><td>Anthropic</td><td><span class="mono">ANTHROPIC_API_KEY</span> · <span class="mono">ANTHROPIC_MODEL</span></td><td>Claude</td></tr>
+    <tr><td>규칙기반(기본)</td><td><span class="mono">LLM_PROVIDER=mock</span>(아무것도 안 넣으면 자동)</td><td>LLM 없이 근거 조문 기반 답변</td></tr>
+  </table>
+  <p class="note">· 모델 교체 시 코드 수정이 없습니다(어댑터 구조). 어떤 모델이든 같은 <b>인용 검증 가드</b>를 거치며, 응답이 형식에 맞지 않거나 근거 밖 조문을 쓰면 해당 인용을 제거하거나 규칙기반 답변으로 자동 대체합니다.<br>· 여러 모델 비교 점검: <span class="mono">npm run llm:check</span>(설정된 모든 모델에 같은 질문 → 결과·검증 상태 표 출력).</p>
+</td></tr>
+
+<tr><th>모의데이터<br>안내</th><td>
+  제출 폴더 <span class="mono">모의데이터/</span>(GitLab <span class="mono">submission/mock-data/</span>) — 가상 기관 이름으로 새로 쓴 규정, 개인정보·민감정보 없음
+  <table class="mini">
+    <tr><th>파일</th><th style="width:14%">형식</th><th style="width:34%">용도(자체규정 점검 결과)</th></tr>
+    <tr><td>가상시설관리공단_복무및보수규정(모의).hwpx</td><td>한글</td><td>근로기준법 대조 — 상충 7·검토 1</td></tr>
+    <tr><td>가상도시개발공사_임직원행동강령(모의).docx</td><td>Word</td><td>청탁금지법·공직선거법 — 상충 3·검토 3</td></tr>
+    <tr><td>가상군_공유재산사용허가운영지침(모의).pdf</td><td>PDF</td><td>공유재산법·없는 조문 인용 — 상충 3·검토 1</td></tr>
+  </table>
+  <p class="note">투입 방법: 공직자 모드 → 자체규정 점검 → 점선 상자에 끌어다 놓기. 파일은 브라우저 안에서만 읽고 원본은 수정·이동·삭제하지 않습니다.</p>
+</td></tr>
+</tbody></table>
+
+<table class="form pb"><tbody>
+<tr><th>기능 사용<br>순서</th><td>
+  <ol class="flow">
+    <li><h4>흐름 1 · 국민 모드 — 일상 언어 질문 → 근거 있는 쉬운 답 (1분)</h4>
+      첫 화면 추천 키워드 <b>#층간소음</b>(또는 “퇴사했는데 마지막 월급을 안 줘요” 입력) → <b>법도우미 요약</b>(문장마다 근거 번호) · 어려운 말 풀이 · <b>지금 해야 할 3단계</b> · 도움받을 기관 연락처 → 근거 번호를 누르면 <b>조문 원문</b>이 열림 → <b>PDF 법률 리포트</b>.<br>
+      이어서 <b>상황 분석</b> 메뉴 → 예시 ‘전세 보증금·연락 두절’ → <b>법령 추천 · 3관점 분석</b>: 사실관계 자동 정리, 관련 법령 순위, <b>변호사·검사·판사</b> 관점과 요건 충족표.</li>
+    <li><h4>흐름 2 · 공직자 모드 — 검토 보고서 한 번에 (1분)</h4>
+      오른쪽 위 <b>공직자</b> 전환 → 해시태그 <b>#부정청탁금지법</b> → 검토 결론·근거 체계·쟁점·유의사항·체크리스트 → <b>보고서 한 번에 작성</b>: 검토 보고서·기안문·민원 회신문·붙임 4종 동시 작성, 인용문 복사·Word 저장 → 법령 뷰어에서 <b>상위법–시행령–시행규칙 3단 대조</b>.</li>
+    <li><h4>흐름 3 · 공직자 모드 — 자체규정 점검 → 개정안 (1분)</h4>
+      상단 <b>자체규정 점검</b> → 모의데이터 <b>가상시설관리공단_복무및보수규정(모의).hwpx</b>를 끌어다 놓기 → <b>상위법령과 교차 검증</b> → 상충 7건(예: 1주 45시간 → 법정 40시간), 조항별 근거 조문 버튼, <b>현행↔개정안 대비</b>, 보고서 복사 → <b>제·개정 지원</b>에서 신·구조문 대비표·개정이유·부칙·입법예고문 초안.</li>
+  </ol>
+  <div class="grid2">
+    <div class="shot"><img src="assets/02-answer-citizen.png" alt=""><p>흐름 1 — 문장마다 근거 번호, 3단계 행동 안내</p></div>
+    <div class="shot"><img src="assets/05-compliance.png" alt=""><p>흐름 3 — 한글 규정 파일 점검: 상충 7 · 검토 1</p></div>
+    <div class="shot"><img src="assets/04-analyze.png" alt=""><p>흐름 1 — 사실관계 정리 + 관련 법령 추천 순위</p></div>
+    <div class="shot"><img src="assets/03-answer-officer.png" alt=""><p>흐름 2 — 공직자 검토 결론·근거 체계</p></div>
+  </div>
+</td></tr>
+
+
+</tbody></table>
+
+<table class="form pb"><tbody>
+<tr><th>알려진<br>제약 사항</th><td>
+  <ul>
+    <li><b>실시간 전체 법령·판례</b>는 법제처 국가법령정보 Open API 인증키(<span class="mono">LAW_API_OC</span>)와 <b>실행 PC·서버의 공인 IP 등록</b>(open.law.go.kr)이 필요합니다. 미설정 시 내장 23개 법령으로 자동 대체하고 화면에 표시하며, 판례는 만들어 보여 주지 않습니다.</li>
+    <li>자체규정 점검의 판정은 정해진 기준(근로시간·연차·금품 한도·임원 임기·사용허가기간 등)과 조문 원문으로만 하며, 현재 대조 법령은 5종(근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법)입니다. 최종 판단은 소관 부처 해석 확인이 필요합니다.</li>
+    <li>스캔 이미지 PDF(글자 정보 없음), 배포용·암호 한글 문서, 예전 Word(.doc)는 읽을 수 없으며 안내 문구를 표시합니다.</li>
+    <li>LLM 답변 품질은 연결 모델에 따라 다르며, 근거 밖 인용은 자동 제거됩니다. 본 서비스는 법률 정보 제공이며 법률 자문이 아닙니다.</li>
+    <li>오픈소스: Next.js·React·Tailwind CSS·Radix UI·Framer Motion·zod·fflate·clsx·tailwind-merge·class-variance-authority(MIT), lucide(ISC), pdf.js(Apache-2.0), Pretendard GOV 글꼴(SIL OFL 1.1). <b>재배포가 제한되는 구성요소 없음.</b></li>
+  </ul>
+</td></tr>
+<tr><th>개발 경위<br>요약</th><td class="story">
+  <h4>문제 인식</h4>
+  <p>법은 국민 생활 곳곳에 닿아 있지만 조문은 어렵고, 생성형 AI는 그럴듯한 <b>가짜 조문·판례</b>를 만들어 공공 서비스에 바로 쓰기 어렵습니다. 공직자는 민원 회신·검토 보고서를 쓸 때마다 근거 조문을 찾아 옮겨 적고, 기관의 취업규칙·행동강령·재산관리 규정이 상위법 개정을 따라가지 못해 감사·노사 분쟁에서 지적되는 일이 반복됩니다.</p>
+  <h4>접근 방식</h4>
+  <p><b>① 근거부터 찾고 답은 나중에</b> — 질문을 토픽·조문 검색으로 먼저 연결해 공식 원문을 확보하고, AI에는 그 조문만 주며 문장마다 근거 표식을 붙이게 했습니다. 근거 목록 밖 인용은 서버에서 지우고, 형식이 깨지면 규칙기반 답변으로 바꿉니다. 근거 카드에는 AI 문장이 아니라 <b>법령 원문만</b> 보여 줍니다.</p>
+  <p><b>② 한 엔진, 두 개의 화면</b> — 같은 근거를 국민에게는 쉬운 말·3단계 행동·기관 연락처로, 공직자에게는 검토 결론·근거 체계·체크리스트·공문서 서식으로 보여 줍니다.</p>
+  <p><b>③ 기관 규정까지 확장</b> — 한글·PDF·Word 규정 파일을 브라우저 안에서 읽어 조문 단위로 상위법과 대조하고(수치 기준·허용 조항·인용 조문 실재 여부), 개정안과 신·구조문 대비표까지 이어지게 했습니다. 판정은 생성형 문장이 아니라 정해진 기준과 원문으로 합니다.</p>
+  <p><b>④ 바로 옮겨 쓸 수 있는 구조</b> — LLM은 어댑터로 분리해 폐쇄망 Ollama(EXAONE·Gemma 등)부터 OpenAI 호환 서버까지 설정만으로 교체하고, 인증키·LLM이 없어도 동작하게 했습니다. 정보화사업 이관을 고려해 Next.js(TypeScript)판과 <b>추가 설치 없는 Python 실행판</b>을 함께 두고, 두 엔진의 결과가 같은지 자동 시험으로 확인합니다(TypeScript 시험 119건, Python 시험 25건).</p>
+  <h4>기대 효과·확산</h4>
+  <p>국민은 상황을 말하기만 하면 근거와 할 일을 한 화면에서 얻고, 공직자는 근거 조사·보고서 초안·규정 점검을 한 곳에서 처리합니다. 대조 법령과 점검 기준은 데이터로 분리돼 있어 기관별 규정(복무·보수·감사·계약 등)과 법령을 추가하는 방식으로 다른 기관·업무에 그대로 확산할 수 있습니다.</p>
+</td></tr>
+</tbody></table>
+
+</body>
+</html>

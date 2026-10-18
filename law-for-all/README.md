@@ -5,12 +5,20 @@
 
 | 구분 | 내용 |
 |---|---|
-| 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) |
-| 핵심 가치 | ① 듀얼 모드(국민/공직자) ② 조문 근거 인용·환각 방지 ③ LLM 비종속(설정 하나로 교체) ④ 키 없이 즉시 시연 |
+| 접속 주소 | **https://lawon.onrender.com** (시연 서버 · 15분간 접속이 없으면 첫 화면까지 30초~1분) |
+| 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) + 추가 설치 없는 Python 실행판 |
+| 핵심 가치 | ① 듀얼 모드(국민/공직자) ② 조문 근거 인용·환각 방지 ③ 자체규정 점검(한글·PDF·Word 규정 ↔ 상위법) ④ LLM 비종속(설정 하나로 교체) ⑤ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
-| 법령 데이터 | 국가법령정보 공동활용 Open API(`lawSearch.do`, `lawService.do`) + 내장 시연 데이터(법률 13종·하위법령 6종) |
+| 법령 데이터 | 법제처 국가법령정보 공동활용 Open API(법령·행정규칙·자치법규·판례·법령해석례 실시간) + 내장 공식 원문 스냅샷 23개 법령(2026-10-15 수집) |
 | LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 |
 | 라이선스 | MIT |
+
+### 3분 만에 보기
+1. **국민 모드** — 추천 키워드 `#임금체불` → 문장마다 근거 번호가 붙은 쉬운 요약 → 번호를 누르면 조문 원문 → 지금 해야 할 3단계
+2. **공직자 모드**(오른쪽 위 전환) — `#부정청탁금지법` → 검토 결론·근거 체계·체크리스트 → **보고서 한 번에 작성**(검토 보고서·기안문·민원 회신문·붙임)
+3. **자체규정 점검** — [`submission/mock-data/`](submission/mock-data/)의 한글·Word·PDF 모의 규정을 끌어다 놓기 → 상충·검토 필요 조항, 근거 조문, 개정안
+
+시연영상·구동안내서·참가신청서·모의데이터는 [`submission/`](submission/)에 있습니다.
 
 ---
 
@@ -158,16 +166,17 @@ law-for-all/
 │  │  ├─ drf.ts                 #   DRF 호출·캐시·응답 파서(lawSearch.do / lawService.do)
 │  │  ├─ client.ts              #   LawService: 실시간 ↔ 내장 데이터 자동 Fallback
 │  │  ├─ search.ts              #   한국어 2-gram 검색 엔진(외부 의존성 없음)
-│  │  └─ mock/                  #   법률 13종·하위법령 6종·생활 법률 토픽 12종·3관점 지식베이스
+│  │  └─ mock/                  #   내장 23개 법령(공식 원문 스냅샷)·생활·공직 토픽 17종·3관점 지식베이스
 │  ├─ llm/                      # LLM 비종속 계층(Adapter Pattern)
 │  │  ├─ types.ts               #   LLMProvider 인터페이스
 │  │  ├─ providers/             #   openai · anthropic · ollama · mock
 │  │  └─ registry.ts            #   환경변수 기반 생성·선택·안전 대체
 │  └─ answer/                   # 질의응답·상황분석 파이프라인 · 사실 추출 · 프롬프트 · 환각 가드 · 규칙엔진
-├─ tests/                       # Vitest 44개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석)
+├─ tests/                       # Vitest 119개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석·자체규정 점검·문서 추출)
 ├─ scripts/llm-check.ts         # 설정된 LLM 전체 비교 점검
 ├─ python/                     # Python 실행판(표준 라이브러리 서버 + 동등성 테스트)
 ├─ Dockerfile · docker-compose.yml · .gitlab-ci.yml
+├─ submission/                  # 제출물: 구동안내서·참가신청서(PDF·HTML), 모의데이터(한글·Word·PDF), 화면 캡처
 └─ docs/JUDGE_GUIDE.md          # 예선 심사위원용 구동안내서
 ```
 
