@@ -70,6 +70,17 @@ class GuardTest(unittest.TestCase):
         with self.assertRaises(GuardError):
             guard_llm_output({"summary": "근거 없음", "citations": []}, "officer", self.ctx)
 
+    def test_small_model_output(self):
+        # 감싼 JSON·answer 키·[[키]] 누락 보정 — 근거 목록의 조문을 이름·번호로 언급할 때만 인용으로 인정
+        g = guard_llm_output({"answer": {"answer": "「주택임대차보호법」 제3조에 따라 전입 다음 날 대항력이 생겨요."}}, "citizen", self.ctx)
+        self.assertEqual(g["citationKeys"], ["housing-lease:3"])
+        with self.assertRaises(GuardError):
+            guard_llm_output({"summary": "「주택임대차보호법」 제30조를 보세요."}, "citizen", self.ctx)
+        self.assertEqual(guard_llm_output({"summary": "주택임대차보호법 제3조의2에 따라 우선변제"}, "officer", self.ctx)["citationKeys"], ["housing-lease:3의2"])
+        from law_for_all.guard import guard_analysis_output
+        a = guard_analysis_output({"result": {"lawyer": {"stance": "「주택임대차보호법」 제3조 대항력 주장"}, "prosecutor": {"stance": ""}, "judge": {"stance": "요건 검토"}}}, self.ctx)
+        self.assertEqual(a["citationKeys"], ["housing-lease:3"])
+
 
 class DrfTest(unittest.TestCase):
     def test_parse(self):

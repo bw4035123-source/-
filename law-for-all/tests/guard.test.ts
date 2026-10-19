@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "@/lib/answer/guard";
+import { findUnverifiedMentions, guardAnalysisOutput, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "@/lib/answer/guard";
 import { getMockLaw } from "@/lib/law-api/mock";
 import { toCitation } from "@/lib/law-api/util";
 
@@ -48,5 +48,17 @@ describe("환각 방지 가드", () => {
 
   it("인용이 하나도 없으면 예외(규칙엔진 대체 유도)", () => {
     expect(() => guardLLMOutput({ summary: "근거 없이 말함", citations: [] }, "officer", ctx)).toThrow();
+  });
+
+  it("소형 모델 출력 보정: 감싼 JSON·answer 키·[[키]] 누락도 근거 조문 언급으로만 인정", () => {
+    const g = guardLLMOutput({ answer: { answer: "「주택임대차보호법」 제3조에 따라 전입 다음 날 대항력이 생겨요." } }, "citizen", ctx);
+    expect(g.summary).toContain("대항력");
+    expect(g.citationKeys).toEqual(["housing-lease:3"]);
+    // 근거 목록에 없는 조문만 언급하면 여전히 거절(규칙엔진 대체)
+    expect(() => guardLLMOutput({ summary: "「주택임대차보호법」 제30조를 보세요." }, "citizen", ctx)).toThrow("근거 조문 인용이 없습니다");
+    // 제3조의2 언급이 제3조로 잘못 잡히지 않음
+    expect(guardLLMOutput({ summary: "주택임대차보호법 제3조의2에 따라 우선변제" }, "officer", ctx).citationKeys).toEqual(["housing-lease:3의2"]);
+    const a = guardAnalysisOutput({ result: { lawyer: { stance: "「주택임대차보호법」 제3조 대항력 주장" }, prosecutor: { stance: "" }, judge: { stance: "요건 검토" } } }, ctx);
+    expect(a.citationKeys).toEqual(["housing-lease:3"]);
   });
 });

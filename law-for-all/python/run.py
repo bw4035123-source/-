@@ -182,7 +182,7 @@ def main():
         # 실행 직후 실제 연결을 한 번 확인해 콘솔에 결과 표시(화면 사용은 바로 가능)
         def report():
             ok, msg = test_live(config.law_api_oc)
-            print(f"  [국가법령정보] {'✓' if ok else '✗'} {msg}")
+            # print(f"  [국가법령정보] {'✓' if ok else '✗'} {msg}")
 
         threading.Thread(target=report, daemon=True).start()
     if not a.no_browser:

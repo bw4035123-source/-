@@ -69,6 +69,39 @@ export function parseLooseJson(text: string): unknown {
   return JSON.parse(t.slice(s, e + 1));
 }
 
+// ───────────── 소형 모델 출력 보정(형식만 고치고 내용·근거는 그대로 검증)
+const SUMMARY_ALIASES = ["answer", "response", "result", "답변", "요약"];
+
+/** {"answer": {...}} 처럼 한 겹 감싼 출력은 벗기고, summary 가 없으면 answer 등 같은 뜻의 키를 쓴다 */
+export function unwrapLlmJson(raw: unknown, keys: string[]): unknown {
+  const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const known = keys.includes("summary") ? [...keys, ...SUMMARY_ALIASES] : keys;
+  const has = (v: Record<string, unknown>) => known.some((k) => k in v && (typeof v[k] !== "object" || !SUMMARY_ALIASES.includes(k)));
+  for (let i = 0; i < 2; i++) {
+    if (!isObj(raw) || has(raw)) break;
+    const inner = Object.values(raw).filter((v): v is Record<string, unknown> => isObj(v) && known.some((k) => k in v));
+    if (inner.length !== 1) break;
+    raw = inner[0];
+  }
+  if (isObj(raw) && keys.includes("summary") && !raw.summary) {
+    const obj = raw;
+    const alias = SUMMARY_ALIASES.map((k) => obj[k]).find((v): v is string => typeof v === "string" && !!v.trim());
+    if (alias) raw = { ...raw, summary: alias };
+  }
+  return raw;
+}
+
+/** [[키]] 표시를 빠뜨린 경우: 본문이 근거 목록의 조문을 이름·번호로 정확히 언급했을 때만 그 조문을 인용으로 인정 */
+export function inferCitationKeys(texts: string[], context: Citation[]): string[] {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const plain = norm(texts.join("\n").replace(MARKER, ""));
+  const out: string[] = [];
+  for (const c of context) {
+    if (new RegExp(`${esc(norm(c.lawName))}」?제${esc(c.articleNo.replace(/^(\d+)의(\d+)$/, "$1조의$2").replace(/^(\d+)$/, "$1조"))}(?![의\\d])`).test(plain) && !out.includes(c.key)) out.push(c.key);
+  }
+  return out;
+}
+
 const str = z.preprocess((v) => (v == null ? "" : typeof v === "string" ? v : JSON.stringify(v)), z.string());
 const strList = z.preprocess((v) => (Array.isArray(v) ? v : v ? [v] : []), z.array(str));
 
@@ -100,6 +133,7 @@ export interface GuardedOutput {
 
 /** LLM JSON → 검증·정제된 답변. 근거 인용이 하나도 없으면 예외(상위에서 규칙엔진으로 대체) */
 export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", context: Citation[]): GuardedOutput {
+  raw = unwrapLlmJson(raw, ["summary", "steps", "keyPoints", "background"]);
   const allowed = new Set(context.map((c) => c.key));
   const removed: string[] = [];
   const used: string[] = [];
@@ -145,6 +179,7 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
     if (allowed.has(k)) !used.includes(k) && used.push(k);
     else if (!removed.includes(k)) removed.push(k);
   }
+  if (!used.length) used.push(...inferCitationKeys(allText, context));
   if (!summary) throw new Error("요약이 비어 있습니다");
   if (!used.length) throw new Error("근거 조문 인용이 없습니다");
 
@@ -167,6 +202,7 @@ export const AnalysisSchema = z.object({
 });
 
 export function guardAnalysisOutput(raw: unknown, context: Citation[]) {
+  raw = unwrapLlmJson(raw, ["lawyer", "prosecutor", "judge"]);
   const allowed = new Set(context.map((c) => c.key));
   const removed: string[] = [];
   const used: string[] = [];
@@ -199,6 +235,7 @@ export function guardAnalysisOutput(raw: unknown, context: Citation[]) {
     if (allowed.has(k)) !used.includes(k) && used.push(k);
     else if (!removed.includes(k)) removed.push(k);
   }
+  if (!used.length) used.push(...inferCitationKeys(texts, context));
   if (!perspectives.lawyer.stance || !perspectives.judge.stance) throw new Error("관점 분석이 비어 있습니다");
   if (!used.length) throw new Error("근거 조문 인용이 없습니다");
   return { perspectives, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(texts.join("\n"), context) };

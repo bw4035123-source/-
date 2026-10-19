@@ -18,7 +18,7 @@ from pathlib import Path
 from .analyze import analyze
 from .ask import ask
 from .config import config
-from .llm import PROVIDER_IDS, list_providers
+from .llm import PROVIDER_IDS, create_providers, list_providers
 
 MODEL_ENV = {"openai": "OPENAI_MODEL", "anthropic": "ANTHROPIC_MODEL", "ollama": "OLLAMA_MODEL"}
 
@@ -84,10 +84,28 @@ def run(spec: str | None, out_dir: Path) -> tuple[Path, bool]:
     if not targets:
         raise SystemExit("설정된 LLM이 없습니다. .env.local 에 LLM 설정을 넣거나 대상을 지정하세요(예: --llm-test ollama:gemma3:4b).")
     rows = []
+    # 로컬 소형 모델은 첫 호출에 모델을 메모리에 올리느라 오래 걸린다 — 시험 동안만 제한시간을 넉넉히(직접 정했으면 그 값)
+    timeout_set = "LLM_TIMEOUT_MS" in os.environ
+    if not timeout_set:
+        os.environ["LLM_TIMEOUT_MS"] = "120000"
+    try:
+        _run_targets(targets, rows)
+    finally:
+        if not timeout_set:
+            os.environ.pop("LLM_TIMEOUT_MS", None)
+    return _write_report(rows, out_dir)
+
+
+def _run_targets(targets: list, rows: list) -> None:
     for pid, model in targets:
         with model_override(pid, model):
             label = f"{pid}:{model}" if model else pid
             print(f"▶ {label}")
+            if pid == "ollama":  # 모델 적재(예열) — 결과·시간에 넣지 않음
+                try:
+                    create_providers(config.llm)["ollama"].generate(system="", messages=[{"role": "user", "content": "안녕"}], max_tokens=1)
+                except Exception as e:  # 연결 실패는 아래 사례에서 그대로 기록된다
+                    print(f"   (예열 실패: {e})")
             for kind, mode, text in CASES:
                 try:
                     res = run_case(kind, mode, text, pid)
@@ -98,6 +116,8 @@ def run(spec: str | None, out_dir: Path) -> tuple[Path, bool]:
                 mark = "✓" if (res["used_llm"] or pid == "mock") and res["passed"] else "✗"
                 print(f"   {mark} {('질문' if kind == 'ask' else '상황 분석')} · {text[:24]}… — {res['seconds']}초, 근거 {res['citations']}건{', ' + res['fallback'] if res['fallback'] else ''}")
 
+
+def _write_report(rows: list, out_dir: Path) -> tuple[Path, bool]:
     def ok(r: dict) -> bool:
         return (r["used_llm"] or r["target"].startswith("mock")) and r["passed"]
 
