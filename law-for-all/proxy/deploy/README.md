@@ -65,11 +65,11 @@ ssh -i 내려받은키.key ubuntu@고정IP
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git
-git clone -b claude/bold-sagan-wxagtd --depth 1 https://github.com/bw4035123-source/-.git law-on
-cd law-on/law-for-all/proxy && sudo bash deploy/setup-vm.sh
+git clone --depth 1 <이 저장소 주소> law-on      # 예) 공공 GitLab 프로젝트 주소
+cd law-on/proxy && sudo bash deploy/setup-vm.sh
 ```
 
-- 저장소가 **비공개**면 `git clone` 때 비밀번호 자리에 GitHub **Personal Access Token**(repo 읽기 권한)을 넣습니다.
+- 저장소가 **비공개**면 `git clone` 때 비밀번호 자리에 **개인 액세스 토큰**(저장소 읽기 권한)을 넣습니다.
 - 또는 `law-on-proxy.zip`을 `scp law-on-proxy.zip ubuntu@고정IP:~`로 올리고 `unzip law-on-proxy.zip -d proxy && cd proxy && sudo bash deploy/setup-vm.sh` 하셔도 됩니다.
 
 스크립트가 인증키(OC)와 접근 토큰(선택)을 물어본 뒤 아래를 자동으로 처리합니다.

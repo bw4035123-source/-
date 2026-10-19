@@ -6,7 +6,8 @@
 | 구분 | 내용 |
 |---|---|
 | 접속 주소 | **https://lawon.onrender.com** (시연 서버 · 15분간 접속이 없으면 첫 화면까지 30초~1분) |
-| 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) + 추가 설치 없는 Python 실행판 |
+| 서비스 형태 | 웹 포털(반응형: 모바일·태블릿·데스크톱) + 한 파일 공유판(HTML) + 추가 설치 없는 Python 실행판 |
+| 실행물 | [`release/`](release/) — `LAW-ON_share.html`(더블클릭) · `law-on-python.zip`(실행판) |
 | 핵심 가치 | ① 듀얼 모드(국민/공직자) ② 조문 근거 인용·환각 방지 ③ 자체규정 점검(한글·PDF·Word 규정 ↔ 상위법) ④ LLM 비종속(설정 하나로 교체) ⑤ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
 | 법령 데이터 | 법제처 국가법령정보 공동활용 Open API(법령·행정규칙·자치법규·판례·법령해석례 실시간) + 내장 공식 원문 스냅샷 23개 법령(2026-10-15 수집) |
@@ -16,7 +17,7 @@
 ### 3분 만에 보기
 1. **국민 모드** — 추천 키워드 `#임금체불` → 문장마다 근거 번호가 붙은 쉬운 요약 → 번호를 누르면 조문 원문 → 지금 해야 할 3단계
 2. **공직자 모드**(오른쪽 위 전환) — `#부정청탁금지법` → 검토 결론·근거 체계·체크리스트 → **보고서 한 번에 작성**(검토 보고서·기안문·민원 회신문·붙임)
-3. **자체규정 점검** — [`submission/mock-data/`](submission/mock-data/)의 한글·Word·PDF 모의 규정을 끌어다 놓기 → 상충·검토 필요 조항, 근거 조문, 개정안
+3. **자체규정 점검**(공직자 모드) — **‘모의데이터로 바로 체험’** 버튼 한 번(한글·Word·PDF 모의 규정 내장, [`submission/mock-data/`](submission/mock-data/)와 같은 파일) → 상충·검토 필요 조항, 근거 조문, 개정안
 
 시연영상·구동안내서·참가신청서·모의데이터는 [`submission/`](submission/)에 있습니다.
 
@@ -24,7 +25,16 @@
 
 ## 1. 바로 실행
 
-### 🐍 Python 실행판 (Node.js 불필요 — 권장 배포 형태)
+| 방법 | 설치 | 비고 |
+|---|---|---|
+| ① 웹 접속 **https://lawon.onrender.com** | 없음 | 가장 간단. 판례·실시간 법령 |
+| ② 공유판 `release/LAW-ON_share.html` | 없음 | 더블클릭하면 서버 없이 열림(웹 바닥글 ‘공유판 내려받기’로도 받음) |
+| ③ Python 실행판 `release/law-on-python.zip` | Python 3.9+ | 폐쇄망·기관 내부 설치, LLM 교체 시험(`--llm-test`) |
+| ④ Node.js·Docker | Node 18.18+ | 개발·정식 구축 |
+
+②·③도 판례·실시간 법령은 법이음 클라우드 서버(법령 API 중계)를 거쳐 받으므로 **실행하는 PC에 인증키·IP 등록이 필요 없습니다**(인증키는 서버에만 있음). 연결이 안 되면 내장 원문 23개 법령 + 규칙기반 엔진으로 동작합니다.
+
+### 🐍 Python 실행판 (Node.js 불필요)
 `law-on-python.zip` 압축을 풀고 **Python 3.9 이상**으로 실행합니다. `pip install` 없이 표준 라이브러리만 사용합니다.
 
 ```bash
@@ -197,7 +207,7 @@ law-for-all/
 | 변수 | 설명 | 기본값 |
 |---|---|---|
 | `LAW_API_OC` | 법제처 국가법령정보 Open API 인증키(OC). [open.law.go.kr](https://open.law.go.kr)에서 신청하고 실행하는 PC·서버의 공인 IP 등록. 넣으면 **법령·행정규칙·자치법규·판례 전체 실시간 조회** | (비움 → 내장 핵심 법령 23종) |
-| `LAW_PROXY_URL` | (선택) 법령 API 중계 서버 주소 — 비우면 위 인증키로 www.law.go.kr 직접 호출 | (비움) |
+| `LAW_PROXY_URL` | 법령 API 중계 서버 주소 — 비우면 법이음 클라우드 서버(lawon.onrender.com) 경유, `off`면 위 인증키로 www.law.go.kr 직접 호출 | (비움) |
 | `LAW_PROXY_TOKEN` | (선택) 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 | (비움) |
 | `LLM_PROVIDER` | 기본 LLM: `mock` · `openai` · `anthropic` · `ollama` | `mock` |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | OpenAI 또는 OpenAI 호환 서버(Upstage Solar, vLLM, LM Studio 등) | `gpt-4o-mini`, `https://api.openai.com/v1` |
@@ -245,4 +255,4 @@ npm run build      # 프로덕션 빌드
 
 ## 법령 API 중계 서버(FastAPI)
 
-브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 기본 구성에서는 쓰지 않으며(앱이 `LAW_API_OC`로 법제처 API를 직접 호출), 인증키를 앱과 다른 서버에 두고 싶을 때 `LAW_PROXY_URL`로 지정합니다. 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.
+브라우저가 국가법령정보센터를 직접 부르면 IP 차단이 일어나므로, 인증키를 서버에만 두고 실시간 조회를 중계하는 FastAPI 서버를 `proxy/`에 제공합니다. 기본 구성에서는 법이음 Python 서버(lawon.onrender.com)의 `/api/raw` 중계를 쓰며, 별도 중계 서버를 두고 싶을 때 `LAW_PROXY_URL`로 이 FastAPI 서버를 지정합니다. 실행·테스트·Cloudflare Tunnel 공개 방법은 [proxy/README.md](proxy/README.md)를 보세요.
