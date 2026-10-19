@@ -1,6 +1,7 @@
 // 시연영상 자동 녹화 — 실행 중인 법이음을 브라우저로 조작하며 자막·내레이션과 함께 녹화하고 mp4로 변환한다.
 //   node scripts/record-demo.mjs [기본주소] [출력.mp4] [내레이션폴더]
 //   내레이션폴더: scripts/tts_narration.py 로 만든 s00.wav… + durations.json (없으면 자막만)
+//   NO_AUDIO=1 이면 내레이션 길이로 장면 시간만 맞추고 음성은 넣지 않는다(자막만)
 //   판례 장면은 서버가 국가법령정보 실시간 연결(/api/cases 의 live)일 때만 넣는다.
 // 필요: Playwright(Chromium), ffmpeg(libx264, aac)
 import fs from "node:fs";
@@ -25,6 +26,7 @@ const BASE = process.argv[2] ?? "http://127.0.0.1:8765";
 const OUT = path.resolve(process.argv[3] ?? "dist/demo.mp4");
 const NARR = process.argv[4] ? path.resolve(process.argv[4]) : null;
 const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"), "utf8")) : {};
+const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MOCK = path.join(root, "submission/mock-data/가상시설관리공단_복무및보수규정(모의).hwpx");
 const W = 1280;
@@ -135,8 +137,11 @@ await setMode("citizen");
 await page.reload();
 await wait(800);
 
+let introAt = 0; // 표지가 뜬 시각 — 그 앞(빈 화면·첫 로딩)은 잘라 낸다
 await scene("s00", null, "", async () => {
   await card(`<span class="chip">2026 공공 AI 대전환 챌린지 · 세션 1</span><h1>법이음 (LAW:ON)</h1><p>국민에게는 쉬운 말로, 공직자에게는 정확한 근거로<br>근거 조문을 먼저 찾고 답하는 AI 법률 지능형 포털</p>`);
+  await wait(300);
+  introAt = (Date.now() - t0) / 1000;
 });
 await scene("s01", "① 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "예: 퇴사했는데 마지막 월급을 안 줘요", async () => {
   await card("");
@@ -186,16 +191,16 @@ if (casesLive) {
     const item = page.locator("button", { hasText: "판례 보기" }).first();
     if (await has(item)) {
       await click(item);
-      await wait(2500);
+      await wait(1200);
       await cap("판례 뷰어 — 판시사항 · 판결요지 · 참조조문 · 전문, 국민 모드는 쉬운 설명", "인용 표기 복사 · 국가법령정보센터 원문 링크");
       await wait(3500);
       await page.mouse.move(900, 450);
       await scrollBy(500);
     }
   });
-  await page.keyboard.press("Escape").catch(() => {});
 }
 await scene("s07", "② AI 법률 상황 분석실 — 사실관계 정리 · 관련 법령 추천", "당사자·금액·시점 자동 정리 → 관련도 순 법령 추천", async () => {
+  await page.keyboard.press("Escape").catch(() => {});
   await page.goto(BASE + "/analyze");
   await wait(1000);
   await click(page.locator("button", { hasText: "전세 보증금" }).first());
@@ -281,8 +286,9 @@ await ctx.close();
 await b.close();
 const webm = await video.path();
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
-const args = ["-y", "-loglevel", "error", "-i", webm];
-if (cues.length) {
+const args = ["-y", "-loglevel", "error", "-ss", introAt.toFixed(2), "-i", webm];
+for (const c of cues) c.at = Math.max(0, c.at - introAt);
+if (AUDIO && cues.length) {
   // 장면 시작 시각에 맞춰 내레이션을 깔고, 목소리를 또렷하게(저역 제거·음량 정규화)
   for (const c of cues) args.push("-i", path.join(NARR, `${c.id}.wav`));
   const parts = cues.map((c, i) => `[${i + 1}:a]aresample=48000,adelay=${Math.round(c.at * 1000)}|${Math.round(c.at * 1000)}[a${i}]`);
@@ -293,4 +299,4 @@ args.push("-c:v", "libx264", "-preset", "medium", "-crf", "22", "-pix_fmt", "yuv
 execFileSync("ffmpeg", args);
 fs.rmSync(tmp, { recursive: true, force: true });
 const dur = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", OUT]).toString().trim();
-console.log(`✔ ${OUT} (${Math.round(Number(dur))}초, ${(fs.statSync(OUT).size / 1024 / 1024).toFixed(1)} MB, 내레이션 ${cues.length}개)`);
+console.log(`✔ ${OUT} (${Math.round(Number(dur))}초, ${(fs.statSync(OUT).size / 1024 / 1024).toFixed(1)} MB, ${AUDIO ? `내레이션 ${cues.length}개` : "음성 없음"})`);

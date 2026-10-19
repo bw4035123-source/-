@@ -9,7 +9,7 @@
 | 산출물(소스+실행물) | 이 저장소 전체 + `law-on-python.zip` | 공공 GitLab(gitlab.aigov.go.kr) | 비공개 프로젝트 생성 → 주제(Topics) **'2026 공공 AI 대전환 챌린지 세션1'** → 푸시 → 실행판 zip 함께 등록 |
 | 참가신청서(양식1) | `참가신청서.pdf` | databus@nia.or.kr | 기관명·참가자 정보·GitLab 링크 기재, 동의란 체크, 서명 → `[참가신청서]_기관명_팀명.pdf` |
 | 구동안내서(양식2) | `구동안내서.pdf`(A4 3쪽) | databus@nia.or.kr | `[구동안내서]_기관명_팀명.pdf`로 파일명 변경 |
-| 시연영상 | `demo.mp4`(약 3분, 자막·음성 내레이션, 대본 `시연영상_대본.md`) | databus@nia.or.kr | `[시연영상]_기관명_팀명.mp4`로 파일명 변경 |
+| 시연영상 | `demo.mp4`(약 3분 20초, 자막, 판례 실시간 조회·관련 기관 연락처 포함) | databus@nia.or.kr | `[시연영상]_기관명_팀명.mp4`로 파일명 변경 |
 | 모의데이터(선택) | `mock-data/` | databus@nia.or.kr | 그대로 압축해 첨부 |
 
 - 이메일 제목: `[공공 AI 대전환 챌린지 제출]_세션1_기관명_팀명(개인은 성명)`
@@ -22,7 +22,7 @@
 node scripts/build-python.mjs                       # dist/law-on-python.zip (실행판)
 # 문서 PDF: Chromium으로 구동안내서.html · 참가신청서.html 을 A4 인쇄(PDF 저장)
 python3 run.py --no-browser --port 8765             # (실행판 폴더에서) 녹화용 서버
-node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo.mp4   # 시연영상 자동 녹화
+NO_AUDIO=1 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo.mp4 dist/narration   # 시연영상 자동 녹화(자막만, 장면 길이는 대본 기준)
 ```
 
 ## 심사 기준과 대응
