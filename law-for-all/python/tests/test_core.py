@@ -218,6 +218,16 @@ class ServerTest(unittest.TestCase):
         with urllib.request.urlopen(self.base + "/", timeout=5) as res:
             self.assertIsNone(res.headers.get("Access-Control-Allow-Origin"))
 
+    def test_share_download(self):
+        """사이트에서 공유판을 내려받을 때: 열지 않고 저장(attachment), 영문 파일 이름"""
+        from law_for_all.server import WEB
+        if not (WEB / "downloads" / "law-on-share.html").is_file():
+            self.skipTest("빌드 전에는 공유판 파일이 없음")
+        req = urllib.request.Request(self.base + "/downloads/law-on-share.html", method="HEAD")
+        with urllib.request.urlopen(req, timeout=10) as res:
+            cd = res.headers["Content-Disposition"]
+        self.assertEqual(cd, 'attachment; filename="LAW-ON_share.html"')
+
     def test_keepalive_after_early_error(self):
         """오류로 일찍 응답해도 본문을 읽어 같은 연결의 다음 요청이 정상 처리되어야 함"""
         import http.client

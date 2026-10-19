@@ -15,7 +15,7 @@ fs.mkdirSync(p("dist"), { recursive: true });
 const REMOTE = process.env.LAW_ON_REMOTE ?? "https://lawon.onrender.com";
 
 // 1) 정적 빌드의 Tailwind CSS(실제 앱과 같은 스타일)
-const cssDirs = [p("dist", "law-on-python", "law_for_all", "web", "_next", "static", "css"), p("python", "law_for_all", "web", "_next", "static", "css"), p("out", "_next", "static", "css")];
+const cssDirs = [p("python", "law_for_all", "web", "_next", "static", "css"), p("out", "_next", "static", "css"), p("dist", "law-on-python", "law_for_all", "web", "_next", "static", "css")];
 const cssDir = cssDirs.find((d) => fs.existsSync(d));
 if (!cssDir) throw new Error("정적 빌드 CSS가 없습니다 — 먼저 node scripts/build-python.mjs 를 실행하세요");
 const appCss = fs.readdirSync(cssDir).filter((f) => f.endsWith(".css")).map((f) => fs.readFileSync(path.join(cssDir, f), "utf8")).join("\n");
