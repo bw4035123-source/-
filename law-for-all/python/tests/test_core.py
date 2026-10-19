@@ -172,6 +172,21 @@ class ServerTest(unittest.TestCase):
         s, j, _ = self.req("/api/providers")
         self.assertEqual([p["id"] for p in j["providers"]], ["mock", "openai", "anthropic", "ollama"])
 
+    def test_cors_for_shared_page(self):
+        """단일 파일 공유판(다른 출처)이 /api/* 를 부를 수 있어야 하고, 화면 파일에는 허용 헤더를 붙이지 않음"""
+        import http.client
+        conn = http.client.HTTPConnection("127.0.0.1", self.httpd.server_address[1], timeout=5)
+        conn.request("OPTIONS", "/api/ask", headers={"Origin": "null", "Access-Control-Request-Method": "POST"})
+        r = conn.getresponse()
+        r.read()
+        self.assertEqual((r.status, r.getheader("Access-Control-Allow-Origin")), (204, "*"))
+        self.assertIn("POST", r.getheader("Access-Control-Allow-Methods"))
+        conn.close()
+        _, _, h = self.req("/api/health")
+        self.assertEqual(h["Access-Control-Allow-Origin"], "*")
+        with urllib.request.urlopen(self.base + "/", timeout=5) as res:
+            self.assertIsNone(res.headers.get("Access-Control-Allow-Origin"))
+
     def test_keepalive_after_early_error(self):
         """오류로 일찍 응답해도 본문을 읽어 같은 연결의 다음 요청이 정상 처리되어야 함"""
         import http.client

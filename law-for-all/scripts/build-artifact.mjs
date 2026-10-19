@@ -1,5 +1,5 @@
 // 단일 파일 공유판 빌드: 실제 앱 화면(app/·components/)과 API 처리기·엔진·내장 원문을 한 개의 HTML 로 묶는다.
-// 서버·API 키 없이 브라우저만으로 동작(법령은 내장 공식 원문, 답변은 규칙기반 엔진).
+// 실시간 서버(LAW_ON_REMOTE, 기본 lawon.onrender.com)가 응답하면 판례·실시간 법령까지, 아니면 내장 공식 원문·규칙기반 엔진으로 동작.
 //   node scripts/build-python.mjs   # 먼저 실행(정적 빌드의 Tailwind CSS 를 가져옴)
 //   node scripts/build-artifact.mjs
 // 결과: dist/law-on-artifact.html(Claude Artifact 게시용 — 문서 머리 없이) · dist/law-on-공유판.html(더블클릭으로 여는 완전한 HTML)
@@ -10,6 +10,9 @@ import path from "node:path";
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const p = (...a) => path.join(root, ...a);
 fs.mkdirSync(p("dist"), { recursive: true });
+
+// 실시간 서버(판례·전체 법령) — 응답이 없으면 공유판은 내장 엔진으로 동작. LAW_ON_REMOTE="" 로 끌 수 있음
+const REMOTE = process.env.LAW_ON_REMOTE ?? "https://lawon.onrender.com";
 
 // 1) 정적 빌드의 Tailwind CSS(실제 앱과 같은 스타일)
 const cssDirs = [p("dist", "law-on-python", "law_for_all", "web", "_next", "static", "css"), p("python", "law_for_all", "web", "_next", "static", "css"), p("out", "_next", "static", "css")];
@@ -38,7 +41,7 @@ const app = (
     write: false,
     jsx: "automatic",
     alias: { "server-only": empty, "next/link": shim("link.tsx"), "next/navigation": shim("navigation.ts"), "next/server": shim("server.ts"), "@": root },
-    define: { "process.env.NODE_ENV": '"production"', "process.env": "{}" },
+    define: { "process.env.NODE_ENV": '"production"', "process.env": "{}", __LAW_ON_REMOTE__: JSON.stringify(REMOTE) },
     logLevel: "error",
     plugins: [
       {

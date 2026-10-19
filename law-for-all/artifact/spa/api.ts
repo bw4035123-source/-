@@ -1,6 +1,7 @@
 /**
  * /api/* 요청을 브라우저 안에서 처리 — 앱의 실제 API 처리기(app/api/…/route.ts)를 그대로 실행한다.
- * 서버·인증키가 없으므로 법령은 내장 공식 원문, 답변은 규칙기반 엔진, 판례는 '실시간 연결 필요' 안내.
+ * 실시간 서버(기본 https://lawon.onrender.com, 빌드 때 LAW_ON_REMOTE 로 변경)가 응답하면 그 서버 API로 판례·실시간 법령을 받고,
+ * 잠들어 있거나 연결이 안 되면 내장 공식 원문 + 규칙기반 엔진으로 처리한다(인증키는 서버에만 있고 이 파일에는 없다).
  */
 import * as ask from "@/app/api/ask/route";
 import * as analyze from "@/app/api/analyze/route";
@@ -31,11 +32,59 @@ function resolve(method: string, path: string): { fn: Handler; params?: Record<s
 }
 
 const nativeFetch = window.fetch.bind(window);
+
+// ───── 실시간 서버 연결(있으면 사용, 없으면 내장 엔진)
+declare const __LAW_ON_REMOTE__: string;
+const REMOTE = (typeof __LAW_ON_REMOTE__ === "string" ? __LAW_ON_REMOTE__ : "").replace(/\/$/, "");
+let remoteLive = false;
+let probing: Promise<boolean> | null = null;
+let retries = 0;
+
+async function timed(url: string, init: RequestInit, ms: number) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await nativeFetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function probe(ms = 6000): Promise<boolean> {
+  if (!REMOTE) return Promise.resolve(false);
+  probing ??= timed(`${REMOTE}/api/health`, { cache: "no-store" }, ms)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => j?.lawApi === "live")
+    .catch(() => false)
+    .then((ok) => {
+      remoteLive = ok;
+      probing = null;
+      // 무료 클라우드는 잠들어 있다 깨어나는 데 30초~1분 — 뒤에서 몇 번 더 확인해 깨어나면 그때부터 사용
+      if (!ok && retries++ < 6) setTimeout(() => void probe(20000), 15000);
+      return ok;
+    });
+  return probing;
+}
+const firstProbe = probe();
+
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
   // 공유판에는 로컬 LLM(Ollama)이 없으므로 상태 확인 요청을 보내지 않고 바로 '연결 안 됨'으로 처리
   if (/^https?:\/\/(localhost|127\.0\.0\.1):11434\//.test(url)) return Promise.reject(new TypeError("공유판에서는 로컬 LLM에 연결하지 않습니다"));
   if (!url.startsWith("/api/")) return nativeFetch(input, init);
+  await Promise.race([firstProbe, new Promise((r) => setTimeout(r, 6500))]);
+  if (remoteLive) {
+    try {
+      const { signal: _ignored, ...rest } = init ?? {};
+      const r = await timed(REMOTE + url, rest, /\/api\/(ask|analyze|cases)/.test(url) ? 40000 : 20000);
+      if (r.status < 500) return r;
+    } catch {
+      /* 아래 내장 엔진으로 */
+    }
+    remoteLive = false;
+    retries = 0;
+    void probe(20000);
+  }
   const u = new URL(url, "http://law-on.local");
   const method = (init?.method ?? "GET").toUpperCase();
   const hit = resolve(method, u.pathname);
