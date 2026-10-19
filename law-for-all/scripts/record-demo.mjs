@@ -305,6 +305,7 @@ await scene("s13", async () => {
   await cap("모의데이터로 바로 체험 — 버튼 한 번에 한글(HWPX) 규정 파일 읽기부터 검증까지", "가상시설관리공단 복무 및 보수 규정 · 조문 11개 인식");
   await wait(1500);
   await mock.click();
+  await page.mouse.move(W - 260, 300, { steps: 14 }); // 결과로 화면이 옮겨 가므로 커서도 결과 쪽으로
   await page.waitForFunction(() => document.querySelector("#compliance-result")?.innerText.includes("교차 검증 결과"), null, { timeout: 30000 }).catch(() => {});
 });
 await scene("s14", async () => {
