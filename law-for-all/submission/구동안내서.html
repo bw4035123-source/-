@@ -51,36 +51,35 @@
 <tr><th>실행 환경</th><td>
   <table class="mini">
     <tr><th style="width:24%">방법</th><th>필요 환경</th><th style="width:30%">비고</th></tr>
-    <tr><td><b class="k">① 웹 접속</b>(설치 없음)</td><td>최신 Chrome·Edge·Whale·Safari(PC·모바일)</td><td><span class="mono">https://lawon.onrender.com</span></td></tr>
-    <tr><td><b class="k">② Python 실행판</b>(권장)</td><td>Windows 10/11·macOS·Linux, <b>Python 3.9 이상</b>, 추가 설치(pip) 없음</td><td>메모리 200MB 내외, 인터넷 없어도 동작</td></tr>
-    <tr><td>③ Node.js·Docker</td><td>Node.js 18.18+(20 LTS 권장) 또는 Docker</td><td>개발·정식 구축용</td></tr>
+    <tr><td><b class="k">① 웹 접속</b>(권장·설치 없음)</td><td>최신 Chrome·Edge·Whale·Safari(PC·모바일)</td><td><span class="mono">https://lawon.onrender.com</span> — 판례·실시간 법령</td></tr>
+    <tr><td><b class="k">② 공유판 HTML</b>(설치 없음)</td><td>최신 Chrome·Edge(PC), 파일 하나(약 10MB)</td><td><span class="mono">LAW-ON_share.html</span> 더블클릭 — 서버 없이 열림</td></tr>
+    <tr><td><b class="k">③ Python 실행판</b>(선택)</td><td>Windows 10/11·macOS·Linux, <b>Python 3.9 이상</b>, 추가 설치(pip) 없음</td><td>폐쇄망·기관 내부 설치, <b>LLM 교체 시험</b>용</td></tr>
   </table>
-  <p class="note">· 실행판은 법제처 판례·실시간 법령을 <b>법이음 클라우드 서버(lawon.onrender.com)를 거쳐</b> 받아 오므로, <b>심사위원 PC에 인증키 입력·IP 등록이 필요 없습니다</b>. 압축만 풀고 바로 실행하면 됩니다.<br>· 실시간 연결이 안 되는 환경에서도 <b>내장 공식 원문(국가법령정보센터 23개 법령, 2026-10-15 수집) + 규칙기반 엔진</b>으로 모든 화면이 동작합니다(LLM 키 없이도 동작).<br>· 웹 시연 서버는 무료 클라우드라 15분간 접속이 없으면 첫 화면까지 30초~1분 걸릴 수 있습니다.</p>
+  <p class="note">· 첫 화면은 <b>국민 모드</b>, 오른쪽 위 스위치로 <b>공직자 모드</b>. ②·③도 판례·실시간 법령을 <b>클라우드 서버를 거쳐</b> 받아 <b>심사위원 PC에 인증키·IP 등록이 필요 없습니다</b>.<br>· 인터넷이 안 되면 <b>내장 공식 원문(23개 법령, 2026-10-15 수집) + 규칙기반 엔진</b>으로 동작(LLM 키 없이도 동작). Node.js·Docker판도 포함.</p>
 </td></tr>
 
 <tr><th>설치·실행<br>절차</th><td>
-  <b>Python 실행판</b>(공공 GitLab 산출물의 <span class="mono">law-on-python.zip</span>)
+  <b>①</b> 주소창에 <span class="mono">https://lawon.onrender.com</span>(무료 클라우드라 잠들어 있으면 첫 화면까지 30초~1분) · <b>②</b> GitLab의 <span class="mono">LAW-ON_share.html</span>(또는 웹 바닥글 ‘공유판 내려받기’)을 더블클릭<br>
+  <b>③ Python 실행판</b>(공공 GitLab 산출물의 <span class="mono">law-on-python.zip</span>)
   <ol>
-    <li>압축을 풉니다(<span class="mono">law-on-python</span> 폴더).</li>
+    <li>압축을 풉니다(<span class="mono">law-on-python</span> 폴더). Python이 없으면 python.org 에서 3.9 이상 설치(Windows는 ‘Add to PATH’ 선택).</li>
     <li>Windows는 <span class="mono">run.bat</span> 더블클릭, macOS·Linux는 터미널에서 아래를 실행합니다.
-<pre>cd law-on-python
-python3 run.py            # 브라우저가 자동으로 http://127.0.0.1:8000 을 엽니다</pre></li>
+<pre>cd law-on-python && python3 run.py      # 브라우저가 http://127.0.0.1:8000 을 자동으로 엽니다</pre></li>
     <li>인증키는 <b>따로 입력하지 않습니다</b>(클라우드 서버가 대신 조회). 실행 창에 <span class="mono">법령: 실시간 — 법령 API 중계 서버 경유</span>로 표시되고, 화면 상단 배너가 ‘실시간 연동’이면 전체 법령·판례가 실시간으로 조회됩니다.</li>
-    <li>연결 점검은 <span class="mono">python3 run.py --check</span>(국가법령정보 실제 연결·LLM 상태 출력), 포트 변경은 <span class="mono">--port 8080</span>.</li>
+    <li>연결 점검 <span class="mono">python3 run.py --check</span>, 포트 변경 <span class="mono">--port 8080</span> · Node.js판 <span class="mono">npm install && npm run dev</span> · Docker <span class="mono">docker compose up --build</span></li>
   </ol>
-  <b>Node.js 실행판</b>: <span class="mono">npm install && npm run dev</span> → http://localhost:3000 · Docker: <span class="mono">docker compose up --build</span>
 </td></tr>
 
 <tr><th>LLM 연결<br>설정</th><td>
-  <span class="mono">.env.example</span>을 <span class="mono">.env.local</span>로 복사해 값만 넣으면 되며, 화면 왼쪽 위 <b>‘AI 모델’ 선택 메뉴</b>에서 설정된 모델끼리 즉시 바꿀 수 있습니다. 키는 서버에만 두고 브라우저로 보내지 않습니다.
+  <span class="mono">.env.example</span>을 <span class="mono">.env.local</span>로 복사해 값만 넣고, 화면 왼쪽 위 <b>‘AI 모델’ 메뉴</b>에서 즉시 전환(키는 서버에만 둠).
   <table class="mini">
     <tr><th style="width:20%">공급자</th><th>설정(.env.local)</th><th style="width:34%">연결 가능 모델 예</th></tr>
     <tr><td>Ollama(폐쇄망)</td><td><span class="mono">LLM_PROVIDER=ollama</span> <span class="mono">OLLAMA_MODEL=exaone3.5:7.8b</span></td><td><b>EXAONE·Gemma·Llama·Solar</b>·GPT-OSS(행안부 AI 공통기반 지원 모델)</td></tr>
-    <tr><td>OpenAI 호환</td><td><span class="mono">OPENAI_BASE_URL</span> · <span class="mono">OPENAI_API_KEY</span> · <span class="mono">OPENAI_MODEL</span></td><td>vLLM·LM Studio 사내 서버, Upstage Solar, HyperCLOVA X 호환 게이트웨이, GPT</td></tr>
+    <tr><td>OpenAI 호환</td><td><span class="mono">OPENAI_BASE_URL</span> · <span class="mono">OPENAI_API_KEY</span> · <span class="mono">OPENAI_MODEL</span></td><td>vLLM·LM Studio 사내 서버, Solar, HyperCLOVA X, GPT</td></tr>
     <tr><td>Anthropic</td><td><span class="mono">ANTHROPIC_API_KEY</span> · <span class="mono">ANTHROPIC_MODEL</span></td><td>Claude</td></tr>
     <tr><td>규칙기반(기본)</td><td><span class="mono">LLM_PROVIDER=mock</span>(아무것도 안 넣으면 자동)</td><td>LLM 없이 근거 조문 기반 답변</td></tr>
   </table>
-  <p class="note">· 모델 교체 시 코드 수정이 없습니다(어댑터 구조). 어떤 모델이든 같은 <b>인용 검증 가드</b>를 거치며, 응답이 형식에 맞지 않거나 근거 밖 조문을 쓰면 해당 인용을 제거하거나 규칙기반 답변으로 자동 대체합니다.<br>· <b>2종 이상 모델 구동 입증</b>: <span class="mono">python3 run.py --llm-test ollama:gemma3:4b,ollama:exaone3.5:7.8b</span> → 같은 질문(국민·공직자·상황 분석 4건)을 모델마다 실행해 통과 여부·근거 조문·응답 시간을 <span class="mono">LLM_검증결과_날짜.md</span>로 저장(Node판: <span class="mono">npm run llm:check</span>).</p>
+  <p class="note">· 모델 교체 시 코드 수정 없음(어댑터 구조). 모든 모델이 같은 <b>인용 검증 가드</b>를 거쳐 근거 밖 조문은 제거하거나 규칙기반 답변으로 대체합니다.<br>· <b>2종 이상 모델 입증</b>: ③에서 <span class="mono">python3 run.py --llm-test ollama:llama3.2:3b,ollama:exaone3.5:7.8b</span> → 같은 4건을 모델마다 실행해 통과 여부·근거 조문·응답 시간을 <span class="mono">LLM_검증결과_날짜.md</span>로 저장.</p>
 </td></tr>
 
 <tr><th>모의데이터<br>안내</th><td>
@@ -91,7 +90,7 @@ python3 run.py            # 브라우저가 자동으로 http://127.0.0.1:8000 �
     <tr><td>가상도시개발공사_임직원행동강령(모의).docx</td><td>Word</td><td>청탁금지법·공직선거법 — 상충 3·검토 3</td></tr>
     <tr><td>가상군_공유재산사용허가운영지침(모의).pdf</td><td>PDF</td><td>공유재산법·없는 조문 인용 — 상충 3</td></tr>
   </table>
-  <p class="note">투입 방법: <b>원클릭</b> — 공직자 모드 → 자체규정 점검 → <b>‘모의데이터로 바로 체험’</b>의 파일 버튼을 누르면 같은 파일을 읽어 검증까지 자동 실행(앱·공유판에 내장). 직접 넣으려면 점선 상자에 끌어다 놓기. 파일은 브라우저 안에서만 읽고 원본은 수정·이동·삭제하지 않습니다.</p>
+  <p class="note">투입: 공직자 모드 → 자체규정 점검 → <b>‘모의데이터로 바로 체험’</b> 버튼 한 번(같은 파일 내장, 검증까지 자동) 또는 점선 상자에 끌어다 놓기. 원본은 수정·이동·삭제하지 않습니다.</p>
 </td></tr>
 </tbody></table>
 
@@ -124,7 +123,7 @@ python3 run.py            # 브라우저가 자동으로 http://127.0.0.1:8000 �
     <li>자체규정 점검의 판정은 정해진 기준(근로시간·연차·금품 한도·임원 임기·사용허가기간 등)과 조문 원문으로만 하며, 현재 대조 법령은 5종(근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법)입니다. 최종 판단은 소관 부처 해석 확인이 필요합니다.</li>
     <li>스캔 이미지 PDF(글자 정보 없음), 배포용·암호 한글 문서, 예전 Word(.doc)는 읽을 수 없으며 안내 문구를 표시합니다.</li>
     <li>LLM 답변 품질은 연결 모델에 따라 다르며, 근거 밖 인용은 자동 제거됩니다. 본 서비스는 법률 정보 제공이며 법률 자문이 아닙니다.</li>
-    <li>오픈소스: Next.js·React·Tailwind CSS·Radix UI·Framer Motion·zod·fflate·clsx·tailwind-merge·class-variance-authority(MIT), lucide(ISC), pdf.js(Apache-2.0), Pretendard GOV 글꼴(SIL OFL 1.1). <b>재배포가 제한되는 구성요소 없음.</b></li>
+    <li>오픈소스: Next.js·React·Radix UI·Framer Motion·zod·fflate·clsx·tailwind-merge 등(MIT 60종), pdf.js·class-variance-authority(Apache-2.0), lucide(ISC), Pretendard GOV 글꼴(SIL OFL 1.1), 실행판은 Python 표준 라이브러리만 사용. <b>재배포가 제한되는 구성요소 없음</b> — 전체 목록 <span class="mono">docs/THIRD_PARTY_LICENSES.md</span>. 법령·판례 원문은 저작권법 제7조에 따른 비보호 저작물이며 출처(국가법령정보센터)를 표시합니다.</li>
   </ul>
 </td></tr>
 <tr><th>개발 경위<br>요약</th><td class="story">
