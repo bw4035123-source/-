@@ -73,6 +73,8 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (/^https?:\/\/(localhost|127\.0\.0\.1):11434\//.test(url)) return Promise.reject(new TypeError("공유판에서는 로컬 LLM에 연결하지 않습니다"));
   if (!url.startsWith("/api/")) return nativeFetch(input, init);
   await Promise.race([firstProbe, new Promise((r) => setTimeout(r, 6500))]);
+  // 판례는 실시간 서버에서만 나온다 — 서버가 잠들어 있으면(무료 클라우드는 깨어나는 데 30초~1분) 깨어날 때까지 기다린다(화면은 '찾는 중' 표시)
+  if (!remoteLive && REMOTE && url.startsWith("/api/cases")) await probe(50000);
   if (remoteLive) {
     try {
       const { signal: _ignored, ...rest } = init ?? {};
