@@ -51,6 +51,13 @@ const html = fs
   .replace("/*@@PDF_WORKER@@*/", () => worker)
   .replace("/*@@ENGINE@@*/", () => engine)
   .replace("/*@@APP@@*/", () => fs.readFileSync(p("artifact", "app.js"), "utf8"));
-if (/bw40351|LAW_API_OC=/.test(html)) throw new Error("인증키로 보이는 문자열이 포함되어 있습니다");
+// 인증키가 섞여 들어가지 않았는지: 키 값은 코드에 적지 않고, 이 PC의 환경변수·.env.local 에서 읽어 비교한다
+const keys = new Set([process.env.LAW_API_OC, process.env.LAW_OC].filter(Boolean));
+for (const f of [p(".env.local"), p("python", ".env.local")]) {
+  if (!fs.existsSync(f)) continue;
+  const m = fs.readFileSync(f, "utf8").match(/^\s*LAW_API_OC\s*=\s*["']?([^"'\s#]+)/m);
+  if (m) keys.add(m[1]);
+}
+if (/LAW_API_OC=\S/.test(html) || [...keys].some((k) => k.length >= 4 && html.includes(k))) throw new Error("인증키로 보이는 문자열이 포함되어 있습니다");
 fs.writeFileSync(p("dist", "law-on-artifact.html"), html);
 console.log(`✔ dist/law-on-artifact.html (${(html.length / 1024 / 1024).toFixed(2)} MB)`);
