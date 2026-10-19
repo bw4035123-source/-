@@ -226,8 +226,12 @@ class ServerTest(unittest.TestCase):
         conn.close()
         _, _, h = self.req("/api/health")
         self.assertEqual(h["Access-Control-Allow-Origin"], "*")
-        with urllib.request.urlopen(self.base + "/", timeout=5) as res:
-            self.assertIsNone(res.headers.get("Access-Control-Allow-Origin"))
+        try:  # 화면 파일(빌드 전이면 404 페이지)에는 허용 헤더가 없어야 함
+            with urllib.request.urlopen(self.base + "/", timeout=5) as res:
+                headers = res.headers
+        except urllib.error.HTTPError as e:
+            headers = e.headers
+        self.assertIsNone(headers.get("Access-Control-Allow-Origin"))
 
     def test_share_download(self):
         """사이트에서 공유판을 내려받을 때: 열지 않고 저장(attachment), 영문 파일 이름"""
