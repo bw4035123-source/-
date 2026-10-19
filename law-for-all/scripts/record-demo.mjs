@@ -30,8 +30,6 @@ const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 180);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = { s00: 3.5, s01: 6.5, s02: 7.5, s03: 6.5, s04: 6, s05: 9.5, s06: 16, s07: 11, s08: 8.5, s09: 6, s10: 6, s11: 9.5, s12: 8, s13: 10, s14: 8, s15: 9.5, s16: 13, s17: 11 };
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const MOCK = path.join(root, "submission/mock-data/가상시설관리공단_복무및보수규정(모의).hwpx");
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -133,7 +131,12 @@ const scrollToEl = (sel, off = 150) =>
     const el = document.querySelector(q);
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - o, behavior: "smooth" });
   }, [sel, off]);
-const setMode = (mode, fontScale = 1) => page.evaluate(([m, f]) => localStorage.setItem("law-for-all:settings:v1", JSON.stringify({ mode: m, fontScale: f })), [mode, fontScale]);
+// 모드는 탭 안(sessionStorage)에만 저장, 글자 크기 등은 localStorage
+const setMode = (mode, fontScale = 1) =>
+  page.evaluate(([m, f]) => {
+    localStorage.setItem("law-for-all:settings:v1", JSON.stringify({ fontScale: f }));
+    sessionStorage.setItem("law-for-all:mode", m);
+  }, [mode, fontScale]);
 
 // 장면: 정해진 시간(내레이션이 있으면 그 길이)이 지나기 전에는 다음 장면으로 넘어가지 않는다.
 // 자막은 장면 안에서 화면이 실제로 바뀌는 순간에 띄운다(cap 호출 위치).
@@ -162,7 +165,7 @@ await scene("s00", async () => {
 });
 await scene("s01", async () => {
   await card("");
-  await cap("① 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "예: 퇴사했는데 마지막 월급을 안 줘요");
+  await cap("① 첫 화면은 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "예: 퇴사했는데 마지막 월급을 안 줘요");
   const input = page.locator("main form input").first();
   await click(input);
   await input.type("퇴사했는데 마지막 월급을 안 줘요", { delay: 70 });
@@ -294,22 +297,21 @@ await scene("s12", async () => {
 await scene("s13", async () => {
   await page.keyboard.press("Escape");
   await page.goto(BASE + "/compliance");
-  await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일은 서버로 보내지 않고 브라우저 안에서만 읽습니다");
-  await point(page.locator("main select").first());
-  await page.locator("main select").first().selectOption("지방공기업");
-  await wait(700);
+  await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일은 서버로 보내지 않고 브라우저 안에서만 읽습니다 · 끌어다 놓기 또는 모의데이터 버튼");
   await point(page.locator("[aria-label^='규정 파일 올리기']").first());
-  await wait(500);
-  await page.setInputFiles("input[type=file]", { name: path.basename(MOCK), mimeType: "application/octet-stream", buffer: fs.readFileSync(MOCK) });
-  await page.getByText("조문 11개").first().waitFor().catch(() => {});
-  await cap("모의데이터: 가상시설관리공단 복무 및 보수 규정(한글 HWPX) — 조문 11개 인식", "");
+  await wait(1200);
+  const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
+  await point(mock);
+  await cap("모의데이터로 바로 체험 — 버튼 한 번에 한글(HWPX) 규정 파일 읽기부터 검증까지", "가상시설관리공단 복무 및 보수 규정 · 조문 11개 인식");
+  await wait(1500);
+  await mock.click();
+  await page.waitForFunction(() => document.querySelector("#compliance-result")?.innerText.includes("교차 검증 결과"), null, { timeout: 30000 }).catch(() => {});
 });
 await scene("s14", async () => {
-  await page.locator("button", { hasText: "상위법령과 교차 검증" }).click();
   await wait(300);
   await scrollToEl("#compliance-result");
   await wait(700);
-  await cap("상위법령과 조문 단위 대조 — 상충 7 · 검토 필요 1 · 적합 1", "판정은 생성형 문장이 아니라 정해진 기준과 조문 원문으로");
+  await cap("상위법령과 조문 단위 대조 — 상충 · 검토 필요 · 적합으로 분류", "판정은 생성형 문장이 아니라 정해진 기준과 조문 원문으로");
 });
 await scene("s15", async () => {
   await page.evaluate(() => {
@@ -345,7 +347,7 @@ await scene("s16", async () => {
 await scene("s17", async () => {
   await page.goto(BASE + "/laws/labor-standards");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await cap("법제처 형식 조문 뷰어 · 상위법–시행령–시행규칙 3단 대조", "인증키를 넣으면 법령·행정규칙·자치법규·판례 전체를 실시간 조회");
+  await cap("법제처 형식 조문 뷰어 · 상위법–시행령–시행규칙 3단 대조", "법령·행정규칙·자치법규·판례 실시간 조회 — 실행판·공유판도 클라우드 중계로 키 입력 없이");
   await wait(5000);
   await page.goto(BASE + "/about");
   await page.waitForLoadState("networkidle").catch(() => {});
@@ -355,7 +357,7 @@ await scene("s17", async () => {
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검 → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 키 없이도 동작 · 추가 설치 없는 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;
