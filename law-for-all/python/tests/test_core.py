@@ -123,6 +123,37 @@ class LLMAdapterTest(unittest.TestCase):
         self.assertNotIn("ref", req[1])
         self.assertIn("fake:1", r["guard"]["removedCitations"])
 
+    def test_llm_test_two_models(self):
+        """--llm-test: 모델을 바꿔 가며 같은 질문을 돌리고, 2종 모두 통과하면 입증으로 판정·결과 문서 작성"""
+        import re
+        import tempfile
+        from law_for_all.llmtest import run as llm_test
+        sent_models = []
+
+        def fake_ollama(req, timeout=None):
+            body = json.loads(req.data)
+            sent_models.append(body["model"])
+            # 질문 프롬프트에 실린 근거 조문 키(<<법령id:조>>)만 인용 — 지시문 속 예시 표기는 제외
+            keys = re.findall(r"<<([^>\s]+)>>", body["messages"][-1]["content"]) or ["labor-standards:36"]
+            k = keys[0]
+            content = json.dumps({
+                "summary": f"근거 조문에 따르면 이렇습니다 [[{k}]].", "steps": [{"title": "확인", "detail": "원문 확인", "ref": k}],
+                "background": f"배경 [[{k}]]", "keyPoints": [f"쟁점 [[{k}]]"], "adminNotes": ["유의"], "checklist": ["확인"],
+                "lawyer": {"stance": f"주장 [[{k}]]"}, "prosecutor": {"stance": f"검토 [[{k}]]"},
+                "judge": {"stance": "판단", "requirements": [{"label": "요건", "ref": k, "status": "met", "basis": "서술"}], "outlook": "가능성"},
+                "citations": [k],
+            }, ensure_ascii=False)
+            return FakeResp(json.dumps({"model": body["model"], "message": {"content": content}}).encode("utf-8"))
+
+        with tempfile.TemporaryDirectory() as d, mock.patch("urllib.request.urlopen", fake_ollama):
+            path, two = llm_test("ollama:gemma3:4b,ollama:exaone3.5:7.8b", Path(d))
+            text = path.read_text(encoding="utf-8")
+        self.assertTrue(two)
+        self.assertEqual(set(sent_models), {"gemma3:4b", "exaone3.5:7.8b"})
+        self.assertIn("| ollama:gemma3:4b | gemma3:4b | 4/4 |", text)
+        self.assertIn("| ollama:exaone3.5:7.8b | exaone3.5:7.8b | 4/4 |", text)
+        self.assertNotIn("OLLAMA_MODEL", os.environ)  # 모델 바꾼 설정은 끝나면 원래대로
+
     def test_http_error_falls_back(self):
         os.environ.update(OPENAI_API_KEY="bad", LLM_PROVIDER="openai")
 

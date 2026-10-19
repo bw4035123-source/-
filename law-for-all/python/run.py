@@ -7,6 +7,7 @@
   python run.py --no-browser    # 브라우저 자동 열기 끔
   python run.py --check         # 환경·데이터·LLM 설정 + 국가법령정보 실제 연결 점검 후 종료
   python run.py --setup-key     # 국가법령정보 API 인증키(OC) 입력 → .env.local 자동 생성 → 연결 확인
+  python run.py --llm-test ollama:gemma3:4b,ollama:exaone3.5:7.8b   # 여러 LLM 구동 검증 → LLM_검증결과_날짜.md
 
 외부 라이브러리 설치가 필요 없습니다(Python 3.9 이상 표준 라이브러리만 사용).
 """
@@ -149,7 +150,15 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--setup-key", action="store_true")
+    ap.add_argument("--llm-test", nargs="?", const="", metavar="대상", help="여러 LLM으로 같은 질문을 돌려 결과 문서 작성(예: ollama:gemma3:4b,ollama:exaone3.5:7.8b)")
     a = ap.parse_args()
+
+    if a.llm_test is not None:
+        from law_for_all.llmtest import run as llm_test
+        path, two = llm_test(a.llm_test or None, ROOT)
+        print(f"\n결과 문서: {path}")
+        print("✓ 2종 이상 모델에서 주요 기능 정상 구동" if two else "※ 실제 LLM 2종 이상이 모두 통과해야 '모델 비종속 입증'이 됩니다 — 대상을 추가해 다시 실행하세요.")
+        sys.exit(0)
 
     if a.setup_key:
         sys.exit(setup_key())

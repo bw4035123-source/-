@@ -220,6 +220,7 @@ OLLAMA_MODEL=exaone3.5:7.8b
 ENV
 
 npm run llm:check                    # 설정된 모든 공급자로 같은 질문 → 결과·검증 상태 비교
+python3 python/run.py --llm-test ollama:gemma3:4b,ollama:exaone3.5:7.8b   # Python판: 모델별 구동 검증 → LLM_검증결과_날짜.md
 npm run llm:check -- "질의민원 처리기간" officer
 ```
 
