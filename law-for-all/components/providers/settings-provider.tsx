@@ -23,6 +23,8 @@ interface Ctx extends Settings {
 
 const DEFAULTS: Settings = { mode: "citizen", fontScale: 1, highContrast: false, dark: false, provider: "" };
 const KEY = "law-for-all:settings:v1";
+// 모드는 탭 안에서만 유지 — 새로 들어오면 항상 국민 모드로 시작(?mode=officer 로 바로 열 수 있음)
+const MODE_KEY = "law-for-all:mode";
 const SettingsCtx = React.createContext<Ctx | null>(null);
 
 function load(): Settings {
@@ -44,6 +46,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const loaded = load();
     loaded.dark = false; // 화이트 & 블루 단일 테마(어두운 화면·고대비 없음)
     loaded.highContrast = false;
+    loaded.mode = "citizen";
+    try {
+      const m = sessionStorage.getItem(MODE_KEY);
+      if (m === "citizen" || m === "officer") loaded.mode = m;
+    } catch {
+      /* 저장 불가 환경 */
+    }
     const url = new URL(window.location.href).searchParams.get("mode");
     if (url === "citizen" || url === "officer") loaded.mode = url;
     setS(loaded);
@@ -58,7 +67,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     root.dataset.mode = s.mode;
     root.classList.toggle("dark", s.dark);
     try {
-      localStorage.setItem(KEY, JSON.stringify(s));
+      const { mode, ...rest } = s;
+      localStorage.setItem(KEY, JSON.stringify(rest));
+      sessionStorage.setItem(MODE_KEY, mode);
     } catch {
       /* 저장 불가 환경(사생활 보호 모드 등)에서도 동작 */
     }
