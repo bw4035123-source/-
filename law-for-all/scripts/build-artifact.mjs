@@ -41,7 +41,7 @@ const app = (
     write: false,
     jsx: "automatic",
     alias: { "server-only": empty, "next/link": shim("link.tsx"), "next/navigation": shim("navigation.ts"), "next/server": shim("server.ts"), "@": root },
-    define: { "process.env.NODE_ENV": '"production"', "process.env": "{}", __LAW_ON_REMOTE__: JSON.stringify(REMOTE) },
+    define: { "process.env.NODE_ENV": '"production"', "process.env.LAW_PROXY_URL": '"off"', "process.env": "{}", __LAW_ON_REMOTE__: JSON.stringify(REMOTE) },
     logLevel: "error",
     plugins: [
       {

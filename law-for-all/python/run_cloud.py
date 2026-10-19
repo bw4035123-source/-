@@ -17,6 +17,9 @@ try:
 except Exception as e:
     print(f"IP 확인 실패: {e}")
 
+# 클라우드 서버는 스스로 중계 서버이므로 law.go.kr 을 직접 호출(자기 자신을 중계로 부르지 않게)
+os.environ.setdefault("LAW_PROXY_URL", "off")
+
 port = os.environ.get("PORT", "8000")
 try:
     port = int(port)

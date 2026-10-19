@@ -16,6 +16,7 @@ from . import __version__
 from .analyze import analyze
 from .ask import ask
 from .config import config
+from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .llm import list_providers
 from .service import LawService
 
@@ -214,6 +215,20 @@ class Handler(BaseHTTPRequestHandler):
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")
             return self._json(200, {"detail": detail})
+        m = re.fullmatch(r"/api/raw/([A-Za-z]+\.do)", path)
+        if method in ("GET", "HEAD") and m:  # 법령 API 중계: 인증키·등록 IP가 있는 이 서버가 대신 조회(실행판·다른 PC용)
+            ok, retry = rate_limit(f"raw:{self._client()}", 120)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            params = {k: v[0][:200] for k, v in qs.items() if v}
+            if m.group(1) not in RELAY_PATHS or params.get("target") not in RELAY_TARGETS:
+                return self._json(400, {"ok": False, "error": "허용되지 않은 요청입니다."})
+            if not config.law_api_oc:
+                return self._json(503, {"ok": False, "error": "중계 서버에 인증키(LAW_API_OC)가 설정되어 있지 않습니다."})
+            try:
+                return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
+            except LawApiError as e:
+                return self._json(502, {"ok": False, "error": str(e)})
         if method == "POST" and path in ("/api/ask", "/api/analyze"):
             ok, retry = rate_limit(f"{path}:{self._client()}", 30 if path == "/api/ask" else 20)
             if not ok:

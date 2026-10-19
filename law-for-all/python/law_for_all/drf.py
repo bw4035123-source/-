@@ -1,6 +1,7 @@
 """국가법령정보 공동활용 Open API(DRF) 클라이언트 — lawSearch.do / lawService.do
-기본은 LAW_API_OC 인증키로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송).
-LAW_PROXY_URL 을 설정한 경우에만 법령 API 중계 서버의 /api/raw 를 경유한다(인증키는 중계 서버에만 두고 여기서는 보내지 않음)."""
+기본은 법령 API 중계 서버(법이음 클라우드 서버)의 /api/raw 를 경유한다(인증키는 중계 서버에만 두고 여기서는 보내지 않음).
+LAW_PROXY_URL=off 면 LAW_API_OC 인증키로 law.go.kr 을 직접 호출(인증키는 law.go.kr 로만 전송).
+중계 서버 쪽은 relay_raw 로 같은 요청을 인증키를 붙여 대신 조회한다."""
 from __future__ import annotations
 
 import json
@@ -19,6 +20,41 @@ CACHE_TTL = 60 * 60 * 6
 RETRIES = 3
 _cache: dict[str, tuple[float, object]] = {}
 _lock = threading.Lock()
+
+
+# 중계(/api/raw)로 대신 조회해 주는 범위 — 이 앱이 쓰는 요청만
+RELAY_PATHS = {"lawSearch.do", "lawService.do"}
+RELAY_TARGETS = {"law", "prec", "admrul", "ordin", "expc", "detc"}
+
+
+def relay_raw(path: str, params: dict, oc: str, timeout: float = 20) -> bytes:
+    """중계 서버용: 인증키를 붙여 law.go.kr 을 직접 조회하고 원본 JSON 을 돌려준다(응답 속 링크의 인증키는 지움)"""
+    q = {k: v for k, v in params.items() if k.lower() not in ("oc", "type", "token")}
+    cache_key = "relay:" + path + "?" + urllib.parse.urlencode(sorted(q.items()))
+    hit = _cache.get(cache_key)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        return hit[1]  # type: ignore[return-value]
+    url = f"{DRF_BASE}/{path}?" + urllib.parse.urlencode({"OC": oc, "type": "JSON", **q})
+    last_err: Exception | None = None
+    for attempt in range(RETRIES + 1):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "law-on/1.0"}), timeout=timeout) as r:
+                body = r.read()
+            break
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            last_err = e
+            if attempt < RETRIES:
+                time.sleep(0.8 * (attempt + 1))
+    else:
+        raise LawApiError(f"국가법령정보센터 연결 실패: {getattr(last_err, 'reason', last_err)}") from last_err
+    body = body.replace(oc.encode(), b"") if oc else body
+    try:
+        json.loads(body)
+    except ValueError:
+        raise LawApiError("국가법령정보센터가 JSON이 아닌 응답을 보냈습니다(중계 서버의 인증키·등록 IP 확인).") from None
+    with _lock:
+        _cache[cache_key] = (time.time(), body)
+    return body
 
 
 class LawApiError(Exception):
@@ -70,6 +106,8 @@ def drf_get(path: str, params: dict, oc: str, timeout: float = 20, retries: int 
             raise LawApiError(f"법령 API 중계 서버: {data.get('error', '오류')}")
         if set(data) == {"detail"}:
             raise LawApiError(f"법령 API 중계 서버: {data['detail']}")
+        if set(data) == {"error"}:  # 중계 기능이 없는(재배포 전) 서버 등
+            raise LawApiError(f"법령 API 중계 서버가 요청을 처리하지 못했습니다: {data['error']}")
     _raise_if_rejected(data)
     with _lock:
         _cache[cache_key] = (time.time(), data)

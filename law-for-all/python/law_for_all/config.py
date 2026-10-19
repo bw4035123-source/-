@@ -26,13 +26,15 @@ def env(k: str, d: str = "") -> str:
     return (os.environ.get(k) or d).strip()
 
 
-DEFAULT_LAW_PROXY_URL = ""  # 기본: 중계 서버 없이 LAW_API_OC 로 law.go.kr 직접 호출
+# 기본: 법이음 클라우드 서버(인증키·등록 IP 보유)를 중계로 사용 → 심사위원 PC 등 IP 미등록 PC에서도 판례·실시간 법령.
+# 직접 호출하려면 LAW_PROXY_URL=off (그 PC의 공인 IP가 open.law.go.kr 에 등록돼 있어야 함)
+DEFAULT_LAW_PROXY_URL = "https://lawon.onrender.com"
 _OFF = {"off", "none", "direct", "false", "0"}
 
 
 def law_proxy() -> dict | None:
-    """법령 API 중계 서버(선택). LAW_PROXY_URL 이 비어 있거나 off 면 None → LAW_API_OC 로 law.go.kr 직접 호출"""
-    raw = os.environ.get("LAW_PROXY_URL", DEFAULT_LAW_PROXY_URL).strip()
+    """법령 API 중계 서버. 기본은 법이음 클라우드 서버, LAW_PROXY_URL 이 off 면 None → LAW_API_OC 로 law.go.kr 직접 호출"""
+    raw = (os.environ.get("LAW_PROXY_URL", "").strip() or DEFAULT_LAW_PROXY_URL).strip()  # 비워 두면 기본 중계
     if not raw or raw.lower() in _OFF:
         return None
     return {"url": raw.rstrip("/"), "token": env("LAW_PROXY_TOKEN")}

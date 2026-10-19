@@ -148,11 +148,13 @@ describe("법령 API 중계 서버 경유", () => {
     delete process.env.LAW_PROXY_TOKEN;
   });
 
-  it("기본은 중계 서버 없이 법제처 API 직접 호출, 주소를 넣으면 중계 서버 경유", async () => {
+  it("기본(비워 둠)은 법이음 클라우드 서버 중계, 주소를 넣으면 그 중계 서버, off 면 직접 호출", async () => {
     const { lawProxy, DEFAULT_LAW_PROXY_URL } = await import("@/lib/law-api/proxy");
-    expect(DEFAULT_LAW_PROXY_URL).toBe("");
+    expect(DEFAULT_LAW_PROXY_URL).toBe("https://lawon.onrender.com");
     delete process.env.LAW_PROXY_URL;
-    expect(lawProxy()).toBeNull();
+    expect(lawProxy()?.url).toBe("https://lawon.onrender.com");
+    process.env.LAW_PROXY_URL = "";
+    expect(lawProxy()?.url).toBe("https://lawon.onrender.com");
     process.env.LAW_PROXY_URL = "https://relay.example/";
     expect(lawProxy()?.url).toBe("https://relay.example");
     process.env.LAW_PROXY_URL = "off";

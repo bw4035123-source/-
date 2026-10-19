@@ -317,7 +317,9 @@ class ProxyRouteTest(unittest.TestCase):
         from law_for_all import config as cfg, drf
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("LAW_PROXY_URL", None)
-            self.assertIsNone(cfg.law_proxy())  # 기본: 법제처 API 직접 호출
+            self.assertEqual(cfg.law_proxy()["url"], "https://lawon.onrender.com")  # 기본: 법이음 클라우드 서버 중계
+        with mock.patch.dict(os.environ, {"LAW_PROXY_URL": "off"}):
+            self.assertIsNone(cfg.law_proxy())  # off: 법제처 API 직접 호출
         seen = []
 
         class R(io.BytesIO):
@@ -336,6 +338,44 @@ class ProxyRouteTest(unittest.TestCase):
         self.assertTrue(seen[0][0].startswith("https://p.example/api/raw/lawSearch.do?target=law"))
         self.assertNotIn("SECRET", seen[0][0])
         self.assertEqual(seen[0][1], "tok")
+
+
+class RelayTest(unittest.TestCase):
+    def test_relay_endpoint(self):
+        """중계(/api/raw): 허용 범위만, 인증키를 붙여 조회하고 응답 속 인증키는 지운다"""
+        from law_for_all import drf
+        from law_for_all.server import make_server
+        seen = []
+
+        class R(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def fake(req, timeout=None):
+            seen.append(req.full_url)
+            return R('{"PrecSearch": {"prec": [{"판례상세링크": "/DRF/lawService.do?OC=SECRETOC&target=prec&ID=1"}]}}'.encode())
+
+        httpd = make_server("127.0.0.1", 0)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        real_open = urllib.request.urlopen
+        try:
+            with mock.patch.dict(os.environ, {"LAW_API_OC": "SECRETOC"}), mock.patch.object(drf.urllib.request, "urlopen", fake):
+                body = real_open(base + "/api/raw/lawSearch.do?target=prec&query=relay-test").read().decode()
+            self.assertIn("OC=SECRETOC", seen[0])
+            self.assertNotIn("SECRETOC", body)
+            self.assertIn("PrecSearch", body)
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                real_open(base + "/api/raw/lawSearch.do?target=evil")
+            self.assertEqual(cm.exception.code, 400)
+            with mock.patch.dict(os.environ, {"LAW_API_OC": ""}), self.assertRaises(urllib.error.HTTPError) as cm:
+                real_open(base + "/api/raw/lawSearch.do?target=law&query=x")
+            self.assertEqual(cm.exception.code, 503)
+        finally:
+            httpd.shutdown()
 
 
 class CaseViewerTest(unittest.TestCase):
