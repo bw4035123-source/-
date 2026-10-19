@@ -21,6 +21,7 @@ import {
 } from "@/lib/compliance";
 import { diffWords } from "@/lib/drafting";
 import { ACCEPT, ExtractError, extractText, type Extracted } from "@/lib/doc-extract";
+import { MOCK_FILES } from "@/lib/mock-files";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ export function ComplianceView() {
   const [extracting, setExtracting] = React.useState<string | null>(null);
   const [loaded, setLoaded] = React.useState<{ name: string; info: Extracted; articles: number } | null>(null);
   const [fileError, setFileError] = React.useState("");
+  const [autoRun, setAutoRun] = React.useState(false);
 
   // 대조할 상위법령 원문(실시간 연결 시 전체 조문, 아니면 공식 원문 스냅샷)
   React.useEffect(() => {
@@ -99,8 +101,8 @@ export function ComplianceView() {
     setFileError("");
   };
 
-  const onFile = async (f: File | undefined) => {
-    if (!f) return;
+  const onFile = async (f: File | undefined): Promise<boolean> => {
+    if (!f) return false;
     setFileError("");
     setExtracting(f.name);
     try {
@@ -111,13 +113,36 @@ export function ComplianceView() {
       const articles = (info.text.match(/^\s*제\s*\d+\s*조(?:\s*의\s*\d+)?/gm) ?? []).length;
       setLoaded({ name: f.name, info, articles });
       toast(`${info.format} 문서에서 ${articles ? `${articles}개 조문을` : "내용을"} 불러왔어요.`);
+      return true;
     } catch (e) {
       setLoaded(null);
       setFileError(e instanceof ExtractError ? e.message : "문서를 읽지 못했어요. 내용을 복사해 붙여 넣어 주세요.");
+      return false;
     } finally {
       setExtracting(null);
     }
   };
+
+  // 모의데이터 원클릭: 실제 파일(HWPX·DOCX·PDF)을 그대로 읽어 들인 뒤 곧바로 교차 검증까지
+  const loadMock = async (i: number) => {
+    const m = MOCK_FILES[i];
+    setOrgType(m.orgType);
+    setRegName(m.label);
+    setExtracting(m.file);
+    try {
+      const blob = await (await fetch(m.url)).blob();
+      if (await onFile(new File([blob], m.file))) setAutoRun(true);
+    } catch {
+      setExtracting(null);
+      setFileError("모의데이터 파일을 불러오지 못했어요. 아래 예시 버튼을 이용해 주세요.");
+    }
+  };
+  React.useEffect(() => {
+    if (!autoRun || laws.status === "loading" || !text.trim()) return;
+    setAutoRun(false);
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, laws.status, text]);
 
   // 화면 어디에 떨어뜨려도 받되, 입력 영역 위에서만 강조 표시
   const dragProps = {
@@ -189,6 +214,20 @@ export function ComplianceView() {
           </div>
           <div>
             <p className="mb-1.5 text-sm font-bold">규정 원문</p>
+            <div className="mb-2 rounded-xl border border-accent/40 bg-accent/5 p-2.5">
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <ScanSearch className="h-3.5 w-3.5 text-accent" /> 모의데이터로 바로 체험 <span className="font-normal text-muted-foreground">— 누르면 파일 읽기부터 검증까지 한 번에</span>
+              </p>
+              <div className="grid gap-1">
+                {MOCK_FILES.map((m, i) => (
+                  <button key={m.url} type="button" disabled={!!extracting} onClick={() => void loadMock(i)} className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-left text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-60">
+                    <Badge variant="secondary" className="w-14 shrink-0 justify-center whitespace-nowrap px-0 text-[10px]">{m.format}</Badge>
+                    <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                    <span className="shrink-0 text-[11px] text-accent">검증 ▶</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div
               role="button"
               tabIndex={0}

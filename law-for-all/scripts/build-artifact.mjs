@@ -49,6 +49,11 @@ const app = (
         setup(b) {
           // PDF 워커: 페이지 안 전역 pdfjsWorker 로 처리(워커 파일 경로 불필요)
           b.onLoad({ filter: /doc-extract\.ts$/ }, (a) => ({ contents: fs.readFileSync(a.path, "utf8").replace('"/pdf.worker.min.js"', '""'), loader: "ts" }));
+          // 모의데이터 파일: 파일로 열어도(file://) 읽히도록 data URI 로 넣는다
+          b.onLoad({ filter: /mock-files\.ts$/ }, (a) => ({
+            contents: fs.readFileSync(a.path, "utf8").replace(/"\/mock\/([^"]+)"/g, (_, f) => `"data:application/octet-stream;base64,${fs.readFileSync(p("public", "mock", f)).toString("base64")}"`),
+            loader: "ts",
+          }));
           // 법령 본문 화면: 주소 경로 대신 해시 라우터 경로를 읽게
           b.onLoad({ filter: /law-page-client\.tsx$/ }, (a) => ({ contents: fs.readFileSync(a.path, "utf8").replace(/window\.location\.pathname/g, "window.__spaPathname()"), loader: "tsx" }));
         },
