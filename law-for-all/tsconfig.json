@@ -36,6 +36,8 @@
   ],
   "exclude": [
     "node_modules",
-    "artifact"
+    "artifact",
+    "dist",
+    "out"
   ]
 }
