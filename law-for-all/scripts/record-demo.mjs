@@ -412,11 +412,14 @@ if (AUDIO && cues.length) {
   args.push("-filter_complex", [...parts, mix].join(";"), "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "160k");
 } else args.push("-an");
 if (!AUDIO) {
-  // 화면 동작이 계획보다 길어져 목표를 넘으면 전체를 살짝 빠르게 재생해 마지막 장면까지 정확히 TARGET 초에 담는다
-  const f = recorded > TARGET ? TARGET / recorded : 1;
+  // 화면 동작이 계획보다 길어져 목표를 넘으면 전체를 살짝 빠르게 재생해 마지막 장면까지 정확히 TARGET 초에 담는다.
+  // 부하가 크면 녹화 파일이 실제 시간보다 길어질 수 있어 파일 길이도 함께 본다
+  const webmSec = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", webm]).toString().trim()) || 0;
+  const span = Math.max(recorded, webmSec - introAt);
+  const f = span > TARGET ? TARGET / span : 1;
   if (f < 1) args.push("-vf", `setpts=${f.toFixed(4)}*PTS`, "-r", "25");
   args.push("-t", String(TARGET));
-  console.log(`녹화 ${recorded.toFixed(1)}초 → ${TARGET}초${f < 1 ? ` (${(1 / f).toFixed(3)}배속)` : ""}`);
+  console.log(`녹화 ${recorded.toFixed(1)}초(파일 ${webmSec.toFixed(1)}초) → ${TARGET}초${f < 1 ? ` (${(1 / f).toFixed(3)}배속)` : ""}`);
 }
 args.push("-c:v", "libx264", "-preset", "medium", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-shortest", OUT);
 execFileSync("ffmpeg", args);
