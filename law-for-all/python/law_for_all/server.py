@@ -17,6 +17,7 @@ from .analyze import analyze
 from .ask import ask
 from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
+from .followup import followup
 from .llm import list_providers
 from .service import LawService
 
@@ -77,6 +78,24 @@ def _validate_ask(body: dict) -> dict:
         raise ApiError(400, "mode 값이 올바르지 않습니다.")
     prov = body.get("provider")
     return {"query": q, "mode": mode, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def _validate_followup(body: dict) -> dict:
+    q = body.get("question")
+    q = q.strip() if isinstance(q, str) else ""
+    if len(q) < 2:
+        raise ApiError(400, "질문을 2자 이상 입력해 주세요.")
+    if len(q) > 300:
+        raise ApiError(400, "질문은 300자 이내로 입력해 주세요.")
+    prev = body.get("prevQuery")
+    prev = prev.strip() if isinstance(prev, str) else ""
+    if not prev or len(prev) > 500:
+        raise ApiError(400, "이전 질문이 올바르지 않습니다.")
+    mode = body.get("mode") or "citizen"
+    if mode not in ("citizen", "officer"):
+        raise ApiError(400, "mode 값이 올바르지 않습니다.")
+    prov = body.get("provider")
+    return {"question": q, "prevQuery": prev, "mode": mode, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
 
 
 def _validate_analyze(body: dict) -> dict:
@@ -229,14 +248,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
-        if method == "POST" and path in ("/api/ask", "/api/analyze"):
-            ok, retry = rate_limit(f"{path}:{self._client()}", 30 if path == "/api/ask" else 20)
+        if method == "POST" and path in ("/api/ask", "/api/analyze", "/api/followup"):
+            ok, retry = rate_limit(f"{path}:{self._client()}", 20 if path == "/api/analyze" else 30)
             if not ok:
                 raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
             body = self._body()
             if path == "/api/ask":
                 a = _validate_ask(body)
                 return self._json(200, ask(a["query"], a["mode"], a["provider"]))
+            if path == "/api/followup":
+                a = _validate_followup(body)
+                return self._json(200, followup(a["question"], a["prevQuery"], a["mode"], a["provider"]))
             a = _validate_analyze(body)
             return self._json(200, analyze(a["situation"], a["provider"]))
         raise ApiError(404, "존재하지 않는 API입니다.")

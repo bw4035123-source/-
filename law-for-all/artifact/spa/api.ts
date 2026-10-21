@@ -7,6 +7,7 @@ import * as ask from "@/app/api/ask/route";
 import * as analyze from "@/app/api/analyze/route";
 import * as cases from "@/app/api/cases/route";
 import * as caseDetail from "@/app/api/cases/detail/route";
+import * as followup from "@/app/api/followup/route";
 import * as health from "@/app/api/health/route";
 import * as laws from "@/app/api/laws/route";
 import * as lawOne from "@/app/api/laws/[id]/route";
@@ -20,6 +21,7 @@ function resolve(method: string, path: string): { fn: Handler; params?: Record<s
     "/api/analyze": analyze as never,
     "/api/cases": cases as never,
     "/api/cases/detail": caseDetail as never,
+    "/api/followup": followup as never,
     "/api/health": health as never,
     "/api/laws": laws as never,
     "/api/providers": providers as never,
@@ -78,8 +80,11 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (remoteLive) {
     try {
       const { signal: _ignored, ...rest } = init ?? {};
-      const r = await timed(REMOTE + url, rest, /\/api\/(ask|analyze|cases)/.test(url) ? 40000 : 20000);
-      if (r.status < 500) return r;
+      const r = await timed(REMOTE + url, rest, /\/api\/(ask|analyze|cases|followup)/.test(url) ? 40000 : 20000);
+      // 실시간 서버가 아직 모르는 API(예전 버전 서버)면 내장 엔진으로 처리
+      const unknownApi = r.status === 404 && (await r.clone().json().catch(() => null))?.error === "존재하지 않는 API입니다.";
+      if (r.status < 500 && !unknownApi) return r;
+      if (unknownApi) return localHandle(url, init);
     } catch {
       /* 아래 내장 엔진으로 */
     }
@@ -87,6 +92,10 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     retries = 0;
     void probe(20000);
   }
+  return localHandle(url, init);
+};
+
+async function localHandle(url: string, init?: RequestInit): Promise<Response> {
   const u = new URL(url, "http://law-on.local");
   const method = (init?.method ?? "GET").toUpperCase();
   const hit = resolve(method, u.pathname);
@@ -98,4 +107,4 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     console.error("[공유판 API]", e);
     return new Response(JSON.stringify({ error: "처리 중 오류가 발생했습니다." }), { status: 500, headers: { "content-type": "application/json" } });
   }
-};
+}

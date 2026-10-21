@@ -18,6 +18,7 @@ import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { OfficerReport } from "@/components/officer-view/officer-report";
 import { RelatedCases } from "@/components/cases/related-cases";
 import { DocumentPack } from "@/components/officer-view/document-pack";
+import { FollowUpChat } from "./follow-up-chat";
 import { copyText } from "@/lib/clipboard";
 import { fetchJson } from "@/lib/fetch-json";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
@@ -160,6 +161,9 @@ export function SearchResults({ q }: { q: string }) {
               <Link2 /> 링크 복사
             </Button>
           </motion.div>
+
+          {/* 이어서 묻기 — 질문·모드가 바뀌면 대화를 새로 시작 */}
+          <FollowUpChat key={`${q}|${mode}`} prevQuery={q} />
 
           {officer ? (
             <RelatedCases query={r.caseQuery} variant="officer" />

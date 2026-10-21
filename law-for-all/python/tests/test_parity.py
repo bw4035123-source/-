@@ -12,6 +12,7 @@ os.environ["LAW_PROXY_URL"] = "off"  # 테스트는 네트워크 없이(기본 �
 
 from law_for_all.analyze import analyze  # noqa: E402
 from law_for_all.ask import ask  # noqa: E402
+from law_for_all.followup import followup  # noqa: E402
 
 FIX = json.loads((Path(__file__).parent / "parity_fixtures.json").read_text(encoding="utf-8"))
 
@@ -34,6 +35,12 @@ class ParityTest(unittest.TestCase):
             s = case["input"]["situation"]
             with self.subTest(situation=s[:30]):
                 self.assertEqual(strip(analyze(s)), case["output"])
+
+    def test_followup(self):
+        for case in FIX["followup"]:
+            i = case["input"]
+            with self.subTest(prev=i["prevQuery"], question=i["question"], mode=i["mode"]):
+                self.assertEqual(strip(followup(i["question"], i["prevQuery"], i["mode"])), case["output"])
 
 
 if __name__ == "__main__":

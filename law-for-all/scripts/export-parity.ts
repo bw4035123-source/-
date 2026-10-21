@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import { ask } from "../lib/answer/ask";
 import { analyze } from "../lib/answer/analyze";
+import { followUp } from "../lib/answer/followup";
 
 const QUERIES = [
   "윗집 층간소음 기준이 어떻게 되나요?",
@@ -32,6 +33,19 @@ const SITUATIONS = [
   "아무 관련 없는 이야기를 길게 적어 봅니다 오늘 날씨가 좋네요",
 ];
 
+// 이어서 묻기: [이전 질문, 이어서 묻는 질문]
+const FOLLOWUPS: [string, string][] = [
+  ["퇴사했는데 마지막 월급을 안 줘요", "언제까지 줘야 하나요?"],
+  ["퇴사했는데 마지막 월급을 안 줘요", "어디에 신고하나요?"],
+  ["퇴사했는데 마지막 월급을 안 줘요", "어기면 처벌받나요?"],
+  ["윗집 층간소음 기준이 어떻게 되나요?", "무엇을 준비해야 하나요?"],
+  ["계약이 끝났는데 집주인이 보증금을 안 돌려줘요", "기한이 있나요?"],
+  ["음주운전 처벌 기준이 궁금해요", "예외가 있나요?"],
+  ["정보공개 청구하면 언제까지 결정해야 하나요?", "비공개 결정에 불복하려면?"],
+  ["민원 처리 기한은 며칠인가요?", "필요 서류와 절차는?"],
+  ["zzqq xxyy", "이건 뭐예요"],
+];
+
 const strip = <T extends Record<string, unknown>>(o: T) => {
   const { elapsedMs, generatedAt, ...rest } = o;
   void elapsedMs;
@@ -42,11 +56,13 @@ const strip = <T extends Record<string, unknown>>(o: T) => {
 async function main() {
   for (const k of ["LAW_API_OC", "LAW_OC", "LLM_PROVIDER", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]) delete process.env[k];
   process.env.LAW_PROXY_URL = "off"; // 네트워크 없이 내장 데이터 기준으로 비교
-  const out = { ask: [] as unknown[], analyze: [] as unknown[] };
+  const out = { ask: [] as unknown[], analyze: [] as unknown[], followup: [] as unknown[] };
   for (const q of QUERIES) for (const mode of ["citizen", "officer"] as const) out.ask.push({ input: { query: q, mode }, output: strip((await ask({ query: q, mode })) as never) });
   for (const s of SITUATIONS) out.analyze.push({ input: { situation: s }, output: strip((await analyze({ situation: s })) as never) });
+  for (const [prevQuery, question] of FOLLOWUPS)
+    for (const mode of ["citizen", "officer"] as const) out.followup.push({ input: { question, prevQuery, mode }, output: strip((await followUp({ question, prevQuery, mode })) as never) });
   fs.mkdirSync("python/tests", { recursive: true });
   fs.writeFileSync("python/tests/parity_fixtures.json", JSON.stringify(out, null, 1));
-  console.log(`parity fixtures: ask ${out.ask.length}, analyze ${out.analyze.length}`);
+  console.log(`parity fixtures: ask ${out.ask.length}, analyze ${out.analyze.length}, followup ${out.followup.length}`);
 }
 main();
