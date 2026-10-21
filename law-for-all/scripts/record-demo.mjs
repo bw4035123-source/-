@@ -29,7 +29,7 @@ const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"),
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 180);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 6.5, s02: 7.5, s03: 6.5, s04: 6, s05: 9.5, s06: 16, s07: 11, s08: 8.5, s09: 6, s10: 6, s11: 9.5, s12: 8, s13: 10, s14: 8, s15: 9.5, s16: 13, s17: 11 };
+const PLAN = { s00: 3.5, s01: 6.5, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 10, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -196,7 +196,31 @@ await scene("s04", async () => {
   await wait(1500);
   await scrollBy(320);
 });
+await scene("sF1", async () => {
+  await scrollToEl("#followup-h", 140);
+  await wait(700);
+  await cap("이어서 묻기 — 같은 사안을 계속 물어보면", "답도 근거 번호가 붙고 같은 인용 검증을 거칩니다");
+  await wait(900);
+  await click(page.locator("section[aria-labelledby=followup-h] button.rounded-full", { hasText: "기한이 있나요?" }).first());
+  await page.waitForFunction(() => document.querySelectorAll("section[aria-labelledby=followup-h] li .rounded-2xl.border").length >= 1, null, { timeout: 20000 }).catch(() => {});
+  await wait(300);
+  await cap("‘기한이 있나요?’ → 「근로기준법」 제36조: 퇴직 후 14일 이내 지급", "질문 유형(기한·신고·처벌·준비·예외)에 맞는 문장을 조문 원문에서 골라 답합니다");
+});
+await scene("sF2", async () => {
+  await scrollToEl("#form-draft-h", 160);
+  await wait(600);
+  await cap("필요한 서류는 초안까지 — 임금체불 진정서", "진정서·내용증명·구제신청서 등 7종");
+  await click(page.locator("button:visible", { hasText: "초안 만들기" }).first());
+  const dlg = page.locator("[role=dialog]");
+  await dlg.locator("textarea[aria-label$='초안']").waitFor().catch(() => {});
+  await dlg.locator("input").first().type("홍길동", { delay: 60 });
+  await dlg.locator("label", { hasText: "못 받은 임금" }).locator("input").type("1800000", { delay: 50 });
+  await dlg.locator("label", { hasText: "퇴직일" }).locator("input").type("2025. 8. 31.", { delay: 40 });
+  await cap("빈칸을 채우면 초안이 바로 — 법적 근거는 원문이 확인된 조문만 인용", "입력 내용은 저장·전송하지 않음 · 복사 · Word 저장 · 인쇄");
+});
 await scene("s05", async () => {
+  await page.keyboard.press("Escape").catch(() => {});
+  await wait(300);
   await page.evaluate(() => {
     const h = [...document.querySelectorAll("h2,h3")].find((x) => x.textContent.includes("도움받을 수 있는 곳"));
     if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 220, behavior: "smooth" });
@@ -285,7 +309,15 @@ await scene("s11", async () => {
   await wait(3500);
   await scrollBy(480, 14);
 });
+await scene("sR", async () => {
+  await click(page.locator("button:visible", { hasText: "검증 영수증" }).first());
+  await page.locator("[role=dialog] >> text=No.").first().waitFor().catch(() => {});
+  await wait(300);
+  await cap("검증 영수증 — 근거 원문의 출처·시각·SHA-256 지문과 인용 검증 결과", "AI를 활용한 행정의 근거를 보고서·기안문에 남깁니다");
+});
 await scene("s12", async () => {
+  await page.keyboard.press("Escape").catch(() => {});
+  await wait(300);
   const pack = page.locator("button", { hasText: "보고서 한 번에 작성" }).first();
   if (await has(pack)) {
     await click(pack);
@@ -358,7 +390,7 @@ await scene("s17", async () => {
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문)</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;
