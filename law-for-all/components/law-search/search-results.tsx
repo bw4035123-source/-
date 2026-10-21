@@ -19,6 +19,8 @@ import { OfficerReport } from "@/components/officer-view/officer-report";
 import { RelatedCases } from "@/components/cases/related-cases";
 import { DocumentPack } from "@/components/officer-view/document-pack";
 import { FollowUpChat } from "./follow-up-chat";
+import { VerificationReceipt } from "./verification-receipt";
+import { FormDraft } from "@/components/citizen-view/form-draft";
 import { copyText } from "@/lib/clipboard";
 import { fetchJson } from "@/lib/fetch-json";
 import { REPORT_STORAGE_KEY, draftBasisBlock, officerReportText } from "@/lib/report-text";
@@ -157,6 +159,7 @@ export function SearchResults({ q }: { q: string }) {
                 </Link>
               </Button>
             )}
+            <VerificationReceipt result={r} />
             <Button variant="ghost" onClick={() => copy(window.location.href, "검색 결과 링크를 복사했습니다")}>
               <Link2 /> 링크 복사
             </Button>
@@ -169,6 +172,7 @@ export function SearchResults({ q }: { q: string }) {
             <RelatedCases query={r.caseQuery} variant="officer" />
           ) : (
             <>
+              <FormDraft result={r} />
               <ContactsCard contacts={r.contacts} />
               <RelatedCases query={r.caseQuery} variant="citizen" />
             </>
