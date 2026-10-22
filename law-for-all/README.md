@@ -11,7 +11,7 @@
 | 핵심 가치 | ① 듀얼 모드(국민/공직자) ② 조문 근거 인용·환각 방지 ③ 자체규정 점검(한글·PDF·Word 규정 ↔ 상위법) ④ LLM 비종속(설정 하나로 교체) ⑤ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
 | 법령 데이터 | 법제처 국가법령정보 공동활용 Open API(법령·행정규칙·자치법규·판례·법령해석례 실시간) + 내장 공식 원문 스냅샷 23개 법령(2026-10-15 수집) |
-| LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 |
+| LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 — 실측: Llama 3.2(3B)·EXAONE 3.5(7.8B) 각 4/4 통과([`submission/LLM_검증결과_20261022.md`](submission/LLM_검증결과_20261022.md)) |
 | 라이선스 | MIT |
 
 ### 3분 만에 보기
