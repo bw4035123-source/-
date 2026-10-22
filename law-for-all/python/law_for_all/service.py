@@ -128,11 +128,13 @@ class LawService:
                 if complete(r):
                     for x in r["list"]:
                         add(x, (5 if i == 0 else 3) * (1 if x["kind"] == "법률" else 0.6))
-            # 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분을 법령명 유사도로만 비교
+            # 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분 중 법령명이 질문과 비슷한 것만 비교
+            # (본문 검색 앞부분은 가나다순이라 관련 없는 법령이 섞이므로 이름이 전혀 안 닮은 법령은 제외)
             if not cand:
                 for ti in range(len(terms)):
                     for x in res[ti * 2 + 1]["list"]:
-                        add(x, 0.1)
+                        if bigram_overlap(x["name"], terms) > 0:
+                            add(x, 0.1)
             # 같은 법령의 여러 판(시행 예정 등)은 하나만
             top, seen = [], set()
             for c in sorted(cand.values(), key=lambda c: c["score"], reverse=True):
@@ -147,7 +149,8 @@ class LawService:
                     continue
                 for a in doc["articles"]:
                     sc = score_article_by_terms(a, terms)
-                    if sc > 0:
+                    # 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
+                    if sc >= 2:
                         scored.append((sc, f"{doc['id']}:{a['no']}"))
             scored.sort(key=lambda x: x[0], reverse=True)
             return [k for _, k in scored[:max_articles]]

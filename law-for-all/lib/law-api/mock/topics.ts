@@ -87,7 +87,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "deposit-return",
     label: "보증금 반환",
     caseQuery: "임차보증금",
-    triggers: ["보증금", "돌려받", "전세금", "반환", "집주인이 안", "이사 가야", "임차권등기", "만기"],
+    triggers: ["보증금", "돌려받", "전세금", "반환", "집주인이 안", "이사 가야", "임차권등기", "만기", "이사를 못"],
     refs: ["housing-lease:4", "housing-lease:3의3", "housing-lease:3의2", "housing-lease:3"],
     citizen: {
       summary:
@@ -317,7 +317,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "unpaid-wages",
     label: "임금체불·퇴직금",
     caseQuery: "퇴직금",
-    triggers: ["임금체불", "월급", "퇴직금", "밀린", "체불", "임금", "퇴사했는데", "급여를 안"],
+    triggers: ["임금체불", "월급", "퇴직금", "밀린", "체불", "임금", "퇴사했는데", "급여를 안", "알바비"],
     refs: ["labor-standards:36", "labor-standards:107"],
     citizen: {
       summary:

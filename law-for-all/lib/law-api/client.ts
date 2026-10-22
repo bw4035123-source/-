@@ -124,8 +124,9 @@ export class LawService {
       andRes.forEach((r, i) => {
         if (complete(r)) r.list.forEach((x) => add(x, (i === 0 ? 5 : 3) * (x.kind === "법률" ? 1 : 0.6)));
       });
-      // 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분을 법령명 유사도로만 비교
-      if (!cand.size) terms.forEach((_, ti) => res[ti * 2 + 1].list.forEach((x) => add(x, 0.1)));
+      // 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분 중 법령명이 질문과 비슷한 것만 비교
+      // (본문 검색 앞부분은 가나다순이라 관련 없는 법령이 섞이므로 이름이 전혀 안 닮은 법령은 제외)
+      if (!cand.size) terms.forEach((_, ti) => res[ti * 2 + 1].list.forEach((x) => bigramOverlap(x.name, terms) > 0 && add(x, 0.1)));
       // 같은 법령의 여러 판(시행 예정 등)은 하나만
       const seen = new Set<string>();
       const top = Array.from(cand.values())
@@ -138,7 +139,8 @@ export class LawService {
         if (!doc) continue;
         for (const a of doc.articles) {
           const sc = scoreArticleByTerms(a, terms);
-          if (sc > 0) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
+          // 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
+          if (sc >= 2) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
         }
       }
       return scored.sort((a, b) => b.score - a.score).slice(0, maxArticles).map((x) => x.key);
