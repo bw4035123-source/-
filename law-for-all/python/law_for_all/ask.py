@@ -8,7 +8,7 @@ from .config import config
 from .data import LAWS, article_key, get_law, parse_key
 from .guard import find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
 from .llm import resolve_provider
-from .prompts import system_prompt, user_prompt
+from .prompts import schema_for, system_prompt, user_prompt
 from .rule_engine import build_rule_answer
 from .search import match_topics, query_terms, search_articles
 from .service import LawService
@@ -94,7 +94,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         rule()
     else:
         try:
-            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800)
+            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
             g = guard_llm_output(parse_loose_json(res["text"]), mode, context)
             out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"])

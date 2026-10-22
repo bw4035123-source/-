@@ -69,7 +69,7 @@ class OpenAIProvider:
     def is_configured(self) -> bool:
         return bool(self.cfg["apiKey"]) or not self.official
 
-    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000) -> dict:
+    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000, schema: dict | None = None) -> dict:
         body = {"model": self.model, "temperature": temperature, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, *messages]}
         if json_mode:
             body["response_format"] = {"type": "json_object"}
@@ -88,7 +88,7 @@ class AnthropicProvider:
     def is_configured(self) -> bool:
         return bool(self.cfg["apiKey"])
 
-    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000) -> dict:
+    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000, schema: dict | None = None) -> dict:
         if json_mode:
             system += "\n\n반드시 하나의 JSON 객체만 출력하고, 코드블록 표시나 설명 문장을 덧붙이지 마세요."
         body = {"model": self.model, "max_tokens": max_tokens, "temperature": temperature, "system": system, "messages": messages}
@@ -116,10 +116,10 @@ class OllamaProvider:
         except Exception:  # noqa: BLE001 — 연결 불가 = 미설정
             return False
 
-    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000) -> dict:
-        body = {"model": self.model, "stream": False, "options": {"temperature": temperature, "num_predict": max_tokens}, "messages": [{"role": "system", "content": system}, *messages]}
-        if json_mode:
-            body["format"] = "json"
+    def generate(self, system: str, messages: list, json_mode: bool = False, temperature: float = 0.2, max_tokens: int = 2000, schema: dict | None = None) -> dict:
+        body = {"model": self.model, "stream": False, "options": {"temperature": temperature, "num_predict": max_tokens, "num_ctx": self.cfg.get("numCtx", 8192)}, "messages": [{"role": "system", "content": system}, *messages]}
+        if json_mode:  # 스키마가 있으면 구조화 출력(JSON 스키마)으로 강제 — 소형 모델도 형식을 지키게
+            body["format"] = schema or "json"
         res = post_json(self.id, self.cfg["baseUrl"].rstrip("/") + "/api/chat", body, {}, self.timeout_ms)
         return {"text": (res.get("message") or {}).get("content") or "", "model": res.get("model") or self.model}
 

@@ -10,7 +10,7 @@ from .data import PERSPECTIVES, article_key, article_label, get_law, get_topic, 
 from .facts import extract_facts
 from .guard import find_unverified_mentions, guard_analysis_output, parse_loose_json
 from .llm import resolve_provider
-from .prompts import ANALYSIS_SYSTEM, analysis_prompt
+from .prompts import ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, analysis_prompt
 from .search import match_topics, normalize, search_articles
 from .service import LawService
 
@@ -195,7 +195,7 @@ def analyze(situation: str, provider: str | None = None) -> dict:
             fallback = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다."
         else:
             try:
-                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500)
+                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500, schema=ANALYSIS_SCHEMA)
                 g = guard_analysis_output(parse_loose_json(res["text"]), citations)
                 used["model"] = res["model"] or p.model
                 label = f"종합 분석({'·'.join(i['topic']['label'] for i in issues)})" if issues else "종합 분석"

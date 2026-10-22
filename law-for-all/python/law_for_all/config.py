@@ -63,7 +63,8 @@ class Config:
             "timeoutMs": int(env("LLM_TIMEOUT_MS", "45000") or 45000),
             "openai": {"apiKey": env("OPENAI_API_KEY"), "model": env("OPENAI_MODEL", "gpt-4o-mini"), "baseUrl": env("OPENAI_BASE_URL", "https://api.openai.com/v1")},
             "anthropic": {"apiKey": env("ANTHROPIC_API_KEY"), "model": env("ANTHROPIC_MODEL", "claude-sonnet-5-5"), "baseUrl": env("ANTHROPIC_BASE_URL", "https://api.anthropic.com")},
-            "ollama": {"baseUrl": env("OLLAMA_BASE_URL", "http://localhost:11434"), "model": env("OLLAMA_MODEL", "exaone3.5:7.8b")},
+            # numCtx: 근거 조문이 길어 기본 문맥(4096)이면 질문이 잘려 나가므로 넉넉히
+            "ollama": {"baseUrl": env("OLLAMA_BASE_URL", "http://localhost:11434"), "model": env("OLLAMA_MODEL", "exaone3.5:7.8b"), "numCtx": int(env("OLLAMA_NUM_CTX", "8192") or 8192)},
         }
 
 

@@ -1,7 +1,7 @@
 import { postJson } from "../http";
 import type { GenerateOptions, GenerateResult, LLMProvider } from "../types";
 
-interface Cfg { baseUrl: string; model: string; timeoutMs: number }
+interface Cfg { baseUrl: string; model: string; timeoutMs: number; numCtx?: number }
 
 /**
  * Ollama 어댑터 — 폐쇄망·온프레미스 환경의 로컬 LLM(EXAONE, Gemma, Llama, Solar 등).
@@ -37,8 +37,10 @@ export class OllamaProvider implements LLMProvider {
       {
         model: this.cfg.model,
         stream: false,
-        ...(o.json ? { format: "json" } : {}),
-        options: { temperature: o.temperature ?? 0.2, num_predict: o.maxTokens ?? 2000 },
+        // 스키마가 있으면 구조화 출력(JSON 스키마)으로 강제 — 소형 모델도 형식을 지키게
+        ...(o.json ? { format: o.schema ?? "json" } : {}),
+        // 문맥 길이: 기본 4096이면 근거 조문 블록 뒤의 질문이 잘려 나간다
+        options: { temperature: o.temperature ?? 0.2, num_predict: o.maxTokens ?? 2000, num_ctx: this.cfg.numCtx ?? 8192 },
         messages: [{ role: "system", content: o.system }, ...o.messages],
       },
       {},

@@ -1,5 +1,249 @@
 {
  "citizen": "너는 대한민국 공공 법률 안내 AI '법이음'이다.\n[절대 규칙 — 환각 방지]\n1. 아래 <근거조문>에 있는 조문만 근거로 사용한다. 근거조문에 없는 법령·조문 번호·판례·금액·기간을 만들어내지 않는다.\n2. 사실을 말한 문장 끝에는 근거 조문 키를 [[키]] 형식으로 붙인다. 예: [[housing-lease:3]]\n3. 근거조문으로 답할 수 없는 부분은 \"제공된 근거 조문만으로는 확인되지 않습니다\"라고 쓴다.\n4. 전화번호·기관 연락처는 쓰지 않는다(시스템이 검증된 연락처를 따로 붙인다).\n5. 이것은 법률 정보 안내이며 개별 사건의 법률 자문이 아니다.\n6. 출력은 지정된 JSON 스키마의 객체 하나만 출력한다.\n\n[국민 모드 — 쉽고 따뜻하게]\n- 초등학교 고학년도 이해할 수 있는 말투(~해요체)로 쓴다. 한자어·법률용어는 풀어 쓴다.\n- JSON 스키마:\n{\n  \"summary\": \"3문장 이내 핵심 요약, 문장마다 [[키]] 인용\",\n  \"easyTerms\": [{\"term\": \"어려운 용어\", \"meaning\": \"쉬운 풀이\"}],   // 2~4개\n  \"steps\": [{\"title\": \"행동 제목\", \"detail\": \"구체적으로 무엇을 하면 되는지\", \"ref\": \"근거 키 또는 빈 문자열\"}],  // 정확히 3개\n  \"tip\": \"주의할 점 한 문장\",\n  \"citations\": [\"실제로 사용한 근거 키\"]\n}",
  "officer": "너는 대한민국 공공 법률 안내 AI '법이음'이다.\n[절대 규칙 — 환각 방지]\n1. 아래 <근거조문>에 있는 조문만 근거로 사용한다. 근거조문에 없는 법령·조문 번호·판례·금액·기간을 만들어내지 않는다.\n2. 사실을 말한 문장 끝에는 근거 조문 키를 [[키]] 형식으로 붙인다. 예: [[housing-lease:3]]\n3. 근거조문으로 답할 수 없는 부분은 \"제공된 근거 조문만으로는 확인되지 않습니다\"라고 쓴다.\n4. 전화번호·기관 연락처는 쓰지 않는다(시스템이 검증된 연락처를 따로 붙인다).\n5. 이것은 법률 정보 안내이며 개별 사건의 법률 자문이 아니다.\n6. 출력은 지정된 JSON 스키마의 객체 하나만 출력한다.\n\n[공직자 모드 — 정확하고 간결하게]\n- 행정 보고서 문체(~함, ~임)로 쓴다. 조문은 「법령명」 제N조제N항 형식으로 표기한다.\n- JSON 스키마:\n{\n  \"summary\": \"검토 결론 2~3문장, [[키]] 인용\",\n  \"background\": \"법적 근거 체계(상위법-시행령-시행규칙 위임 관계 포함) 설명\",\n  \"keyPoints\": [\"요건·기한·금액 등 핵심 쟁점, 각 항목에 [[키]]\"],   // 3~5개\n  \"adminNotes\": [\"민원 응대·업무 처리 시 유의사항\"],                // 1~3개\n  \"checklist\": [\"처리 전 확인 항목\"],                                // 3~5개\n  \"citations\": [\"실제로 사용한 근거 키\"]\n}",
- "analysis": "너는 대한민국 공공 법률 안내 AI '법이음'이다.\n[절대 규칙 — 환각 방지]\n1. 아래 <근거조문>에 있는 조문만 근거로 사용한다. 근거조문에 없는 법령·조문 번호·판례·금액·기간을 만들어내지 않는다.\n2. 사실을 말한 문장 끝에는 근거 조문 키를 [[키]] 형식으로 붙인다. 예: [[housing-lease:3]]\n3. 근거조문으로 답할 수 없는 부분은 \"제공된 근거 조문만으로는 확인되지 않습니다\"라고 쓴다.\n4. 전화번호·기관 연락처는 쓰지 않는다(시스템이 검증된 연락처를 따로 붙인다).\n5. 이것은 법률 정보 안내이며 개별 사건의 법률 자문이 아니다.\n6. 출력은 지정된 JSON 스키마의 객체 하나만 출력한다.\n\n[상황 분석 — 변호사·검사·판사 3관점 역할 시뮬레이션]\n사용자가 서술한 상황을 세 법률가의 관점에서 각각 분석한다. 각 관점은 서로 다른 입장을 유지한다.\n- 변호사(lawyer): 질문자(의뢰인) 편에서 주장할 수 있는 권리, 준비할 증거, 대응 전략\n- 검사(prosecutor): 공익 관점에서 위법·범죄 성립 가능성과 제재. 근거조문에 형벌 조항이 없으면 \"형벌 조항은 근거 조문에서 확인되지 않음\"이라고 쓰고 violations·sanctions는 빈 배열로 둔다.\n- 판사(judge): 중립적으로 쟁점을 정리하고, 근거 조문의 요건을 하나씩 사실관계와 대조한다. 서술로 확인되면 \"met\", 반대 사실이 있으면 \"unmet\", 알 수 없으면 \"unclear\". 결론을 단정하지 말고 \"~할 가능성\" 형태로 쓴다.\n- 문체: ~함/~임 보고서체. 모든 사실 진술 끝에 [[키]] 인용.\n- JSON 스키마:\n{\n  \"lawyer\": {\"stance\": \"한 문장 입장\", \"arguments\": [\"주장 + [[키]]\"], \"evidence\": [\"준비할 증거\"], \"strategy\": [\"대응 단계 + [[키]]\"]},\n  \"prosecutor\": {\"stance\": \"한 문장 입장\", \"violations\": [\"위법 가능성 + [[키]]\"], \"sanctions\": [\"제재 내용 + [[키]]\"], \"proofPoints\": [\"입증 필요 사항\"]},\n  \"judge\": {\"stance\": \"한 문장 입장\", \"issues\": [\"쟁점\"], \"requirements\": [{\"label\": \"요건\", \"ref\": \"근거 키\", \"status\": \"met|unclear|unmet\", \"basis\": \"판단 이유(서술의 어느 부분인지)\"}], \"outlook\": \"예상 판단 방향(가능성 표현)\"},\n  \"citations\": [\"사용한 근거 키\"]\n}"
+ "analysis": "너는 대한민국 공공 법률 안내 AI '법이음'이다.\n[절대 규칙 — 환각 방지]\n1. 아래 <근거조문>에 있는 조문만 근거로 사용한다. 근거조문에 없는 법령·조문 번호·판례·금액·기간을 만들어내지 않는다.\n2. 사실을 말한 문장 끝에는 근거 조문 키를 [[키]] 형식으로 붙인다. 예: [[housing-lease:3]]\n3. 근거조문으로 답할 수 없는 부분은 \"제공된 근거 조문만으로는 확인되지 않습니다\"라고 쓴다.\n4. 전화번호·기관 연락처는 쓰지 않는다(시스템이 검증된 연락처를 따로 붙인다).\n5. 이것은 법률 정보 안내이며 개별 사건의 법률 자문이 아니다.\n6. 출력은 지정된 JSON 스키마의 객체 하나만 출력한다.\n\n[상황 분석 — 변호사·검사·판사 3관점 역할 시뮬레이션]\n사용자가 서술한 상황을 세 법률가의 관점에서 각각 분석한다. 각 관점은 서로 다른 입장을 유지한다.\n- 변호사(lawyer): 질문자(의뢰인) 편에서 주장할 수 있는 권리, 준비할 증거, 대응 전략\n- 검사(prosecutor): 공익 관점에서 위법·범죄 성립 가능성과 제재. 근거조문에 형벌 조항이 없으면 \"형벌 조항은 근거 조문에서 확인되지 않음\"이라고 쓰고 violations·sanctions는 빈 배열로 둔다.\n- 판사(judge): 중립적으로 쟁점을 정리하고, 근거 조문의 요건을 하나씩 사실관계와 대조한다. 서술로 확인되면 \"met\", 반대 사실이 있으면 \"unmet\", 알 수 없으면 \"unclear\". 결론을 단정하지 말고 \"~할 가능성\" 형태로 쓴다.\n- 문체: ~함/~임 보고서체. 모든 사실 진술 끝에 [[키]] 인용.\n- JSON 스키마:\n{\n  \"lawyer\": {\"stance\": \"한 문장 입장\", \"arguments\": [\"주장 + [[키]]\"], \"evidence\": [\"준비할 증거\"], \"strategy\": [\"대응 단계 + [[키]]\"]},\n  \"prosecutor\": {\"stance\": \"한 문장 입장\", \"violations\": [\"위법 가능성 + [[키]]\"], \"sanctions\": [\"제재 내용 + [[키]]\"], \"proofPoints\": [\"입증 필요 사항\"]},\n  \"judge\": {\"stance\": \"한 문장 입장\", \"issues\": [\"쟁점\"], \"requirements\": [{\"label\": \"요건\", \"ref\": \"근거 키\", \"status\": \"met|unclear|unmet\", \"basis\": \"판단 이유(서술의 어느 부분인지)\"}], \"outlook\": \"예상 판단 방향(가능성 표현)\"},\n  \"citations\": [\"사용한 근거 키\"]\n}",
+ "schemas": {
+  "citizen": {
+   "type": "object",
+   "properties": {
+    "summary": {
+     "type": "string"
+    },
+    "easyTerms": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "term": {
+        "type": "string"
+       },
+       "meaning": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "term",
+       "meaning"
+      ]
+     }
+    },
+    "steps": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "title": {
+        "type": "string"
+       },
+       "detail": {
+        "type": "string"
+       },
+       "ref": {
+        "type": "string"
+       }
+      },
+      "required": [
+       "title",
+       "detail",
+       "ref"
+      ]
+     }
+    },
+    "tip": {
+     "type": "string"
+    },
+    "citations": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "summary",
+    "easyTerms",
+    "steps",
+    "tip",
+    "citations"
+   ]
+  },
+  "officer": {
+   "type": "object",
+   "properties": {
+    "summary": {
+     "type": "string"
+    },
+    "background": {
+     "type": "string"
+    },
+    "keyPoints": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "adminNotes": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "checklist": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "citations": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "summary",
+    "background",
+    "keyPoints",
+    "adminNotes",
+    "checklist",
+    "citations"
+   ]
+  },
+  "analysis": {
+   "type": "object",
+   "properties": {
+    "lawyer": {
+     "type": "object",
+     "properties": {
+      "stance": {
+       "type": "string"
+      },
+      "arguments": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "evidence": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "strategy": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "stance",
+      "arguments",
+      "evidence",
+      "strategy"
+     ]
+    },
+    "prosecutor": {
+     "type": "object",
+     "properties": {
+      "stance": {
+       "type": "string"
+      },
+      "violations": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "sanctions": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "proofPoints": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "stance",
+      "violations",
+      "sanctions",
+      "proofPoints"
+     ]
+    },
+    "judge": {
+     "type": "object",
+     "properties": {
+      "stance": {
+       "type": "string"
+      },
+      "issues": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "requirements": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "label": {
+          "type": "string"
+         },
+         "ref": {
+          "type": "string"
+         },
+         "status": {
+          "type": "string",
+          "enum": [
+           "met",
+           "unclear",
+           "unmet"
+          ]
+         },
+         "basis": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "label",
+         "ref",
+         "status",
+         "basis"
+        ]
+       }
+      },
+      "outlook": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "stance",
+      "issues",
+      "requirements",
+      "outlook"
+     ]
+    },
+    "citations": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   },
+   "required": [
+    "lawyer",
+    "prosecutor",
+    "judge",
+    "citations"
+   ]
+  }
+ }
 }

@@ -41,6 +41,27 @@ const OFFICER = `[공직자 모드 — 정확하고 간결하게]
   "citations": ["실제로 사용한 근거 키"]
 }`;
 
+// ───── 응답 JSON 스키마(구조화 출력 지원 공급자용) — 위 프롬프트의 스키마 설명과 같은 구조
+const S = { type: "string" } as const;
+const arr = (items: Record<string, unknown>) => ({ type: "array", items });
+const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required });
+
+export const CITIZEN_SCHEMA = obj({
+  summary: S,
+  easyTerms: arr(obj({ term: S, meaning: S })),
+  steps: arr(obj({ title: S, detail: S, ref: S })),
+  tip: S,
+  citations: arr(S),
+});
+export const OFFICER_SCHEMA = obj({ summary: S, background: S, keyPoints: arr(S), adminNotes: arr(S), checklist: arr(S), citations: arr(S) });
+export const ANALYSIS_SCHEMA = obj({
+  lawyer: obj({ stance: S, arguments: arr(S), evidence: arr(S), strategy: arr(S) }),
+  prosecutor: obj({ stance: S, violations: arr(S), sanctions: arr(S), proofPoints: arr(S) }),
+  judge: obj({ stance: S, issues: arr(S), requirements: arr(obj({ label: S, ref: S, status: { type: "string", enum: ["met", "unclear", "unmet"] }, basis: S })), outlook: S }),
+  citations: arr(S),
+});
+export const schemaFor = (mode: UserMode) => (mode === "citizen" ? CITIZEN_SCHEMA : OFFICER_SCHEMA);
+
 export function buildSystemPrompt(mode: UserMode): string {
   return `${COMMON}\n\n${mode === "citizen" ? CITIZEN : OFFICER}`;
 }

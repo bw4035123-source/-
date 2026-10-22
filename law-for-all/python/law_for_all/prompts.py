@@ -14,6 +14,12 @@ def system_prompt(mode: str) -> str:
 
 
 ANALYSIS_SYSTEM: str = _P["analysis"]
+# 응답 JSON 스키마(구조화 출력 지원 공급자용) — Next.js 판 prompts.ts 에서 내보낸 것
+ANALYSIS_SCHEMA: dict = _P["schemas"]["analysis"]
+
+
+def schema_for(mode: str) -> dict:
+    return _P["schemas"]["citizen" if mode == "citizen" else "officer"]
 
 
 def context_block(citations: list[dict]) -> str:

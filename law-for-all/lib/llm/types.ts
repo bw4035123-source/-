@@ -15,6 +15,8 @@ export interface GenerateOptions {
   messages: ChatMessage[];
   /** JSON 객체 출력 강제(지원 공급자는 네이티브 모드 사용) */
   json?: boolean;
+  /** 응답 JSON 스키마 — 구조화 출력을 지원하는 공급자(Ollama)는 이 스키마로 출력을 강제 */
+  schema?: Record<string, unknown>;
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;

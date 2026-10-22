@@ -11,7 +11,7 @@ from .config import config
 from .data import article_label
 from .guard import MARKER, find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
 from .llm import resolve_provider
-from .prompts import system_prompt, user_prompt
+from .prompts import schema_for, system_prompt, user_prompt
 from .search import query_terms, score_article_by_terms
 from .service import LawService
 
@@ -114,7 +114,7 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
         rule()
     else:
         try:
-            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(f"이전 질문: {prev_query}\n이어서 묻는 질문: {question}", context)}], json_mode=True, temperature=0.1, max_tokens=1200)
+            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(f"이전 질문: {prev_query}\n이어서 묻는 질문: {question}", context)}], json_mode=True, temperature=0.1, max_tokens=1200, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
             g = guard_llm_output(parse_loose_json(res["text"]), mode, context)
             out.update(answer=g["summary"], removed=g["removed"])

@@ -6,7 +6,7 @@ import { queryTerms, scoreArticleByTerms } from "../law-api/search";
 import { articleLabel } from "../law-api/util";
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts";
+import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
 import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
 import { FOLLOWUP_SUGGESTIONS } from "./followup-suggestions";
 import { retrieve } from "./retrieve";
@@ -150,6 +150,7 @@ export async function followUp({ question, prevQuery, mode, provider: requested 
         system: buildSystemPrompt(mode),
         messages: [{ role: "user", content: buildUserPrompt(`이전 질문: ${prevQuery}\n이어서 묻는 질문: ${question}`, context) }],
         json: true,
+        schema: schemaFor(mode),
         temperature: 0.1,
         maxTokens: 1200,
       });

@@ -6,7 +6,7 @@ import { resolveProvider } from "../llm/registry";
 import { buildRuleAnalyses, collectKeys, rankRecommendations, spotIssues } from "./analyze-core";
 import { extractFacts } from "./facts";
 import { findUnverifiedMentions, guardAnalysisOutput, parseLooseJson } from "./guard";
-import { ANALYSIS_SYSTEM, buildAnalysisPrompt } from "./prompts";
+import { ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, buildAnalysisPrompt } from "./prompts";
 import type { AnalyzeResult, IssueAnalysis } from "./types";
 
 const DEFAULT_CONTACTS: Contact[] = [
@@ -48,6 +48,7 @@ export async function analyze({ situation, provider: requested }: { situation: s
           system: ANALYSIS_SYSTEM,
           messages: [{ role: "user", content: buildAnalysisPrompt(situation, citations) }],
           json: true,
+          schema: ANALYSIS_SCHEMA,
           temperature: 0.1,
           maxTokens: 2500,
         });

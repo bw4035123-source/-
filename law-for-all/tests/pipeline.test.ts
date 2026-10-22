@@ -76,7 +76,7 @@ describe("ask 파이프라인", () => {
     expect(r.officer?.keyPoints.length).toBeGreaterThan(0);
   });
 
-  it("Ollama 어댑터: 로컬 /api/chat + format=json", async () => {
+  it("Ollama 어댑터: 로컬 /api/chat + JSON 스키마 구조화 출력 + 넉넉한 문맥 길이", async () => {
     const ask = await loadAsk({ LLM_PROVIDER: "ollama" });
     const content = JSON.stringify({
       summary: "질의민원은 법령 해석 14일 이내 처리함 [[civil-petition-decree:14]].",
@@ -90,7 +90,11 @@ describe("ask 파이프라인", () => {
     const r = await ask({ query: "질의민원 처리기간", mode: "officer" });
     const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(String(url)).toBe("http://localhost:11434/api/chat");
-    expect(JSON.parse(init.body).format).toBe("json");
+    const body = JSON.parse(init.body);
+    // 형식은 공직자 모드 응답 스키마로 강제, 문맥은 근거 조문이 잘리지 않게 8192
+    expect(body.format.type).toBe("object");
+    expect(body.format.required).toEqual(["summary", "background", "keyPoints", "adminNotes", "checklist", "citations"]);
+    expect(body.options.num_ctx).toBe(8192);
     expect(r.provider.id).toBe("ollama");
     expect(r.guard.passed).toBe(true);
     expect(r.citations.slice(0, 2).map((c) => c.key)).toEqual(["civil-petition-decree:14", "civil-petition:18"]);

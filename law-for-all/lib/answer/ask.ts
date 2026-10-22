@@ -11,7 +11,7 @@ const getMockArticle = (key: string) => {
 };
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts";
+import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
 import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
 import { relatedLawsOf, retrieve } from "./retrieve";
 import { buildRuleAnswer } from "./rule-engine";
@@ -82,6 +82,7 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
         system: buildSystemPrompt(mode),
         messages: [{ role: "user", content: buildUserPrompt(query, context) }],
         json: true,
+        schema: schemaFor(mode),
         temperature: 0.1,
         maxTokens: 1800,
       });
