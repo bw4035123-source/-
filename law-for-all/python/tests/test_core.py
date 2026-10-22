@@ -53,6 +53,23 @@ _LAW = data.get_law("housing-lease")
 _CTX = [data.to_citation(_LAW, a) for a in _LAW["articles"] if a["no"] in ("3", "3의2")]
 
 
+class RoutingTest(unittest.TestCase):
+    def test_routing_cases(self):
+        """토픽 라우팅 회귀 시험(Next.js 판과 같은 질문 목록)"""
+        from law_for_all.search import match_topics
+        fx = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
+        if not (fx / "routing-cases.json").is_file():
+            self.skipTest("저장소의 tests/fixtures 가 없음(실행판 단독)")
+        wrong = []
+        for name in ("routing-cases", "routing-holdout"):
+            for c in json.loads((fx / f"{name}.json").read_text(encoding="utf-8"))["cases"]:
+                h = match_topics(c["q"])
+                got = h[0]["topic"]["id"] if h else None
+                if got != c["topic"]:
+                    wrong.append(f"{c['q']} — 기대 {c['topic']} / 실제 {got}")
+        self.assertEqual(wrong, [])
+
+
 class GuardTest(unittest.TestCase):
     ctx = _CTX
 

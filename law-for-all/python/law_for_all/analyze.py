@@ -65,7 +65,8 @@ def _matched_terms(text: str, terms: list[str]) -> list[str]:
     seen, out = set(), []
     for t in terms:
         nt = normalize(t)
-        if len(nt) < 2 or nt not in n or nt in seen:
+        # "A+B" 조합 트리거는 토픽 판별용이라 검색어로 쓰지 않음
+        if "+" in t or len(nt) < 2 or nt not in n or nt in seen:
             continue
         seen.add(nt)
         out.append(t)

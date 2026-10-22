@@ -1,0 +1,112 @@
+{
+  "_설명": "토픽 라우팅 회귀 시험 — 실제 사람이 묻는 말투(구어·키워드 없음·간접 서술)와 헷갈리는 질문. topic: 기대 토픽 id, null 이면 어떤 토픽에도 묶이면 안 됨(실시간 검색 또는 '찾지 못함' 안내)",
+  "cases": [
+    {"q": "윗집 층간소음 기준이 어떻게 되나요?", "topic": "floor-noise"},
+    {"q": "위층에서 밤마다 쿵쿵거려서 잠을 못 자요", "topic": "floor-noise"},
+    {"q": "아파트 윗집 애들이 뛰어다니는 소리 때문에 미치겠어요", "topic": "floor-noise"},
+    {"q": "아랫집에서 우리 집이 시끄럽다고 계속 올라와요", "topic": "floor-noise"},
+    {"q": "옆집 벽간소음도 층간소음에 해당하나요", "topic": "floor-noise"},
+    {"q": "밤 11시 넘어서 윗층 세탁기 소리가 너무 커요", "topic": "floor-noise"},
+    {"q": "층간소음 신고는 어디에 하나요", "topic": "floor-noise"},
+
+    {"q": "계약이 끝났는데 집주인이 보증금을 안 돌려줘요", "topic": "deposit-return"},
+    {"q": "계약 끝났는데 주인이 돈을 안 돌려줘서 이사를 못 가고 있어요. 이사 가면 돈 못 받나요", "topic": "deposit-return"},
+    {"q": "전세금을 못 받았는데 새 집으로 이사 가야 해요", "topic": "deposit-return"},
+    {"q": "집주인이 다음 세입자 구해야 돈 준대요", "topic": "deposit-return"},
+    {"q": "만기 지났는데 전세 보증금 반환이 안 돼요", "topic": "deposit-return"},
+    {"q": "임차권등기명령은 어떻게 신청하나요", "topic": "deposit-return"},
+    {"q": "월세 보증금 500만원을 안 돌려줘요", "topic": "deposit-return"},
+
+    {"q": "전세사기 예방하려면 뭘 확인해야 하나요", "topic": "jeonse-fraud"},
+    {"q": "깡통전세인지 어떻게 알 수 있나요", "topic": "jeonse-fraud"},
+    {"q": "전세 계약 전에 등기부등본에서 뭘 봐야 해요", "topic": "jeonse-fraud"},
+    {"q": "살던 빌라가 경매에 넘어갔대요 보증금은 어떻게 되나요", "topic": "jeonse-fraud"},
+    {"q": "집주인이 잠적했고 다른 세입자들도 피해를 입었어요", "topic": "jeonse-fraud"},
+    {"q": "소액임차인 최우선변제 금액이 얼마예요", "topic": "jeonse-fraud"},
+
+    {"q": "계약갱신요구권은 몇 번 쓸 수 있나요", "topic": "lease-renewal"},
+    {"q": "재계약하는데 집주인이 월세를 10% 올려달래요", "topic": "lease-renewal"},
+    {"q": "계약 갱신하려는데 집주인이 월세를 올려달래요", "topic": "lease-renewal"},
+    {"q": "집주인이 실거주한다고 나가래요", "topic": "lease-renewal"},
+    {"q": "아무 말 없이 계약 기간이 지나면 자동 연장되나요", "topic": "lease-renewal"},
+    {"q": "전세 보증금 올려달라는데 5% 넘게 올릴 수 있나요", "topic": "lease-renewal"},
+
+    {"q": "육아휴직 급여는 얼마나 받을 수 있나요", "topic": "parental-leave"},
+    {"q": "아빠도 육아휴직 쓸 수 있나요", "topic": "parental-leave"},
+    {"q": "육휴 쓰면 월급 대신 뭘 받아요", "topic": "parental-leave"},
+    {"q": "출산 후 아이 키우려고 회사를 쉬고 싶어요", "topic": "parental-leave"},
+
+    {"q": "민원 처리 기한은 며칠인가요?", "topic": "petition-deadline"},
+    {"q": "국민신문고에 올린 민원이 한 달째 답이 없어요", "topic": "petition-deadline"},
+    {"q": "구청에 민원 넣었는데 답변이 안 와요", "topic": "petition-deadline"},
+    {"q": "질의민원 처리기간과 기간 계산 방법", "topic": "petition-deadline"},
+
+    {"q": "음주운전 처벌 기준이 궁금해요", "topic": "drunk-driving"},
+    {"q": "술 마시고 운전하다 걸리면 면허 어떻게 돼요", "topic": "drunk-driving"},
+    {"q": "혈중알코올농도 0.05면 면허정지인가요", "topic": "drunk-driving"},
+    {"q": "음주측정 거부하면 어떻게 되나요", "topic": "drunk-driving"},
+    {"q": "맥주 한 잔 마시고 운전해도 되나요", "topic": "drunk-driving"},
+
+    {"q": "퇴사했는데 마지막 월급을 안 줘요", "topic": "unpaid-wages"},
+    {"q": "알바비를 두 달째 못 받았어요", "topic": "unpaid-wages"},
+    {"q": "가게 주인이 돈을 안 줘요 알바비", "topic": "unpaid-wages"},
+    {"q": "사장님이 급여를 안 주고 연락을 피해요", "topic": "unpaid-wages"},
+    {"q": "1년 넘게 일했는데 퇴직금을 안 준대요", "topic": "unpaid-wages"},
+    {"q": "근로계약 끝나고 퇴직금 못 받았어요", "topic": "unpaid-wages"},
+    {"q": "밀린 임금 신고는 어디에 해요", "topic": "unpaid-wages"},
+
+    {"q": "회사에서 갑자기 내일부터 나오지 말라고 했어요", "topic": "unfair-dismissal"},
+    {"q": "아무 이유 없이 잘렸어요", "topic": "unfair-dismissal"},
+    {"q": "해고예고 없이 해고됐는데 수당 받을 수 있나요", "topic": "unfair-dismissal"},
+    {"q": "권고사직 받았는데 거부하면 어떻게 되나요", "topic": "unfair-dismissal"},
+    {"q": "부당해고 구제신청 기간이 있나요", "topic": "unfair-dismissal"},
+
+    {"q": "회사가 가진 내 개인정보를 보고 싶어요", "topic": "privacy-access"},
+    {"q": "쇼핑몰에 내 정보 삭제 요청하려면", "topic": "privacy-access"},
+    {"q": "개인정보 열람 요구했는데 답이 없어요", "topic": "privacy-access"},
+
+    {"q": "정보공개 청구하면 언제까지 결정해야 하나요?", "topic": "info-disclosure"},
+    {"q": "구청 예산 사용 내역을 공개해 달라고 하고 싶어요", "topic": "info-disclosure"},
+    {"q": "정보공개 비공개 결정을 받았어요", "topic": "info-disclosure"},
+
+    {"q": "영업정지 처분이 억울해요", "topic": "admin-appeal"},
+    {"q": "행정심판은 언제까지 청구해야 하나요", "topic": "admin-appeal"},
+    {"q": "구청 처분에 불복하고 싶어요", "topic": "admin-appeal"},
+
+    {"q": "우리 기관 취업규칙에 1주 45시간으로 되어 있어요", "topic": "work-rules"},
+    {"q": "연차휴가 일수 기준이 궁금해요", "topic": "work-rules"},
+    {"q": "휴게시간은 몇 분 줘야 하나요", "topic": "work-rules"},
+
+    {"q": "지방공기업 사장 임기는 몇 년인가요", "topic": "local-public-enterprise"},
+    {"q": "도시공사 임원추천위원회 구성 방법", "topic": "local-public-enterprise"},
+
+    {"q": "선거 앞두고 구청장 업적 홍보물 배포해도 되나요", "topic": "election-neutrality"},
+    {"q": "공무원이 SNS에 후보 지지 글을 써도 되나요", "topic": "election-neutrality"},
+
+    {"q": "청탁금지법상 외부강의 사례금 상한과 신고 기한은?", "topic": "anti-graft"},
+    {"q": "공무원이 민원인에게 5만원짜리 선물 받아도 되나요", "topic": "anti-graft"},
+    {"q": "김영란법 식사 한도가 얼마예요", "topic": "anti-graft"},
+
+    {"q": "공유재산 사용허가 기간은 몇 년인가요", "topic": "public-property"},
+    {"q": "구청 땅을 빌려서 쓰고 싶어요 대부료는 어떻게 정해요", "topic": "public-property"},
+
+    {"q": "친구가 빌려간 돈을 안 돌려줘요", "topic": null},
+    {"q": "중고거래 사기를 당했어요", "topic": null},
+    {"q": "보이스피싱 사기 피해를 입었어요", "topic": null},
+    {"q": "법원 경매로 집을 사고 싶어요", "topic": null},
+    {"q": "택배가 분실됐는데 반환받을 수 있나요", "topic": null},
+    {"q": "이사 가면 전입신고 해야 하나요", "topic": null},
+    {"q": "세입자가 월세를 안 내요", "topic": null},
+    {"q": "교통사고 합의금은 어떻게 정하나요", "topic": null},
+    {"q": "이혼할 때 재산분할은 어떻게 하나요", "topic": null},
+    {"q": "반려견 산책할 때 목줄 안 하면 과태료", "topic": null},
+    {"q": "아파트 주차장 장애인 구역 주차 과태료", "topic": null},
+    {"q": "도서관 책 열람실 이용 시간", "topic": null},
+    {"q": "상속 포기는 며칠 안에 해야 하나요", "topic": null},
+    {"q": "학교폭력 신고는 어떻게 하나요", "topic": null},
+    {"q": "오늘 날씨가 좋네요", "topic": null},
+    {"q": "운전면허 갱신은 어떻게 하나요", "topic": null},
+    {"q": "헬스장 환불 거부 당했어요", "topic": null},
+    {"q": "이웃집 개가 너무 짖어요", "topic": null}
+  ]
+}

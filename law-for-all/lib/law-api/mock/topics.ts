@@ -43,7 +43,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "floor-noise",
     label: "층간소음",
     caseQuery: "층간소음",
-    triggers: ["층간소음", "윗집", "위층", "아랫집", "발소리", "쿵쿵", "벽간소음", "소음 기준", "뛰는 소리"],
+    triggers: ["층간소음", "윗집", "위층", "윗층", "위집", "아랫집", "발망치", "발소리", "쿵쿵", "벽간소음", "소음 기준", "뛰는 소리"],
     refs: ["apartment-mgmt:20", "floor-noise-rule:2", "floor-noise-rule:3"],
     citizen: {
       summary:
@@ -87,7 +87,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "deposit-return",
     label: "보증금 반환",
     caseQuery: "임차보증금",
-    triggers: ["보증금", "돌려받", "전세금", "반환", "집주인이 안", "이사 가야", "임차권등기", "만기", "이사를 못"],
+    triggers: ["보증금", "돌려받", "전세금", "보증금+반환", "전세+반환", "집주인이 안", "이사 가야", "임차권등기", "만기", "이사를 못", "다음 세입자", "세입자 구해", "새 세입자", "세입자 들어올"],
     refs: ["housing-lease:4", "housing-lease:3의3", "housing-lease:3의2", "housing-lease:3"],
     citizen: {
       summary:
@@ -129,7 +129,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "jeonse-fraud",
     label: "전세사기 예방",
     caseQuery: "전세사기",
-    triggers: ["전세사기", "깡통전세", "전세 계약", "전세 들어", "계약 전", "사기", "최우선변제", "소액임차인", "경매", "연락 두절", "연락두절", "잠적", "다른 세입자", "피해자"],
+    triggers: ["전세사기", "깡통전세", "전세 계약", "전세 들어", "계약 전", "전세+사기", "집주인+사기", "보증금+사기", "최우선변제", "소액임차인", "경매+보증금", "경매+전세", "경매+세입자", "경매+빌라", "경매+살던", "집주인+연락", "임대인+연락", "집주인+잠적", "잠적", "다른 세입자", "피해자"],
     refs: ["housing-lease:3", "housing-lease:3의2", "housing-lease:8", "housing-lease-decree:11", "housing-lease-decree:10", "jeonse-fraud:3"],
     citizen: {
       summary:
@@ -171,7 +171,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "lease-renewal",
     label: "계약갱신·임대료 인상",
     caseQuery: "계약갱신",
-    triggers: ["갱신", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "묵시적"],
+    triggers: ["계약+갱신", "갱신요구", "갱신+월세", "갱신+보증금", "갱신+전세", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "들어와 산다", "들어와서 산다", "들어와 살겠", "묵시적", "자동 연장", "자동으로 연장"],
     refs: ["housing-lease:6의3", "housing-lease:7", "housing-lease:6"],
     citizen: {
       summary:
@@ -241,7 +241,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "petition-deadline",
     label: "민원 처리 기한",
     caseQuery: "민원",
-    triggers: ["민원", "처리 기한", "처리기한", "처리기간", "며칠", "답변이 안", "국민신문고", "질의민원", "고충민원"],
+    triggers: ["민원", "처리 기한", "처리기한", "처리기간", "민원+며칠", "처리+며칠", "답변이 안", "국민신문고", "질의민원", "고충민원"],
     refs: ["civil-petition:18", "civil-petition-decree:14", "civil-petition:19", "civil-petition:17", "civil-petition:35", "civil-petition-decree:17"],
     citizen: {
       summary:
@@ -281,7 +281,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "drunk-driving",
     label: "음주운전 처벌",
     caseQuery: "음주운전",
-    triggers: ["음주운전", "음주", "술 마시고 운전", "혈중알코올", "면허취소", "면허정지", "음주측정"],
+    triggers: ["음주운전", "음주", "술 마시고 운전", "술 먹고 운전", "마시고 운전", "혈중알코올", "면허취소", "면허정지", "음주측정"],
     refs: ["road-traffic:44", "road-traffic:148의2", "road-traffic:93", "road-traffic-rule:91"],
     citizen: {
       summary:
@@ -372,7 +372,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "privacy-access",
     label: "개인정보 열람·삭제",
     caseQuery: "개인정보",
-    triggers: ["개인정보", "개인정보 열람", "열람 요구", "정보주체", "내 정보", "열람", "삭제 요청", "정보 유출"],
+    triggers: ["개인정보", "개인정보 열람", "열람 요구", "정보주체", "내 정보", "정보+열람", "삭제 요청", "정보 유출"],
     refs: ["privacy:35", "privacy-decree:41", "privacy:36", "privacy:15"],
     citizen: {
       summary:
@@ -399,7 +399,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "info-disclosure",
     label: "정보공개 청구",
     caseQuery: "정보공개",
-    triggers: ["정보공개", "공개 청구", "비공개", "행정 정보", "공문 공개"],
+    triggers: ["정보공개", "공개 청구", "비공개", "행정 정보", "공문 공개", "공개해 달라", "공개해달라", "공개를 요구", "공개 요청"],
     refs: ["info-disclosure:10", "info-disclosure:11", "info-disclosure:18"],
     citizen: {
       summary:

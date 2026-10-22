@@ -36,10 +36,13 @@ def match_topics(query: str) -> list[dict]:
     hits = []
     for topic in TOPICS:
         score = 0.0
-        # 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산
-        for nt in dict.fromkeys(normalize(t) for t in topic["triggers"]):
-            if len(nt) >= 2 and nt in nq:
-                score += 2 + len(nt) * 0.5
+        # 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산.
+        # "전세+사기"처럼 +로 이은 트리거는 모든 말이 들어 있을 때만(순서 무관) — 혼자서는 너무 넓은 말('사기'·'경매')을 문맥으로 좁힘
+        for key in dict.fromkeys("+".join(normalize(p) for p in t.split("+")) for t in topic["triggers"]):
+            parts = key.split("+")
+            ln = sum(len(p) for p in parts)
+            if all(len(p) >= 1 and p in nq for p in parts) and ln >= 2:
+                score += 2 + ln * 0.5
         score += _overlap(qg, bigrams(topic["label"] + " ".join(topic["triggers"]))) * 2
         if score >= 1.2:
             hits.append({"topic": topic, "score": score})

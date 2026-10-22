@@ -94,7 +94,7 @@ export const PUBLIC_TOPICS: Topic[] = [
     id: "election-neutrality",
     label: "공직선거법(선거 중립)",
     caseQuery: "공무원 지위 이용 선거운동",
-    triggers: ["공직선거법", "선거 중립", "정치적 중립", "선거운동", "선거관여", "선거기간", "업적 홍보", "기공식", "선거법", "선거 앞두고"],
+    triggers: ["공직선거법", "선거 중립", "정치적 중립", "선거운동", "선거관여", "선거기간", "업적 홍보", "기공식", "선거법", "선거 앞두고", "후보 지지", "지지 글", "후보+공무원", "후보+SNS"],
     refs: ["public-election:9", "public-election:85", "public-election:86", "public-election:60", "public-election:53"],
     citizen: {
       summary:
@@ -135,7 +135,7 @@ export const PUBLIC_TOPICS: Topic[] = [
     id: "anti-graft",
     label: "청탁금지법",
     caseQuery: "청탁금지법 금품수수",
-    triggers: ["청탁금지법", "부정청탁금지법", "김영란법", "부정청탁", "금품수수", "금품 수수", "외부강의", "사례금", "선물 한도", "접대", "향응", "행동강령", "경조사비"],
+    triggers: ["청탁금지법", "부정청탁금지법", "김영란법", "부정청탁", "금품수수", "금품 수수", "외부강의", "사례금", "선물 한도", "접대", "향응", "행동강령", "경조사비", "선물 받", "선물을 받", "공무원+선물", "식사 한도", "식사비", "공무원+금품", "직무 관련자", "직무관련자", "얻어먹", "공무원+밥", "공무원+식사"],
     refs: ["anti-graft:8", "anti-graft:5", "anti-graft:7", "anti-graft:9", "anti-graft:10", "anti-graft:2"],
     citizen: {
       summary:

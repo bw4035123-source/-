@@ -48,7 +48,8 @@ function matchedTerms(text: string, terms: string[]): string[] {
   return terms
     .filter((t) => {
       const nt = normalize(t);
-      if (nt.length < 2 || !n.includes(nt) || seen.has(nt)) return false;
+      // "A+B" 조합 트리거는 토픽 판별용이라 검색어로 쓰지 않음
+      if (t.includes("+") || nt.length < 2 || !n.includes(nt) || seen.has(nt)) return false;
       seen.add(nt);
       return true;
     })
