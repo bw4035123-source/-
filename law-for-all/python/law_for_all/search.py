@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
-from .data import LAWS, TOPICS
+from .data import LAW_ALIASES, LAWS, TOPICS
 
 _NON_WORD = re.compile(r"[^\w%]|_", re.UNICODE)
 
@@ -29,6 +30,41 @@ def _overlap(q: set[str], target: set[str]) -> float:
     return sum(1 for g in q if g in target) / len(q)
 
 
+def trigger_score(nq: str, trigger: str) -> float:
+    """트리거 일치 점수(0 = 불일치): "A+B"는 모든 말이 들어 있을 때만(순서 무관). nq 는 normalize 된 질문"""
+    parts = [normalize(p) for p in trigger.split("+")]
+    ln = sum(len(p) for p in parts)
+    return 2 + ln * 0.5 if ln >= 2 and all(len(p) >= 1 and p in nq for p in parts) else 0.0
+
+
+def match_law_aliases(query: str) -> list[dict]:
+    """생활 용어 → 법령 사전에서 질문에 해당하는 항목(실시간 검색 보조)"""
+    nq = normalize(query)
+
+    def hit(w: str) -> bool:
+        # 두 글자 낱말(예: '산재')은 질문에서도 낱말 첫머리일 때만('화산재'≠'산재')
+        if "+" not in w and len(normalize(w)) == 2:
+            return _word_start_has(query, w)
+        return trigger_score(nq, w) > 0
+
+    return [a for a in LAW_ALIASES if any(hit(w) for w in a["when"])]
+
+
+def _word_start_has(text: str, term: str) -> bool:
+    """글 안에 말이 낱말 첫머리로 들어 있는지(맨 앞이거나 띄어쓰기·문장부호·가운뎃점 뒤)"""
+    i = text.find(term)
+    while i >= 0:
+        if i == 0 or text[i - 1].isspace() or text[i - 1] in "ㆍ·" or unicodedata.category(text[i - 1]).startswith("P"):
+            return True
+        i = text.find(term, i + 1)
+    return False
+
+
+def law_name_has(name: str, term: str) -> bool:
+    """법령명에 검색어가 '낱말로' 들어 있는지 — 두 글자 말은 이름 첫머리나 띄어쓰기·가운뎃점 뒤에서만('사기'≠'군사기밀')"""
+    return term in name if len(term) >= 3 else _word_start_has(name, term)
+
+
 def match_topics(query: str) -> list[dict]:
     """[{topic, score}] 점수 내림차순"""
     nq = normalize(query)
@@ -39,10 +75,7 @@ def match_topics(query: str) -> list[dict]:
         # 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산.
         # "전세+사기"처럼 +로 이은 트리거는 모든 말이 들어 있을 때만(순서 무관) — 혼자서는 너무 넓은 말('사기'·'경매')을 문맥으로 좁힘
         for key in dict.fromkeys("+".join(normalize(p) for p in t.split("+")) for t in topic["triggers"]):
-            parts = key.split("+")
-            ln = sum(len(p) for p in parts)
-            if all(len(p) >= 1 and p in nq for p in parts) and ln >= 2:
-                score += 2 + ln * 0.5
+            score += trigger_score(nq, key)
         score += _overlap(qg, bigrams(topic["label"] + " ".join(topic["triggers"]))) * 2
         if score >= 1.2:
             hits.append({"topic": topic, "score": score})

@@ -16,6 +16,8 @@ _laws = _load("laws.json")
 DATASET_DATE: str = _laws["datasetDate"]
 LAWS: list[dict] = _laws["laws"]
 TOPICS: list[dict] = _load("topics.json")
+# 생활 용어 → 법령 사전(실시간 검색 보조) — Next.js 판 lib/law-api/mock/law-aliases.ts
+LAW_ALIASES: list[dict] = _load("law_aliases.json")
 PERSPECTIVES: dict = _load("perspectives.json")
 
 _BY_ID = {l["id"]: l for l in LAWS}

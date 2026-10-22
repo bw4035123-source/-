@@ -7,7 +7,7 @@ import time
 
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, find_all, txt, parse_admrul_doc, parse_admrul_list, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list, parse_ordin_doc, parse_ordin_list
-from .search import bigram_overlap, query_terms, score_article_by_terms, search_law_names
+from .search import bigram_overlap, law_name_has, match_law_aliases, query_terms, score_article_by_terms, search_law_names
 
 CASE_TIMEOUT = 25
 # 판례 검색 전체 대기 한도(초)
@@ -95,8 +95,20 @@ class LawService:
 
             # 여러 말을 한꺼번에 넣은 본문 검색은 AND 조건 → 모두 들어 있는 법령(결과가 적어 정확)
             combos = list(dict.fromkeys([" ".join(terms), " ".join(terms[:2])])) if len(terms) >= 2 else []
+            # 생활 용어 → 법령 사전(사람이 검수): 일치하면 그 법령을 먼저 세운다(법령명 검색은 넉넉히 받아 정확히 같은 이름만)
+            aliases = match_law_aliases(query)
+
+            def by_exact_name(law: str) -> list[dict]:
+                try:
+                    items = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": law, "display": "100"}, oc, FAST["timeout"], FAST["retries"]))
+                except LawApiError:
+                    return []
+                return [x for x in items if x["name"].replace(" ", "") == law.replace(" ", "")]
+
+            alias_fut = [_POOL.submit(by_exact_name, a["law"]) for a in aliases]
             allres = list(_POOL.map(get, [(t, b) for t in terms for b in (False, True)] + [(c, True) for c in combos]))
             res, and_res = allres[: len(terms) * 2], allres[len(terms) * 2:]
+            alias_res = [f.result() for f in alias_fut]
             # 점수: 드문 말일수록 큰 가중치(IDF). 본문 검색은 결과가 100건을 넘으면 가나다순 앞부분만 오므로
             # (관련도와 무관) 100건 이하로 '전부' 받은 경우만 근거로 쓴다.
             def idf(n, base, hi):
@@ -118,7 +130,7 @@ class LawService:
                 # 법령명 일치: 이름이 검색어에 가까울수록(짧을수록) 크게 — "주차장" → 주차장법
                 w_name = idf(by_name["total"] or len(by_name["list"]), 300, 6) * 2
                 for x in by_name["list"]:
-                    if t in x["name"]:
+                    if law_name_has(x["name"], t):
                         add(x, w_name * math.sqrt(len(t) / len(x["name"].replace(" ", ""))))
                 if complete(by_body):
                     for x in by_body["list"]:
@@ -128,6 +140,10 @@ class LawService:
                 if complete(r):
                     for x in r["list"]:
                         add(x, (5 if i == 0 else 3) * (1 if x["kind"] == "법률" else 0.6))
+            # 사전에서 찾은 법령은 가장 앞에
+            for lst in alias_res:
+                for x in lst:
+                    add(x, 30)
             # 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분 중 법령명이 질문과 비슷한 것만 비교
             # (본문 검색 앞부분은 가나다순이라 관련 없는 법령이 섞이므로 이름이 전혀 안 닮은 법령은 제외)
             if not cand:
@@ -137,7 +153,9 @@ class LawService:
                             add(x, 0.1)
             # 같은 법령의 여러 판(시행 예정 등)은 하나만
             top, seen = [], set()
-            for c in sorted(cand.values(), key=lambda c: c["score"], reverse=True):
+            alias_mst = {x["mst"] for lst in alias_res for x in lst}
+            # 사전에서 찾은 법령이 있으면 그 법령만(글자만 겹친 다른 법령을 섞지 않음)
+            for c in sorted((c for c in cand.values() if not alias_mst or c["mst"] in alias_mst), key=lambda c: c["score"], reverse=True):
                 if c["name"] not in seen:
                     seen.add(c["name"])
                     top.append(c)
@@ -147,10 +165,16 @@ class LawService:
                 doc = LawService(oc).get_law(f"mst-{c['mst']}")
                 if not doc:
                     continue
+                # 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름
+                alias = next((x for x in aliases if x["law"].replace(" ", "") == doc["name"].replace(" ", "")), None)
+                kw = alias["keywords"] if alias else []
+                ts = terms + [k for k in kw if k not in terms]
+                # 법령명이 질문과 전혀 안 닮았고 사전에서 찾은 법령도 아니면 더 강한 일치(3점 이상)만 근거로('도서'→섬 '도서(島嶼)' 같은 우연 일치 방지)
+                min_sc = 2 if alias or bigram_overlap(doc["name"], terms) > 0 else 3
                 for a in doc["articles"]:
-                    sc = score_article_by_terms(a, terms)
+                    sc = score_article_by_terms(a, ts)
                     # 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
-                    if sc >= 2:
+                    if sc >= min_sc:
                         scored.append((sc, f"{doc['id']}:{a['no']}"))
             scored.sort(key=lambda x: x[0], reverse=True)
             return [k for _, k in scored[:max_articles]]

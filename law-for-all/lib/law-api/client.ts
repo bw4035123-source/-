@@ -1,7 +1,7 @@
 import type { CaseDetail, CaseItem, Citation, LawDoc, LawSummary } from "./types";
 import { MOCK_LAWS, getMockLaw } from "./mock";
 import { drfGet, findAll, txt, type DrfLawListItem, parseAdmrulDoc, parseAdmrulList, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, parseOrdinDoc, parseOrdinList, LawApiError } from "./drf";
-import { bigramOverlap, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
+import { bigramOverlap, lawNameHas, matchLawAliases, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
 
@@ -100,7 +100,17 @@ export class LawService {
           .catch(() => ({ list: [], total: 0 }));
       // 여러 말을 한꺼번에 넣은 본문 검색은 AND 조건 → 모두 들어 있는 법령(결과가 적어 정확)
       const combos = terms.length >= 2 ? Array.from(new Set([terms.join(" "), terms.slice(0, 2).join(" ")])) : [];
-      const [res, andRes] = await Promise.all([Promise.all(terms.flatMap((t) => [get(t, false), get(t, true)])), Promise.all(combos.map((c) => get(c, true)))]);
+      // 생활 용어 → 법령 사전(사람이 검수): 일치하면 그 법령을 먼저 세운다(법령명 검색은 넉넉히 받아 정확히 같은 이름만)
+      const aliases = matchLawAliases(query);
+      const byExactName = (law: string) =>
+        drfGet("lawSearch.do", { target: "law", query: law, display: "100" }, this.oc, FAST.timeoutMs, FAST.retries)
+          .then((d) => parseLawList(d).filter((x) => x.name.replace(/\s/g, "") === law.replace(/\s/g, "")))
+          .catch(() => [] as DrfLawListItem[]);
+      const [res, andRes, aliasRes] = await Promise.all([
+        Promise.all(terms.flatMap((t) => [get(t, false), get(t, true)])),
+        Promise.all(combos.map((c) => get(c, true))),
+        Promise.all(aliases.map((a) => byExactName(a.law))),
+      ]);
       // 점수: 드문 말일수록 큰 가중치(IDF). 본문 검색은 결과가 100건을 넘으면 가나다순 앞부분만 오므로
       // (관련도와 무관) 100건 이하로 '전부' 받은 경우만 근거로 쓴다.
       const idf = (n: number, base: number, hi: number) => (n > 0 ? Math.min(hi, Math.max(0.3, Math.log2(base / n))) : 0);
@@ -117,19 +127,24 @@ export class LawService {
         const byBody = res[ti * 2 + 1];
         // 법령명 일치: 이름이 검색어에 가까울수록(짧을수록) 크게 — "주차장" → 주차장법
         const wName = idf(byName.total || byName.list.length, 300, 6) * 2;
-        byName.list.filter((x) => x.name.includes(t)).forEach((x) => add(x, wName * Math.sqrt(t.length / x.name.replace(/\s/g, "").length)));
+        byName.list.filter((x) => lawNameHas(x.name, t)).forEach((x) => add(x, wName * Math.sqrt(t.length / x.name.replace(/\s/g, "").length)));
         if (complete(byBody)) byBody.list.forEach((x) => add(x, idf(byBody.total, 3000, 8)));
       });
       // 여러 말이 모두 들어 있는 법령(AND 본문 검색)
       andRes.forEach((r, i) => {
         if (complete(r)) r.list.forEach((x) => add(x, (i === 0 ? 5 : 3) * (x.kind === "법률" ? 1 : 0.6)));
       });
+      // 사전에서 찾은 법령은 가장 앞에
+      aliasRes.forEach((list) => list.forEach((x) => add(x, 30)));
       // 근거가 하나도 없으면(모든 말이 흔한 경우) 본문 검색 앞부분 중 법령명이 질문과 비슷한 것만 비교
       // (본문 검색 앞부분은 가나다순이라 관련 없는 법령이 섞이므로 이름이 전혀 안 닮은 법령은 제외)
       if (!cand.size) terms.forEach((_, ti) => res[ti * 2 + 1].list.forEach((x) => bigramOverlap(x.name, terms) > 0 && add(x, 0.1)));
       // 같은 법령의 여러 판(시행 예정 등)은 하나만
       const seen = new Set<string>();
+      const aliasMst = new Set(aliasRes.flat().map((x) => x.mst));
       const top = Array.from(cand.values())
+        // 사전에서 찾은 법령이 있으면 그 법령만(글자만 겹친 다른 법령을 섞지 않음)
+        .filter((c) => !aliasMst.size || aliasMst.has(c.mst))
         .sort((a, b) => b.score - a.score)
         .filter((c) => (seen.has(c.name) ? false : (seen.add(c.name), true)))
         .slice(0, 2);
@@ -137,10 +152,16 @@ export class LawService {
       const scored: { key: string; score: number }[] = [];
       for (const doc of docs) {
         if (!doc) continue;
+        // 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름
+        const alias = aliases.find((x) => x.law.replace(/\s/g, "") === doc.name.replace(/\s/g, ""));
+        const kw = alias?.keywords ?? [];
+        const ts = [...terms, ...kw.filter((k) => !terms.includes(k))];
+        // 법령명이 질문과 전혀 안 닮았고 사전에서 찾은 법령도 아니면 더 강한 일치(3점 이상)만 근거로('도서'→섬 '도서(島嶼)' 같은 우연 일치 방지)
+        const min = alias || bigramOverlap(doc.name, terms) > 0 ? 2 : 3;
         for (const a of doc.articles) {
-          const sc = scoreArticleByTerms(a, terms);
+          const sc = scoreArticleByTerms(a, ts);
           // 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
-          if (sc >= 2) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
+          if (sc >= min) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
         }
       }
       return scored.sort((a, b) => b.score - a.score).slice(0, maxArticles).map((x) => x.key);

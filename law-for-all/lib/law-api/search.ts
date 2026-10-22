@@ -1,6 +1,7 @@
 import type { LawArticle, LawDoc } from "./types";
 import { MOCK_LAWS } from "./mock";
 import { TOPICS, type Topic } from "./mock/topics";
+import { LAW_ALIASES, type LawAlias } from "./mock/law-aliases";
 
 /**
  * 경량 한국어 검색 엔진(외부 의존성·형태소 분석기 없음).
@@ -39,6 +40,32 @@ export interface ArticleHit {
   score: number;
 }
 
+/** 트리거 일치 점수(0 = 불일치): "A+B"는 모든 말이 들어 있을 때만(순서 무관). nq 는 normalize 된 질문 */
+export function triggerScore(nq: string, trigger: string): number {
+  const parts = trigger.split("+").map(normalize);
+  const len = parts.reduce((n, p) => n + p.length, 0);
+  return len >= 2 && parts.every((p) => p.length >= 1 && nq.includes(p)) ? 2 + len * 0.5 : 0;
+}
+
+/** 생활 용어 → 법령 사전에서 질문에 해당하는 항목(실시간 검색 보조) */
+export function matchLawAliases(query: string): LawAlias[] {
+  const nq = normalize(query);
+  // 두 글자 낱말(예: '산재')은 질문에서도 낱말 첫머리일 때만('화산재'≠'산재')
+  const hit = (w: string) => (!w.includes("+") && normalize(w).length === 2 ? wordStartHas(query, w) : triggerScore(nq, w) > 0);
+  return LAW_ALIASES.filter((a) => a.when.some(hit));
+}
+
+/** 글 안에 말이 낱말 첫머리로 들어 있는지(맨 앞이거나 띄어쓰기·문장부호·가운뎃점 뒤) */
+function wordStartHas(text: string, term: string): boolean {
+  for (let i = text.indexOf(term); i >= 0; i = text.indexOf(term, i + 1)) if (i === 0 || /[\s\p{P}ㆍ·]/u.test(text[i - 1])) return true;
+  return false;
+}
+
+/** 법령명에 검색어가 '낱말로' 들어 있는지 — 두 글자 말은 이름 첫머리나 띄어쓰기·가운뎃점 뒤에서만('사기'≠'군사기밀') */
+export function lawNameHas(name: string, term: string): boolean {
+  return term.length >= 3 ? name.includes(term) : wordStartHas(name, term);
+}
+
 export function matchTopics(query: string): TopicHit[] {
   const nq = normalize(query);
   const qg = bigrams(query);
@@ -46,11 +73,7 @@ export function matchTopics(query: string): TopicHit[] {
     let score = 0;
     // 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산.
     // "전세+사기"처럼 +로 이은 트리거는 모든 말이 들어 있을 때만(순서 무관) — 혼자서는 너무 넓은 말('사기'·'경매')을 문맥으로 좁힘
-    for (const key of Array.from(new Set(topic.triggers.map((t) => t.split("+").map(normalize).join("+"))))) {
-      const parts = key.split("+");
-      const len = parts.reduce((n, p) => n + p.length, 0);
-      if (parts.every((p) => p.length >= 1 && nq.includes(p)) && len >= 2) score += 2 + len * 0.5;
-    }
+    for (const key of Array.from(new Set(topic.triggers.map((t) => t.split("+").map(normalize).join("+"))))) score += triggerScore(nq, key);
     score += overlap(qg, bigrams(topic.label + topic.triggers.join(" "))) * 2;
     return { topic, score };
   })
