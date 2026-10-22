@@ -70,6 +70,13 @@ class GuardTest(unittest.TestCase):
         with self.assertRaises(GuardError):
             guard_llm_output({"summary": "근거 없음", "citations": []}, "officer", self.ctx)
 
+    def test_key_notation(self):
+        # [[키]]로 감싸거나 한 문자열에 여러 키를 써도 인정(목록 밖 키는 제거)
+        g = guard_llm_output({"summary": "전입 다음 날부터 대항력이 생겨요.", "steps": [{"title": "전입신고", "detail": "하세요", "ref": "[[housing-lease:3]]"}], "citations": ["[[housing-lease:3]], [[fake:1]]"]}, "citizen", self.ctx)
+        self.assertEqual(g["citationKeys"], ["housing-lease:3"])
+        self.assertEqual(g["citizen"]["steps"][0]["ref"], "housing-lease:3")
+        self.assertIn("fake:1", g["removed"])
+
     def test_small_model_output(self):
         # 감싼 JSON·answer 키·[[키]] 누락 보정 — 근거 목록의 조문을 이름·번호로 언급할 때만 인용으로 인정
         g = guard_llm_output({"answer": {"answer": "「주택임대차보호법」 제3조에 따라 전입 다음 날 대항력이 생겨요."}}, "citizen", self.ctx)

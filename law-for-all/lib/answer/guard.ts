@@ -104,13 +104,24 @@ export function inferCitationKeys(texts: string[], context: Citation[]): string[
 
 const str = z.preprocess((v) => (v == null ? "" : typeof v === "string" ? v : JSON.stringify(v)), z.string());
 const strList = z.preprocess((v) => (Array.isArray(v) ? v : v ? [v] : []), z.array(str));
+/** 근거 키 표기 보정: "[[키]]"처럼 감싸 쓰거나 "[[a]], [[b]]"처럼 한 문자열에 여러 개를 쓴 경우도 키만 뽑는다 */
+export function keysOf(v: unknown): string[] {
+  const items = Array.isArray(v) ? v : v ? [v] : [];
+  return items.flatMap((x) => {
+    const s = typeof x === "string" ? x : x == null ? "" : JSON.stringify(x);
+    const marked = Array.from(s.matchAll(MARKER), (m) => m[1]);
+    return marked.length ? marked : s.split(/[\s,]+/).filter(Boolean);
+  });
+}
+const keyList = z.preprocess(keysOf, z.array(z.string()));
+const keyRef = z.preprocess((v) => keysOf(v)[0] ?? "", z.string());
 
 export const CitizenSchema = z.object({
   summary: str,
   easyTerms: z.array(z.object({ term: str, meaning: str })).catch([]),
-  steps: z.array(z.object({ title: str, detail: str, ref: str.optional() })).catch([]),
+  steps: z.array(z.object({ title: str, detail: str, ref: keyRef.optional() })).catch([]),
   tip: str.optional(),
-  citations: strList.catch([]),
+  citations: keyList.catch([]),
 });
 
 export const OfficerSchema = z.object({
@@ -119,7 +130,7 @@ export const OfficerSchema = z.object({
   keyPoints: strList.catch([]),
   adminNotes: strList.catch([]),
   checklist: strList.catch([]),
-  citations: strList.catch([]),
+  citations: keyList.catch([]),
 });
 
 export interface GuardedOutput {
@@ -195,10 +206,10 @@ export const AnalysisSchema = z.object({
   judge: z.object({
     stance: str,
     issues: strList.catch([]),
-    requirements: z.array(z.object({ label: str, ref: str.optional(), status: reqStatus, basis: str.catch("") })).catch([]),
+    requirements: z.array(z.object({ label: str, ref: keyRef.optional(), status: reqStatus, basis: str.catch("") })).catch([]),
     outlook: str.catch(""),
   }),
-  citations: strList.catch([]),
+  citations: keyList.catch([]),
 });
 
 export function guardAnalysisOutput(raw: unknown, context: Citation[]) {

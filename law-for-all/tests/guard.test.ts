@@ -61,4 +61,15 @@ describe("환각 방지 가드", () => {
     const a = guardAnalysisOutput({ result: { lawyer: { stance: "「주택임대차보호법」 제3조 대항력 주장" }, prosecutor: { stance: "" }, judge: { stance: "요건 검토" } } }, ctx);
     expect(a.citationKeys).toEqual(["housing-lease:3"]);
   });
+
+  it("근거 키 표기 보정: [[키]]로 감싸거나 한 문자열에 여러 키를 써도 인정(목록 밖 키는 제거)", () => {
+    const g = guardLLMOutput(
+      { summary: "전입 다음 날부터 대항력이 생겨요.", steps: [{ title: "전입신고", detail: "하세요", ref: "[[housing-lease:3]]" }], citations: ["[[housing-lease:3]], [[fake:1]]"] },
+      "citizen",
+      ctx,
+    );
+    expect(g.citationKeys).toEqual(["housing-lease:3"]);
+    expect(g.citizen?.steps[0].ref).toBe("housing-lease:3");
+    expect(g.removed).toContain("fake:1");
+  });
 });

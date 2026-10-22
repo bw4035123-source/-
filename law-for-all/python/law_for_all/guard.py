@@ -126,6 +126,21 @@ def _sl(v) -> list[str]:
     return [_s(v)] if v else []
 
 
+def keys_of(v) -> list[str]:
+    """근거 키 표기 보정: "[[키]]"처럼 감싸 쓰거나 "[[a]], [[b]]"처럼 한 문자열에 여러 개를 쓴 경우도 키만 뽑는다"""
+    out: list[str] = []
+    for x in v if isinstance(v, list) else ([v] if v else []):
+        s = x if isinstance(x, str) else ("" if x is None else json.dumps(x, ensure_ascii=False))
+        marked = MARKER.findall(s)
+        out += marked or [t for t in re.split(r"[\s,]+", s) if t]
+    return out
+
+
+def _key(v) -> str:
+    k = keys_of(v)
+    return k[0] if k else ""
+
+
 def _objs(v, keys: tuple) -> list[dict]:
     if not isinstance(v, list) or not all(isinstance(x, dict) for x in v):
         return []
@@ -172,7 +187,7 @@ def guard_llm_output(raw, mode: str, context: list[dict]) -> dict:
         steps = [s for s in _objs(raw.get("steps"), ("title", "detail", "ref")) if s["title"]][:3]
         citizen = {
             "easyTerms": [{"term": _s(t["term"]), "meaning": _s(t["meaning"])} for t in _objs(raw.get("easyTerms"), ("term", "meaning")) if t["term"] and t["meaning"]][:5],
-            "steps": [{"title": c(s["title"]), "detail": c(s["detail"]), **({"ref": s["ref"]} if s["ref"] in c.allowed else {})} for s in steps],
+            "steps": [{"title": c(s["title"]), "detail": c(s["detail"]), **({"ref": _key(s["ref"])} if _key(s["ref"]) in c.allowed else {})} for s in steps],
         }
         if raw.get("tip"):
             citizen["tip"] = c(raw.get("tip"))
@@ -183,7 +198,7 @@ def guard_llm_output(raw, mode: str, context: list[dict]) -> dict:
             "adminNotes": [x for x in map(c, _sl(raw.get("adminNotes"))) if x][:4],
             "checklist": [x for x in map(c, _sl(raw.get("checklist"))) if x][:6],
         }
-    c.declare(_sl(raw.get("citations")))
+    c.declare(keys_of(raw.get("citations")))
     if not c.used:
         c.declare(infer_citation_keys(c.texts, context))
     if not summary:
@@ -202,6 +217,7 @@ def guard_analysis_output(raw, context: list[dict]) -> dict:
     lw, pr, jd = (raw.get(k) if isinstance(raw.get(k), dict) else {} for k in ("lawyer", "prosecutor", "judge"))
     reqs = []
     for r in _objs(jd.get("requirements"), ("label", "ref", "status", "basis"))[:8]:
+        r["ref"] = _key(r["ref"])
         ref = r["ref"] if r["ref"] in c.allowed else None
         if ref and ref not in c.used:
             c.used.append(ref)
@@ -216,7 +232,7 @@ def guard_analysis_output(raw, context: list[dict]) -> dict:
         "prosecutor": {"stance": c(pr.get("stance")), "violations": lst(pr.get("violations")), "sanctions": lst(pr.get("sanctions")), "proofPoints": lst(pr.get("proofPoints"))},
         "judge": {"stance": c(jd.get("stance")), "issues": lst(jd.get("issues")), "requirements": reqs, "outlook": c(jd.get("outlook"))},
     }
-    c.declare(_sl(raw.get("citations")))
+    c.declare(keys_of(raw.get("citations")))
     if not c.used:
         c.declare(infer_citation_keys(c.texts, context))
     if not perspectives["lawyer"]["stance"] or not perspectives["judge"]["stance"]:
