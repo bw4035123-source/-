@@ -2,6 +2,7 @@
 import * as React from "react";
 import { ArrowDown, ArrowRight, CheckCircle2, CircleDashed, Database, FileCheck2, Layers3, MessageSquareText, Search, ShieldCheck } from "lucide-react";
 import type { ProviderInfo } from "@/lib/llm/types";
+import { LLM_SWAP_RESULTS, providerDisplayName } from "@/lib/llm/display";
 import { MOCK_LAWS, MOCK_DATASET_DATE } from "@/lib/law-api/mock";
 import { TOPICS } from "@/lib/law-api/mock/topics";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 const PIPELINE = [
   { icon: MessageSquareText, title: "① 질문 이해", desc: "생활 표현 토픽 라우팅 + 2-gram 조문 검색" },
   { icon: Database, title: "② 원문 확보", desc: "국가법령정보 Open API 실시간 원문(미설정 시 내장 데이터)" },
-  { icon: Layers3, title: "③ LLM 어댑터", desc: "OpenAI · Claude · Ollama · 규칙엔진 중 선택" },
+  { icon: Layers3, title: "③ LLM 어댑터", desc: "공통기반 모델(EXAONE·Gemma·Llama 등) · OpenAI 호환 · Claude · 규칙엔진 중 선택" },
   { icon: ShieldCheck, title: "④ 환각 가드", desc: "인용 화이트리스트 · 조문 언급 대조 · 실패 시 규칙엔진 대체" },
   { icon: FileCheck2, title: "⑤ 근거 카드", desc: "AI 문장과 분리된 법령 원문 · 원문 링크 · 기안문 인용" },
 ];
@@ -58,15 +59,16 @@ export default function AboutPage() {
       </section>
 
       <section className="mt-10 grid gap-6 md:grid-cols-2">
-        <div className="rounded-xl border bg-card p-5">
+        <div id="llm" className="rounded-xl border bg-card p-5">
           <h2 className="font-extrabold">LLM 공급자 상태</h2>
-          <p className="mt-1 text-xs text-muted-foreground">환경변수 LLM_PROVIDER 하나로 기본값을 바꾸고, 화면 상단 메뉴에서 실시간 전환합니다.</p>
+          <p className="mt-1 text-xs text-muted-foreground">환경변수 LLM_PROVIDER 하나로 기본값을 바꾸고, 화면 상단 메뉴에서 실시간 전환합니다. 행정안전부 AI 공통기반 모델(EXAONE·Gemma·Llama·Solar·GPT-OSS·HyperCLOVA X)은 Ollama 또는 OpenAI 호환 연결로 코드 수정 없이 붙습니다.</p>
           <ul className="mt-4 space-y-2">
             {providers.map((p) => (
               <li key={p.id} className="flex items-start gap-2 text-sm">
                 {p.configured ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> : <CircleDashed className="mt-0.5 h-4 w-4 text-muted-foreground" />}
                 <span className="flex-1">
-                  <span className="font-semibold">{p.label}</span> <span className="text-muted-foreground">{p.model}</span>
+                  <span className="font-semibold">{providerDisplayName(p)}</span> <span className="text-muted-foreground">{p.model}</span>
+                  {!p.configured && <span className="ml-1 text-xs text-muted-foreground">(연결 시 사용)</span>}
                   {p.isDefault && (
                     <Badge variant="accent" className="ml-1">
                       기본
@@ -77,6 +79,17 @@ export default function AboutPage() {
               </li>
             ))}
           </ul>
+          <div className="mt-4 rounded-lg bg-secondary/60 p-3 text-xs">
+            <p className="font-bold text-foreground">모델 교체 실측({LLM_SWAP_RESULTS.date}) — 2종 모두 통과</p>
+            <ul className="mt-1.5 space-y-0.5">
+              {LLM_SWAP_RESULTS.models.map((m) => (
+                <li key={m.name} className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> {m.name} — {m.passed}/{m.total}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-muted-foreground">{LLM_SWAP_RESULTS.cases}, 모델이 직접 답변하고 인용 검증 통과. 재현: <code className="rounded bg-card px-1">{LLM_SWAP_RESULTS.command}</code></p>
+          </div>
         </div>
         <div className="rounded-xl border bg-card p-5">
           <h2 className="font-extrabold">법령 데이터</h2>

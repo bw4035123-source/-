@@ -3,6 +3,7 @@ import * as React from "react";
 import { Cpu } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 import type { ProviderInfo } from "@/lib/llm/types";
+import { LLM_SWAP_RESULTS, providerDisplayName } from "@/lib/llm/display";
 import { cn } from "@/lib/utils";
 
 /** LLM 공급자 실시간 전환 드롭다운 — 서버에 설정된 공급자만 선택 가능 */
@@ -41,11 +42,15 @@ export function ModelSelect({ className }: { className?: string }) {
       >
         {(list.length ? list : [{ id: "mock", label: "규칙기반 엔진(LLM 없음)", model: "", configured: true } as ProviderInfo]).map((p) => (
           <option key={p.id} value={p.id} disabled={!p.configured} title={p.hint}>
-            {p.label}
-            {p.model && p.kind === "llm" ? ` · ${p.model}` : ""}
-            {!p.configured ? " (미설정)" : ""}
+            {providerDisplayName(p)}
+            {p.model && p.kind === "llm" && p.id !== "ollama" ? ` · ${p.model}` : ""}
+            {!p.configured ? " (연결 시 사용)" : ""}
           </option>
         ))}
+        {/* 이 서버에 LLM이 연결되지 않아도 교체 구조와 실측 결과를 알 수 있게(선택 불가 안내 줄) */}
+        <option disabled value="__info">
+          ✓ 교체 실측: {LLM_SWAP_RESULTS.models.map((m) => `${m.name.split(" (")[0]} ${m.passed}/${m.total}`).join(" · ")} 통과
+        </option>
       </select>
     </label>
   );
