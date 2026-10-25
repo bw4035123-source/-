@@ -42,7 +42,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
             <SheetTitle className="flex items-center gap-2">
               <ReceiptText className="h-5 w-5 text-accent" /> AI 답변 검증 영수증
             </SheetTitle>
-            <SheetDescription>이 답변이 어떤 조문 원문을 언제·어디서 가져와 근거로 삼았는지, 인용 검증에서 무엇을 걸렀는지 기록해요. 보고서·기안문에 붙여 AI 활용의 근거를 남길 수 있어요.</SheetDescription>
+            <SheetDescription>이 답변이 어떤 조문 원문을 언제·어디서 가져와 근거로 삼았는지, 인용 검증에서 무엇을 걸렀는지 기록해요.</SheetDescription>
           </SheetHeader>
           {rc && (
             <div className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
