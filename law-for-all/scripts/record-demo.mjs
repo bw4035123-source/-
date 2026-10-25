@@ -362,7 +362,7 @@ await scene("s14", async () => {
   await wait(300);
   await scrollToEl("#compliance-result");
   await wait(700);
-  await cap("상위법령과 조문 단위 대조 — 상충 · 검토 필요 · 적합으로 분류", "판정은 생성형 문장이 아니라 정해진 기준과 조문 원문으로");
+  await cap("상위법령과 조문 단위 대조 — 상충 · 검토 필요 · 적합으로 분류", "근거 상위법이 최근 개정된 조항은 ‘상위법 개정 — 규정 정비 확인’ 알림 · 판정은 정해진 기준과 원문으로");
 });
 await scene("s15", async () => {
   await page.evaluate(() => {
@@ -409,7 +409,7 @@ await scene("s17", async () => {
 await scene("sE", async () => {
   await scrollToEl("#eval", 90);
   await wait(700);
-  await cap("정확도 성적표 공개 — 블라인드 시험 32/42 · 근거 밖 인용 0건 · 환각 주입 584/584 차단", "npm run eval 로 누구나 같은 결과 재현 · 틀린 문항도 그대로 공개");
+  await cap("정확도 성적표 공개 — 블라인드 시험 1차 76% → 개선 후 새 문항 2차 83% · 근거 밖 인용 0건", "환각 주입 728/728 차단 · npm run eval 로 누구나 같은 결과 재현 · 틀린 문항도 그대로 공개");
 });
 await scene("s18", async () => {
   await cap("");
