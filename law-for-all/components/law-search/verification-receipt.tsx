@@ -77,6 +77,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
                       </p>
                       <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
                         <span>{x.source}</span>
+                        {x.amended && <span className={x.recent ? "font-semibold text-amber-700 dark:text-amber-300" : ""}>최종 개정 {x.amended}{x.recent ? " · 최근" : ""}</span>}
                         <span className="inline-flex items-center gap-1 font-mono">
                           <Fingerprint className="h-3 w-3" /> {x.fingerprint ?? "—"}
                         </span>

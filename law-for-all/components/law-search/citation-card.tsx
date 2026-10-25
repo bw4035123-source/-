@@ -8,12 +8,14 @@ import { ArticleText } from "./article-text";
 import type { Citation } from "@/lib/law-api/types";
 import { articleLabel, draftQuote } from "@/lib/law-api/util";
 import { copyText } from "@/lib/clipboard";
+import { recentAmendment } from "@/lib/law-api/amend";
 import { cn } from "@/lib/utils";
 
 /** 근거 법령 조문 카드(Citation Card) — 원문은 항상 법령 DB/Open API 원문 그대로 표시 */
 export function CitationCard({ citation, index, cited, officer }: { citation: Citation; index: number; cited: boolean; officer: boolean }) {
   const { open } = useCitations();
   const toast = useToast();
+  const amended = recentAmendment(citation.text);
   return (
     <motion.article
       initial={{ opacity: 0, x: 12 }}
@@ -33,6 +35,11 @@ export function CitationCard({ citation, index, cited, officer }: { citation: Ci
             {!cited && (
               <Badge variant="outline" className="text-[10px]">
                 참고
+              </Badge>
+            )}
+            {amended && (
+              <Badge variant="outline" className="border-amber-400 bg-amber-50 text-[10px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" title="원문의 개정 표시 기준 최근 1년 안에 바뀐 조문이에요. 예전 기준으로 판단하지 않았는지 확인하세요.">
+                최근 개정 {amended.label}
               </Badge>
             )}
             {citation.source === "live" && (
