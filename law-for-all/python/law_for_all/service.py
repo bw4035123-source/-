@@ -29,13 +29,25 @@ def _summary(l: dict) -> dict:
     return {"id": l["id"], "name": l["name"], "kind": l["kind"], "ministry": l["ministry"], "articleCount": len(l["articles"]), "parentId": l.get("parentId"), "source": l.get("source", "mock")}
 
 
+def _byeolpyo_tail(mock_text: str) -> str:
+    """내장 조문에 사람이 덧붙인 별표 요지(금액·기준) — 실시간 조문 본문에는 별표가 없어 그대로 이어 붙인다"""
+    lines = (mock_text or "").split("\n")
+    i = next((n for n, l in enumerate(lines) if l.startswith("[별표")), -1)
+    return "" if i < 0 else "\n".join(lines[i:])
+
+
+def _with_tail(a: dict, mock_art: dict) -> str:
+    tail = "" if "[별표" in a["text"] else _byeolpyo_tail(mock_art.get("text", ""))
+    return f"{a['text']}\n{tail}" if tail else a["text"]
+
+
 def _merge(live: dict, mock: dict) -> dict:
     meta = {a["no"]: a for a in mock["articles"]}
     return {
         **live, "id": mock["id"], "shortName": mock.get("shortName"), "parentId": mock.get("parentId"), "kind": mock["kind"],
         "ministry": live.get("ministry") or mock["ministry"], "revisionReason": live.get("revisionReason") or mock.get("revisionReason"),
         "practiceNotes": mock.get("practiceNotes"),
-        "articles": [{**a, "delegates": meta.get(a["no"], {}).get("delegates"), "keywords": meta.get(a["no"], {}).get("keywords")} for a in live["articles"]],
+        "articles": [{**a, "text": _with_tail(a, meta.get(a["no"], {})), "delegates": meta.get(a["no"], {}).get("delegates"), "keywords": meta.get(a["no"], {}).get("keywords")} for a in live["articles"]],
     }
 
 

@@ -323,6 +323,13 @@ export class LawService {
 }
 
 /** 실시간 원문 + 내장 메타데이터(위임 관계·키워드·실무 노트) 결합 */
+/** 내장 조문에 사람이 덧붙인 별표 요지(금액·기준) — 실시간 조문 본문에는 별표가 없어 그대로 이어 붙인다 */
+function byeolpyoTail(mockText = ""): string {
+  const lines = mockText.split("\n");
+  const i = lines.findIndex((l) => l.startsWith("[별표"));
+  return i < 0 ? "" : lines.slice(i).join("\n");
+}
+
 function mergeWithMock(live: LawDoc, mock: LawDoc): LawDoc {
   const meta = new Map(mock.articles.map((a) => [a.no, a]));
   return {
@@ -334,6 +341,9 @@ function mergeWithMock(live: LawDoc, mock: LawDoc): LawDoc {
     ministry: live.ministry || mock.ministry,
     revisionReason: live.revisionReason || mock.revisionReason,
     practiceNotes: mock.practiceNotes,
-    articles: live.articles.map((a) => ({ ...a, delegates: meta.get(a.no)?.delegates, keywords: meta.get(a.no)?.keywords })),
+    articles: live.articles.map((a) => {
+      const tail = a.text.includes("[별표") ? "" : byeolpyoTail(meta.get(a.no)?.text);
+      return { ...a, text: tail ? `${a.text}\n${tail}` : a.text, delegates: meta.get(a.no)?.delegates, keywords: meta.get(a.no)?.keywords };
+    }),
   };
 }

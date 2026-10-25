@@ -583,3 +583,17 @@ class PrivacyMaskTest(unittest.TestCase):
         from law_for_all.privacy import mask_pii
         for q in ["2026-10-25에 계약 끝나요", "보증금 2억 3000만원", "음주운전 0.03 걸리면", "제3조의2 대항력", "2025년 10월 1일부터 30일까지", "시급 10,030원"]:
             self.assertEqual(mask_pii(q), (q, []))
+
+
+class LiveMergeTest(unittest.TestCase):
+    """실시간 조문으로 바꿔도 내장 별표 요지(금액·기준)는 유지"""
+
+    def test_keeps_byeolpyo(self):
+        from law_for_all.data import get_law
+        from law_for_all.service import _merge
+        mock = get_law("anti-graft-decree")
+        live = {**mock, "articles": [{**a, "text": a["text"].split("\n[별표")[0]} for a in mock["articles"]]}
+        merged = {a["no"]: a["text"] for a in _merge(live, mock)["articles"]}
+        self.assertIn("40만원", merged["25"])
+        self.assertIn("음식물", merged["17"])
+        self.assertEqual(merged["25"].count("[별표 2] <개정 2026.6.30>"), 1)
