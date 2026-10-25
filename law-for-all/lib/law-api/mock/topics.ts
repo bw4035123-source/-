@@ -43,7 +43,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "floor-noise",
     label: "층간소음",
     caseQuery: "층간소음",
-    triggers: ["층간소음", "윗집", "위층", "윗층", "위집", "아랫집", "발망치", "발소리", "쿵쿵", "벽간소음", "소음 기준", "뛰는 소리"],
+    triggers: ["층간소음", "윗집", "위층", "윗층", "위집", "아랫집", "발망치", "발소리", "쿵쿵", "벽간소음", "소음 기준", "뛰는 소리", "아래층", "시끄럽다고", "소음+기준"],
     refs: ["apartment-mgmt:20", "floor-noise-rule:2", "floor-noise-rule:3"],
     citizen: {
       summary:
@@ -171,7 +171,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "lease-renewal",
     label: "계약갱신·임대료 인상",
     caseQuery: "계약갱신",
-    triggers: ["계약+갱신", "갱신요구", "갱신+월세", "갱신+보증금", "갱신+전세", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "들어와 산다", "들어와서 산다", "들어와 살겠", "묵시적", "자동 연장", "자동으로 연장"],
+    triggers: ["계약+갱신", "갱신요구", "갱신+월세", "갱신+보증금", "갱신+전세", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "들어와 산다", "들어와서 산다", "들어와 살겠", "묵시적", "자동 연장", "자동으로 연장", "월세+올려", "보증금+올려", "집주인+올려", "계속 살고", "더 살고"],
     refs: ["housing-lease:6의3", "housing-lease:7", "housing-lease:6"],
     citizen: {
       summary:
@@ -281,7 +281,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "drunk-driving",
     label: "음주운전 처벌",
     caseQuery: "음주운전",
-    triggers: ["음주운전", "음주", "술 마시고 운전", "술 먹고 운전", "마시고 운전", "혈중알코올", "면허취소", "면허정지", "음주측정"],
+    triggers: ["음주운전", "음주", "술 마시고 운전", "술 먹고 운전", "마시고 운전", "혈중알코올", "면허취소", "면허정지", "음주측정", "술+운전", "대리 안 부르"],
     refs: ["road-traffic:44", "road-traffic:148의2", "road-traffic:93", "road-traffic-rule:91"],
     citizen: {
       summary:
@@ -317,7 +317,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "unpaid-wages",
     label: "임금체불·퇴직금",
     caseQuery: "퇴직금",
-    triggers: ["임금체불", "월급", "퇴직금", "밀린", "체불", "임금", "퇴사했는데", "급여를 안", "알바비"],
+    triggers: ["임금체불", "월급", "퇴직금", "밀린", "체불", "임금", "퇴사했는데", "급여를 안", "알바비", "알바+못 받", "알바+돈을", "두 달치", "월급+못 받"],
     refs: ["labor-standards:36", "labor-standards:107"],
     citizen: {
       summary:
@@ -345,7 +345,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "unfair-dismissal",
     label: "부당해고",
     caseQuery: "부당해고",
-    triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말", "나오지 마라", "그만 나오", "나가라고"],
+    triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말", "나오지 마라", "그만 나오", "나가라고", "그만두라", "그만 두라"],
     refs: ["labor-standards:23", "labor-standards:26", "labor-standards:28"],
     citizen: {
       summary:
@@ -399,7 +399,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "info-disclosure",
     label: "정보공개 청구",
     caseQuery: "정보공개",
-    triggers: ["정보공개", "공개 청구", "비공개", "행정 정보", "공문 공개", "공개해 달라", "공개해달라", "공개를 요구", "공개 요청"],
+    triggers: ["정보공개", "공개 청구", "비공개", "행정 정보", "공문 공개", "공개해 달라", "공개해달라", "공개를 요구", "공개 요청", "집행 내역", "예산+내역", "내역+공개"],
     refs: ["info-disclosure:10", "info-disclosure:11", "info-disclosure:18"],
     citizen: {
       summary:
@@ -426,7 +426,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "admin-appeal",
     label: "행정심판",
     caseQuery: "행정심판",
-    triggers: ["행정심판", "처분 취소", "불복", "행정처분", "영업정지", "과태료 불복"],
+    triggers: ["행정심판", "처분 취소", "불복", "행정처분", "영업정지", "과태료 불복", "처분+이의", "처분+억울", "처분+취소"],
     refs: ["admin-appeal:27", "admin-appeal:23"],
     citizen: {
       summary:

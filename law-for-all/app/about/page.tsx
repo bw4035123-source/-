@@ -20,7 +20,7 @@ const PIPELINE = [
 const pctOf = (a: number, b: number) => `${Math.round((a / b) * 1000) / 10}%`;
 const R = evalReport;
 const EVAL_ROWS = [
-  { label: "상황 분류 · 블라인드 시험", value: `${R.routing.blind.correct}/${R.routing.blind.total} (${pctOf(R.routing.blind.correct, R.routing.blind.total)})`, desc: `엉뚱한 상황으로 간 것 ${R.routing.blind.wrongTopic}건 · 개발용 회귀 시험 ${R.routing.dev.correct}/${R.routing.dev.total}` },
+  { label: "상황 분류 · 2차 블라인드 시험", value: `${R.routing.blind.correct}/${R.routing.blind.total} (${pctOf(R.routing.blind.correct, R.routing.blind.total)})`, desc: `1차 ${pctOf(R.routing.blindV1.correct, R.routing.blindV1.total)} → 개선 후 새 문항으로 측정 · 엉뚱한 상황 ${R.routing.blind.wrongTopic}건 · 회귀 시험 ${R.routing.dev.correct}/${R.routing.dev.total}` },
   { label: "답변 근거", value: `근거 밖 인용 ${R.grounding.outsideMarkers}건`, desc: `답변 ${R.grounding.answers}건(국민·공직자) 인용 검증 통과 ${R.grounding.guardPassed}건 · 근거 없으면 '찾지 못함' 안내` },
   { label: "환각 주입 차단", value: `${R.injection.blocked}/${R.injection.injected} (${pctOf(R.injection.blocked, R.injection.injected)})`, desc: "없는 조문 번호·없는 조문·근거 밖 법령·지어낸 인용을 섞었을 때 가드가 거름" },
   { label: "개인정보 가림", value: `${R.privacy.masked}/${R.privacy.positives} · 오탐 ${R.privacy.falsePositives}`, desc: `주민번호·전화·카드·이메일·계좌·여권 여러 표기 / 일반 질문 ${R.privacy.negatives}건 중 잘못 가림` },
@@ -89,7 +89,7 @@ export default function AboutPage() {
           ))}
         </div>
         <p className="mt-3 text-xs leading-5 text-muted-foreground">
-          블라인드 시험은 규칙을 다듬는 데 쓰지 않고 한 번 잰 새 질문으로, 틀린 {evalReport.routing.blind.total - evalReport.routing.blind.correct}건도 고치지 않고 그대로 공개합니다
+          2차 블라인드 시험은 규칙 개선 전에 문항을 먼저 저장해 두고 개선 후 한 번만 잰 새 질문으로, 틀린 {evalReport.routing.blind.total - evalReport.routing.blind.correct}건도 고치지 않고 그대로 공개합니다
           (그중 {evalReport.routing.blind.total - evalReport.routing.blind.correct - evalReport.routing.blind.wrongTopic}건은 엉뚱한 답 대신 전체 법령 실시간 검색으로 넘어감). 문항·결과: tests/fixtures/, submission/정확도_성적표.md
         </p>
       </section>
