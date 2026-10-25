@@ -87,6 +87,17 @@ describe("예시 자체규정·보고서", () => {
       for (const r of rep.results) for (const f of r.findings) for (const b of f.basis) expect(getMockLaw(b.lawId)?.articles.some((a) => a.no === b.articleNo), `${s.label} ${b.lawId}:${b.articleNo}`).toBe(true);
     }
   });
+  it("상위법 최근 개정 알림: 판정은 그대로, 근거 조문이 1년 안에 개정되면 따로 알림", () => {
+    const s = SAMPLE_REGULATIONS[0];
+    const now = new Date("2026-10-25T00:00:00+09:00");
+    const rep = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws, now });
+    const old = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws, now: new Date("2030-01-01T00:00:00+09:00") });
+    expect(rep.counts).toEqual(old.counts);
+    expect(old.amendedArticles).toBe(0);
+    const hits = rep.results.flatMap((r) => r.upstreamAmended);
+    expect(hits.some((b) => b.lawId === "labor-standards" && b.articleNo === "60" && b.date === "2026.2.19")).toBe(true);
+    expect(complianceReport(rep, (id) => TARGET_LAWS.find((l) => l.id === id)!.name, now)).toContain("상위법 개정 확인 대상");
+  });
   it("보고서: 개요·조문별 근거·조치 계획", () => {
     const s = SAMPLE_REGULATIONS[0];
     const rep = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws });

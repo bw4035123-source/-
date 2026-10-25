@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, Info, Loader2, ScanSearch, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, X } from "lucide-react";
 import type { Citation, LawDoc } from "@/lib/law-api/types";
 import { articleLabel, toCitation } from "@/lib/law-api/util";
 import {
@@ -357,6 +357,14 @@ export function ComplianceView() {
                     );
                   })}
                 </div>
+                {report.amendedArticles > 0 && (
+                  <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    <History className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <b>상위법 최근 개정 {report.amendedArticles}개 조문</b> — 근거·관련 상위 조문이 최근 1년 안에 개정됐어요. 규정이 개정 내용을 따라갔는지 확인하세요(판정은 바꾸지 않고 따로 알림).
+                    </span>
+                  </p>
+                )}
               </div>
 
               {shown.map((r) => (
@@ -432,6 +440,18 @@ function ArticleCard({
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <span className="font-semibold">관련 상위 조문</span>
           {r.related.map(chip)}
+        </div>
+      )}
+      {r.upstreamAmended.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          <History className="h-3.5 w-3.5 shrink-0" />
+          <span className="font-semibold">상위법 개정 — 규정 정비 확인</span>
+          {r.upstreamAmended.map((b, i) => (
+            <span key={i} className="inline-flex items-center gap-1">
+              {chip(b, i)}
+              <span className="font-semibold">{b.date} 개정</span>
+            </span>
+          ))}
         </div>
       )}
       {!r.findings.length && !r.related.length && <p className="mt-3 text-xs text-muted-foreground">대조 법령에서 직접 관련된 기준을 찾지 못했어요(기관 자율 사항일 수 있음).</p>}

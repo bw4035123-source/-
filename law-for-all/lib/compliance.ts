@@ -4,10 +4,12 @@
  *  2) 기관 규정이 인용한 상위법령 조문이 실제로 존재하는지 확인한다(실시간 원문이면 전체 조문 기준).
  *  3) 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법의 수치·절차 기준과 규정 조항을 대조한다.
  *  4) 위반 신호가 없는 조문은 관련 상위 조문만 연결한다.
+ *  5) 조항이 근거로 삼은(또는 관련된) 상위 조문이 최근 1년 안에 개정됐으면 '상위법 개정' 알림을 단다(판정은 바꾸지 않음).
  * 판정은 정해진 규칙과 조문 원문으로만 하며, 생성형 문장으로 위반 여부를 단정하지 않는다.
  */
 import type { LawDoc } from "./law-api/types";
 import { articleLabel } from "./law-api/util";
+import { recentAmendment } from "./law-api/amend";
 
 export type OrgType = "공기업·준정부기관" | "지방공기업" | "지방자치단체" | "기타 공공기관";
 export const ORG_TYPES: OrgType[] = ["공기업·준정부기관", "지방공기업", "지방자치단체", "기타 공공기관"];
@@ -52,6 +54,8 @@ export interface ArticleResult {
   findings: Finding[];
   /** 관련 상위 조문(위반 신호와 별개로 연결) */
   related: BasisRef[];
+  /** 근거·관련 상위 조문 중 최근 1년 안에 개정된 것(원문 개정 표시 기준) — 규정 정비 확인 알림 */
+  upstreamAmended: (BasisRef & { date: string })[];
 }
 
 export interface CheckReport {
@@ -63,6 +67,8 @@ export interface CheckReport {
   refsChecked: number;
   /** 실시간 원문으로 검증했는지(법령 id별) */
   liveLaws: string[];
+  /** 상위법 최근 개정이 연결된 조문 수 */
+  amendedArticles: number;
 }
 
 // ───────────────────────────── 1) 조문 분리
@@ -375,7 +381,7 @@ function relatedArticles(a: RegArticle, laws: Map<string, LawDoc>, exclude: Set<
 const RANK: Record<Severity, number> = { conflict: 3, review: 2, ok: 1, info: 0 };
 
 /** 교차 검증 실행 */
-export function crossCheck(params: { text: string; orgType: OrgType; regName?: string; laws: LawDoc[] }): CheckReport {
+export function crossCheck(params: { text: string; orgType: OrgType; regName?: string; laws: LawDoc[]; now?: Date }): CheckReport {
   const lawMap = new Map(params.laws.map((l) => [l.id, l]));
   const articles = parseRegulation(params.text);
   let refsChecked = 0;
@@ -390,11 +396,18 @@ export function crossCheck(params: { text: string; orgType: OrgType; regName?: s
     const related = relatedArticles(a, lawMap, exclude);
     const worst = findings.reduce<Severity>((w, f) => (RANK[f.severity] > RANK[w] ? f.severity : w), findings.length || related.length ? "ok" : "info");
     findings.sort((x, y) => RANK[y.severity] - RANK[x.severity]);
-    return { article: a, status: worst, findings, related };
+    // 상위법 개정 알림: 판정(상충·검토)은 정해진 기준으로만 하고, 개정 사실은 별도로 알려 정비 여부를 확인하게 함
+    const upstream = [...findings.flatMap((f) => f.basis), ...related].filter((b, i, arr) => arr.findIndex((x) => x.lawId === b.lawId && x.articleNo === b.articleNo) === i);
+    const upstreamAmended = upstream.flatMap((b) => {
+      const art = lawMap.get(b.lawId)?.articles.find((x) => x.no === b.articleNo);
+      const am = art ? recentAmendment(art.text, params.now) : null;
+      return am ? [{ ...b, date: am.label }] : [];
+    });
+    return { article: a, status: worst, findings, related, upstreamAmended };
   });
   const counts: Record<Severity, number> = { conflict: 0, review: 0, ok: 0, info: 0 };
   for (const r of results) counts[r.status]++;
-  return { orgType: params.orgType, regName: params.regName?.trim() || "내부규정", results, counts, refsChecked, liveLaws: params.laws.filter((l) => l.source === "live").map((l) => l.id) };
+  return { orgType: params.orgType, regName: params.regName?.trim() || "내부규정", results, counts, refsChecked, liveLaws: params.laws.filter((l) => l.source === "live").map((l) => l.id), amendedArticles: results.filter((r) => r.upstreamAmended.length).length };
 }
 
 /** 개정안: 수치 위반 자동 수정 제안을 모두 반영한 조문 */
@@ -420,6 +433,8 @@ export function complianceReport(rep: CheckReport, lawName: (id: string) => stri
     `  나. 대조 법령: ${TARGET_LAWS.map((l) => `「${l.name}」`).join(", ")}`,
     `  다. 결과: 상충 ${rep.counts.conflict}건, 검토 필요 ${rep.counts.review}건, 적합 ${rep.counts.ok}건, 참고 ${rep.counts.info}건 (인용 조문 검증 ${rep.refsChecked}건)`,
     "",
+    ...(rep.amendedArticles ? [`  라. 상위법 최근 개정: ${rep.amendedArticles}개 조문의 근거·관련 상위 조문이 최근 1년 안에 개정됨 — 정비 여부 확인 필요`] : []),
+    "",
     "2. 조문별 검토 내용",
   ];
   if (!flagged.length) lines.push("  가. 상충 또는 검토가 필요한 조문이 발견되지 않음");
@@ -435,6 +450,11 @@ export function complianceReport(rep: CheckReport, lawName: (id: string) => stri
     const am = amendedText(r);
     if (am) lines.push(`    ※ 개정안: ${am.replace(/\n/g, " ")}`);
   });
+  const amended = rep.results.filter((r) => r.upstreamAmended.length);
+  if (amended.length) {
+    lines.push("", "  ※ 상위법 개정 확인 대상");
+    amended.forEach((r) => lines.push(`    - ${regArticleLabel(r.article)}: ${r.upstreamAmended.map((b) => `${ref(b)}(${b.date} 개정)`).join(", ")}`));
+  }
   lines.push("", "3. 조치 계획(안)", "  가. 상충 조문은 상위법령 기준에 맞게 개정 추진(규정 제·개정 절차 이행)", "  나. 검토 필요 조문은 소관 부서 확인 후 개정 여부 결정", "  다. 근로조건 관련 개정 시 근로자 과반수 의견청취(불이익 변경 시 동의) 절차 이행");
   lines.push("", "※ 이 결과는 규칙 기반 대조이며, 최종 판단은 국가법령정보센터 현행 원문과 소관 부처 해석을 확인하여 결정함.  끝.");
   return lines.join("\n");
