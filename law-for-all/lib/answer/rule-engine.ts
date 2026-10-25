@@ -1,6 +1,7 @@
 import type { Citation } from "../law-api/types";
 import type { Topic } from "../law-api/mock/topics";
 import { articleLabel } from "../law-api/util";
+import { normalize, queryTerms, scoreArticleByTerms } from "../law-api/search";
 import type { CitizenAnswer, OfficerAnswer } from "./types";
 
 /** 조문 첫 문장(항 번호 제거) */
@@ -10,13 +11,24 @@ function firstSentence(text: string, max = 90): string {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
+/** 질문이 토픽 안의 특정 조문을 제목으로 가리키는데(예: '외부강의 사례금' → 청탁금지법 제10조) 토픽 요약이 그 조문을 다루지 않으면 앞에 붙일 문장 */
+function pinpoint(query: string, topic: Topic, citations: Citation[]): string {
+  const terms = queryTerms(query).filter((t) => t.length >= 3 && !normalize(topic.label).includes(normalize(t)));
+  // 흔한 말 하나('보증금'·'과태료')로는 붙이지 않음: 질문 낱말 두 개 이상이 제목에 있거나 제목 자체가 그 말일 때만(토픽 조문 안에서)
+  const inTitle = (c: Citation) => terms.filter((t) => normalize(c.title).includes(normalize(t)) && !normalize(c.lawName).includes(normalize(t)));
+  const hit = citations
+    .filter((c) => topic.refs.includes(c.key) && (inTitle(c).length >= 2 || inTitle(c).some((t) => normalize(t) === normalize(c.title))))
+    .sort((a, b) => scoreArticleByTerms(b, terms) - scoreArticleByTerms(a, terms))[0];
+  return hit && !topic.citizen.summary.includes(`[[${hit.key}]]`) ? `「${hit.lawName}」 ${articleLabel(hit.articleNo)}(${hit.title}): ${firstSentence(hit.text, 220)} [[${hit.key}]] ` : "";
+}
+
 /**
  * 규칙기반 답변 조립 — 토픽 사전(사람이 검수한 문장) 또는 검색된 조문 원문만 사용.
  */
 export function buildRuleAnswer(query: string, topic: Topic | undefined, citations: Citation[]): { summary: string; citizen: CitizenAnswer; officer: OfficerAnswer } {
   if (topic) {
     return {
-      summary: topic.citizen.summary,
+      summary: pinpoint(query, topic, citations) + topic.citizen.summary,
       citizen: { easyTerms: topic.citizen.easyTerms, steps: topic.citizen.steps, tip: topic.citizen.tip },
       officer: {
         background: topic.officer.background,

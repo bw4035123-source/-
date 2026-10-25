@@ -70,18 +70,21 @@ function sentences(text: string): string[] {
 
 const balanced = (s: string) => s.split("(").length === s.split(")").length;
 
-/** 조문에서 질문 유형에 맞는 문장 — 괄호가 짝이 맞는 문장을 우선(없으면 첫 문장) */
-function pickSentence(text: string, find: RegExp | undefined, max = 140): string {
+/** 조문에서 질문 유형에 맞는 문장 — 사안(이전 질문)의 말이 든 문장, 괄호가 짝이 맞는 문장을 우선(없으면 첫 문장) */
+function pickSentence(text: string, find: RegExp | undefined, max = 140, prefer: string[] = []): string {
   const ss = sentences(text);
-  const hits = find ? ss.filter((x) => find.test(x)) : [];
+  const has = (x: string) => prefer.some((t) => x.includes(t));
+  const hits = (find ? ss.filter((x) => find.test(x)) : []).sort((a, b) => Number(has(b)) - Number(has(a)));
   const s = hits.find(balanced) || hits[0] || ss[0] || "";
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
 /** 이어서 묻기 규칙기반 답변 — 토픽 사전·조문 원문 문장만 사용 */
-export function buildFollowUpRuleAnswer(question: string, mode: UserMode, intentId: string | null, topic: ReturnType<typeof retrieve>["topic"], context: Citation[], caseKeys: string[] = []): string {
+export function buildFollowUpRuleAnswer(question: string, mode: UserMode, intentId: string | null, topic: ReturnType<typeof retrieve>["topic"], context: Citation[], caseKeys: string[] = [], prevQuery = ""): string {
   const intent = FOLLOWUP_INTENTS.find((it) => it.id === intentId);
   const terms = queryTerms(question);
+  // 사안의 핵심어: 이전 질문의 말 중 토픽 요약에도 나오는 말(예: '보증금') — 이 말이 든 조문 문장을 우선
+  const caseTerms = topic ? queryTerms(prevQuery).filter((t) => topic.citizen.summary.includes(t)) : [];
   const rank = (list: Citation[]) => {
     const titled = intent?.title ? list.filter((c) => intent.title!.test(c.title)) : [];
     return (titled.length ? titled : list)
@@ -103,7 +106,7 @@ export function buildFollowUpRuleAnswer(question: string, mode: UserMode, intent
     const ref = topic.citizen.steps.find((s) => s.ref && keys.has(s.ref))?.ref;
     lines.push(`해야 할 일: ${topic.citizen.steps.map((s) => s.title).join(" → ")}${ref ? ` [[${ref}]]` : ""}`);
   }
-  for (const { c } of ranked) lines.push(`「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title}): ${pickSentence(c.text, intent?.find)} [[${c.key}]]`);
+  for (const { c } of ranked) lines.push(`「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title}): ${pickSentence(c.text, intent?.find, 140, caseTerms)} [[${c.key}]]`);
   if (!ranked.length && !lines.length) {
     return "이어서 물으신 내용과 직접 맞는 조문을 근거 목록에서 찾지 못했어요. 상황을 조금 더 구체적으로 적어 주시거나, 정부민원안내콜센터(☎110)·대한법률구조공단(☎132)에 문의해 보세요.";
   }
@@ -138,7 +141,7 @@ export async function followUp({ question, prevQuery, mode, provider: requested 
   let fallbackReason: string | undefined;
 
   const applyRule = () => {
-    const s = sanitizeMarkers(buildFollowUpRuleAnswer(question, mode, intent, topic, context, [...liveKeys, ...prev.keys]), new Set(context.map((c) => c.key)));
+    const s = sanitizeMarkers(buildFollowUpRuleAnswer(question, mode, intent, topic, context, [...liveKeys, ...prev.keys], prevQuery), new Set(context.map((c) => c.key)));
     answer = s.text;
     removed = s.removed;
   };

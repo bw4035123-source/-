@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 
 from .data import article_label
+from .search import normalize, query_terms, score_article_by_terms
 
 
 def first_sentence(text: str, max_len: int = 90) -> str:
@@ -12,13 +13,27 @@ def first_sentence(text: str, max_len: int = 90) -> str:
     return s[:max_len] + "…" if len(s) > max_len else s
 
 
+def _pinpoint(query: str, topic: dict, citations: list[dict]) -> str:
+    """질문이 토픽 안의 특정 조문을 제목으로 가리키는데(예: '외부강의 사례금' → 청탁금지법 제10조) 토픽 요약이 그 조문을 다루지 않으면 앞에 붙일 문장"""
+    terms = [t for t in query_terms(query) if len(t) >= 3 and normalize(t) not in normalize(topic["label"])]
+    # 흔한 말 하나('보증금'·'과태료')로는 붙이지 않음: 질문 낱말 두 개 이상이 제목에 있거나 제목 자체가 그 말일 때만(토픽 조문 안에서)
+    def in_title(c):
+        return [t for t in terms if normalize(t) in normalize(c["title"]) and normalize(t) not in normalize(c["lawName"])]
+
+    hits = [c for c in citations if c["key"] in topic["refs"] and (len(in_title(c)) >= 2 or any(normalize(t) == normalize(c["title"]) for t in in_title(c)))]
+    hit = sorted(hits, key=lambda c: -score_article_by_terms(c, terms))[0] if hits else None
+    if not hit or f"[[{hit['key']}]]" in topic["citizen"]["summary"]:
+        return ""
+    return f"「{hit['lawName']}」 {article_label(hit['articleNo'])}({hit['title']}): {first_sentence(hit['text'], 220)} [[{hit['key']}]] "
+
+
 def build_rule_answer(query: str, topic: dict | None, citations: list[dict]) -> dict:
     if topic:
         c, o = topic["citizen"], topic["officer"]
         citizen = {"easyTerms": c["easyTerms"], "steps": c["steps"]}
         if c.get("tip"):
             citizen["tip"] = c["tip"]
-        return {"summary": c["summary"], "citizen": citizen, "officer": {k: o[k] for k in ("background", "keyPoints", "adminNotes", "checklist")}}
+        return {"summary": _pinpoint(query, topic, citations) + c["summary"], "citizen": citizen, "officer": {k: o[k] for k in ("background", "keyPoints", "adminNotes", "checklist")}}
 
     if not citations:
         return {

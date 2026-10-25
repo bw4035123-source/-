@@ -25,6 +25,12 @@ describe("이어서 묻기", () => {
     expect(r.suggestions).not.toContain("기한이 있나요?");
   });
 
+  it("사안의 핵심어(보증금)가 든 조문 문장을 우선", async () => {
+    const r = await followUp({ prevQuery: "전세 계약이 끝났는데 집주인이 보증금을 안 돌려줘요", question: "기한이 있나요?", mode: "citizen" });
+    expect(r.topic?.id).toBe("deposit-return");
+    expect(r.answer).toContain("보증금을 반환받을 때까지");
+  });
+
   it("처벌을 물으면 벌칙·과태료 조문을 우선, 공직자 모드는 보고서체", async () => {
     const r = await followUp({ prevQuery: "청탁금지법 외부강의", question: "위반 시 제재는?", mode: "officer" });
     expect(r.answer.startsWith("추가 검토")).toBe(true);

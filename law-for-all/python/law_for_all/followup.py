@@ -45,17 +45,20 @@ def _balanced(s: str) -> bool:
     return s.count("(") == s.count(")")
 
 
-def _pick_sentence(text: str, find, max_len: int = 140) -> str:
+def _pick_sentence(text: str, find, max_len: int = 140, prefer: list[str] | None = None) -> str:
+    """조문에서 질문 유형에 맞는 문장 — 사안(이전 질문)의 말이 든 문장, 괄호가 짝이 맞는 문장을 우선(없으면 첫 문장)"""
     ss = _sentences(text)
-    hits = [x for x in ss if find.search(x)] if find else []
+    hits = sorted([x for x in ss if find.search(x)] if find else [], key=lambda x: not any(t in x for t in prefer or []))
     s = next((x for x in hits if _balanced(x)), None) or (hits[0] if hits else None) or (ss[0] if ss else "")
     return s[:max_len] + "…" if len(s) > max_len else s
 
 
-def build_followup_rule_answer(question: str, mode: str, intent_id: str | None, topic: dict | None, context: list[dict], case_keys: list[str] | None = None) -> str:
+def build_followup_rule_answer(question: str, mode: str, intent_id: str | None, topic: dict | None, context: list[dict], case_keys: list[str] | None = None, prev_query: str = "") -> str:
     """이어서 묻기 규칙기반 답변 — 토픽 사전·조문 원문 문장만 사용"""
     intent = next((it for it in FOLLOWUP_INTENTS if it["id"] == intent_id), None)
     terms = query_terms(question)
+    # 사안의 핵심어: 이전 질문의 말 중 토픽 요약에도 나오는 말(예: '보증금') — 이 말이 든 조문 문장을 우선
+    case_terms = [t for t in query_terms(prev_query) if t in topic["citizen"]["summary"]] if topic else []
 
     def rank(items: list[dict]) -> list:
         titled = [c for c in items if intent["title"].search(c["title"])] if intent and intent["title"] else []
@@ -73,7 +76,7 @@ def build_followup_rule_answer(question: str, mode: str, intent_id: str | None, 
         ref = next((s["ref"] for s in topic["citizen"]["steps"] if s.get("ref") and s["ref"] in keys), None)
         lines.append("해야 할 일: " + " → ".join(s["title"] for s in topic["citizen"]["steps"]) + (f" [[{ref}]]" if ref else ""))
     for _, _, c in ranked:
-        lines.append(f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']}): {_pick_sentence(c['text'], intent['find'] if intent else None)} [[{c['key']}]]")
+        lines.append(f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']}): {_pick_sentence(c['text'], intent['find'] if intent else None, 140, case_terms)} [[{c['key']}]]")
     if not ranked and not lines:
         return "이어서 물으신 내용과 직접 맞는 조문을 근거 목록에서 찾지 못했어요. 상황을 조금 더 구체적으로 적어 주시거나, 정부민원안내콜센터(☎110)·대한법률구조공단(☎132)에 문의해 보세요."
     if ranked:
@@ -108,7 +111,7 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
     fallback = None
 
     def rule():
-        text, rem, _ = sanitize_markers(build_followup_rule_answer(question, mode, intent, topic, context, live_keys + prev_keys), {c["key"] for c in context})
+        text, rem, _ = sanitize_markers(build_followup_rule_answer(question, mode, intent, topic, context, live_keys + prev_keys, prev_query), {c["key"] for c in context})
         out.update(answer=text, removed=rem)
 
     if p.kind == "rule":
