@@ -1,11 +1,12 @@
 "use client";
 import * as React from "react";
-import { ArrowDown, ArrowRight, CheckCircle2, CircleDashed, Database, FileCheck2, Layers3, MessageSquareText, Search, ShieldCheck } from "lucide-react";
+import { ArrowDown, ArrowRight, BarChart3, CheckCircle2, CircleDashed, Database, FileCheck2, Layers3, MessageSquareText, Search, ShieldCheck } from "lucide-react";
 import type { ProviderInfo } from "@/lib/llm/types";
 import { LLM_SWAP_RESULTS, providerDisplayName } from "@/lib/llm/display";
 import { MOCK_LAWS, MOCK_DATASET_DATE } from "@/lib/law-api/mock";
 import { TOPICS } from "@/lib/law-api/mock/topics";
 import { Badge } from "@/components/ui/badge";
+import evalReport from "@/lib/eval/report.json";
 
 
 const PIPELINE = [
@@ -14,6 +15,17 @@ const PIPELINE = [
   { icon: Layers3, title: "③ LLM 어댑터", desc: "공통기반 모델(EXAONE·Gemma·Llama 등) · OpenAI 호환 · Claude · 규칙엔진 중 선택" },
   { icon: ShieldCheck, title: "④ 환각 가드", desc: "인용 화이트리스트 · 조문 언급 대조 · 실패 시 규칙엔진 대체" },
   { icon: FileCheck2, title: "⑤ 근거 카드", desc: "AI 문장과 분리된 법령 원문 · 원문 링크 · 기안문 인용" },
+];
+
+const pctOf = (a: number, b: number) => `${Math.round((a / b) * 1000) / 10}%`;
+const R = evalReport;
+const EVAL_ROWS = [
+  { label: "상황 분류 · 블라인드 시험", value: `${R.routing.blind.correct}/${R.routing.blind.total} (${pctOf(R.routing.blind.correct, R.routing.blind.total)})`, desc: `엉뚱한 상황으로 간 것 ${R.routing.blind.wrongTopic}건 · 개발용 회귀 시험 ${R.routing.dev.correct}/${R.routing.dev.total}` },
+  { label: "답변 근거", value: `근거 밖 인용 ${R.grounding.outsideMarkers}건`, desc: `답변 ${R.grounding.answers}건(국민·공직자) 인용 검증 통과 ${R.grounding.guardPassed}건 · 근거 없으면 '찾지 못함' 안내` },
+  { label: "환각 주입 차단", value: `${R.injection.blocked}/${R.injection.injected} (${pctOf(R.injection.blocked, R.injection.injected)})`, desc: "없는 조문 번호·없는 조문·근거 밖 법령·지어낸 인용을 섞었을 때 가드가 거름" },
+  { label: "개인정보 가림", value: `${R.privacy.masked}/${R.privacy.positives} · 오탐 ${R.privacy.falsePositives}`, desc: `주민번호·전화·카드·이메일·계좌·여권 여러 표기 / 일반 질문 ${R.privacy.negatives}건 중 잘못 가림` },
+  { label: "생활 용어 → 법령 사전", value: `${R.alias.correct}/${R.alias.total}`, desc: "'산재'·'보이스피싱' 같은 일상어가 가리키는 법령" },
+  { label: "Next.js ↔ Python 동일성", value: R.parity.passed ? `${R.parity.cases}건 일치` : "불일치", desc: "같은 질문에 두 실행판이 같은 답·같은 근거" },
 ];
 
 export default function AboutPage() {
@@ -56,6 +68,30 @@ export default function AboutPage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section id="eval" className="mt-10 rounded-xl border bg-card p-5" aria-labelledby="eval-h">
+        <h2 id="eval-h" className="flex flex-wrap items-baseline gap-x-2 font-extrabold">
+          <span>
+            <BarChart3 className="mr-1 inline h-5 w-5 text-accent" /> 정확도 성적표
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">
+            측정 {evalReport.generatedAt} · 누구나 재현: <code className="rounded bg-secondary px-1">{evalReport.command}</code> (인증키·네트워크 불필요)
+          </span>
+        </h2>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {EVAL_ROWS.map((r) => (
+            <div key={r.label} className="rounded-lg bg-secondary/50 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">{r.label}</p>
+              <p className="mt-0.5 text-xl font-extrabold text-accent">{r.value}</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{r.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+          블라인드 시험은 규칙을 다듬는 데 쓰지 않고 한 번 잰 새 질문으로, 틀린 {evalReport.routing.blind.total - evalReport.routing.blind.correct}건도 고치지 않고 그대로 공개합니다
+          (그중 {evalReport.routing.blind.total - evalReport.routing.blind.correct - evalReport.routing.blind.wrongTopic}건은 엉뚱한 답 대신 전체 법령 실시간 검색으로 넘어감). 문항·결과: tests/fixtures/, submission/정확도_성적표.md
+        </p>
       </section>
 
       <section className="mt-10 grid gap-6 md:grid-cols-2">
@@ -116,6 +152,7 @@ export default function AboutPage() {
           <li>근거 조문 카드에는 AI가 쓴 문장이 아니라 법령 원문만 표시하고 국가법령정보센터 원문 링크를 제공합니다.</li>
           <li>기관 연락처·전화번호는 LLM이 만들지 않고 검수된 데이터만 사용합니다.</li>
           <li>근거 조문이 검색되지 않으면 생성형 AI를 호출하지 않습니다.</li>
+          <li>질문 속 주민등록번호·전화번호·계좌번호 등은 브라우저와 서버에서 ○○○ 으로 가린 뒤 검색·AI에 넘깁니다.</li>
         </ol>
       </section>
     </div>

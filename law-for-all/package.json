@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run test",
+    "eval": "tsx --conditions=react-server scripts/eval-report.ts",
     "llm:check": "tsx --conditions=react-server scripts/llm-check.ts",
     "sync:pdf-worker": "node -e \"require('fs').copyFileSync(require.resolve('pdfjs-dist/build/pdf.worker.min.mjs'),'public/pdf.worker.min.js')\""
   },

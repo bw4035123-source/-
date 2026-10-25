@@ -1,0 +1,112 @@
+{
+ "generatedAt": "2026-10-25",
+ "command": "npm run eval",
+ "routing": {
+  "dev": {
+   "total": 162,
+   "correct": 162,
+   "wrongTopic": 0,
+   "misses": []
+  },
+  "blind": {
+   "total": 42,
+   "correct": 32,
+   "wrongTopic": 1,
+   "misses": [
+    {
+     "q": "아래층에서 시끄럽다고 자꾸 올라와요 기준이 있나요",
+     "expected": "floor-noise",
+     "got": null
+    },
+    {
+     "q": "집주인이 월세를 10% 올려달래요",
+     "expected": "lease-renewal",
+     "got": null
+    },
+    {
+     "q": "계약 끝나기 두 달 전인데 계속 살고 싶어요",
+     "expected": "lease-renewal",
+     "got": null
+    },
+    {
+     "q": "술 한 잔 마시고 대리 안 부르고 운전했어요",
+     "expected": "drunk-driving",
+     "got": null
+    },
+    {
+     "q": "편의점 알바 두 달치 돈을 못 받았어요",
+     "expected": "unpaid-wages",
+     "got": null
+    },
+    {
+     "q": "사장님이 문자로 그만두라고 했어요",
+     "expected": "unfair-dismissal",
+     "got": null
+    },
+    {
+     "q": "병원에 제 진료기록 보여달라고 할 수 있나요",
+     "expected": "privacy-access",
+     "got": null
+    },
+    {
+     "q": "시청 예산 집행 내역을 보고 싶어요",
+     "expected": "info-disclosure",
+     "got": null
+    },
+    {
+     "q": "구청 처분에 이의를 제기하는 방법",
+     "expected": "admin-appeal",
+     "got": null
+    },
+    {
+     "q": "민원인이 커피 기프티콘을 보냈어요",
+     "expected": "anti-graft",
+     "got": "petition-deadline"
+    }
+   ]
+  }
+ },
+ "alias": {
+  "total": 43,
+  "correct": 43
+ },
+ "grounding": {
+  "answers": 408,
+  "withCitation": 294,
+  "noResultHonest": 114,
+  "guardPassed": 408,
+  "outsideMarkers": 0
+ },
+ "injection": {
+  "answers": 146,
+  "injected": 584,
+  "blocked": 584
+ },
+ "privacy": {
+  "positives": 20,
+  "masked": 20,
+  "negatives": 214,
+  "falsePositives": 0
+ },
+ "parity": {
+  "cases": 58,
+  "passed": true
+ },
+ "llm": {
+  "date": "2026-10-22",
+  "cases": "같은 질문 4건(국민 질문 2·공직자 질문 1·상황 분석 1)",
+  "models": [
+   {
+    "name": "Llama 3.2 (3B)",
+    "passed": 4,
+    "total": 4
+   },
+   {
+    "name": "EXAONE 3.5 (7.8B)",
+    "passed": 4,
+    "total": 4
+   }
+  ],
+  "command": "python run.py --llm-test ollama:llama3.2:3b,ollama:exaone3.5:7.8b"
+ }
+}
