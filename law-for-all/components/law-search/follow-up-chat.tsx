@@ -5,7 +5,9 @@ import type { FollowUpResult } from "@/lib/answer/followup";
 import { FOLLOWUP_SUGGESTIONS } from "@/lib/answer/followup-suggestions";
 import { useSettings } from "@/components/providers/settings-provider";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { fetchJson } from "@/lib/fetch-json";
+import { maskPII } from "@/lib/privacy-mask";
 import { CitationProvider } from "./citation-context";
 import { CitedText } from "./cited-text";
 
@@ -16,6 +18,7 @@ const MAX_TURNS = 10;
 /** 이어서 묻기 — 검색 결과 아래에서 같은 사안을 더 묻는다. 답은 근거 조문 번호와 인용 검증을 거친다 */
 export function FollowUpChat({ prevQuery }: { prevQuery: string }) {
   const { mode, provider } = useSettings();
+  const toast = useToast();
   const officer = mode === "officer";
   const [msgs, setMsgs] = React.useState<Msg[]>([]);
   const [text, setText] = React.useState("");
@@ -32,8 +35,10 @@ export function FollowUpChat({ prevQuery }: { prevQuery: string }) {
   }, [msgs]);
 
   const send = async (raw: string) => {
-    const question = raw.trim();
+    // 개인정보는 서버로 보내기 전에 브라우저에서 가림(가린 내용으로 대화에 표시)
+    const { text: question, found } = maskPII(raw.trim());
     if (question.length < 2 || busy || turns >= MAX_TURNS) return;
+    if (found.length) toast(`개인정보 보호를 위해 ${found.join("·")}를 가리고 보냈어요`);
     setText("");
     setBusy(true);
     setMsgs((m) => [...m, { role: "user", text: question }]);

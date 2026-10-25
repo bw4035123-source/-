@@ -10,6 +10,7 @@ from .data import PERSPECTIVES, article_key, article_label, get_law, get_topic, 
 from .facts import extract_facts
 from .guard import find_unverified_mentions, guard_analysis_output, parse_loose_json
 from .llm import resolve_provider
+from .privacy import mask_notice, mask_pii
 from .prompts import ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, analysis_prompt
 from .search import match_topics, normalize, search_articles
 from .service import LawService
@@ -173,8 +174,10 @@ def build_rule_analyses(text: str, issues: list[dict], citations: list[dict]) ->
 
 
 def analyze(situation: str, provider: str | None = None) -> dict:
+    # 상황 설명 속 개인정보(주민등록번호·전화번호 등)는 분석·AI로 넘기기 전에 가린다
+    situation, masked = mask_pii(situation)
     started = time.time()
-    notices: list[str] = []
+    notices: list[str] = [mask_notice(masked)] if masked else []
     svc = LawService(config.law_access)
     facts = extract_facts(situation)
     issues = spot_issues(situation)

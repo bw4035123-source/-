@@ -8,6 +8,7 @@ import { extractFacts } from "./facts";
 import { findUnverifiedMentions, guardAnalysisOutput, parseLooseJson } from "./guard";
 import { ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, buildAnalysisPrompt } from "./prompts";
 import type { AnalyzeResult, IssueAnalysis } from "./types";
+import { maskNotice, maskPII } from "../privacy-mask";
 
 const DEFAULT_CONTACTS: Contact[] = [
   { name: "대한법률구조공단", phone: "132", url: "https://www.klac.or.kr", desc: "무료 법률상담·소송 지원" },
@@ -18,9 +19,11 @@ const DEFAULT_CONTACTS: Contact[] = [
  * 상황 분석 파이프라인
  *   사실관계 추출 → 쟁점 발견 → 근거 수집·원문 확보 → 법령 추천 순위 → 3관점 분석(LLM 또는 규칙) → 가드
  */
-export async function analyze({ situation, provider: requested }: { situation: string; provider?: string }): Promise<AnalyzeResult> {
+export async function analyze({ situation: raw, provider: requested }: { situation: string; provider?: string }): Promise<AnalyzeResult> {
   const started = Date.now();
-  const notices: string[] = [];
+  // 상황 설명 속 개인정보(주민등록번호·전화번호 등)는 분석·AI로 넘기기 전에 가린다
+  const { text: situation, found: masked } = maskPII(raw);
+  const notices: string[] = masked.length ? [maskNotice(masked)] : [];
   const svc = new LawService(serverConfig.lawAccess);
 
   const facts = extractFacts(situation);

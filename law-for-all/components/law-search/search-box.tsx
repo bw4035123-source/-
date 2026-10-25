@@ -6,6 +6,8 @@ import { ArrowRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSettings } from "@/components/providers/settings-provider";
 import { cn } from "@/lib/utils";
+import { maskPII } from "@/lib/privacy-mask";
+import { useToast } from "@/components/ui/toast";
 import { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } from "@/lib/suggestions";
 
 /** 이전 이름 호환 */
@@ -23,9 +25,13 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
   const [q, setQ] = React.useState(defaultValue);
   React.useEffect(() => setQ(defaultValue), [defaultValue]);
 
+  const toast = useToast();
   const go = (query: string) => {
-    const t = query.trim();
+    // 개인정보는 주소창·서버로 보내기 전에 브라우저에서 가림
+    const { text, found } = maskPII(query.trim());
+    const t = text;
     if (t.length < 2) return;
+    if (found.length) toast(`개인정보 보호를 위해 ${found.join("·")}를 가리고 검색했어요`);
     router.push(`/search?q=${encodeURIComponent(t)}`);
   };
 

@@ -10,6 +10,7 @@ import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
 import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
 import { FOLLOWUP_SUGGESTIONS } from "./followup-suggestions";
 import { retrieve } from "./retrieve";
+import { maskNotice, maskPII } from "../privacy-mask";
 import type { UserMode } from "./types";
 
 /**
@@ -116,9 +117,15 @@ export function buildFollowUpRuleAnswer(question: string, mode: UserMode, intent
   return [lead, ...lines.map((l) => `· ${l}`)].join("\n");
 }
 
-export async function followUp({ question, prevQuery, mode, provider: requested }: FollowUpInput): Promise<FollowUpResult> {
+export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provider: requested }: FollowUpInput): Promise<FollowUpResult> {
   const started = Date.now();
-  const notices: string[] = [];
+  // 질문 속 개인정보는 검색·AI로 넘기기 전에 가린다
+  const q1 = maskPII(rawQ);
+  const q0 = maskPII(rawPrev);
+  const question = q1.text;
+  const prevQuery = q0.text;
+  const masked = [...q1.found, ...q0.found.filter((k) => !q1.found.includes(k))];
+  const notices: string[] = masked.length ? [maskNotice(masked)] : [];
   const svc = new LawService(serverConfig.lawAccess);
 
   // 이전 질문의 사안을 유지: 토픽·근거는 이전 질문에서, 새 질문으로 근거를 더 찾는다

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, FileSearch, GitCompareArrows } from "lucide-react";
+import { ArrowRight, BadgeCheck, FileSearch, GitCompareArrows, ShieldCheck } from "lucide-react";
 import { SearchBox } from "@/components/law-search/search-box";
 import { HeroHeading } from "@/components/law-search/hero-heading";
 import { FeatureGrid, ModeCta } from "@/components/law-search/home-mode-blocks";
@@ -29,6 +29,9 @@ export default function HomePage() {
             </span>
             <span className="inline-flex items-center gap-1">
               <GitCompareArrows className="h-4 w-4 text-accent" /> 키 없이도 완전 시연
+            </span>
+            <span className="inline-flex items-center gap-1" title="주민등록번호·전화번호·계좌번호 등은 서버로 보내기 전에 ○○○ 으로 가려요">
+              <ShieldCheck className="h-4 w-4 text-accent" /> 개인정보 자동 가림
             </span>
           </p>
         </div>

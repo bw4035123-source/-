@@ -11,6 +11,7 @@ from .config import config
 from .data import article_label
 from .guard import MARKER, find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
 from .llm import resolve_provider
+from .privacy import mask_notice, mask_pii
 from .prompts import schema_for, system_prompt, user_prompt
 from .search import match_law_aliases, query_terms, score_article_by_terms
 from .service import LawService
@@ -88,7 +89,11 @@ def build_followup_rule_answer(question: str, mode: str, intent_id: str | None, 
 
 def followup(question: str, prev_query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     started = time.time()
-    notices: list[str] = []
+    # 질문 속 개인정보는 검색·AI로 넘기기 전에 가린다
+    question, m1 = mask_pii(question)
+    prev_query, m0 = mask_pii(prev_query)
+    masked = m1 + [k for k in m0 if k not in m1]
+    notices: list[str] = [mask_notice(masked)] if masked else []
     svc = LawService(config.law_access)
 
     # 이전 질문의 사안을 유지: 토픽·근거는 이전 질문에서, 새 질문으로 근거를 더 찾는다

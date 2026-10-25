@@ -15,6 +15,7 @@ import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
 import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
 import { relatedLawsOf, retrieve } from "./retrieve";
 import { buildRuleAnswer } from "./rule-engine";
+import { maskNotice, maskPII } from "../privacy-mask";
 import type { AskResult, UserMode } from "./types";
 
 const DEFAULT_CONTACTS: Contact[] = [
@@ -33,9 +34,11 @@ export interface AskInput {
  *   근거 검색(retrieve) → 원문 확보(LawService: 실시간/내장) → 공급자 선택(Adapter)
  *   → 생성(LLM) 또는 조립(규칙엔진) → 환각 가드 → 응답
  */
-export async function ask({ query, mode, provider: requested }: AskInput): Promise<AskResult> {
+export async function ask({ query: rawQuery, mode, provider: requested }: AskInput): Promise<AskResult> {
   const started = Date.now();
-  const notices: string[] = [];
+  // 질문 속 개인정보(주민등록번호·전화번호 등)는 검색·AI로 넘기기 전에 가린다
+  const { text: query, found: masked } = maskPII(rawQuery);
+  const notices: string[] = masked.length ? [maskNotice(masked)] : [];
   const svc = new LawService(serverConfig.lawAccess);
 
   // 사람이 검수한 사전이 토픽보다 구체적인 법령을 가리키면(예: '사전통지'→행정절차법) 실시간 검색으로

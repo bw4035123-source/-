@@ -14,6 +14,7 @@ import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
 import { analysisText } from "@/lib/report-text";
 import { fetchJson } from "@/lib/fetch-json";
+import { maskPII } from "@/lib/privacy-mask";
 import { AnalyzeForm } from "./analyze-form";
 import { FactsCard } from "./facts-card";
 import { Recommendations } from "./recommendations";
@@ -32,7 +33,10 @@ export function AnalyzeView() {
   const [situation, setSituation] = React.useState(initial);
 
   const run = React.useCallback(
-    async (s: string) => {
+    async (input: string) => {
+      // 개인정보는 서버로 보내기 전에 브라우저에서 가림
+      const { text: s, found } = maskPII(input);
+      if (found.length) toast(`개인정보 보호를 위해 ${found.join("·")}를 가리고 분석했어요`);
       setSituation(s);
       setState({ status: "loading" });
       try {
@@ -53,7 +57,7 @@ export function AnalyzeView() {
         setState({ status: "error", message: (e as Error).message });
       }
     },
-    [provider],
+    [provider, toast],
   );
 
   // 링크로 진입(?s=) 시 1회만 자동 분석(같은 문장 중복 실행 방지)

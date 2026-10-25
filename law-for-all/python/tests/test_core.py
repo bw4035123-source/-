@@ -566,3 +566,20 @@ class GovThemePatchTest(unittest.TestCase):
             self.assertEqual((web / "data.txt").read_text(encoding="utf-8"), "</body>")  # .html 만 대상
             g.run(web, revert=True, quiet=True)
             self.assertEqual((web / "index.html").read_text(encoding="utf-8"), html)
+
+
+class PrivacyMaskTest(unittest.TestCase):
+    """질문 속 개인정보 가리기 — tests/privacy-mask.test.ts 와 같은 사례"""
+
+    def test_masks(self):
+        from law_for_all.privacy import mask_pii
+        text, found = mask_pii("제 주민번호는 900101-1234567이고 010-1234-5678로 연락주세요. 국민은행 123456-01-234567, 카드 1234-5678-9012-3456, a.b@test.co.kr, 여권 M12345678")
+        self.assertNotRegex(text, r"\d{6}-\d{7}|010-1234|123456-01|1234-5678-9012|@test|M12345678")
+        self.assertEqual(found, ["주민등록번호", "카드번호", "전화번호", "이메일", "계좌번호", "여권번호"])
+        self.assertEqual(mask_pii("집주인 번호 01098765432 이에요")[1], ["전화번호"])
+        self.assertEqual(mask_pii("02-123-4567 사무실")[1], ["전화번호"])
+
+    def test_keeps(self):
+        from law_for_all.privacy import mask_pii
+        for q in ["2026-10-25에 계약 끝나요", "보증금 2억 3000만원", "음주운전 0.03 걸리면", "제3조의2 대항력", "2025년 10월 1일부터 30일까지", "시급 10,030원"]:
+            self.assertEqual(mask_pii(q), (q, []))
