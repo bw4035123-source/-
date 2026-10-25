@@ -12,7 +12,7 @@ from .data import article_label
 from .guard import MARKER, find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
 from .llm import resolve_provider
 from .prompts import schema_for, system_prompt, user_prompt
-from .search import query_terms, score_article_by_terms
+from .search import match_law_aliases, query_terms, score_article_by_terms
 from .service import LawService
 
 # 질문 유형: ask 는 질문에서, find 는 조문 문장에서, title 은 조문 제목에서 찾는 표현. 제목이 맞는 조문이 근거에 있으면 우선
@@ -89,8 +89,12 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
     svc = LawService(config.law_access)
 
     # 이전 질문의 사안을 유지: 토픽·근거는 이전 질문에서, 새 질문으로 근거를 더 찾는다
-    topic, prev_keys = retrieve(prev_query)
-    _, cur_keys = retrieve(f"{question} {topic['label'] if topic else prev_query}")
+    # 이전 질문이 사전의 구체적 법령을 가리켰으면(ask 와 같은 규칙) 토픽 대신 실시간 근거를 유지
+    if svc.mode == "live" and any(a.get("override") for a in match_law_aliases(prev_query)):
+        topic, prev_keys, cur_keys = None, [], []
+    else:
+        topic, prev_keys = retrieve(prev_query)
+        _, cur_keys = retrieve(f"{question} {topic['label'] if topic else prev_query}")
     local = prev_keys + [k for k in cur_keys if k not in prev_keys]
     live_keys = svc.search_live_keys(f"{prev_query} {question}") if not topic and svc.mode == "live" else []
     context = svc.get_citations(live_keys + [k for k in local if k not in live_keys])

@@ -29,7 +29,7 @@ export function buildRuleAnswer(query: string, topic: Topic | undefined, citatio
 
   if (!citations.length) {
     return {
-      summary: `'${query}'와(과) 직접 관련된 조문을 내장 법령 데이터에서 찾지 못했어요. 더 구체적인 상황(예: "전세 보증금", "육아휴직 급여", "민원 처리 기한")으로 다시 검색해 보세요.`,
+      summary: `'${query}'와(과) 직접 관련된 조문을 찾지 못했어요. ${/[가-힣]/.test(query) ? "" : "법이음은 한국어 질문으로 근거를 찾아요. "}더 구체적인 상황(예: "전세 보증금", "육아휴직 급여", "민원 처리 기한")으로 다시 검색해 보세요.`,
       citizen: {
         easyTerms: [],
         steps: [
@@ -39,7 +39,7 @@ export function buildRuleAnswer(query: string, topic: Topic | undefined, citatio
         ],
       },
       officer: {
-        background: "내장 데이터 범위에서 관련 조문이 검색되지 않음. 국가법령정보 Open API(OC) 연동 시 전체 법령에서 검색 가능.",
+        background: "관련 조문이 검색되지 않음(내장 법령 데이터, 연동 시 국가법령정보 Open API 전체 현행 법령 기준).",
         keyPoints: [],
         adminNotes: ["소관 법령이 불분명한 경우 법제처 법령해석 및 소관 부처 질의 검토"],
         checklist: ["검색어 재설정", "소관 부처 확인"],

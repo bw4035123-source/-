@@ -1,7 +1,7 @@
 import "server-only";
 import { serverConfig } from "../config";
 import { LawService } from "../law-api/client";
-import { queryTerms } from "../law-api/search";
+import { matchLawAliases, queryTerms } from "../law-api/search";
 import { getMockLaw } from "../law-api/mock";
 import { parseArticleKey } from "../law-api/util";
 
@@ -38,7 +38,11 @@ export async function ask({ query, mode, provider: requested }: AskInput): Promi
   const notices: string[] = [];
   const svc = new LawService(serverConfig.lawAccess);
 
-  const { topic, keys: localKeys } = retrieve(query);
+  // 사람이 검수한 사전이 토픽보다 구체적인 법령을 가리키면(예: '사전통지'→행정절차법) 실시간 검색으로
+  const precise = svc.mode === "live" && matchLawAliases(query).some((a) => a.override);
+  const r = retrieve(query);
+  const topic = precise ? undefined : r.topic;
+  const localKeys = precise ? [] : r.keys;
   // 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
   const liveKeys = !topic && svc.mode === "live" ? await svc.searchLiveKeys(query) : [];
   // 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있는 것만 남긴다

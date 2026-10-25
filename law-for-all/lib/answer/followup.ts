@@ -2,7 +2,7 @@ import "server-only";
 import { serverConfig } from "../config";
 import { LawService } from "../law-api/client";
 import type { Citation } from "../law-api/types";
-import { queryTerms, scoreArticleByTerms } from "../law-api/search";
+import { matchLawAliases, queryTerms, scoreArticleByTerms } from "../law-api/search";
 import { articleLabel } from "../law-api/util";
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
@@ -119,9 +119,12 @@ export async function followUp({ question, prevQuery, mode, provider: requested 
   const svc = new LawService(serverConfig.lawAccess);
 
   // 이전 질문의 사안을 유지: 토픽·근거는 이전 질문에서, 새 질문으로 근거를 더 찾는다
-  const prev = retrieve(prevQuery);
+  // 이전 질문이 사전의 구체적 법령을 가리켰으면(ask 와 같은 규칙) 토픽 대신 실시간 근거를 유지
+  const precise = svc.mode === "live" && matchLawAliases(prevQuery).some((a) => a.override);
+  const none: ReturnType<typeof retrieve> = { keys: [] };
+  const prev = precise ? none : retrieve(prevQuery);
   const topic = prev.topic;
-  const cur = retrieve(`${question} ${topic ? topic.label : prevQuery}`);
+  const cur = precise ? none : retrieve(`${question} ${topic ? topic.label : prevQuery}`);
   const local = [...prev.keys, ...cur.keys.filter((k) => !prev.keys.includes(k))];
   const liveKeys = !topic && svc.mode === "live" ? await svc.searchLiveKeys(`${prevQuery} ${question}`) : [];
   const context = await svc.getCitations([...liveKeys, ...local.filter((k) => !liveKeys.includes(k))]);

@@ -87,7 +87,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "deposit-return",
     label: "보증금 반환",
     caseQuery: "임차보증금",
-    triggers: ["보증금", "돌려받", "전세금", "보증금+반환", "전세+반환", "집주인이 안", "이사 가야", "임차권등기", "만기", "이사를 못", "다음 세입자", "세입자 구해", "새 세입자", "세입자 들어올"],
+    triggers: ["보증금", "돌려받", "전세금", "보증금+반환", "보증금+돌려", "보증금+안 줘", "보증금+못 받", "전세+반환", "집주인이 안", "이사 가야", "임차권등기", "만기", "이사를 못", "다음 세입자", "세입자 구해", "새 세입자", "세입자 들어올"],
     refs: ["housing-lease:4", "housing-lease:3의3", "housing-lease:3의2", "housing-lease:3"],
     citizen: {
       summary:
@@ -345,7 +345,7 @@ const LIVING_TOPICS: Topic[] = [
     id: "unfair-dismissal",
     label: "부당해고",
     caseQuery: "부당해고",
-    triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말라", "나오지 마라", "그만 나오", "나가라고"],
+    triggers: ["해고", "잘렸", "짤렸", "잘린", "부당해고", "해고예고", "권고사직", "나오지 말", "나오지 마라", "그만 나오", "나가라고"],
     refs: ["labor-standards:23", "labor-standards:26", "labor-standards:28"],
     citizen: {
       summary:

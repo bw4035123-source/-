@@ -10,7 +10,7 @@ from .guard import find_unverified_mentions, guard_llm_output, parse_loose_json,
 from .llm import resolve_provider
 from .prompts import schema_for, system_prompt, user_prompt
 from .rule_engine import build_rule_answer
-from .search import match_topics, query_terms, search_articles
+from .search import match_law_aliases, match_topics, query_terms, search_articles
 from .service import LawService
 
 DEFAULT_CONTACTS = [
@@ -63,6 +63,9 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     notices: list[str] = []
     svc = LawService(config.law_access)
     topic, local_keys = retrieve(query)
+    # 사람이 검수한 사전이 토픽보다 구체적인 법령을 가리키면(예: '사전통지'→행정절차법) 실시간 검색으로
+    if svc.mode == "live" and any(a.get("override") for a in match_law_aliases(query)):
+        topic, local_keys = None, []
     # 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
     live_keys = svc.search_live_keys(query) if not topic and svc.mode == "live" else []
     # 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있는 것만 남긴다
