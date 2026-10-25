@@ -1,7 +1,7 @@
 // 시연영상 자동 녹화 — 실행 중인 법이음을 브라우저로 조작하며 자막·내레이션과 함께 녹화하고 mp4로 변환한다.
 //   node scripts/record-demo.mjs [기본주소] [출력.mp4] [내레이션폴더]
 //   내레이션폴더: scripts/tts_narration.py 로 만든 s00.wav… + durations.json (없으면 자막만)
-//   NO_AUDIO=1(또는 내레이션폴더 없음)이면 자막만 — 장면 시간은 PLAN, 전체 길이는 TARGET_SEC(기본 180초)에 맞춘다
+//   NO_AUDIO=1(또는 내레이션폴더 없음)이면 자막만 — 장면 시간은 PLAN, 전체 길이는 TARGET_SEC(기본 210초)에 맞춘다
 //   판례 장면은 서버가 국가법령정보 실시간 연결(/api/cases 의 live)일 때만 넣는다.
 // 필요: Playwright(Chromium), ffmpeg(libx264, aac)
 import fs from "node:fs";
@@ -27,9 +27,9 @@ const OUT = path.resolve(process.argv[3] ?? "dist/demo.mp4");
 const NARR = process.argv[4] ? path.resolve(process.argv[4]) : null;
 const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"), "utf8")) : {};
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
-const TARGET = Number(process.env.TARGET_SEC ?? 180);
+const TARGET = Number(process.env.TARGET_SEC ?? 210);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 6.5, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 10, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5 };
+const PLAN = { s00: 3.5, s01: 8, sP: 6, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 10, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sM: 9, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5, sE: 8 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -165,15 +165,21 @@ await scene("s00", async () => {
 });
 await scene("s01", async () => {
   await card("");
-  await cap("① 첫 화면은 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "예: 퇴사했는데 마지막 월급을 안 줘요");
+  await cap("① 첫 화면은 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "글이 어려우면 마이크 버튼으로 말해도 돼요(브라우저 음성 인식)");
+  await point(page.locator("main [aria-label='음성으로 질문하기']").first());
+  await wait(1600);
   const input = page.locator("main form input").first();
   await click(input);
-  await input.type("퇴사했는데 마지막 월급을 안 줘요", { delay: 70 });
+  await input.type("퇴사했는데 마지막 월급을 안 줘요 사장님 010-1234-5678", { delay: 60 });
 });
-await scene("s02", async () => {
+await scene("sP", async () => {
   await page.keyboard.press("Enter");
   await page.waitForURL(/search/);
   await page.locator("[aria-label^='근거 1:']").first().waitFor().catch(() => {});
+  await cap("질문 속 전화번호·주민번호는 자동으로 ○○○ — 서버·AI로 보내기 전에 브라우저에서 가립니다", "주민등록번호·전화·카드·계좌·이메일·여권번호 · 주소창에도 남지 않음");
+  await point(page.locator("main h1").first());
+});
+await scene("s02", async () => {
   await cap("문장마다 근거 조문 번호 — 근거 목록 밖 인용은 자동 제거(환각 방지)", "AI가 지어낸 가짜 조문·판례를 막습니다");
   await wait(1200);
   await point(page.locator("[aria-label^='근거 1:']").first());
@@ -309,6 +315,18 @@ await scene("s11", async () => {
   await wait(3500);
   await scrollBy(480, 14);
 });
+await scene("sM", async () => {
+  await page.goto(BASE + "/search?q=" + encodeURIComponent("공무원 외부강의 사례금 상한은?"));
+  await page.getByText("검토 결론").first().waitFor().catch(() => {});
+  await wait(300);
+  await cap("금액 기준은 시행령 별표 원문으로 — 공무원 외부강의 1시간당 40만원(총액 60만원)", "청탁금지법 시행령 제25조·별표 2 · 음식물·선물 가액(별표 1)도 원문 그대로");
+  await wait(3800);
+  const badge = page.getByText(/최근 개정 \d{4}\./).first();
+  if (await has(badge)) {
+    await point(badge);
+    await cap("최근 1년 안에 바뀐 근거 조문은 ‘최근 개정’ 표시 — 예전 기준으로 판단하지 않게", "검증 영수증에도 조문별 최종 개정일 기록");
+  }
+});
 await scene("sR", async () => {
   await click(page.locator("button:visible", { hasText: "검증 영수증" }).first());
   await page.locator("[role=dialog] >> text=No.").first().waitFor().catch(() => {});
@@ -388,9 +406,14 @@ await scene("s17", async () => {
   await wait(1500);
   await scrollBy(420, 14);
 });
+await scene("sE", async () => {
+  await scrollToEl("#eval", 90);
+  await wait(700);
+  await cap("정확도 성적표 공개 — 블라인드 시험 32/42 · 근거 밖 인용 0건 · 환각 주입 584/584 차단", "npm run eval 로 누구나 같은 결과 재현 · 틀린 문항도 그대로 공개");
+});
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문)</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;
