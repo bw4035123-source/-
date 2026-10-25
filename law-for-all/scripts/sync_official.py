@@ -70,10 +70,11 @@ def main() -> int:
                 problems.append(f"{mock['name']} 제{art['no']}조: 현행 법령에 없음")
                 continue
             text = la["text"]
-            # 조문 본문에 없는 별표 요약(내장 데이터에 사람이 적은 줄)은 유지 — 별표 원문과 대조해 검증한 값만 둠
-            extra = [l for l in art["text"].split("\n") if l.strip().startswith(("[별표", "비고:", "  1. 직접충격", "  2. 공기전달", "  비고"))]
-            if extra:
-                text = text + "\n" + "\n".join(extra)
+            # 조문 본문에 없는 별표 요지(내장 데이터에 사람이 적은 줄: 첫 "[별표" 줄부터 끝까지)는 유지 — 별표 원문과 대조해 검증한 값만 둠
+            lines = art["text"].split("\n")
+            first = next((i for i, l in enumerate(lines) if l.startswith("[별표")), -1)
+            if first >= 0 and "[별표" not in text:
+                text = text + "\n" + "\n".join(lines[first:])
             arts[art["no"]] = {"title": la["title"], "text": text}
             if la["title"] != art["title"]:
                 print(f"  · 제목 변경: {mock['name']} 제{art['no']}조 '{art['title']}' → '{la['title']}'")
