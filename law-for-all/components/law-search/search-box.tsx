@@ -8,6 +8,7 @@ import { useSettings } from "@/components/providers/settings-provider";
 import { cn } from "@/lib/utils";
 import { maskPII } from "@/lib/privacy-mask";
 import { useToast } from "@/components/ui/toast";
+import { MicButton } from "@/components/ui/mic-button";
 import { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } from "@/lib/suggestions";
 
 /** 이전 이름 호환 */
@@ -68,6 +69,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
           enterKeyHint="search"
           className={cn("min-w-0 flex-1 bg-transparent placeholder:text-muted-foreground/80 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", hero ? "py-2 text-base sm:text-lg" : "py-1.5 text-sm sm:text-base")}
         />
+        <MicButton size={hero ? "lg" : "md"} onText={(t) => setQ(t.slice(0, 500))} />
         <Button type="submit" variant="accent" size={hero ? "lg" : "default"} className="shrink-0 rounded-xl" disabled={q.trim().length < 2}>
           <span className="hidden sm:inline">AI 법률 검색</span>
           <ArrowRight className="sm:hidden" aria-hidden />

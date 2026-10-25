@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { fetchJson } from "@/lib/fetch-json";
 import { maskPII } from "@/lib/privacy-mask";
+import { MicButton } from "@/components/ui/mic-button";
 import { CitationProvider } from "./citation-context";
 import { CitedText } from "./cited-text";
 
@@ -141,6 +142,7 @@ export function FollowUpChat({ prevQuery }: { prevQuery: string }) {
           placeholder={turns >= MAX_TURNS ? "새 질문은 위 검색창을 이용해 주세요" : officer ? "예) 시행령상 기준은? 위반 시 제재는?" : "예) 기한이 있나요? 어디에 신고하나요?"}
           className="h-11 min-w-0 flex-1 rounded-xl border bg-background px-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
+        {turns < MAX_TURNS && <MicButton size="lg" onText={(t) => setText(t.slice(0, 300))} />}
         <Button type="submit" variant="accent" className="h-11 shrink-0" disabled={busy || text.trim().length < 2 || turns >= MAX_TURNS} aria-label="이어서 묻기 보내기">
           {busy ? <Loader2 className="animate-spin" /> : <SendHorizonal />} 묻기
         </Button>
