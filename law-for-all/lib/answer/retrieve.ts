@@ -23,7 +23,10 @@ export function retrieve(query: string, max = 8): Retrieval {
     topic.refs.forEach(push);
     topic.citizen.steps.forEach((s) => s.ref && push(s.ref));
   }
+  // 토픽이 정해졌으면 조문 검색 결과는 그 토픽의 법령(과 하위법령)만 더함 — 글자만 겹친 다른 법(예: 청탁금지 질문에 주택임대차 '상한') 제외
+  const topicLaws = new Set(topic ? topic.refs.map((k) => k.split(":")[0]) : []);
   for (const hit of searchArticles(query, 6)) {
+    if (topic && !topicLaws.has(hit.law.id) && !topicLaws.has(hit.law.parentId ?? "")) continue;
     push(articleKey(hit.law.id, hit.article.no));
     hit.article.delegates?.forEach((d) => push(articleKey(d.lawId, d.articleNo)));
   }

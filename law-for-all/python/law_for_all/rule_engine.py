@@ -13,6 +13,11 @@ def first_sentence(text: str, max_len: int = 90) -> str:
     return s[:max_len] + "…" if len(s) > max_len else s
 
 
+def _byeolpyo(c: dict) -> str:
+    """조문에 붙은 별표 요지의 첫 줄(없으면 빈 문자열)"""
+    return next((l for l in c["text"].split("\n") if l.startswith("[별표")), "")
+
+
 def _pinpoint(query: str, topic: dict, citations: list[dict]) -> str:
     """질문이 토픽 안의 특정 조문을 제목으로 가리키는데(예: '외부강의 사례금' → 청탁금지법 제10조) 토픽 요약이 그 조문을 다루지 않으면 앞에 붙일 문장"""
     terms = [t for t in query_terms(query) if len(t) >= 3 and normalize(t) not in normalize(topic["label"])]
@@ -21,10 +26,12 @@ def _pinpoint(query: str, topic: dict, citations: list[dict]) -> str:
         return [t for t in terms if normalize(t) in normalize(c["title"]) and normalize(t) not in normalize(c["lawName"])]
 
     hits = [c for c in citations if c["key"] in topic["refs"] and (len(in_title(c)) >= 2 or any(normalize(t) == normalize(c["title"]) for t in in_title(c)))]
-    hit = sorted(hits, key=lambda c: -score_article_by_terms(c, terms))[0] if hits else None
+    # 금액·기준이 든 별표 요지가 있는 조문(시행령)을 우선 — "상한은?" 같은 질문에 실제 금액으로 답함
+    hit = sorted(hits, key=lambda c: -(score_article_by_terms(c, terms) + (10 if _byeolpyo(c) else 0)))[0] if hits else None
     if not hit or f"[[{hit['key']}]]" in topic["citizen"]["summary"]:
         return ""
-    return f"「{hit['lawName']}」 {article_label(hit['articleNo'])}({hit['title']}): {first_sentence(hit['text'], 220)} [[{hit['key']}]] "
+    table = _byeolpyo(hit)
+    return f"「{hit['lawName']}」 {article_label(hit['articleNo'])}({hit['title']}): {first_sentence(hit['text'], 220)}{' ' + table if table else ''} [[{hit['key']}]] "
 
 
 def build_rule_answer(query: str, topic: dict | None, citations: list[dict]) -> dict:

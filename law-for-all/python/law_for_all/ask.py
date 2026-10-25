@@ -39,7 +39,11 @@ def retrieve(query: str, max_n: int = 8):
         for s in topic["citizen"]["steps"]:
             if s.get("ref"):
                 push(s["ref"])
+    # 토픽이 정해졌으면 조문 검색 결과는 그 토픽의 법령(과 하위법령)만 더함 — 글자만 겹친 다른 법(예: 청탁금지 질문에 주택임대차 '상한') 제외
+    topic_laws = {r.split(":")[0] for r in topic["refs"]} if topic else set()
     for h in search_articles(query, 6):
+        if topic and h["law"]["id"] not in topic_laws and (h["law"].get("parentId") or "") not in topic_laws:
+            continue
         push(article_key(h["law"]["id"], h["article"]["no"]))
         for d in h["article"].get("delegates") or []:
             push(article_key(d["lawId"], d["articleNo"]))

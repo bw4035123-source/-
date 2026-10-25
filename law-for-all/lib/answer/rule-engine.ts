@@ -12,14 +12,20 @@ function firstSentence(text: string, max = 90): string {
 }
 
 /** 질문이 토픽 안의 특정 조문을 제목으로 가리키는데(예: '외부강의 사례금' → 청탁금지법 제10조) 토픽 요약이 그 조문을 다루지 않으면 앞에 붙일 문장 */
+/** 조문에 붙은 별표 요지의 첫 줄(없으면 빈 문자열) */
+const byeolpyo = (c: Citation) => c.text.split("\n").find((l) => l.startsWith("[별표")) ?? "";
+
 function pinpoint(query: string, topic: Topic, citations: Citation[]): string {
   const terms = queryTerms(query).filter((t) => t.length >= 3 && !normalize(topic.label).includes(normalize(t)));
   // 흔한 말 하나('보증금'·'과태료')로는 붙이지 않음: 질문 낱말 두 개 이상이 제목에 있거나 제목 자체가 그 말일 때만(토픽 조문 안에서)
   const inTitle = (c: Citation) => terms.filter((t) => normalize(c.title).includes(normalize(t)) && !normalize(c.lawName).includes(normalize(t)));
   const hit = citations
     .filter((c) => topic.refs.includes(c.key) && (inTitle(c).length >= 2 || inTitle(c).some((t) => normalize(t) === normalize(c.title))))
-    .sort((a, b) => scoreArticleByTerms(b, terms) - scoreArticleByTerms(a, terms))[0];
-  return hit && !topic.citizen.summary.includes(`[[${hit.key}]]`) ? `「${hit.lawName}」 ${articleLabel(hit.articleNo)}(${hit.title}): ${firstSentence(hit.text, 220)} [[${hit.key}]] ` : "";
+    // 금액·기준이 든 별표 요지가 있는 조문(시행령)을 우선 — "상한은?" 같은 질문에 실제 금액으로 답함
+    .sort((a, b) => scoreArticleByTerms(b, terms) + (byeolpyo(b) ? 10 : 0) - scoreArticleByTerms(a, terms) - (byeolpyo(a) ? 10 : 0))[0];
+  if (!hit || topic.citizen.summary.includes(`[[${hit.key}]]`)) return "";
+  const table = byeolpyo(hit);
+  return `「${hit.lawName}」 ${articleLabel(hit.articleNo)}(${hit.title}): ${firstSentence(hit.text, 220)}${table ? ` ${table}` : ""} [[${hit.key}]] `;
 }
 
 /**
