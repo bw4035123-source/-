@@ -101,11 +101,11 @@ export function AnalyzeView() {
             <p className="flex items-center justify-center gap-2 font-semibold text-accent">
               <Gavel className="h-5 w-5 animate-bounce" /> 사실관계를 정리하고 관련 법령을 찾고 있어요…
             </p>
-            <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               <Skeleton className="h-56 rounded-2xl" />
               <Skeleton className="h-56 rounded-2xl" />
             </div>
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <Skeleton className="h-72 rounded-2xl" />
               <Skeleton className="h-72 rounded-2xl" />
               <Skeleton className="h-72 rounded-2xl" />
@@ -159,14 +159,14 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           </ul>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
           <FactsCard facts={r.facts} issues={r.issues} />
           <Recommendations recs={r.recommendations} citations={r.citations} />
         </div>
 
         <RolePanels analyses={r.analyses} />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <RelatedCases query={r.caseQuery} variant="officer" title="이 쟁점의 실제 판례 · 법령해석례" />
           <ContactsCard contacts={r.contacts} />
         </div>

@@ -84,7 +84,7 @@ export function LawDocument({ root, lawsChildren, initialLawId, warnings }: Prop
         </TabsList>
 
         <TabsContent value="text">
-          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
             <nav aria-label="조문 목차" className="hidden lg:block">
               <ol className="sticky top-24 max-h-[calc(100vh-8rem)] space-y-0.5 overflow-y-auto rounded-xl border bg-card p-3 text-sm">
                 {law.articles.map((a) => (
@@ -153,7 +153,7 @@ export function LawDocument({ root, lawsChildren, initialLawId, warnings }: Prop
         </TabsContent>
 
         <TabsContent value="notes">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <section className="space-y-3">
               <h2 className="flex items-center gap-2 font-extrabold">
                 <NotebookPen className="h-5 w-5 text-accent" /> 실무 쟁점 노트

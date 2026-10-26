@@ -248,6 +248,11 @@ html.gc-has-banner .skip-link:focus {
   #gc2026-banner .gc-long {
     display: none;
   }
+  #gc2026-banner {
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+    overflow: hidden;
+  }
 }
 
 /* ───────────────────────── 9. 움직임 줄이기·인쇄 */

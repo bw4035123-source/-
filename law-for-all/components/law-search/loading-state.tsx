@@ -18,7 +18,7 @@ export function LoadingState() {
     };
   }, []);
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-live="polite">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]" role="status" aria-live="polite">
       <div className="space-y-4">
         <motion.p key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 font-semibold text-accent">
           <Loader2 className="h-5 w-5 animate-spin" /> {STEPS[i]}…

@@ -196,20 +196,20 @@ export function ComplianceView() {
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <section {...dragProps} className={cn("space-y-4 rounded-2xl border bg-card p-5 shadow-sm transition", dragging && "border-accent ring-2 ring-accent/40")} aria-label="검증할 기관 규정">
-          <div className="grid gap-2">
-            <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+          <div className="grid grid-cols-1 gap-2">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
               기관 유형
-              <select value={orgType} onChange={(e) => setOrgType(e.target.value as OrgType)} className="h-10 rounded-md border bg-card px-2 text-sm font-normal text-foreground">
+              <select value={orgType} onChange={(e) => setOrgType(e.target.value as OrgType)} className="h-10 w-full min-w-0 rounded-md border bg-card px-2 text-sm font-normal text-foreground">
                 {ORG_TYPES.map((o) => (
                   <option key={o}>{o}</option>
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
               규정명
-              <input value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="예) ○○공사 취업규칙, 임직원 행동강령" className="h-10 rounded-md border bg-card px-2.5 text-sm font-normal text-foreground" />
+              <input value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="예) ○○공사 취업규칙, 임직원 행동강령" className="h-10 w-full min-w-0 rounded-md border bg-card px-2.5 text-sm font-normal text-foreground" />
             </label>
           </div>
           <div>
@@ -218,9 +218,9 @@ export function ComplianceView() {
               <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-foreground">
                 <ScanSearch className="h-3.5 w-3.5 text-accent" /> 모의데이터로 바로 체험 <span className="font-normal text-muted-foreground">— 누르면 파일 읽기부터 검증까지 한 번에</span>
               </p>
-              <div className="grid gap-1">
+              <div className="grid grid-cols-1 gap-1">
                 {MOCK_FILES.map((m, i) => (
-                  <button key={m.url} type="button" disabled={!!extracting} onClick={() => void loadMock(i)} className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-left text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-60">
+                  <button key={m.url} type="button" disabled={!!extracting} onClick={() => void loadMock(i)} className="flex min-w-0 items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 text-left text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-60">
                     <Badge variant="secondary" className="w-14 shrink-0 justify-center whitespace-nowrap px-0 text-[10px]">{m.format}</Badge>
                     <span className="min-w-0 flex-1 truncate">{m.label}</span>
                     <span className="shrink-0 text-[11px] text-accent">검증 ▶</span>

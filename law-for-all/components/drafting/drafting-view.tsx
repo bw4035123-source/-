@@ -160,7 +160,7 @@ export function DraftingView() {
         <p className="mt-1 text-sm text-muted-foreground sm:text-base">바꾸고 싶은 내용을 말하듯 적으면 개정안, 신·구조문 대비표, 상위법 정합성 점검, 개정이유·부칙·입법예고문 초안을 한 번에 만들어 드려요.</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         {/* 왼쪽: 입력 */}
         <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm" aria-label="개정 대상과 방향">
           <div>

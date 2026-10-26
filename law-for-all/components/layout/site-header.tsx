@@ -8,7 +8,7 @@ import { A11yControls } from "./a11y-controls";
 export function SiteHeader() {
   return (
     <header className="no-print sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="container flex h-16 items-center gap-3">
+      <div className="container flex h-16 items-center gap-2 sm:gap-3">
         <Link href="/" className="flex items-center gap-2" aria-label="법이음 홈">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow-md">
             <Scale className="h-5 w-5" aria-hidden />
@@ -27,7 +27,9 @@ export function SiteHeader() {
           </OnlyMode>
           <Link href="/cases" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
             <Landmark className="h-4 w-4" aria-hidden />
-            판례 보기
+            {/* 태블릿 폭(공직자 메뉴가 많을 때)은 짧게 */}
+            <span className="lg:hidden">판례</span>
+            <span className="hidden lg:inline">판례 보기</span>
           </Link>
           <OnlyMode mode="officer">
             <Link href="/compliance" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
@@ -41,7 +43,8 @@ export function SiteHeader() {
           </OnlyMode>
           <Link href="/laws" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
             <BookOpenText className="h-4 w-4" aria-hidden />
-            법령 둘러보기
+            <span className="lg:hidden">법령</span>
+            <span className="hidden lg:inline">법령 둘러보기</span>
           </Link>
           <Link href="/about" className="rounded-md px-2.5 py-2 text-muted-foreground hover:bg-secondary hover:text-foreground 2xl:inline-flex hidden">
             서비스 구조
@@ -54,7 +57,7 @@ export function SiteHeader() {
         </div>
       </div>
       {/* 작은 화면: 보조 도구를 둘째 줄로 */}
-      <div className="container flex items-center justify-between gap-2 overflow-x-auto pb-2 2xl:hidden">
+      <div className="container relative flex items-center justify-between gap-2 overflow-x-auto pb-2 2xl:hidden">
         <OnlyMode mode="citizen">
           <Link href="/analyze" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
             <Gavel className="h-3.5 w-3.5" aria-hidden /> 상황 분석

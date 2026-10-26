@@ -61,8 +61,8 @@ export function LawsCatalog() {
         <label htmlFor="law-name-q" className="sr-only">
           {meta.label} 검색
         </label>
-        <input id="law-name-q" name="q" defaultValue={q} placeholder={meta.example} className="h-10 flex-1 rounded-md border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-        <button className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground">검색</button>
+        <input id="law-name-q" name="q" defaultValue={q} placeholder={meta.example} className="h-10 min-w-0 flex-1 rounded-md border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+        <button className="h-10 shrink-0 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground">검색</button>
       </form>
       {data?.warnings?.length ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">△ {data.warnings[0]}</p> : null}
       {!data ? (
