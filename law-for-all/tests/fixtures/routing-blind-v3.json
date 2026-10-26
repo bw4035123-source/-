@@ -1,47 +1,173 @@
 {
-  "_설명": "3차 블라인드 시험(2026-10-26 작성, 규칙 개선 전에 커밋) — 2차 블라인드의 틀린 문항과 일반 표현 보강으로 규칙을 고친 뒤 이 문항으로 한 번만 재서 그대로 보고한다. 이 문항으로는 규칙을 고치지 않는다. topic: 기대 토픽 id, null 은 어떤 토픽에도 묶이면 안 됨",
-  "cases": [
-    {"q": "위층 아이가 매일 밤 쿵쾅거려서 미치겠어요", "topic": "floor-noise"},
-    {"q": "옆집 티비 소리가 벽 너머로 다 들려요", "topic": "floor-noise"},
-    {"q": "집 빼려는데 주인이 돈 줄 생각을 안 해요", "topic": "deposit-return"},
-    {"q": "보증금 돌려받기 전에 이사하면 불리한가요", "topic": "deposit-return"},
-    {"q": "근저당 잡힌 집에 전세로 들어가도 괜찮을까요", "topic": "jeonse-fraud"},
-    {"q": "집이 경매로 넘어가면 세입자 보증금은 어떻게 되나요", "topic": "jeonse-fraud"},
-    {"q": "2년 더 살 수 있는 권리가 있다던데 맞나요", "topic": "lease-renewal"},
-    {"q": "집주인이 계약 연장을 거절했어요", "topic": "lease-renewal"},
-    {"q": "아내가 출산하는데 육아휴직 신청 방법은", "topic": "parental-leave"},
-    {"q": "육아휴직 기간이 최대 얼마나 되나요", "topic": "parental-leave"},
-    {"q": "시청에 민원 넣은 지 2주가 지났어요", "topic": "petition-deadline"},
-    {"q": "민원 처리 결과를 언제까지 알려줘야 하나요", "topic": "petition-deadline"},
-    {"q": "소주 두 잔 먹고 운전하다 걸렸어요", "topic": "drunk-driving"},
-    {"q": "음주 단속에서 면허정지 수치는 얼마예요", "topic": "drunk-driving"},
-    {"q": "사장님이 석 달째 월급을 미루고 있어요", "topic": "unpaid-wages"},
-    {"q": "퇴사한 회사에서 마지막 급여가 안 들어와요", "topic": "unpaid-wages"},
-    {"q": "갑자기 오늘까지만 일하라고 통보받았어요", "topic": "unfair-dismissal"},
-    {"q": "정당한 이유 없이 해고당하면 어디에 구제신청하나요", "topic": "unfair-dismissal"},
-    {"q": "앱 회사에 내 개인정보 삭제를 요구하고 싶어요", "topic": "privacy-access"},
-    {"q": "공공기관이 가진 내 정보를 보여달라고 하려면", "topic": "privacy-access"},
-    {"q": "교육청 회의록을 받아볼 수 있나요", "topic": "info-disclosure"},
-    {"q": "정보 비공개 결정에 이의신청하고 싶어요", "topic": "info-disclosure"},
-    {"q": "운전면허 취소 처분이 부당해요 불복 방법은", "topic": "admin-appeal"},
-    {"q": "행정심판 청구 기간이 언제까지인가요", "topic": "admin-appeal"},
-    {"q": "우리 기관 취업규칙의 휴게시간 조항 검토", "topic": "work-rules"},
-    {"q": "공단 인사규정에 출산전후휴가 규정 정비", "topic": "work-rules"},
-    {"q": "시설관리공단 이사장 임기 연장 가능 여부", "topic": "local-public-enterprise"},
-    {"q": "지방공단 설립 시 필요한 절차", "topic": "local-public-enterprise"},
-    {"q": "구청 직원이 특정 후보를 공개 지지해도 되나요", "topic": "election-neutrality"},
-    {"q": "선거기간 중 자치단체 행사 개최 제한", "topic": "election-neutrality"},
-    {"q": "거래처가 골프 접대를 하겠다고 해요", "topic": "anti-graft"},
-    {"q": "공직자 경조사비 상한은 얼마인가요", "topic": "anti-graft"},
-    {"q": "공유재산 사용료 감면 기준", "topic": "public-property"},
-    {"q": "구 소유 건물 대부계약 기간", "topic": "public-property"},
-    {"q": "아파트 주차장 무단주차 견인 가능한가요", "topic": null},
-    {"q": "반려견 등록 안 하면 과태료 있나요", "topic": null},
-    {"q": "청약통장 가입 자격", "topic": null},
-    {"q": "공무원 출장비 정산 기준", "topic": null},
-    {"q": "자전거 음주운전도 처벌되나요", "topic": "drunk-driving"},
-    {"q": "중고거래로 산 물건이 고장났어요 환불되나요", "topic": null},
-    {"q": "주민등록증 재발급 절차", "topic": null},
-    {"q": "건강보험료가 갑자기 올랐어요", "topic": null}
-  ]
+ "_설명": "3차 블라인드로 작성(2026-10-26, 규칙 개선 전 커밋)했으나, 같은 작성자가 문항을 쓴 직후 일상 표현을 보강하면서 문항의 표현이 규칙에 그대로 들어가 오염됨(측정 42/42) — 블라인드 결과로 쓰지 않고 회귀 시험으로 전환. 독립 작성자(EXAONE 3.5) 문항은 routing-blind-v4.json",
+ "cases": [
+  {
+   "q": "위층 아이가 매일 밤 쿵쾅거려서 미치겠어요",
+   "topic": "floor-noise"
+  },
+  {
+   "q": "옆집 티비 소리가 벽 너머로 다 들려요",
+   "topic": "floor-noise"
+  },
+  {
+   "q": "집 빼려는데 주인이 돈 줄 생각을 안 해요",
+   "topic": "deposit-return"
+  },
+  {
+   "q": "보증금 돌려받기 전에 이사하면 불리한가요",
+   "topic": "deposit-return"
+  },
+  {
+   "q": "근저당 잡힌 집에 전세로 들어가도 괜찮을까요",
+   "topic": "jeonse-fraud"
+  },
+  {
+   "q": "집이 경매로 넘어가면 세입자 보증금은 어떻게 되나요",
+   "topic": "jeonse-fraud"
+  },
+  {
+   "q": "2년 더 살 수 있는 권리가 있다던데 맞나요",
+   "topic": "lease-renewal"
+  },
+  {
+   "q": "집주인이 계약 연장을 거절했어요",
+   "topic": "lease-renewal"
+  },
+  {
+   "q": "아내가 출산하는데 육아휴직 신청 방법은",
+   "topic": "parental-leave"
+  },
+  {
+   "q": "육아휴직 기간이 최대 얼마나 되나요",
+   "topic": "parental-leave"
+  },
+  {
+   "q": "시청에 민원 넣은 지 2주가 지났어요",
+   "topic": "petition-deadline"
+  },
+  {
+   "q": "민원 처리 결과를 언제까지 알려줘야 하나요",
+   "topic": "petition-deadline"
+  },
+  {
+   "q": "소주 두 잔 먹고 운전하다 걸렸어요",
+   "topic": "drunk-driving"
+  },
+  {
+   "q": "음주 단속에서 면허정지 수치는 얼마예요",
+   "topic": "drunk-driving"
+  },
+  {
+   "q": "사장님이 석 달째 월급을 미루고 있어요",
+   "topic": "unpaid-wages"
+  },
+  {
+   "q": "퇴사한 회사에서 마지막 급여가 안 들어와요",
+   "topic": "unpaid-wages"
+  },
+  {
+   "q": "갑자기 오늘까지만 일하라고 통보받았어요",
+   "topic": "unfair-dismissal"
+  },
+  {
+   "q": "정당한 이유 없이 해고당하면 어디에 구제신청하나요",
+   "topic": "unfair-dismissal"
+  },
+  {
+   "q": "앱 회사에 내 개인정보 삭제를 요구하고 싶어요",
+   "topic": "privacy-access"
+  },
+  {
+   "q": "공공기관이 가진 내 정보를 보여달라고 하려면",
+   "topic": "privacy-access"
+  },
+  {
+   "q": "교육청 회의록을 받아볼 수 있나요",
+   "topic": "info-disclosure"
+  },
+  {
+   "q": "정보 비공개 결정에 이의신청하고 싶어요",
+   "topic": "info-disclosure"
+  },
+  {
+   "q": "운전면허 취소 처분이 부당해요 불복 방법은",
+   "topic": "admin-appeal"
+  },
+  {
+   "q": "행정심판 청구 기간이 언제까지인가요",
+   "topic": "admin-appeal"
+  },
+  {
+   "q": "우리 기관 취업규칙의 휴게시간 조항 검토",
+   "topic": "work-rules"
+  },
+  {
+   "q": "공단 인사규정에 출산전후휴가 규정 정비",
+   "topic": "work-rules"
+  },
+  {
+   "q": "시설관리공단 이사장 임기 연장 가능 여부",
+   "topic": "local-public-enterprise"
+  },
+  {
+   "q": "지방공단 설립 시 필요한 절차",
+   "topic": "local-public-enterprise"
+  },
+  {
+   "q": "구청 직원이 특정 후보를 공개 지지해도 되나요",
+   "topic": "election-neutrality"
+  },
+  {
+   "q": "선거기간 중 자치단체 행사 개최 제한",
+   "topic": "election-neutrality"
+  },
+  {
+   "q": "거래처가 골프 접대를 하겠다고 해요",
+   "topic": "anti-graft"
+  },
+  {
+   "q": "공직자 경조사비 상한은 얼마인가요",
+   "topic": "anti-graft"
+  },
+  {
+   "q": "공유재산 사용료 감면 기준",
+   "topic": "public-property"
+  },
+  {
+   "q": "구 소유 건물 대부계약 기간",
+   "topic": "public-property"
+  },
+  {
+   "q": "아파트 주차장 무단주차 견인 가능한가요",
+   "topic": null
+  },
+  {
+   "q": "반려견 등록 안 하면 과태료 있나요",
+   "topic": null
+  },
+  {
+   "q": "청약통장 가입 자격",
+   "topic": null
+  },
+  {
+   "q": "공무원 출장비 정산 기준",
+   "topic": null
+  },
+  {
+   "q": "자전거 음주운전도 처벌되나요",
+   "topic": "drunk-driving"
+  },
+  {
+   "q": "중고거래로 산 물건이 고장났어요 환불되나요",
+   "topic": null
+  },
+  {
+   "q": "주민등록증 재발급 절차",
+   "topic": null
+  },
+  {
+   "q": "건강보험료가 갑자기 올랐어요",
+   "topic": null
+  }
+ ]
 }

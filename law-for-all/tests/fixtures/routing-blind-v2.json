@@ -1,47 +1,173 @@
 {
-  "_설명": "2차 블라인드 시험(2026-10-25 작성, 규칙 개선 전에 커밋) — 1차 블라인드의 틀린 문항으로 규칙을 고친 뒤 이 문항으로 한 번만 재서 그대로 보고한다. 이 문항으로는 규칙을 고치지 않는다. topic: 기대 토픽 id, null 은 어떤 토픽에도 묶이면 안 됨",
-  "cases": [
-    {"q": "새벽에 윗집 세탁기 돌리는 소리에 잠을 못 자요", "topic": "floor-noise"},
-    {"q": "아이들이 집에서 뛰면 몇 데시벨부터 문제인가요", "topic": "floor-noise"},
-    {"q": "집주인이 돈이 없다고 보증금을 나중에 준대요", "topic": "deposit-return"},
-    {"q": "계약 만료됐는데 전세금 반환을 미루고 있어요", "topic": "deposit-return"},
-    {"q": "신축 빌라 전세 계약 전에 뭘 확인해야 하나요", "topic": "jeonse-fraud"},
-    {"q": "집주인이 바뀌었다는데 제 보증금은 안전한가요", "topic": "jeonse-fraud"},
-    {"q": "재계약하면서 보증금을 천만원 올려달래요", "topic": "lease-renewal"},
-    {"q": "집주인 아들이 들어와 살겠다며 나가래요", "topic": "lease-renewal"},
-    {"q": "육아휴직 쓰면 회사에서 불이익 줄 수 있나요", "topic": "parental-leave"},
-    {"q": "남편이 육아휴직 신청하려는데 급여가 궁금해요", "topic": "parental-leave"},
-    {"q": "국민신문고에 올린 글에 아직 답이 없어요", "topic": "petition-deadline"},
-    {"q": "주민센터 민원 처리가 너무 늦어요 기간이 있나요", "topic": "petition-deadline"},
-    {"q": "회식 후 집까지 조금 운전했는데 단속됐어요", "topic": "drunk-driving"},
-    {"q": "음주로 면허 취소되면 언제 다시 딸 수 있나요", "topic": "drunk-driving"},
-    {"q": "식당 알바 마지막 달 월급을 안 줘요", "topic": "unpaid-wages"},
-    {"q": "회사가 퇴직금을 안 주고 버티고 있어요", "topic": "unpaid-wages"},
-    {"q": "팀장이 내일부터 출근하지 말라고 했어요", "topic": "unfair-dismissal"},
-    {"q": "아무 이유 없이 회사에서 잘렸어요", "topic": "unfair-dismissal"},
-    {"q": "쇼핑몰에 제 정보를 지워 달라고 요청하려면", "topic": "privacy-access"},
-    {"q": "통신사가 가진 제 개인정보를 열람하고 싶어요", "topic": "privacy-access"},
-    {"q": "구청 공사 계약서를 공개해 달라고 할 수 있나요", "topic": "info-disclosure"},
-    {"q": "정보공개 청구 결과가 열흘 넘게 안 와요", "topic": "info-disclosure"},
-    {"q": "과태료 부과가 억울한데 다툴 방법이 있나요", "topic": "admin-appeal"},
-    {"q": "구청의 영업정지 처분을 취소하고 싶어요", "topic": "admin-appeal"},
-    {"q": "취업규칙에 연장근로 수당 기준을 어떻게 정하나요", "topic": "work-rules"},
-    {"q": "복무규정의 연차휴가 일수가 법에 맞는지 검토", "topic": "work-rules"},
-    {"q": "도시공사 임원추천위원회 구성 방법", "topic": "local-public-enterprise"},
-    {"q": "지방공기업 경영평가 결과 활용", "topic": "local-public-enterprise"},
-    {"q": "공무원이 선거운동 기간에 할 수 없는 일", "topic": "election-neutrality"},
-    {"q": "선거 앞두고 기공식 행사 열어도 되나요", "topic": "election-neutrality"},
-    {"q": "업체 대표가 명절 선물로 한우를 보냈어요", "topic": "anti-graft"},
-    {"q": "외부강의 다녀오면 언제까지 신고해야 하나", "topic": "anti-graft"},
-    {"q": "공유재산 대부료 산정 방법", "topic": "public-property"},
-    {"q": "시유지 사용허가 기간 연장 가능 여부", "topic": "public-property"},
-    {"q": "층간 흡연 문제는 어디에 신고하나요", "topic": null},
-    {"q": "중고차 살 때 성능점검 기록부 확인", "topic": null},
-    {"q": "아파트 관리비가 너무 많이 나왔어요", "topic": null},
-    {"q": "전기차 충전구역 주차 과태료", "topic": null},
-    {"q": "개명 신청 절차가 궁금해요", "topic": null},
-    {"q": "공무원 성과상여금 지급 기준", "topic": null},
-    {"q": "실업급여 받으면서 아르바이트 해도 되나요", "topic": null},
-    {"q": "산업재해 신청은 어떻게 하나요", "topic": null}
-  ]
+ "_설명": "2차 블라인드(2026-10-25 작성, 규칙 개선 전 커밋, 개선 후 한 번 측정: 35/42, 83.3%) — 이후 틀린 7건으로 규칙을 고쳤으므로 지금은 회귀 시험으로 쓴다(성적표의 2차 점수는 고치기 전 측정값)",
+ "cases": [
+  {
+   "q": "새벽에 윗집 세탁기 돌리는 소리에 잠을 못 자요",
+   "topic": "floor-noise"
+  },
+  {
+   "q": "아이들이 집에서 뛰면 몇 데시벨부터 문제인가요",
+   "topic": "floor-noise"
+  },
+  {
+   "q": "집주인이 돈이 없다고 보증금을 나중에 준대요",
+   "topic": "deposit-return"
+  },
+  {
+   "q": "계약 만료됐는데 전세금 반환을 미루고 있어요",
+   "topic": "deposit-return"
+  },
+  {
+   "q": "신축 빌라 전세 계약 전에 뭘 확인해야 하나요",
+   "topic": "jeonse-fraud"
+  },
+  {
+   "q": "집주인이 바뀌었다는데 제 보증금은 안전한가요",
+   "topic": "jeonse-fraud"
+  },
+  {
+   "q": "재계약하면서 보증금을 천만원 올려달래요",
+   "topic": "lease-renewal"
+  },
+  {
+   "q": "집주인 아들이 들어와 살겠다며 나가래요",
+   "topic": "lease-renewal"
+  },
+  {
+   "q": "육아휴직 쓰면 회사에서 불이익 줄 수 있나요",
+   "topic": "parental-leave"
+  },
+  {
+   "q": "남편이 육아휴직 신청하려는데 급여가 궁금해요",
+   "topic": "parental-leave"
+  },
+  {
+   "q": "국민신문고에 올린 글에 아직 답이 없어요",
+   "topic": "petition-deadline"
+  },
+  {
+   "q": "주민센터 민원 처리가 너무 늦어요 기간이 있나요",
+   "topic": "petition-deadline"
+  },
+  {
+   "q": "회식 후 집까지 조금 운전했는데 단속됐어요",
+   "topic": "drunk-driving"
+  },
+  {
+   "q": "음주로 면허 취소되면 언제 다시 딸 수 있나요",
+   "topic": "drunk-driving"
+  },
+  {
+   "q": "식당 알바 마지막 달 월급을 안 줘요",
+   "topic": "unpaid-wages"
+  },
+  {
+   "q": "회사가 퇴직금을 안 주고 버티고 있어요",
+   "topic": "unpaid-wages"
+  },
+  {
+   "q": "팀장이 내일부터 출근하지 말라고 했어요",
+   "topic": "unfair-dismissal"
+  },
+  {
+   "q": "아무 이유 없이 회사에서 잘렸어요",
+   "topic": "unfair-dismissal"
+  },
+  {
+   "q": "쇼핑몰에 제 정보를 지워 달라고 요청하려면",
+   "topic": "privacy-access"
+  },
+  {
+   "q": "통신사가 가진 제 개인정보를 열람하고 싶어요",
+   "topic": "privacy-access"
+  },
+  {
+   "q": "구청 공사 계약서를 공개해 달라고 할 수 있나요",
+   "topic": "info-disclosure"
+  },
+  {
+   "q": "정보공개 청구 결과가 열흘 넘게 안 와요",
+   "topic": "info-disclosure"
+  },
+  {
+   "q": "과태료 부과가 억울한데 다툴 방법이 있나요",
+   "topic": "admin-appeal"
+  },
+  {
+   "q": "구청의 영업정지 처분을 취소하고 싶어요",
+   "topic": "admin-appeal"
+  },
+  {
+   "q": "취업규칙에 연장근로 수당 기준을 어떻게 정하나요",
+   "topic": "work-rules"
+  },
+  {
+   "q": "복무규정의 연차휴가 일수가 법에 맞는지 검토",
+   "topic": "work-rules"
+  },
+  {
+   "q": "도시공사 임원추천위원회 구성 방법",
+   "topic": "local-public-enterprise"
+  },
+  {
+   "q": "지방공기업 경영평가 결과 활용",
+   "topic": "local-public-enterprise"
+  },
+  {
+   "q": "공무원이 선거운동 기간에 할 수 없는 일",
+   "topic": "election-neutrality"
+  },
+  {
+   "q": "선거 앞두고 기공식 행사 열어도 되나요",
+   "topic": "election-neutrality"
+  },
+  {
+   "q": "업체 대표가 명절 선물로 한우를 보냈어요",
+   "topic": "anti-graft"
+  },
+  {
+   "q": "외부강의 다녀오면 언제까지 신고해야 하나",
+   "topic": "anti-graft"
+  },
+  {
+   "q": "공유재산 대부료 산정 방법",
+   "topic": "public-property"
+  },
+  {
+   "q": "시유지 사용허가 기간 연장 가능 여부",
+   "topic": "public-property"
+  },
+  {
+   "q": "층간 흡연 문제는 어디에 신고하나요",
+   "topic": null
+  },
+  {
+   "q": "중고차 살 때 성능점검 기록부 확인",
+   "topic": null
+  },
+  {
+   "q": "아파트 관리비가 너무 많이 나왔어요",
+   "topic": null
+  },
+  {
+   "q": "전기차 충전구역 주차 과태료",
+   "topic": null
+  },
+  {
+   "q": "개명 신청 절차가 궁금해요",
+   "topic": null
+  },
+  {
+   "q": "공무원 성과상여금 지급 기준",
+   "topic": null
+  },
+  {
+   "q": "실업급여 받으면서 아르바이트 해도 되나요",
+   "topic": null
+  },
+  {
+   "q": "산업재해 신청은 어떻게 하나요",
+   "topic": null
+  }
+ ]
 }
