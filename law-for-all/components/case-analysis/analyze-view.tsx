@@ -15,6 +15,7 @@ import { copyText } from "@/lib/clipboard";
 import { analysisText } from "@/lib/report-text";
 import { fetchJson } from "@/lib/fetch-json";
 import { maskPII } from "@/lib/privacy-mask";
+import { PrivacyNotice } from "@/components/ui/privacy-notice";
 import { AnalyzeForm } from "./analyze-form";
 import { FactsCard } from "./facts-card";
 import { Recommendations } from "./recommendations";
@@ -31,12 +32,14 @@ export function AnalyzeView() {
   const toast = useToast();
   const [state, setState] = React.useState<State>({ status: "idle" });
   const [situation, setSituation] = React.useState(initial);
+  const [masked, setMasked] = React.useState<string[]>([]);
 
   const run = React.useCallback(
     async (input: string) => {
       // 개인정보는 서버로 보내기 전에 브라우저에서 가림
       const { text: s, found } = maskPII(input);
       if (found.length) toast(`개인정보 보호를 위해 ${found.join("·")}를 가리고 분석했어요`);
+      setMasked(found);
       setSituation(s);
       setState({ status: "loading" });
       try {
@@ -117,6 +120,11 @@ export function AnalyzeView() {
             <Button className="mt-3" variant="outline" onClick={() => run(situation)} disabled={situation.trim().length < 10}>
               <RefreshCw /> 다시 시도
             </Button>
+          </div>
+        )}
+        {state.status === "done" && masked.length > 0 && (
+          <div className="mx-auto mt-6 max-w-5xl">
+            <PrivacyNotice kinds={masked} id="privacy-notice" />
           </div>
         )}
         {state.status === "done" && <Result r={state.result} onCopy={async () => toast((await copyText(analysisText(state.result))) ? "분석 결과를 복사했습니다" : "복사 실패")} />}

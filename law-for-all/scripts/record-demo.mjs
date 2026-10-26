@@ -29,7 +29,7 @@ const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"),
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 210);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 8, sP: 6, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 10, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sM: 9, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5, sE: 8 };
+const PLAN = { s00: 3.5, s01: 8, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 12, s07b: 7, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sM: 9, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5, sE: 8 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -170,16 +170,12 @@ await scene("s01", async () => {
   await wait(1600);
   const input = page.locator("main form input").first();
   await click(input);
-  await input.type("퇴사했는데 마지막 월급을 안 줘요 사장님 010-1234-5678", { delay: 60 });
+  await input.type("퇴사했는데 마지막 월급을 안 줘요", { delay: 70 });
 });
-await scene("sP", async () => {
+await scene("s02", async () => {
   await page.keyboard.press("Enter");
   await page.waitForURL(/search/);
   await page.locator("[aria-label^='근거 1:']").first().waitFor().catch(() => {});
-  await cap("질문 속 전화번호·주민번호는 자동으로 ○○○ — 서버·AI로 보내기 전에 브라우저에서 가립니다", "주민등록번호·전화·카드·계좌·이메일·여권번호 · 주소창에도 남지 않음");
-  await point(page.locator("main h1").first());
-});
-await scene("s02", async () => {
   await cap("문장마다 근거 조문 번호 — 근거 목록 밖 인용은 자동 제거(환각 방지)", "AI가 지어낸 가짜 조문·판례를 막습니다");
   await wait(1200);
   await point(page.locator("[aria-label^='근거 1:']").first());
@@ -270,12 +266,25 @@ await scene("s07", async () => {
     const t = document.querySelector("main textarea");
     if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 200 });
   });
-  await cap("② AI 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절");
+  await cap("② AI 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절 — 사연을 적다 보면 전화번호 같은 개인정보도 들어가곤 합니다");
   await wait(400);
   await click(page.locator("button", { hasText: "전세 보증금" }).first());
-  await wait(500);
+  await wait(400);
+  const ta = page.locator("#situation");
+  await ta.click();
+  await page.keyboard.press("End");
+  await ta.press("Control+End");
+  await page.keyboard.type(" 집주인 번호 010-1234-5678로 전화해도 받지 않아요.", { delay: 45 });
+  await wait(300);
   await click(page.locator("button", { hasText: /3관점 분석/ }).first());
   await page.getByText("사실관계 정리").first().waitFor().catch(() => {});
+  await wait(900); // 결과로 자동 이동이 끝난 뒤 안내 문구가 화면 가운데 오도록
+  await scrollToEl("#privacy-notice", 260);
+  await wait(700);
+  await point(page.locator("#privacy-notice"));
+  await cap("적은 전화번호는 자동으로 ○○○ — 서버·AI로 보내기 전에 브라우저에서 가리고 화면에 알려 줍니다", "주민등록번호·전화·카드·계좌·이메일·여권번호 · 저장·전송하지 않음");
+});
+await scene("s07b", async () => {
   await page.evaluate(() => {
     const h = [...document.querySelectorAll("h2,h3")].find((x) => x.textContent.includes("사실관계 정리"));
     if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 170, behavior: "smooth" });

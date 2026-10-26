@@ -33,7 +33,8 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
     const t = text;
     if (t.length < 2) return;
     if (found.length) toast(`개인정보 보호를 위해 ${found.join("·")}를 가리고 검색했어요`);
-    router.push(`/search?q=${encodeURIComponent(t)}`);
+    // 가린 종류는 결과 화면 안내용으로만 전달(원래 값은 보내지 않음)
+    router.push(`/search?q=${encodeURIComponent(t)}${found.length ? `&pm=${encodeURIComponent(found.join(","))}` : ""}`);
   };
 
   const hero = variant === "hero";
