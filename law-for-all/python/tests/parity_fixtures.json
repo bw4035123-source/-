@@ -4758,12 +4758,12 @@
      {
       "id": "jeonse-fraud",
       "label": "전세사기 예방",
-      "score": 29.8
+      "score": 30.9
      },
      {
       "id": "deposit-return",
       "label": "보증금 반환",
-      "score": 8.2
+      "score": 12.8
      }
     ],
     "recommendations": [
@@ -4792,42 +4792,42 @@
       "key": "housing-lease:4",
       "score": 3.2,
       "issue": "보증금 반환",
-      "reason": "‘보증금’ 표현과 관련 · 쟁점 「보증금 반환」의 핵심 권리·의무 근거",
+      "reason": "‘보증금’, ‘보증금을 안’ 표현과 관련 · 쟁점 「보증금 반환」의 핵심 권리·의무 근거",
       "relevance": "low"
      },
      {
       "key": "housing-lease:3의3",
       "score": 2.72,
       "issue": "보증금 반환",
-      "reason": "‘보증금’ 표현과 관련 · 쟁점 「보증금 반환」의 핵심 권리·의무 근거",
+      "reason": "‘보증금’, ‘보증금을 안’ 표현과 관련 · 쟁점 「보증금 반환」의 핵심 권리·의무 근거",
       "relevance": "low"
      },
      {
       "key": "jeonse-fraud:3",
       "score": 2.2,
       "issue": "전세사기 예방",
-      "reason": "‘다른 세입자’, ‘피해자’ 표현과 관련 · 쟁점 「전세사기 예방」의 핵심 권리·의무 근거",
+      "reason": "‘다른 세입자’ 표현과 관련 · 쟁점 「전세사기 예방」의 핵심 권리·의무 근거",
       "relevance": "low"
      },
      {
       "key": "criminal-act:347",
       "score": 2,
       "issue": "전세사기 예방",
-      "reason": "‘다른 세입자’, ‘피해자’ 표현과 관련 · 쟁점 「전세사기 예방」의 위법성·처벌 검토 근거",
+      "reason": "‘다른 세입자’ 표현과 관련 · 쟁점 「전세사기 예방」의 위법성·처벌 검토 근거",
       "relevance": "low"
      },
      {
       "key": "housing-lease-decree:11",
       "score": 1.98,
       "issue": "전세사기 예방",
-      "reason": "‘다른 세입자’, ‘피해자’ 표현과 관련 · 쟁점 「전세사기 예방」의 상위법 위임에 따른 세부 기준(대통령령)",
+      "reason": "‘다른 세입자’ 표현과 관련 · 쟁점 「전세사기 예방」의 상위법 위임에 따른 세부 기준(대통령령)",
       "relevance": "low"
      },
      {
       "key": "housing-lease-decree:10",
       "score": 1.98,
       "issue": "전세사기 예방",
-      "reason": "‘다른 세입자’, ‘피해자’ 표현과 관련 · 쟁점 「전세사기 예방」의 상위법 위임에 따른 세부 기준(대통령령)",
+      "reason": "‘다른 세입자’ 표현과 관련 · 쟁점 「전세사기 예방」의 상위법 위임에 따른 세부 기준(대통령령)",
       "relevance": "low"
      }
     ],
@@ -5169,7 +5169,7 @@
      {
       "id": "floor-noise",
       "label": "층간소음",
-      "score": 10.1
+      "score": 14.2
      }
     ],
     "recommendations": [
@@ -5398,7 +5398,7 @@
      {
       "id": "unpaid-wages",
       "label": "임금체불·퇴직금",
-      "score": 11.2
+      "score": 11.3
      }
     ],
     "recommendations": [
@@ -5742,7 +5742,7 @@
      {
       "id": "drunk-driving",
       "label": "음주운전 처벌",
-      "score": 4.8
+      "score": 16.9
      }
     ],
     "recommendations": [
@@ -6153,7 +6153,7 @@
      {
       "id": "lease-renewal",
       "label": "계약갱신·임대료 인상",
-      "score": 18
+      "score": 18.1
      },
      {
       "id": "deposit-return",
@@ -6486,7 +6486,7 @@
      {
       "id": "floor-noise",
       "label": "층간소음",
-      "score": 3.3
+      "score": 7.3
      }
     ],
     "recommendations": [
@@ -6691,7 +6691,7 @@
      {
       "id": "info-disclosure",
       "label": "정보공개 청구",
-      "score": 12.2
+      "score": 20.9
      }
     ],
     "recommendations": [

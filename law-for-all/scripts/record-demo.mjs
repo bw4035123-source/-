@@ -409,7 +409,7 @@ await scene("s17", async () => {
 await scene("sE", async () => {
   await scrollToEl("#eval", 90);
   await wait(700);
-  await cap("정확도 성적표 공개 — 블라인드 시험 1차 76% → 개선 후 새 문항 2차 83% · 근거 밖 인용 0건", "환각 주입 728/728 차단 · npm run eval 로 누구나 같은 결과 재현 · 틀린 문항도 그대로 공개");
+  await cap("정확도 성적표 공개 — 독립 작성자(EXAONE) 블라인드 90% · 근거 밖 인용 0건", "환각 주입 1412/1412 차단 · npm run eval 로 누구나 같은 결과 재현 · 측정 이력·틀린 문항 모두 공개");
 });
 await scene("s18", async () => {
   await cap("");

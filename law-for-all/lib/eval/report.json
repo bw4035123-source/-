@@ -1,82 +1,117 @@
 {
- "generatedAt": "2026-10-25",
+ "generatedAt": "2026-10-26",
  "command": "npm run eval",
  "routing": {
   "dev": {
-   "total": 204,
-   "correct": 204,
+   "total": 392,
+   "correct": 392,
+   "strict": 389,
    "wrongTopic": 0,
    "misses": []
   },
   "blind": {
-   "total": 42,
-   "correct": 35,
-   "wrongTopic": 1,
+   "total": 60,
+   "correct": 54,
+   "strict": 51,
+   "wrongTopic": 2,
    "misses": [
     {
-     "q": "아이들이 집에서 뛰면 몇 데시벨부터 문제인가요",
-     "expected": "floor-noise",
-     "got": null
-    },
-    {
-     "q": "집주인이 바뀌었다는데 제 보증금은 안전한가요",
+     "q": "짧게, 전세 계약 전에 보증금 돌려받을 위험 줄이는 방법 뭐가 있을까요?",
      "expected": "jeonse-fraud",
      "got": "deposit-return"
     },
     {
-     "q": "회식 후 집까지 조금 운전했는데 단속됐어요",
-     "expected": "drunk-driving",
-     "got": null
-    },
-    {
-     "q": "팀장이 내일부터 출근하지 말라고 했어요",
-     "expected": "unfair-dismissal",
-     "got": null
-    },
-    {
-     "q": "쇼핑몰에 제 정보를 지워 달라고 요청하려면",
+     "q": "혹시 제 데이터 직접 볼 수 있고, 문제 있으면 없애주는 방법 알려주실 수 있나요? 간단히 알려주세요!",
      "expected": "privacy-access",
      "got": null
     },
     {
-     "q": "과태료 부과가 억울한데 다툴 방법이 있나요",
+     "q": "마을 지자체에서 숨기고 있는 공사 관련 서류 좀 보여줄 수 있을까요? 어떻게 하면 알 수 있을까요?",
+     "expected": "info-disclosure",
+     "got": null
+    },
+    {
+     "q": "이거 어떻게 해결해야 할지 모르겠어요. 마을 당국에서 제 가게 문 닫으라고 했는데, 진짜 그렇게 되야 하나요?",
      "expected": "admin-appeal",
      "got": null
     },
     {
-     "q": "업체 대표가 명절 선물로 한우를 보냈어요",
-     "expected": "anti-graft",
+     "q": "회사에서 면허 취소 통보 받았는데, 정말로 다시 복구할 방법이 없을까요? 좀 더 자세히 알고 싶어요.",
+     "expected": "admin-appeal",
+     "got": "drunk-driving"
+    },
+    {
+     "q": "공직하면서 선거 때 친구 후보 돕는 거, 진짜 문제 될까요?",
+     "expected": "election-neutrality",
      "got": null
     }
    ]
   },
-  "blindV1": {
-   "total": 42,
-   "correct": 32,
-   "wrongTopic": 1,
-   "note": "1차 블라인드(개선 전 측정, 2026-10-25) — 이후 틀린 문항으로 규칙을 고쳐 회귀 시험으로 전환"
-  }
+  "history": [
+   {
+    "round": 1,
+    "author": "개발자",
+    "correct": 32,
+    "total": 42,
+    "note": "첫 측정"
+   },
+   {
+    "round": 2,
+    "author": "개발자",
+    "correct": 35,
+    "total": 42,
+    "note": "1차 틀린 문항으로 개선 후, 미리 커밋한 새 문항"
+   },
+   {
+    "round": 3,
+    "author": "개발자",
+    "correct": 42,
+    "total": 42,
+    "note": "무효 — 문항을 쓴 직후 같은 작성자가 표현을 보강해 오염"
+   },
+   {
+    "round": 4,
+    "author": "EXAONE 3.5",
+    "correct": 43,
+    "total": 60,
+    "note": "독립 작성자 첫 측정(규칙 사전 미제공)"
+   },
+   {
+    "round": 5,
+    "author": "EXAONE 3.5",
+    "correct": 38,
+    "total": 44,
+    "note": "4차로 개선 후, 개선 중 열어 보지 않은 새 문항"
+   },
+   {
+    "round": 6,
+    "author": "EXAONE 3.5",
+    "correct": 54,
+    "total": 60,
+    "note": "5차로 개선 후, 개선 중 열어 보지 않은 새 문항 — 목표(90%) 도달로 반복 중단"
+   }
+  ]
  },
  "alias": {
-  "total": 44,
-  "correct": 44
+  "total": 45,
+  "correct": 45
  },
  "grounding": {
-  "answers": 492,
-  "withCitation": 366,
-  "noResultHonest": 126,
-  "guardPassed": 492,
+  "answers": 904,
+  "withCitation": 786,
+  "noResultHonest": 118,
+  "guardPassed": 904,
   "outsideMarkers": 0
  },
  "injection": {
-  "answers": 182,
-  "injected": 728,
-  "blocked": 728
+  "answers": 353,
+  "injected": 1412,
+  "blocked": 1412
  },
  "privacy": {
   "positives": 20,
   "masked": 20,
-  "negatives": 256,
+  "negatives": 462,
   "falsePositives": 0
  },
  "parity": {
