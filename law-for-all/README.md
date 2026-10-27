@@ -10,7 +10,7 @@
 | 실행물 | [`release/`](release/) — `LAW-ON_share.html`(더블클릭) · `law-on-python.zip`(실행판) |
 | 핵심 가치 | ① 듀얼 모드(국민/공직자) ② 조문 근거 인용·환각 방지 ③ 자체규정 점검(한글·PDF·Word 규정 ↔ 상위법) ④ LLM 비종속(설정 하나로 교체) ⑤ 키 없이 즉시 시연 |
 | 기술 스택 | Next.js 14(App Router) · TypeScript · Tailwind CSS · shadcn/ui(Radix) · Lucide · Framer Motion · Zod · Vitest |
-| 법령 데이터 | 법제처 국가법령정보 공동활용 Open API(법령·행정규칙·자치법규·판례·법령해석례 실시간) + 내장 공식 원문 스냅샷 23개 법령(2026-10-15 수집) |
+| 법령 데이터 | 법제처 국가법령정보 공동활용 Open API(법령·행정규칙·자치법규·판례·법령해석례 실시간) + 내장 공식 원문 스냅샷 24개 법령(2026-10-15 수집) |
 | LLM | OpenAI(및 Solar·vLLM 등 OpenAI 호환) · Anthropic Claude · Ollama(EXAONE·Gemma·Llama·Solar) · 규칙기반 엔진 — 실측: Llama 3.2(3B)·EXAONE 3.5(7.8B) 각 4/4 통과([`submission/LLM_검증결과_20261022.md`](submission/LLM_검증결과_20261022.md)) |
 | 라이선스 | MIT |
 
@@ -32,7 +32,7 @@
 | ③ Python 실행판 `release/law-on-python.zip` | Python 3.9+ | 폐쇄망·기관 내부 설치, LLM 교체 시험(`--llm-test`) |
 | ④ Node.js·Docker | Node 18.18+ | 개발·정식 구축 |
 
-②·③도 판례·실시간 법령은 법이음 클라우드 서버(법령 API 중계)를 거쳐 받으므로 **실행하는 PC에 인증키·IP 등록이 필요 없습니다**(인증키는 서버에만 있음). 연결이 안 되면 내장 원문 23개 법령 + 규칙기반 엔진으로 동작합니다.
+②·③도 판례·실시간 법령은 법이음 클라우드 서버(법령 API 중계)를 거쳐 받으므로 **실행하는 PC에 인증키·IP 등록이 필요 없습니다**(인증키는 서버에만 있음). 연결이 안 되면 내장 원문 24개 법령 + 규칙기반 엔진으로 동작합니다.
 
 ### 🐍 Python 실행판 (Node.js 불필요)
 `law-on-python.zip` 압축을 풀고 **Python 3.9 이상**으로 실행합니다. `pip install` 없이 표준 라이브러리만 사용합니다.
@@ -111,7 +111,7 @@ docker compose --profile local-llm up --build   # + 로컬 LLM(Ollama, EXAONE 3.
 - **법령 둘러보기**(`/laws`): **법령**(법률·대통령령·총리령·부령) · **행정규칙**(훈령·예규·고시) · **자치법규**(조례·규칙) 탭에서 국가법령정보 전체를 실시간 검색 → 원문 전문 뷰어
 - **토픽 밖 질문도 전체 법령에서 근거 검색**: 질문 → 검색어 추출(조사·어미 제거, 생활어→법령 용어) → 법령명 검색 + 본문 검색(드문 말 가중치, 여러 말 AND 검색) → 상위 법령 본문 조회 → 질문과 맞는 조문을 인용 카드로
   - 예: "반려견 목줄 안 하면 과태료?" → 「동물보호법」 제16조·제101조, "청소년에게 술 팔면?" → 「청소년 보호법」 제28조, "건축허가 받으려면?" → 「건축법」 제11조
-- 인증키가 없거나 호출이 실패하면 내장 핵심 법령 23종(국가법령정보센터 원문 스냅샷)으로 자동 대체하고 화면에 안내
+- 인증키가 없거나 호출이 실패하면 내장 핵심 법령 24종(국가법령정보센터 원문 스냅샷)으로 자동 대체하고 화면에 안내
 
 ### 자체규정 점검 (`/compliance`) *(공직자 모드 전용)*
 - 기관 유형(공기업·준정부기관 / 지방공기업 / 지방자치단체 / 기타)을 고르고 기관 규정 **파일을 끌어다 놓으면**(한글 HWP·HWPX, PDF, Word DOCX) **조문 단위로 상위법령과 대조** — 직접 붙여넣기도 가능
@@ -180,7 +180,7 @@ law-for-all/
 │  │  ├─ drf.ts                 #   DRF 호출·캐시·응답 파서(lawSearch.do / lawService.do)
 │  │  ├─ client.ts              #   LawService: 실시간 ↔ 내장 데이터 자동 Fallback
 │  │  ├─ search.ts              #   한국어 2-gram 검색 엔진(외부 의존성 없음)
-│  │  └─ mock/                  #   내장 23개 법령(공식 원문 스냅샷)·생활·공직 토픽 17종·3관점 지식베이스
+│  │  └─ mock/                  #   내장 24개 법령(공식 원문 스냅샷)·생활·공직 토픽 17종·3관점 지식베이스
 │  ├─ llm/                      # LLM 비종속 계층(Adapter Pattern)
 │  │  ├─ types.ts               #   LLMProvider 인터페이스
 │  │  ├─ providers/             #   openai · anthropic · ollama · mock
@@ -210,7 +210,7 @@ law-for-all/
 
 | 변수 | 설명 | 기본값 |
 |---|---|---|
-| `LAW_API_OC` | 법제처 국가법령정보 Open API 인증키(OC). [open.law.go.kr](https://open.law.go.kr)에서 신청하고 실행하는 PC·서버의 공인 IP 등록. 넣으면 **법령·행정규칙·자치법규·판례 전체 실시간 조회** | (비움 → 내장 핵심 법령 23종) |
+| `LAW_API_OC` | 법제처 국가법령정보 Open API 인증키(OC). [open.law.go.kr](https://open.law.go.kr)에서 신청하고 실행하는 PC·서버의 공인 IP 등록. 넣으면 **법령·행정규칙·자치법규·판례 전체 실시간 조회** | (비움 → 내장 핵심 법령 24종) |
 | `LAW_PROXY_URL` | 법령 API 중계 서버 주소 — 비우면 법이음 클라우드 서버(lawon.onrender.com) 경유, `off`면 위 인증키로 www.law.go.kr 직접 호출 | (비움) |
 | `LAW_PROXY_TOKEN` | (선택) 중계 서버에 `PROXY_TOKEN`을 설정한 경우 같은 값 | (비움) |
 | `LLM_PROVIDER` | 기본 LLM: `mock` · `openai` · `anthropic` · `ollama` | `mock` |
