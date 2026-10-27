@@ -7,6 +7,7 @@ import time
 
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, find_all, txt, parse_admrul_doc, parse_admrul_list, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list, parse_ordin_doc, parse_ordin_list
+from .case_rank import rank_cases
 from .search import bigram_overlap, law_name_has, match_law_aliases, query_terms, score_article_by_terms, search_law_names
 
 CASE_TIMEOUT = 25
@@ -304,14 +305,15 @@ class LawService:
         판례·해석례를 병렬로, 전체 budget 초 안에서만 기다림(넘으면 생략 — 요청은 계속되어 캐시에 저장)."""
         if not self.oc or not query.strip():
             return []
-        display = str(min(max(int(limit), 1), 20))
+        max_n = min(max(int(limit), 1), 20)
         oc = self.oc
 
+        # 제목으로 다시 거르므로 넉넉히 받는다(사건명 검색 20건, 본문 검색 40건)
         def name_search(target, kind):
-            return parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display}, oc, 8, 1), kind)
+            return rank_cases(query, parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "20"}, oc, 8, 1), kind), max_n)
 
         def text_search(target, kind):
-            return parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": display, "search": "2"}, oc, CASE_TIMEOUT, 1), kind)
+            return parse_case_list(drf_get("lawSearch.do", {"target": target, "query": query, "display": "40", "search": "2"}, oc, CASE_TIMEOUT, 1), kind)
 
         deadline = time.time() + budget
         names = {t: _POOL.submit(name_search, t, k) for t, k in (("prec", "판례"), ("expc", "법령해석례"))}
@@ -333,7 +335,7 @@ class LawService:
         for t, f in texts.items():
             try:
                 extra = f.result(timeout=max(0.1, deadline - time.time()))
-                result[t] = (result[t] + [c for c in extra if not any(b["id"] == c["id"] for b in result[t])])[: int(display)]
+                result[t] = rank_cases(query, result[t] + [c for c in extra if not any(b["id"] == c["id"] for b in result[t])], max_n)
             except cf.TimeoutError:
                 slow = True
             except LawApiError as e:

@@ -11,7 +11,7 @@ from .llm import resolve_provider
 from .prompts import schema_for, system_prompt, user_prompt
 from .privacy import mask_notice, mask_pii
 from .rule_engine import build_rule_answer
-from .search import match_law_aliases, match_topics, query_terms, search_articles
+from .search import live_case_query, match_law_aliases, match_topics, query_terms, search_articles
 from .service import LawService
 
 DEFAULT_CONTACTS = [
@@ -128,7 +128,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         "provider": used, "summary": out["summary"],
         "citations": citations, "contacts": topic["contacts"] if topic else DEFAULT_CONTACTS,
         # 판례 검색어: 화면이 /api/cases 로 따로 불러옴(답변 속도 보호)
-        "caseQuery": topic.get("caseQuery") if topic else ((terms or [None])[0] if live_keys else None),
+        "caseQuery": topic.get("caseQuery") if topic else (live_case_query(query) if live_keys else None),
         "relatedLaws": related_laws_of([c["key"] for c in citations]) + list({c["lawId"]: {"id": c["lawId"], "name": c["lawName"]} for c in citations if c["key"] in live_keys}.values()),
         "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback} if fallback else {})},
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",

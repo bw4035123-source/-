@@ -55,6 +55,25 @@ export function matchLawAliases(query: string): LawAlias[] {
   return LAW_ALIASES.filter((a) => a.when.some(hit));
 }
 
+/** 판례 검색에 쓰기엔 너무 넓은 말(이 말만으로 찾으면 관계없는 판례가 섞임) */
+export const GENERIC_CASE = new Set(["공무원", "기준", "경우", "가능", "방법", "사유", "절차", "관련", "문제", "내용", "금액", "정도", "기간", "신청", "처리", "여부", "규정", "법적", "법률"]);
+
+/** 생활 용어 → 판결문에 쓰이는 말(판례 제목은 '최저시급'이 아니라 '최저임금'으로 적힘) */
+const CASE_TERM: Record<string, string> = { 최저시급: "최저임금" };
+
+/** 내장 토픽이 없는 질문(실시간 검색 답변)의 판례 검색어 — 생활 용어 사전에서 걸린 말을 우선, 없으면 넓은 말을 뺀 질문 낱말 두 개 */
+export function liveCaseQuery(query: string): string | null {
+  const nq = normalize(query);
+  for (const a of LAW_ALIASES)
+    for (const w of a.when) {
+      const hit = !w.includes("+") && normalize(w).length === 2 ? wordStartHas(query, w) : triggerScore(nq, w) > 0;
+      if (hit) return CASE_TERM[w] ?? w.replace(/\+/g, " ");
+    }
+  // 동사 꼬리가 남은 말(당했어·됐는 등)도 뺀다
+  const terms = queryTerms(query, 6).filter((t) => !GENERIC_CASE.has(t) && !/(했어|됐어|했는|됐는|있어|없어|당했)$/.test(t));
+  return terms.length ? terms.slice(0, 2).join(" ") : null;
+}
+
 /** 글 안에 말이 낱말 첫머리로 들어 있는지(맨 앞이거나 띄어쓰기·문장부호·가운뎃점 뒤) */
 function wordStartHas(text: string, term: string): boolean {
   for (let i = text.indexOf(term); i >= 0; i = text.indexOf(term, i + 1)) if (i === 0 || /[\s\p{P}ㆍ·]/u.test(text[i - 1])) return true;

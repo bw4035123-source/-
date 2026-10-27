@@ -88,12 +88,15 @@ export function CasesView() {
           ))}
         </div>
       ) : (
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {SUGGEST.map((s) => (
-            <button key={s} type="button" onClick={() => go(s)} className="rounded-full border bg-card px-3 py-1 text-sm font-semibold hover:border-accent hover:text-accent">
-              # {s}
-            </button>
-          ))}
+        // 두 줄(5개씩) — 좁은 화면에서도 두 줄을 유지하고 넘치면 옆으로 밀어 보기
+        <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-1 sm:mx-auto sm:max-w-2xl sm:overflow-visible sm:px-0">
+          <div className="grid w-max auto-cols-max grid-flow-col grid-rows-2 gap-2 sm:w-full sm:grid-flow-row sm:grid-cols-5 sm:grid-rows-none">
+            {SUGGEST.map((s) => (
+              <button key={s} type="button" onClick={() => go(s)} className="whitespace-nowrap rounded-full border bg-card px-3 py-1 text-sm font-semibold hover:border-accent hover:text-accent">
+                # {s}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       <div className="mt-8">{query ? <RelatedCases key={`${query}-${run}`} query={query} variant="page" limit={10} /> : <p className="text-center text-sm text-muted-foreground">검색어를 입력하거나 추천 키워드를 눌러 보세요.</p>}</div>

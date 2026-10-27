@@ -86,8 +86,9 @@ describe("LawService 실시간 모드(fetch 모킹)", () => {
       const u = String(url);
       urls.push(u);
       const fulltext = u.includes("search=2");
-      if (u.includes("target=prec")) return new Response(JSON.stringify({ PrecSearch: { prec: fulltext ? [{ 사건명: "본문일치", 사건번호: "2025다1" }] : [] } }));
-      return new Response(JSON.stringify({ Expc: { expc: [{ 안건명: "a", 안건번호: "1" }, { 안건명: "b", 안건번호: "2" }] } }));
+      // 본문 검색: 제목이 맞는 사건 + 본문에만 낱말이 있는 엉뚱한 사건(제목으로 다시 걸러 빠져야 함)
+      if (u.includes("target=prec")) return new Response(JSON.stringify({ PrecSearch: { prec: fulltext ? [{ 사건명: "손해배상(층간소음)", 사건번호: "2025다1" }, { 사건명: "특수공무집행방해", 사건번호: "2025도9" }] : [] } }));
+      return new Response(JSON.stringify({ Expc: { expc: [{ 안건명: "민원인 - 층간소음의 범위(「공동주택관리법」 제20조 관련)", 안건번호: "1" }, { 안건명: "감사원 - 층간소음 기준 적용 시점", 안건번호: "2" }] } }));
     }) as unknown as typeof fetch;
     const cases = await new LawService("k").searchCases("층간소음");
     expect(cases.filter((c) => c.kind === "판례").map((c) => c.caseNo)).toEqual(["2025다1"]);

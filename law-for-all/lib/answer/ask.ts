@@ -1,7 +1,7 @@
 import "server-only";
 import { serverConfig } from "../config";
 import { LawService } from "../law-api/client";
-import { matchLawAliases, queryTerms } from "../law-api/search";
+import { liveCaseQuery, matchLawAliases, queryTerms } from "../law-api/search";
 import { getMockLaw } from "../law-api/mock";
 import { parseArticleKey } from "../law-api/util";
 
@@ -125,7 +125,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
     citations,
     contacts: topic?.contacts ?? DEFAULT_CONTACTS,
     // 판례 검색어: 토픽별로 사건명과 잘 맞는 검색어(실측으로 선정)
-    caseQuery: topic?.caseQuery ?? (liveKeys.length ? terms[0] ?? null : null),
+    caseQuery: topic?.caseQuery ?? (liveKeys.length ? liveCaseQuery(query) : null),
     relatedLaws: [
       ...relatedLawsOf(citations.map((c) => c.key)),
       ...Array.from(new Map(citations.filter((c) => liveKeys.includes(c.key)).map((c) => [c.lawId, { id: c.lawId, name: c.lawName }])).values()),

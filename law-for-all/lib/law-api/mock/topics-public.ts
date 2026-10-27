@@ -52,7 +52,7 @@ export const PUBLIC_TOPICS: Topic[] = [
   {
     id: "local-public-enterprise",
     label: "지방공기업법",
-    caseQuery: "지방공사 사장 해임",
+    caseQuery: "지방공기업 임원",
     triggers: ["지방공기업법", "지방공기업", "지방공사", "지방공단", "도시공사", "시설관리공단", "임원추천위원회", "사장 임기", "임원 임기", "경영평가", "임원 추천", "임원+추천"],
     refs: ["local-public-enterprise:3", "local-public-enterprise:58", "local-public-enterprise:59", "local-public-enterprise:78", "local-public-enterprise:76", "local-public-enterprise:49"],
     citizen: {
@@ -93,7 +93,7 @@ export const PUBLIC_TOPICS: Topic[] = [
   {
     id: "election-neutrality",
     label: "공직선거법(선거 중립)",
-    caseQuery: "공무원 지위 이용 선거운동",
+    caseQuery: "공무원 선거운동",
     triggers: ["공직선거법", "선거 중립", "정치적 중립", "선거운동", "선거관여", "선거기간", "업적 홍보", "기공식", "선거법", "선거 앞두고", "후보 지지", "지지 글", "후보+공무원", "후보+SNS", "공개 지지", "특정 후보", "정치 활동", "정치활동", "후보로", "후보+조심", "투표+공직", "공직+정치", "중립성", "정치적 성향", "정치 성향"],
     refs: ["public-election:9", "public-election:85", "public-election:86", "public-election:60", "public-election:53"],
     citizen: {
@@ -134,7 +134,7 @@ export const PUBLIC_TOPICS: Topic[] = [
   {
     id: "anti-graft",
     label: "청탁금지법",
-    caseQuery: "청탁금지법 금품수수",
+    caseQuery: "부정청탁 금품",
     triggers: ["청탁금지법", "부정청탁금지법", "김영란법", "부정청탁", "금품수수", "금품 수수", "외부강의", "사례금", "선물 한도", "접대", "향응", "행동강령", "경조사비", "선물 받", "선물을 받", "공무원+선물", "식사 한도", "식사비", "공무원+금품", "직무 관련자", "직무관련자", "얻어먹", "공무원+밥", "공무원+식사", "기프티콘", "민원인+선물", "민원인+보냈", "명절 선물", "선물로", "업체+선물", "거래처+선물", "골프", "한우", "업체+도움", "업체+부탁", "업체 사람", "청탁+거절"],
     refs: ["anti-graft:8", "anti-graft-decree:17", "anti-graft:5", "anti-graft:7", "anti-graft:9", "anti-graft:10", "anti-graft-decree:25", "anti-graft:2"],
     citizen: {

@@ -50,6 +50,25 @@ def match_law_aliases(query: str) -> list[dict]:
     return [a for a in LAW_ALIASES if any(hit(w) for w in a["when"])]
 
 
+# 판례 검색에 쓰기엔 너무 넓은 말(이 말만으로 찾으면 관계없는 판례가 섞임)
+GENERIC_CASE = {"공무원", "기준", "경우", "가능", "방법", "사유", "절차", "관련", "문제", "내용", "금액", "정도", "기간", "신청", "처리", "여부", "규정", "법적", "법률"}
+# 생활 용어 → 판결문에 쓰이는 말(판례 제목은 '최저시급'이 아니라 '최저임금'으로 적힘)
+CASE_TERM = {"최저시급": "최저임금"}
+
+
+def live_case_query(query: str) -> str | None:
+    """내장 토픽이 없는 질문(실시간 검색 답변)의 판례 검색어 — 생활 용어 사전에서 걸린 말을 우선, 없으면 넓은 말을 뺀 질문 낱말 두 개"""
+    nq = normalize(query)
+    for a in LAW_ALIASES:
+        for w in a["when"]:
+            hit = _word_start_has(query, w) if "+" not in w and len(normalize(w)) == 2 else trigger_score(nq, w) > 0
+            if hit:
+                return CASE_TERM.get(w) or w.replace("+", " ")
+    # 동사 꼬리가 남은 말(당했어·됐는 등)도 뺀다
+    terms = [t for t in query_terms(query, 6) if t not in GENERIC_CASE and not re.search(r"(했어|됐어|했는|됐는|있어|없어|당했)$", t)]
+    return " ".join(terms[:2]) if terms else None
+
+
 def _word_start_has(text: str, term: str) -> bool:
     """글 안에 말이 낱말 첫머리로 들어 있는지(맨 앞이거나 띄어쓰기·문장부호·가운뎃점 뒤)"""
     i = text.find(term)

@@ -357,7 +357,7 @@
  {
   "id": "lease-renewal",
   "label": "계약갱신·임대료 인상",
-  "caseQuery": "계약갱신",
+  "caseQuery": "계약갱신요구",
   "triggers": [
    "계약+갱신",
    "갱신요구",
@@ -558,7 +558,7 @@
  {
   "id": "petition-deadline",
   "label": "민원 처리 기한",
-  "caseQuery": "민원",
+  "caseQuery": "민원 처리기간",
   "triggers": [
    "민원",
    "처리 기한",
@@ -1290,7 +1290,7 @@
  {
   "id": "local-public-enterprise",
   "label": "지방공기업법",
-  "caseQuery": "지방공사 사장 해임",
+  "caseQuery": "지방공기업 임원",
   "triggers": [
    "지방공기업법",
    "지방공기업",
@@ -1383,7 +1383,7 @@
  {
   "id": "election-neutrality",
   "label": "공직선거법(선거 중립)",
-  "caseQuery": "공무원 지위 이용 선거운동",
+  "caseQuery": "공무원 선거운동",
   "triggers": [
    "공직선거법",
    "선거 중립",
@@ -1489,7 +1489,7 @@
  {
   "id": "anti-graft",
   "label": "청탁금지법",
-  "caseQuery": "청탁금지법 금품수수",
+  "caseQuery": "부정청탁 금품",
   "triggers": [
    "청탁금지법",
    "부정청탁금지법",

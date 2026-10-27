@@ -170,7 +170,7 @@ const LIVING_TOPICS: Topic[] = [
   {
     id: "lease-renewal",
     label: "계약갱신·임대료 인상",
-    caseQuery: "계약갱신",
+    caseQuery: "계약갱신요구",
     triggers: ["계약+갱신", "갱신요구", "갱신+월세", "갱신+보증금", "갱신+전세", "재계약", "계약갱신요구권", "월세 인상", "보증금 올", "5%", "실거주", "들어와 산다", "들어와서 산다", "들어와 살겠", "묵시적", "자동 연장", "자동으로 연장", "월세+올려", "보증금+올려", "집주인+올려", "계속 살고", "더 살고", "계약 연장", "연장을 거절", "갱신 거절", "재계약 거절", "2년 더", "더 살 수", "임대료+올릴", "임대료 인상", "임대료+인상", "다시 살", "집주인이 살겠", "주인이 살겠", "집주인+살겠", "계약+연장", "연장 못", "계약 다시"],
     refs: ["housing-lease:6의3", "housing-lease:7", "housing-lease:6"],
     citizen: {
@@ -240,7 +240,7 @@ const LIVING_TOPICS: Topic[] = [
   {
     id: "petition-deadline",
     label: "민원 처리 기한",
-    caseQuery: "민원",
+    caseQuery: "민원 처리기간",
     triggers: ["민원", "처리 기한", "처리기한", "처리기간", "민원+며칠", "처리+며칠", "답변이 안", "국민신문고", "질의민원", "고충민원"],
     refs: ["civil-petition:18", "civil-petition-decree:14", "civil-petition:19", "civil-petition:17", "civil-petition:35", "civil-petition-decree:17"],
     citizen: {

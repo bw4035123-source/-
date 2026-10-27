@@ -327,8 +327,9 @@ class LiveModeTest(unittest.TestCase):
         def fake(path, params, oc, timeout=20, retries=None):
             calls.append(params)
             if params["target"] == "prec":
-                return {"PrecSearch": {"prec": [{"사건명": "본문일치", "사건번호": "2025다1"}] if params.get("search") == "2" else []}}
-            return {"Expc": {"expc": [{"안건명": "a", "안건번호": "1"}, {"안건명": "b", "안건번호": "2"}]}}
+                # 본문 검색: 제목이 맞는 사건 + 본문에만 낱말이 있는 엉뚱한 사건(제목으로 다시 걸러 빠져야 함)
+                return {"PrecSearch": {"prec": [{"사건명": "손해배상(층간소음)", "사건번호": "2025다1"}, {"사건명": "특수공무집행방해", "사건번호": "2025도9"}] if params.get("search") == "2" else []}}
+            return {"Expc": {"expc": [{"안건명": "민원인 - 층간소음의 범위(「공동주택관리법」 제20조 관련)", "안건번호": "1"}, {"안건명": "감사원 - 층간소음 기준 적용 시점", "안건번호": "2"}]}}
 
         with mock.patch.object(service, "drf_get", fake):
             cases = service.LawService("k").search_cases("층간소음")
@@ -597,3 +598,27 @@ class LiveMergeTest(unittest.TestCase):
         self.assertIn("40만원", merged["25"])
         self.assertIn("음식물", merged["17"])
         self.assertEqual(merged["25"].count("[별표 2] <개정 2026.6.30>"), 1)
+
+
+class CaseRankTest(unittest.TestCase):
+    """판례·해석례 관련도 정리 — tests/case-rank.test.ts 와 같은 사례"""
+
+    def test_rank(self):
+        from law_for_all.case_rank import case_core_title, rank_cases
+        from law_for_all.search import live_case_query
+        c = lambda kind, title, i: {"kind": kind, "id": i, "title": title}  # noqa: E731
+        items = [c("판례", "특수공무집행방해, 허위공문서작성, 대통령기록물관리에관한법률위반", "1"), c("판례", "공유재산사용허가취소처분취소", "2"),
+                 c("법령해석례", "고양시 - 기부채납 재산에 대하여 무상 사용·수익허가기간을 20년으로 정하여 허가하는 경우(「공유재산 및 물품 관리법」 제21조 관련)", "3")]
+        self.assertEqual([x["id"] for x in rank_cases("공유재산 사용허가", items, 10)], ["2", "3"])
+        self.assertEqual(case_core_title(c("법령해석례", "경기도 고양시ㆍ민원인 - 둘 이상의 주택건설대지를 대상으로 지역주택조합 설립", "x")), "둘 이상의 주택건설대지를 대상으로 지역주택조합 설립")
+        items = [c("법령해석례", "민원인 - 지역주택조합의 설립 인가", "1"), c("법령해석례", "민원인 - 법정민원의 처리기간을 연장하는 경우(「민원 처리에 관한 법률 시행령」 제21조)", "2")]
+        self.assertEqual([x["id"] for x in rank_cases("민원 처리기간", items, 10)], ["2"])
+        items = [c("법령해석례", "광주광역시 서구 - 무기계약근로자 등 행정보조인력에게 인·허가 등의 업무를 분장할 수 있는지", "1"), c("법령해석례", "개인정보보호위원회 - 비상임위원이 겸직하려는 경우 별도의 허가 절차를 거쳐야 하는지 여부", "2")]
+        self.assertEqual([x["id"] for x in rank_cases("겸직 허가", items, 10)], ["2"])
+        self.assertEqual(len(rank_cases("공무원 선거운동", [c("판례", "국가공무원법위반·공직선거법위반", "1")], 10)), 1)
+        t = "국토교통부 - 공공임대주택 임차인의 재계약에 적용되는 법률(「공공주택 특별법」 제49조의3 등)"
+        self.assertEqual(len(rank_cases("공공임대주택 재계약", [c("법령해석례", t, str(i)) for i in range(3)], 10)), 1)
+        self.assertEqual(live_case_query("공무원 겸직 허가 기준"), "겸직")
+        self.assertEqual(live_case_query("택배가 분실됐는데 배상받을 수 있나요"), "택배 분실")
+        self.assertEqual(live_case_query("주차장에서 문콕 당했어요"), "주차장 문콕")
+        self.assertEqual(live_case_query("아르바이트 최저시급 못 받았어요"), "최저임금")

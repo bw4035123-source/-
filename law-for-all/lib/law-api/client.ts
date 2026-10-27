@@ -3,6 +3,7 @@ import { MOCK_LAWS, getMockLaw } from "./mock";
 import { drfGet, findAll, txt, type DrfLawListItem, parseAdmrulDoc, parseAdmrulList, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, parseOrdinDoc, parseOrdinList, LawApiError } from "./drf";
 import { bigramOverlap, lawNameHas, matchLawAliases, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
+import { rankCases } from "./case-rank";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
 
 const CASE_TIMEOUT = 25000;
@@ -278,11 +279,13 @@ export class LawService {
    */
   async searchCases(query: string, limit = 5, budgetMs = CASE_BUDGET_MS): Promise<CaseItem[]> {
     if (!this.oc || !query.trim()) return [];
-    const display = String(Math.min(Math.max(limit, 1), 20));
+    const max = Math.min(Math.max(limit, 1), 20);
+    // 제목으로 다시 거르므로 넉넉히 받는다(사건명 검색 20건, 본문 검색 40건)
+    const display = "20";
     const deadline = Date.now() + budgetMs;
     let slowSkipped = false;
     const one = async (target: "prec" | "expc", kind: CaseItem["kind"]): Promise<CaseItem[]> => {
-      const byName = parseCaseList(await drfGet("lawSearch.do", { target, query, display }, this.oc, CASE_FAST.timeoutMs, CASE_FAST.retries), kind);
+      const byName = rankCases(query, parseCaseList(await drfGet("lawSearch.do", { target, query, display }, this.oc, CASE_FAST.timeoutMs, CASE_FAST.retries), kind), max);
       if (byName.length >= 2) return byName;
       const remaining = deadline - Date.now();
       if (remaining < 1500) {
@@ -290,14 +293,14 @@ export class LawService {
         return byName;
       }
       const byText = await withDeadline(
-        drfGet("lawSearch.do", { target, query, display, search: "2" }, this.oc, CASE_TIMEOUT, 1).then((d) => parseCaseList(d, kind)),
+        drfGet("lawSearch.do", { target, query, display: "40", search: "2" }, this.oc, CASE_TIMEOUT, 1).then((d) => parseCaseList(d, kind)),
         remaining,
         () => {
           slowSkipped = true;
           return [] as CaseItem[];
         },
       );
-      return [...byName, ...byText.filter((c) => !byName.some((b) => b.id === c.id))].slice(0, Number(display));
+      return rankCases(query, [...byName, ...byText.filter((c) => !byName.some((b) => b.id === c.id))], max);
     };
     const settle = (p: Promise<CaseItem[]>) =>
       p.catch((e: Error) => {

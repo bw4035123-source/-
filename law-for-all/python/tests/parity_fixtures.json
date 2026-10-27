@@ -1503,7 +1503,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "caseQuery": "민원",
+    "caseQuery": "민원 처리기간",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -1700,7 +1700,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "caseQuery": "민원",
+    "caseQuery": "민원 처리기간",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -2717,7 +2717,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "caseQuery": "민원",
+    "caseQuery": "민원 처리기간",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -2914,7 +2914,7 @@
       "desc": "고충민원 처리"
      }
     ],
-    "caseQuery": "민원",
+    "caseQuery": "민원 처리기간",
     "relatedLaws": [
      {
       "id": "civil-petition",
@@ -6450,7 +6450,7 @@
       "desc": "전세보증금반환보증 이행청구"
      }
     ],
-    "caseQuery": "계약갱신",
+    "caseQuery": "계약갱신요구",
     "provider": {
      "id": "mock",
      "label": "규칙기반 엔진(LLM 없음)",
