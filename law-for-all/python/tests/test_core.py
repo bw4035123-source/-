@@ -616,6 +616,9 @@ class CaseRankTest(unittest.TestCase):
         items = [c("법령해석례", "광주광역시 서구 - 무기계약근로자 등 행정보조인력에게 인·허가 등의 업무를 분장할 수 있는지", "1"), c("법령해석례", "개인정보보호위원회 - 비상임위원이 겸직하려는 경우 별도의 허가 절차를 거쳐야 하는지 여부", "2")]
         self.assertEqual([x["id"] for x in rank_cases("겸직 허가", items, 10)], ["2"])
         self.assertEqual(len(rank_cases("공무원 선거운동", [c("판례", "국가공무원법위반·공직선거법위반", "1")], 10)), 1)
+        items = [c("판례", "취득세 중과세율 적용", "1"), c("판례", "스토킹범죄의처벌등에관한법률위반[수개월간 반복하여 고의로 소음을 발생시킨 행위]", "2"), c("법령해석례", "감사원 - 공동주택 각 층간 바닥충격음 기준이 적용되는 시점", "3")]
+        self.assertEqual([x["id"] for x in rank_cases("층간소음", items, 10)], ["2", "3"])
+        self.assertEqual(rank_cases("공유재산 사용허가", [c("판례", "단독주택을 지분 취득한 경우 구분소유적 공유관계를 인정하여 세율을 적용할 수 있는지 여부", "1")], 10), [])
         t = "국토교통부 - 공공임대주택 임차인의 재계약에 적용되는 법률(「공공주택 특별법」 제49조의3 등)"
         self.assertEqual(len(rank_cases("공공임대주택 재계약", [c("법령해석례", t, str(i)) for i in range(3)], 10)), 1)
         self.assertEqual(live_case_query("공무원 겸직 허가 기준"), "겸직")

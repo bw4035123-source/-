@@ -41,10 +41,24 @@ export function caseScore(query: string, c: Pick<CaseItem, "kind" | "title">): n
   return hits ? hits * 2 + over : over >= 0.5 ? over : 0;
 }
 
+/** 느슨한 일치(엄격한 규칙으로 하나도 안 남을 때만, 한 낱말 검색어만) — 4글자 이상 낱말을 앞뒤 두 글자로 나눠 본다('층간소음' → 제목의 '층간 바닥충격음'·'소음을 발생') */
+export function caseLooseScore(query: string, c: Pick<CaseItem, "kind" | "title">): number {
+  const words = query.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2);
+  const w = words.length === 1 ? normalize(words[0]) : "";
+  if (w.length < 4) return 0;
+  const title = normalize(caseCoreTitle(c));
+  return Array.from(new Set([w.slice(0, 2), w.slice(-2)])).filter((p) => !GENERIC_CASE.has(p) && title.includes(p)).length;
+}
+
 export function rankCases(query: string, items: CaseItem[], max: number): CaseItem[] {
+  const strict = pick(query, items, max, caseScore);
+  return strict.length ? strict : pick(query, items, max, caseLooseScore);
+}
+
+function pick(query: string, items: CaseItem[], max: number, score: (q: string, c: CaseItem) => number): CaseItem[] {
   const seen = new Set<string>();
   return items
-    .map((c, i) => ({ c, i, s: caseScore(query, c) }))
+    .map((c, i) => ({ c, i, s: score(query, c) }))
     .filter((x) => x.s > 0)
     .sort((a, b) => b.s - a.s || a.i - b.i)
     .filter(({ c }) => {

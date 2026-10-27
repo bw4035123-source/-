@@ -37,8 +37,22 @@ def case_score(query: str, c: dict) -> float:
     return hits * 2 + over if hits else (over if over >= 0.5 else 0.0)
 
 
+def case_loose_score(query: str, c: dict) -> float:
+    """느슨한 일치(엄격한 규칙으로 하나도 안 남을 때만, 한 낱말 검색어만) — 4글자 이상 낱말을 앞뒤 두 글자로 나눠 본다('층간소음' → '층간 바닥충격음'·'소음을 발생')"""
+    words = [w for w in re.split(r"[^\w]+", query) if len(w) >= 2]
+    w = normalize(words[0]) if len(words) == 1 else ""
+    if len(w) < 4:
+        return 0.0
+    title = normalize(case_core_title(c))
+    return float(sum(1 for p in dict.fromkeys((w[:2], w[-2:])) if p not in GENERIC_CASE and p in title))
+
+
 def rank_cases(query: str, items: list[dict], max_n: int) -> list[dict]:
-    scored = sorted(((case_score(query, c), i, c) for i, c in enumerate(items)), key=lambda x: (-x[0], x[1]))
+    return _pick(query, items, max_n, case_score) or _pick(query, items, max_n, case_loose_score)
+
+
+def _pick(query: str, items: list[dict], max_n: int, score) -> list[dict]:
+    scored = sorted(((score(query, c), i, c) for i, c in enumerate(items)), key=lambda x: (-x[0], x[1]))
     seen, out = set(), []
     for s, _, c in scored:
         if s <= 0:
