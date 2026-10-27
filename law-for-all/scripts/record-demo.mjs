@@ -29,7 +29,7 @@ const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"),
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 210);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 8, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 13, s07: 12, s07b: 7, s08: 8, s09: 4.5, s10: 6, s11: 8.5, sM: 9, sR: 8, s12: 7.5, s13: 10, s14: 7.5, s15: 9, s16: 11, s17: 9.5, sE: 8 };
+const PLAN = { s00: 3.5, s01: 8, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 12, s07: 12, s07b: 6.5, s08: 7.5, s09: 4.5, s10: 6, s11: 8, sM: 9, sR: 7.5, s12: 7, sC: 11, s13: 10, s14: 7.5, s15: 8.5, s16: 10, s17: 8.5, sE: 8 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -93,7 +93,7 @@ const OVERLAY = () => {
 // 녹화 전에 확인·예열(브라우저가 빈 화면일 때 걸린 시간은 영상 시간에 잡히지 않으므로 녹화 시작 전에 끝낸다)
 const casesLive = await fetch(`${BASE}/api/cases?q=${encodeURIComponent("임금")}&limit=1`).then((r) => r.json()).then((j) => !!j.live).catch(() => false);
 console.log(`판례 실시간: ${casesLive ? "예" : "아니오(판례 장면 생략)"}`);
-if (!casesLive) PLAN.s05 += 6; // 판례 장면이 없으면 다른 장면에 시간을 나눠 준다
+if (!casesLive) (PLAN.s05 += 6), (PLAN.s11 += 5); // 판례 장면이 없으면 다른 장면에 시간을 나눠 준다
 
 // 첫 검색 결과를 미리 한 번 불러 두어(서버 예열) 녹화 중 대기 시간을 줄인다
 await fetch(`${BASE}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: "퇴사했는데 마지막 월급을 안 줘요", mode: "citizen" }) }).catch(() => {});
@@ -353,7 +353,38 @@ await scene("s12", async () => {
   }
   await cap("보고서 한 번에 작성 — 검토 보고서 · 기안문 · 민원 회신문 · 붙임 4종", "검증된 답변·근거 원문만 공문서 서식에 배치 · Word 저장");
 });
+if (casesLive) {
+  // 공직자 모드의 판례 보기 — 업무 분야별 쟁점, 법제처 법령해석례(유권해석) 먼저, 검토보고서용 요지 복사
+  await scene("sC", async () => {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.goto(BASE + "/cases");
+    await page.getByText("판례·법령해석례 검토").first().waitFor().catch(() => {});
+    await cap("공직자 판례 보기 — 판례·법령해석례 검토, 업무 분야별 쟁점으로 바로 찾기", "인사·복무 · 청렴·선거 · 재산·계약 · 행정·민원");
+    await wait(1800);
+    await click(page.locator("main button", { hasText: /^\s*#\s*부정청탁\s*$/ }).first());
+    const item = page.locator("button", { hasText: "해석례 보기" }).first();
+    await item.waitFor({ timeout: 30000 }).catch(() => {});
+    // 결과 목록 머리(해석례 묶음 제목)가 화면 위쪽에 오도록
+    await item.evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 300, behavior: "smooth" })).catch(() => {});
+    await wait(1000);
+    await cap("법제처 법령해석례(유권해석)를 먼저, 이어서 판례 — 제목이 쟁점과 맞는 것만", "본문에 낱말만 스친 엉뚱한 사건은 걸러 냄");
+    await wait(2600);
+    if (await has(item)) {
+      const brief = page.locator("[role=dialog]").getByText("검토보고서용 요지 복사").first();
+      // 부드러운 스크롤이 끝난 뒤 누르고, 보기 창이 안 열렸으면 한 번 더
+      for (let i = 0; i < 2 && !(await has(brief)); i++) {
+        await click(item);
+        await brief.waitFor({ timeout: 8000 }).catch(() => {});
+      }
+      await wait(300);
+      if (await has(brief)) await point(brief);
+      await cap("업무 처리 기준인 회답·이유를 강조 · 검토보고서용 요지 복사", "질의 당시와 현행 법령이 같은지 확인 안내 · 인용 표기 복사 · 원문 링크");
+      await wait(2500);
+    }
+  });
+}
 await scene("s13", async () => {
+  await cap("");
   await page.keyboard.press("Escape");
   await page.goto(BASE + "/compliance");
   await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일은 서버로 보내지 않고 브라우저 안에서만 읽습니다 · 끌어다 놓기 또는 모의데이터 버튼");
@@ -422,7 +453,7 @@ await scene("sE", async () => {
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례 실시간 조회 · 관련 기관 연락처 안내</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;
