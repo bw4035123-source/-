@@ -6,6 +6,7 @@ import type { CaseItem } from "@/lib/law-api/types";
 import { formatLawDate, cn } from "@/lib/utils";
 import { CaseViewerSheet } from "./case-viewer-sheet";
 import { fetchJson } from "@/lib/fetch-json";
+import { useSettings } from "@/components/providers/settings-provider";
 
 interface Props {
   query: string | null;
@@ -19,6 +20,7 @@ export function RelatedCases({ query, variant = "officer", limit = 5, title }: P
   const [data, setData] = React.useState<{ cases: CaseItem[]; live: boolean; warnings?: string[]; error?: string; retrying?: boolean } | null>(null);
   const [open, setOpen] = React.useState<CaseItem | null>(null);
   const [nonce, setNonce] = React.useState(0);
+  const officer = useSettings().mode === "officer";
   const autoRetried = React.useRef(false);
 
   React.useEffect(() => {
@@ -66,7 +68,7 @@ export function RelatedCases({ query, variant = "officer", limit = 5, title }: P
                   <span className="mt-0.5 block text-xs text-muted-foreground">{[c.court, c.caseNo, formatLawDate(c.date)].filter(Boolean).join(" · ")}</span>
                 </span>
                 <span className="mt-1 inline-flex shrink-0 items-center text-xs font-semibold text-accent">
-                  판례 보기 <ChevronRight className="h-4 w-4" />
+                  {c.kind === "판례" ? "판례 보기" : "해석례 보기"} <ChevronRight className="h-4 w-4" />
                 </span>
               </button>
             </li>
@@ -108,8 +110,18 @@ export function RelatedCases({ query, variant = "officer", limit = 5, title }: P
         </p>
       ) : data.cases.length ? (
         <div className="space-y-4">
-          <List items={prec} label="판례" />
-          <List items={expc} label="법령해석례" />
+          {officer ? (
+            <>
+              {/* 공직자: 행정기관 업무 처리 기준이 되는 법제처 유권해석을 먼저 */}
+              <List items={expc} label="법령해석례(법제처 유권해석)" />
+              <List items={prec} label="판례" />
+            </>
+          ) : (
+            <>
+              <List items={prec} label="판례" />
+              <List items={expc} label="법령해석례" />
+            </>
+          )}
           {!!data.warnings?.length && (
             <p className="text-xs text-muted-foreground">
               ⓘ {data.warnings[data.warnings.length - 1]}

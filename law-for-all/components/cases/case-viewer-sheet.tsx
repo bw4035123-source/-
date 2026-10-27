@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ClipboardCopy, ExternalLink, Loader2, Lightbulb } from "lucide-react";
+import { Briefcase, ClipboardCopy, ExternalLink, FileText, Loader2, Lightbulb } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,13 +8,13 @@ import { useToast } from "@/components/ui/toast";
 import { useSettings } from "@/components/providers/settings-provider";
 import type { CaseDetail, CaseItem } from "@/lib/law-api/types";
 import { copyText } from "@/lib/clipboard";
+import { caseBrief, caseCitation } from "@/lib/case-format";
 import { formatLawDate } from "@/lib/utils";
 
-/** 판례 인용 표기: 대법원 2026. 1. 29. 선고 2023두54914 판결 */
-export function caseCitation(d: Pick<CaseDetail, "kind" | "court" | "date" | "caseNo" | "judgmentType" | "title">): string {
-  if (d.kind === "법령해석례") return `${d.court ?? "법제처"} 법령해석례 ${d.caseNo ?? ""}(${formatLawDate(d.date)}) 「${d.title}」`.trim();
-  return [d.court, formatLawDate(d.date), "선고", d.caseNo, d.judgmentType ?? "판결"].filter(Boolean).join(" ");
-}
+export { caseBrief, caseCitation } from "@/lib/case-format";
+
+/** 공직자 모드에서 강조하는 핵심 항목(검토 근거로 주로 인용) */
+const KEY = new Set(["판결요지", "회답"]);
 
 const HELP: Record<string, string> = {
   판시사항: "이 사건에서 법원이 판단한 법률 문제(쟁점)를 요약한 부분이에요.",
@@ -76,10 +76,23 @@ export function CaseViewerSheet({ item, onOpenChange }: { item: CaseItem | null;
                         판례는 비슷한 사건에서 법원이 어떻게 판단했는지 보여 줘요. 다만 사실관계가 조금만 달라도 결론이 달라질 수 있으니 참고로 활용하세요.
                       </p>
                     )}
+                    {!citizen && (
+                      <p className="flex gap-2 rounded-xl bg-secondary/60 p-3 text-sm leading-6">
+                        <Briefcase className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+                        {d.kind === "법령해석례"
+                          ? "법령해석례는 법제처의 공식 해석으로 행정기관 업무 처리의 기준이 됩니다. 질의 당시 법령과 현행 법령이 같은지 확인하고 근거로 인용하세요."
+                          : "판결요지와 참조조문을 검토 근거로 쓰되, 사안의 사실관계가 판례와 같은지 확인하세요. 하급심 판결은 상급심에서 달라질 수 있습니다."}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="accent" onClick={async () => toast((await copyText(caseCitation(d))) ? "판례 인용 표기를 복사했습니다" : "복사 실패")}>
                         <ClipboardCopy /> 인용 표기 복사
                       </Button>
+                      {!citizen && (
+                        <Button size="sm" variant="outline" onClick={async () => toast((await copyText(caseBrief(d))) ? "검토보고서용 요지를 복사했습니다" : "복사 실패")}>
+                          <FileText /> 검토보고서용 요지 복사
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" asChild>
                         <a href={d.url} target="_blank" rel="noreferrer">
                           <ExternalLink /> 국가법령정보센터
@@ -90,7 +103,7 @@ export function CaseViewerSheet({ item, onOpenChange }: { item: CaseItem | null;
                       const long = s.label === "판결 전문" || s.label === "이유";
                       const body = <p className="whitespace-pre-line text-[0.93rem] leading-7">{s.text}</p>;
                       return (
-                        <section key={s.label} className="rounded-xl border bg-card p-4">
+                        <section key={s.label} className={!citizen && KEY.has(s.label) ? "rounded-xl border-2 border-accent/50 bg-card p-4" : "rounded-xl border bg-card p-4"}>
                           <h3 className="mb-1 font-bold text-primary">{s.label}</h3>
                           {citizen && HELP[s.label] && <p className="mb-2 text-xs text-muted-foreground">{HELP[s.label]}</p>}
                           {long ? (
