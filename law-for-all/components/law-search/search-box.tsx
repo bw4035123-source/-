@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { maskPII } from "@/lib/privacy-mask";
 import { useToast } from "@/components/ui/toast";
 import { MicButton } from "@/components/ui/mic-button";
+import { VoiceAutoNotice, useVoiceAutoSubmit } from "@/components/ui/voice-auto";
 import { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } from "@/lib/suggestions";
 
 /** 이전 이름 호환 */
@@ -36,6 +37,8 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
     // 가린 종류는 결과 화면 안내용으로만 전달(원래 값은 보내지 않음)
     router.push(`/search?q=${encodeURIComponent(t)}${found.length ? `&pm=${encodeURIComponent(found.join(","))}` : ""}`);
   };
+  // 음성으로 물으면 말이 끝나고 잠시 뒤 자동 검색(그 사이 취소·수정 가능)
+  const voice = useVoiceAutoSubmit(go, (t) => setQ(t.slice(0, 500)));
 
   const hero = variant === "hero";
   const chips = mode === "officer" ? OFFICER_SUGGESTIONS : CITIZEN_SUGGESTIONS;
@@ -48,6 +51,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
+          voice.cancel();
           go(q);
         }}
         className={cn(
@@ -62,7 +66,10 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
         <input
           id="law-q"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            voice.cancel();
+            setQ(e.target.value);
+          }}
           placeholder={placeholder}
           autoFocus={autoFocus}
           maxLength={500}
@@ -70,13 +77,14 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
           enterKeyHint="search"
           className={cn("min-w-0 flex-1 bg-transparent placeholder:text-muted-foreground/80 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", hero ? "py-2 text-base sm:text-lg" : "py-1.5 text-sm sm:text-base")}
         />
-        <MicButton size={hero ? "lg" : "md"} onText={(t) => setQ(t.slice(0, 500))} />
+        <MicButton size={hero ? "lg" : "md"} onText={voice.onVoice} />
         <Button type="submit" variant="accent" size={hero ? "lg" : "default"} className="shrink-0 rounded-xl" disabled={q.trim().length < 2}>
           <span className="hidden sm:inline">AI 법률 검색</span>
           <ArrowRight className="sm:hidden" aria-hidden />
           <span className="sr-only sm:hidden">검색</span>
         </Button>
       </form>
+      <VoiceAutoNotice pending={voice.pending} onCancel={voice.cancel} />
       {hero && (
         <div className="mt-4 flex flex-wrap justify-center gap-2" aria-label="추천 검색어">
           {chips.map((c, i) => (

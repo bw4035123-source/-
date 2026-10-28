@@ -101,6 +101,30 @@ await fetch(`${BASE}/api/ask`, { method: "POST", headers: { "content-type": "app
 const b = await chromium.launch({ executablePath: fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined });
 const ctx = await b.newContext({ viewport: { width: W, height: H }, recordVideo: { dir: tmp, size: { width: W, height: H } } });
 await ctx.addInitScript(OVERLAY);
+// 시연용 음성 입력 재현 — 녹화 환경에는 마이크가 없어, 브라우저 음성 인식 자리에 '말하는 동안 글이 늘어나다 확정되는' 결과를 넣는다.
+// 화면의 자동 검색·취소 안내는 실제 기능 그대로이고, 영상 자막에 재현임을 표기한다.
+await ctx.addInitScript(() => {
+  class DemoRecognition {
+    start() {
+      const say = "퇴사했는데 마지막 월급을 안 줘요";
+      const words = say.split(" ");
+      const res = (t, fin) => {
+        const alt = [{ transcript: t }];
+        alt.isFinal = fin;
+        return { results: [alt] };
+      };
+      words.forEach((_, i) => setTimeout(() => this.onresult?.(res(words.slice(0, i + 1).join(" "), false)), 350 + i * 380));
+      setTimeout(() => {
+        this.onresult?.(res(say, true));
+        this.onend?.();
+      }, 450 + words.length * 380);
+    }
+    stop() {
+      this.onend?.();
+    }
+  }
+  window.SpeechRecognition = DemoRecognition;
+});
 const page = await ctx.newPage();
 const t0 = Date.now();
 page.setDefaultTimeout(20000);
@@ -165,15 +189,13 @@ await scene("s00", async () => {
 });
 await scene("s01", async () => {
   await card("");
-  await cap("① 첫 화면은 국민 모드 — 궁금한 상황을 일상 언어로 물어봅니다", "글이 어려우면 마이크 버튼으로 말해도 돼요(브라우저 음성 인식)");
-  await point(page.locator("main [aria-label='음성으로 질문하기']").first());
-  await wait(1600);
-  const input = page.locator("main form input").first();
-  await click(input);
-  await input.type("퇴사했는데 마지막 월급을 안 줘요", { delay: 70 });
+  await cap("① 첫 화면은 국민 모드 — 궁금한 상황을 말로 물어봅니다", "마이크 버튼 → 말하기 (시연용 음성 입력 재현 · 녹화 환경에 마이크가 없어 인식 결과를 넣어 보여 줌)");
+  await wait(1200);
+  await click(page.locator("main [aria-label='음성으로 질문하기']").first());
+  await page.getByText("곧 검색해요").first().waitFor({ timeout: 8000 }).catch(() => {});
+  await cap("말이 끝나면 인식된 글을 보여 주고 1.5초 뒤 자동 검색", "잘못 알아들었으면 그 사이 취소하거나 고치면 됩니다 · 개인정보는 검색 전에 자동으로 가림");
 });
 await scene("s02", async () => {
-  await page.keyboard.press("Enter");
   await page.waitForURL(/search/);
   await page.locator("[aria-label^='근거 1:']").first().waitFor().catch(() => {});
   await cap("문장마다 근거 조문 번호 — 근거 목록 밖 인용은 자동 제거(환각 방지)", "AI가 지어낸 가짜 조문·판례를 막습니다");
