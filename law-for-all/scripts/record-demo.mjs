@@ -29,7 +29,7 @@ const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"),
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 210);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 8, s02: 7.5, s03: 6.5, s04: 6, sF1: 9, sF2: 10, s05: 8.5, s06: 12, s07: 12, s07b: 6.5, s08: 7.5, s09: 4.5, s10: 6, s11: 8, sM: 9, sR: 7.5, s12: 7, sC: 11, s13: 10, s14: 7.5, s15: 8.5, s16: 10, s17: 8.5, sE: 8 };
+const PLAN = { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 7, s15: 8, s16: 9.5, s17: 8, sE: 7.5 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
