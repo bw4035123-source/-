@@ -433,9 +433,9 @@
   "date": "2026-10-29",
   "base": "https://lawon.onrender.com",
   "total": 50,
-  "correct": 30,
-  "miss": 13,
-  "wrong": 7,
+  "correct": 26,
+  "miss": 21,
+  "wrong": 3,
   "external": {
    "total": 7,
    "correct": 7,
@@ -620,10 +620,8 @@
    {
     "q": "회식 자리에서 상사가 성희롱을 했어요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률 시행규칙"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {
@@ -631,8 +629,7 @@
     "external": false,
     "result": "correct",
     "got": [
-     "형법",
-     "청소년 보호법"
+     "형법"
     ],
     "topic": null
    },
@@ -664,11 +661,8 @@
    {
     "q": "아이가 학교에서 괴롭힘을 당하고 있어요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "병역법",
-     "형의 집행 및 수용자의 처우에 관한 법률 시행규칙"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {
@@ -706,40 +700,30 @@
    {
     "q": "상가 계약 갱신 때 건물주가 권리금을 못 받게 해요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "주택임대차보호법"
-    ],
-    "topic": "lease-renewal"
+    "result": "miss",
+    "got": [],
+    "topic": null
    },
    {
     "q": "이사 가면 전입신고는 언제까지 해야 하나요",
     "external": false,
-    "result": "correct",
-    "got": [
-     "주택임대차보호법",
-     "주민등록법"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {
     "q": "주차위반 과태료가 나왔는데 이의신청하고 싶어요",
     "external": false,
-    "result": "correct",
-    "got": [
-     "질서위반행위규제법"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {
     "q": "공사장 소음 때문에 잠을 못 자요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "공동주택관리법",
-     "공동주택 층간소음의 범위와 기준에 관한 규칙"
-    ],
-    "topic": "floor-noise"
+    "result": "miss",
+    "got": [],
+    "topic": null
    },
    {
     "q": "아파트 베란다에서 담배 피우는 이웃 때문에 괴로워요",
@@ -753,10 +737,8 @@
    {
     "q": "기초생활수급자 신청은 어떻게 하나요",
     "external": false,
-    "result": "correct",
-    "got": [
-     "국민기초생활 보장법"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {
@@ -804,21 +786,17 @@
    {
     "q": "운전면허 벌점이 쌓여서 정지된대요",
     "external": false,
-    "result": "correct",
+    "result": "wrong",
     "got": [
-     "도로교통법 시행규칙",
-     "도로교통법"
+     "도로교통법 시행규칙"
     ],
     "topic": null
    },
    {
     "q": "병원에서 수술 후 부작용이 생겼어요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "의약품 부작용 피해구제에 관한 규정",
-     "의약품 부작용 피해구제에 관한 규정 시행규칙"
-    ],
+    "result": "miss",
+    "got": [],
     "topic": null
    },
    {

@@ -87,8 +87,9 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
 
     if not topic and svc.mode == "live":
         local_keys = [k for k in local_keys if strong(k)]
-    # 키워드가 질문과 그대로 맞은 내장 조문을 앞에, 실시간 검색 결과는 그 뒤에(실시간 검색이 엉뚱한 법을 앞세우지 않게)
-    keys = local_keys + [k for k in live_keys if k not in local_keys]
+    # 생활 용어 사전으로 찾은 법령(사람이 검수)이 있으면 그 실시간 결과를 앞에, 없으면 키워드가 질문과 그대로 맞은 내장 조문을 앞에
+    # (사전에 없는 질문에서 실시간 검색이 엉뚱한 법을 앞세우지 않게)
+    keys = live_keys + [k for k in local_keys if k not in live_keys] if match_law_aliases(query) else local_keys + [k for k in live_keys if k not in local_keys]
     context = svc.get_citations(keys)
     allowed = {c["key"] for c in context}
 

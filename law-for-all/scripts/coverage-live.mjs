@@ -6,8 +6,13 @@ const [base = "https://lawon.onrender.com", label = "after", fixture = "tests/fi
 const set = JSON.parse(fs.readFileSync(fixture, "utf8"));
 const rows = [];
 for (const c of set.cases) {
+  // 실시간 검색이 서버 시간 제한에 걸리면(안내 문구 '늦어') 근거 없이 끝나므로, 잠시 뒤 다시 물어 측정 잡음을 줄인다(최대 3회)
   let r;
-  for (let i = 0; i < 3 && !r; i++) r = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: "citizen" }) }).then((x) => x.json()).catch(() => null);
+  for (let i = 0; i < 4; i++) {
+    r = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: "citizen" }) }).then((x) => x.json()).catch(() => null);
+    if (r && !(r.notices ?? []).some((n) => n.includes("늦어"))) break;
+    await new Promise((ok) => setTimeout(ok, 3000));
+  }
   const laws = [...new Set((r?.citations ?? []).map((x) => x.lawName))];
   rows.push({ q: c.q, external: !!c.external, result: laws.some((l) => c.laws.includes(l)) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3), topic: r?.topic?.id ?? null });
 }

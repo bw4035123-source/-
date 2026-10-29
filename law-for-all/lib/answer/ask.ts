@@ -57,8 +57,9 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
     return terms.filter((t) => (a?.title ?? "").includes(t)).length >= 2 || (a?.keywords ?? []).some((w) => normalize(w).length >= 2 && nq.includes(normalize(w)));
   };
   const local = !topic && svc.mode === "live" ? localKeys.filter(strong) : localKeys;
-  // 키워드가 질문과 그대로 맞은 내장 조문을 앞에, 실시간 검색 결과는 그 뒤에(실시간 검색이 엉뚱한 법을 앞세우지 않게)
-  const keys = [...local, ...liveKeys.filter((k) => !local.includes(k))];
+  // 생활 용어 사전으로 찾은 법령(사람이 검수)이 있으면 그 실시간 결과를 앞에, 없으면 키워드가 질문과 그대로 맞은 내장 조문을 앞에
+  // (사전에 없는 질문에서 실시간 검색이 엉뚱한 법을 앞세우지 않게)
+  const keys = matchLawAliases(query).length ? [...liveKeys, ...local.filter((k) => !liveKeys.includes(k))] : [...local, ...liveKeys.filter((k) => !local.includes(k))];
   const context = await svc.getCitations(keys);
 
   const { provider, notice } = resolveProvider(serverConfig.llm, requested);
