@@ -433,9 +433,9 @@
   "date": "2026-10-29",
   "base": "https://lawon.onrender.com",
   "total": 50,
-  "correct": 26,
-  "miss": 21,
-  "wrong": 3,
+  "correct": 42,
+  "miss": 4,
+  "wrong": 4,
   "external": {
    "total": 7,
    "correct": 7,
@@ -538,8 +538,10 @@
    {
     "q": "유언장 없이 돌아가시면 재산은 어떻게 나누나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
     "topic": null
    },
    {
@@ -572,8 +574,10 @@
    {
     "q": "인터넷 쇼핑몰에서 산 옷 환불이 안 된대요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "전자상거래 등에서의 소비자보호에 관한 법률"
+    ],
     "topic": null
    },
    {
@@ -606,22 +610,28 @@
    {
     "q": "주휴수당 못 받았는데 신고할 수 있나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ],
     "topic": null
    },
    {
     "q": "팀장이 매일 폭언하고 괴롭혀요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ],
     "topic": null
    },
    {
     "q": "회식 자리에서 상사가 성희롱을 했어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"
+    ],
     "topic": null
    },
    {
@@ -654,15 +664,19 @@
    {
     "q": "모르는 사람이 계속 따라오고 연락해요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "스토킹범죄의 처벌 등에 관한 법률"
+    ],
     "topic": null
    },
    {
     "q": "아이가 학교에서 괴롭힘을 당하고 있어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "학교폭력예방 및 대책에 관한 법률"
+    ],
     "topic": null
    },
    {
@@ -686,59 +700,75 @@
    {
     "q": "빚 독촉 전화가 밤늦게까지 와요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "채권의 공정한 추심에 관한 법률"
+    ],
     "topic": null
    },
    {
     "q": "빚이 너무 많아서 개인회생을 알아보고 있어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "채무자 회생 및 파산에 관한 법률"
+    ],
     "topic": null
    },
    {
     "q": "상가 계약 갱신 때 건물주가 권리금을 못 받게 해요",
     "external": false,
-    "result": "miss",
-    "got": [],
-    "topic": null
+    "result": "wrong",
+    "got": [
+     "주택임대차보호법"
+    ],
+    "topic": "lease-renewal"
    },
    {
     "q": "이사 가면 전입신고는 언제까지 해야 하나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "주민등록법",
+     "주택임대차보호법"
+    ],
     "topic": null
    },
    {
     "q": "주차위반 과태료가 나왔는데 이의신청하고 싶어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "질서위반행위규제법"
+    ],
     "topic": null
    },
    {
     "q": "공사장 소음 때문에 잠을 못 자요",
     "external": false,
-    "result": "miss",
-    "got": [],
-    "topic": null
+    "result": "wrong",
+    "got": [
+     "공동주택관리법",
+     "공동주택 층간소음의 범위와 기준에 관한 규칙"
+    ],
+    "topic": "floor-noise"
    },
    {
     "q": "아파트 베란다에서 담배 피우는 이웃 때문에 괴로워요",
     "external": false,
-    "result": "wrong",
+    "result": "correct",
     "got": [
-     "담배사업법"
+     "공동주택관리법"
     ],
     "topic": null
    },
    {
     "q": "기초생활수급자 신청은 어떻게 하나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "국민기초생활 보장법"
+    ],
     "topic": null
    },
    {
@@ -795,8 +825,10 @@
    {
     "q": "병원에서 수술 후 부작용이 생겼어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "의료사고 피해구제 및 의료분쟁 조정 등에 관한 법률"
+    ],
     "topic": null
    },
    {
@@ -849,15 +881,19 @@
    {
     "q": "계약직인데 2년 넘게 일하면 정규직이 되나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "기간제 및 단시간근로자 보호 등에 관한 법률"
+    ],
     "topic": null
    },
    {
     "q": "아르바이트생인데 근로계약서를 안 써줬어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ],
     "topic": null
    }
   ]
