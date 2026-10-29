@@ -40,3 +40,14 @@ describe("실시간 전체 법령 검색(토픽 밖 질문)", () => {
     expect(cites.map((c) => `${c.lawName}:${c.articleNo}`)).toContain(`${law}:${no}`);
   });
 });
+
+describe("실시간 검색 법령의 이름 닮음 기준", async () => {
+  const { lawNameLooksLike } = await import("@/lib/law-api/search");
+  it("이름이 질문과 닮은 법령만 근거로(우연히 낱말 하나만 겹친 긴 이름은 제외)", () => {
+    expect(lawNameLooksLike("최저임금법", ["최저임금", "알바"])).toBe(true);
+    expect(lawNameLooksLike("건축법", ["건축허가", "필요"])).toBe(true);
+    expect(lawNameLooksLike("학교폭력예방 및 대책에 관한 법률", ["학교폭력", "신고"])).toBe(true);
+    expect(lawNameLooksLike("온라인투자연계금융업 및 이용자 보호에 관한 법률", ["온라인", "배송"])).toBe(false);
+    expect(lawNameLooksLike("군사기밀 보호법", ["사기", "피해"])).toBe(false);
+  });
+});

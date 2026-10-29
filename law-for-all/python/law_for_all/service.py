@@ -8,7 +8,7 @@ import time
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, find_all, txt, parse_admrul_doc, parse_admrul_list, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list, parse_ordin_doc, parse_ordin_list
 from .case_rank import rank_cases
-from .search import bigram_overlap, law_name_has, match_law_aliases, query_terms, score_article_by_terms, search_law_names
+from .search import bigram_overlap, law_name_has, law_name_looks_like, match_law_aliases, query_terms, score_article_by_terms, search_law_names
 
 CASE_TIMEOUT = 25
 # 판례 검색 전체 대기 한도(초)
@@ -168,7 +168,9 @@ class LawService:
             top, seen = [], set()
             alias_mst = {x["mst"] for lst in alias_res for x in lst}
             # 사전에서 찾은 법령이 있으면 그 법령만(글자만 겹친 다른 법령을 섞지 않음)
-            for c in sorted((c for c in cand.values() if not alias_mst or c["mst"] in alias_mst), key=lambda c: c["score"], reverse=True):
+            # 사전 법령이 없으면 이름이 질문과 닮은 법령만 — 낱말 하나가 우연히 겹친 법령을 근거로 붙이느니 '찾지 못함'으로 안내
+            ok = (lambda c: c["mst"] in alias_mst) if alias_mst else (lambda c: law_name_looks_like(c["name"], terms))
+            for c in sorted((c for c in cand.values() if ok(c)), key=lambda c: c["score"], reverse=True):
                 if c["name"] not in seen:
                     seen.add(c["name"])
                     top.append(c)

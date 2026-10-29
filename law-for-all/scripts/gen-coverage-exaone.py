@@ -1,6 +1,6 @@
 # 처음 보는 일상 질문 블라인드 문항 생성(독립 작성자: 로컬 EXAONE 3.5) — 사용자 PC의 Ollama에서 실행
 #   ollama pull exaone3.5:7.8b   (이미 있으면 생략)
-#   python gen-coverage-exaone.py      → coverage-blind-exaone.json 생성
+#   python gen-coverage-exaone.py [모델] [seed]   → coverage-blind-exaone-<seed>.json 생성(차수마다 seed를 바꿔 새 문항)
 # 법이음의 상황(토픽) 목록·규칙은 주지 않고, 넓은 생활 분야 이름만 준다(상황 밖 질문 대응력을 재기 위함).
 # 결과 파일은 사람이 법령 이름 표기만 검토해 커밋한 뒤 한 번 측정한다(문항을 보고 규칙을 고치지 않음).
 import json
@@ -9,6 +9,7 @@ import sys
 import urllib.request
 
 MODEL = sys.argv[1] if len(sys.argv) > 1 else "exaone3.5:7.8b"
+SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 20261029
 AREAS = [
     "가족(결혼·이혼·자녀)", "상속·유언", "개인 간 돈거래", "물건 사고팔기·소비자 피해", "인터넷·온라인 피해",
     "직장·아르바이트", "집·임대차·이웃", "교통·운전", "범죄 피해", "수사·고소를 당한 경우",
@@ -17,7 +18,7 @@ AREAS = [
 
 
 def ask(prompt: str) -> str:
-    body = {"model": MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.9, "num_ctx": 4096, "seed": 20261029}}
+    body = {"model": MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.9, "num_ctx": 4096, "seed": SEED}}
     req = urllib.request.Request("http://localhost:11434/api/generate", json.dumps(body).encode(), {"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=900) as r:
         return json.load(r)["response"]
@@ -43,5 +44,6 @@ for area in AREAS:
             break
     print(area, n, flush=True)
 
-json.dump({"model": MODEL, "generator": "scripts/gen-coverage-exaone.py", "cases": out}, open("coverage-blind-exaone.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-print(f"✔ coverage-blind-exaone.json ({len(out)}문항) — 이 파일을 그대로 보내 주세요")
+name = f"coverage-blind-exaone-{SEED}.json"
+json.dump({"model": MODEL, "seed": SEED, "generator": "scripts/gen-coverage-exaone.py", "cases": out}, open(name, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"✔ {name} ({len(out)}문항) — 이 파일을 그대로 보내 주세요")

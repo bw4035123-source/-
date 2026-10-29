@@ -1,7 +1,7 @@
 import type { CaseDetail, CaseItem, Citation, LawDoc, LawSummary } from "./types";
 import { MOCK_LAWS, getMockLaw } from "./mock";
 import { drfGet, findAll, txt, type DrfLawListItem, parseAdmrulDoc, parseAdmrulList, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, parseOrdinDoc, parseOrdinList, LawApiError } from "./drf";
-import { bigramOverlap, lawNameHas, matchLawAliases, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
+import { bigramOverlap, lawNameHas, lawNameLooksLike, matchLawAliases, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 import { rankCases } from "./case-rank";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
@@ -144,8 +144,9 @@ export class LawService {
       const seen = new Set<string>();
       const aliasMst = new Set(aliasRes.flat().map((x) => x.mst));
       const top = Array.from(cand.values())
-        // 사전에서 찾은 법령이 있으면 그 법령만(글자만 겹친 다른 법령을 섞지 않음)
-        .filter((c) => !aliasMst.size || aliasMst.has(c.mst))
+        // 사전에서 찾은 법령이 있으면 그 법령만(글자만 겹친 다른 법령을 섞지 않음), 없으면 이름이 질문과 닮은 법령만 —
+        // 낱말 하나가 우연히 겹친 법령을 근거로 붙이느니 '찾지 못함'으로 정직하게 안내
+        .filter((c) => (aliasMst.size ? aliasMst.has(c.mst) : lawNameLooksLike(c.name, terms)))
         .sort((a, b) => b.score - a.score)
         .filter((c) => (seen.has(c.name) ? false : (seen.add(c.name), true)))
         .slice(0, 2);

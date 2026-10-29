@@ -644,6 +644,18 @@ class ReviewerCasesTest(unittest.TestCase):
             self.assertEqual(ask(q, "citizen")["topic"]["id"], t, q)
 
 
+class LawNameLooksLikeTest(unittest.TestCase):
+    """실시간 검색 법령의 이름 닮음 기준 — tests/live-search.test.ts 와 같은 사례"""
+
+    def test_cases(self):
+        from law_for_all.search import law_name_looks_like as f
+        self.assertTrue(f("최저임금법", ["최저임금", "알바"]))
+        self.assertTrue(f("건축법", ["건축허가", "필요"]))
+        self.assertTrue(f("학교폭력예방 및 대책에 관한 법률", ["학교폭력", "신고"]))
+        self.assertFalse(f("온라인투자연계금융업 및 이용자 보호에 관한 법률", ["온라인", "배송"]))
+        self.assertFalse(f("군사기밀 보호법", ["사기", "피해"]))
+
+
 class TrafficCasesTest(unittest.TestCase):
     """교통사고 보험처리 — 라우팅과 이런 경우라면(tests/case-rank.test.ts 와 같은 사례)"""
 

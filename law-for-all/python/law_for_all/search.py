@@ -84,6 +84,16 @@ def law_name_has(name: str, term: str) -> bool:
     return term in name if len(term) >= 3 else _word_start_has(name, term)
 
 
+def law_name_looks_like(name: str, terms: list[str]) -> bool:
+    """실시간 검색 법령을 근거로 써도 될 만큼 이름이 질문과 닮았는지(Next.js 판 lawNameLooksLike 와 같음) —
+    질문 낱말 2개 이상이 이름에 있거나, 낱말 하나가 이름의 40% 이상이거나 4글자 이상('학교폭력'),
+    또는 짧은 법령 이름의 핵심어가 질문 낱말에 들어 있을 때('건축법' ← '건축허가')"""
+    hits = [t for t in terms if len(t) >= 2 and law_name_has(name, t)]
+    n = normalize(name)
+    core = n[:-1] if re.fullmatch(r"[가-힣]+법", n) else ""
+    return len(hits) >= 2 or any(len(t) >= 4 or len(t) / (len(n) or 1) >= 0.4 for t in hits) or (len(core) >= 2 and any(core in t for t in terms))
+
+
 def match_topics(query: str) -> list[dict]:
     """[{topic, score}] 점수 내림차순"""
     nq = normalize(query)

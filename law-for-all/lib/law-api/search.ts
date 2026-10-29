@@ -85,6 +85,19 @@ export function lawNameHas(name: string, term: string): boolean {
   return term.length >= 3 ? name.includes(term) : wordStartHas(name, term);
 }
 
+/**
+ * 실시간 검색으로 찾은 법령을 근거로 써도 될 만큼 법령 이름이 질문과 닮았는지 — 생활 용어 사전에 없는 질문에서
+ * 낱말 하나가 우연히 겹친 법령(예: '온라인' → 온라인투자연계금융업법)을 근거로 붙이지 않기 위함.
+ * 질문 낱말 2개 이상이 이름에 있거나, 낱말 하나가 이름의 40% 이상이거나 4글자 이상의 구체적인 말('학교폭력'),
+ * 또는 짧은 법령 이름의 핵심어가 질문 낱말에 들어 있을 때('건축법' ← '건축허가').
+ */
+export function lawNameLooksLike(name: string, terms: string[]): boolean {
+  const hits = terms.filter((t) => t.length >= 2 && lawNameHas(name, t));
+  const n = normalize(name);
+  const core = /^[가-힣]+법$/.test(n) ? n.slice(0, -1) : "";
+  return hits.length >= 2 || hits.some((t) => t.length >= 4 || t.length / (n.length || 1) >= 0.4) || (core.length >= 2 && terms.some((t) => t.includes(core)));
+}
+
 export function matchTopics(query: string): TopicHit[] {
   const nq = normalize(query);
   const qg = bigrams(query);
