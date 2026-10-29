@@ -433,9 +433,9 @@
   "date": "2026-10-29",
   "base": "https://lawon.onrender.com",
   "total": 50,
-  "correct": 25,
-  "miss": 17,
-  "wrong": 8,
+  "correct": 30,
+  "miss": 13,
+  "wrong": 7,
   "external": {
    "total": 7,
    "correct": 7,
@@ -629,8 +629,9 @@
    {
     "q": "인터넷에 저에 대한 악성 댓글이 달렸어요",
     "external": false,
-    "result": "wrong",
+    "result": "correct",
     "got": [
+     "형법",
      "청소년 보호법"
     ],
     "topic": null
@@ -638,15 +639,19 @@
    {
     "q": "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "형법"
+    ],
     "topic": null
    },
    {
     "q": "길에서 모르는 사람한테 맞았어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "형법"
+    ],
     "topic": null
    },
    {
@@ -712,6 +717,7 @@
     "external": false,
     "result": "correct",
     "got": [
+     "주택임대차보호법",
      "주민등록법"
     ],
     "topic": null
@@ -756,8 +762,11 @@
    {
     "q": "출산휴가는 며칠 쓸 수 있나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "근로기준법",
+     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"
+    ],
     "topic": null
    },
    {
@@ -797,6 +806,7 @@
     "external": false,
     "result": "correct",
     "got": [
+     "도로교통법 시행규칙",
      "도로교통법"
     ],
     "topic": null
@@ -823,8 +833,10 @@
    {
     "q": "집주인이 월세를 갑자기 많이 올리겠대요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "주택임대차보호법"
+    ],
     "topic": null
    },
    {
