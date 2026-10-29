@@ -23,6 +23,7 @@ const EVAL_ROWS = [
   { label: "상황 분류 · 블라인드(독립 작성자)", value: `${R.routing.blind.correct}/${R.routing.blind.total} (${pctOf(R.routing.blind.correct, R.routing.blind.total)})`, desc: `엄격 채점 ${pctOf(R.routing.blind.strict, R.routing.blind.total)} · 독립 작성자 첫 측정 ${pctOf(R.routing.history[3].correct, R.routing.history[3].total)} → 6차 · 엉뚱한 상황 ${R.routing.blind.wrongTopic}건` },
   { label: "답변 근거", value: `근거 밖 인용 ${R.grounding.outsideMarkers}건`, desc: `답변 ${R.grounding.answers}건(국민·공직자) 인용 검증 통과 ${R.grounding.guardPassed}건 · 근거 없으면 '찾지 못함' 안내` },
   { label: "환각 주입 차단", value: `${R.injection.blocked}/${R.injection.injected} (${pctOf(R.injection.blocked, R.injection.injected)})`, desc: "없는 조문 번호·없는 조문·근거 밖 법령·지어낸 인용을 섞었을 때 가드가 거름" },
+  { label: "수치 바꿔치기 차단", value: `${R.quantity.caught}/${R.quantity.tampered} (${pctOf(R.quantity.caught, R.quantity.tampered)}) · 오경보 ${R.quantity.falseAlarm}`, desc: `AI 답변의 금액·기간·비율이 근거 원문에 없으면 답변을 쓰지 않음 · 정상 답변 ${R.quantity.checked}건 중 잘못 막힘` },
   { label: "개인정보 가림", value: `${R.privacy.masked}/${R.privacy.positives} · 오탐 ${R.privacy.falsePositives}`, desc: `주민번호·전화·카드·이메일·계좌·여권 여러 표기 / 일반 질문 ${R.privacy.negatives}건 중 잘못 가림` },
   { label: "생활 용어 → 법령 사전", value: `${R.alias.correct}/${R.alias.total}`, desc: "'산재'·'보이스피싱' 같은 일상어가 가리키는 법령" },
   { label: "Next.js ↔ Python 동일성", value: R.parity.passed ? `${R.parity.cases}건 일치` : "불일치", desc: "같은 질문에 두 실행판이 같은 답·같은 근거" },

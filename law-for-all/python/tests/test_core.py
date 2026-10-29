@@ -600,6 +600,34 @@ class LiveMergeTest(unittest.TestCase):
         self.assertEqual(merged["25"].count("[별표 2] <개정 2026.6.30>"), 1)
 
 
+class QuantityGuardTest(unittest.TestCase):
+    """수치 대조 — tests/fixtures/quantity-cases.json 을 Next.js 판(tests/numbers.test.ts)과 함께 사용"""
+
+    def test_fixture_cases(self):
+        from law_for_all.numbers import extract_quantities, unverified_quantities
+        fx = Path(__file__).resolve().parents[2] / "tests/fixtures/quantity-cases.json"
+        if not fx.exists():
+            self.skipTest("저장소의 tests/fixtures 가 없는 배포본")
+        data = json.loads(fx.read_text(encoding="utf-8"))
+        for c in data["extract"]:
+            self.assertEqual(extract_quantities(c["text"]), c["expect"], c["text"])
+        for c in data["verify"]:
+            self.assertEqual(unverified_quantities(c["answer"], c["sources"]), c["expect"], c["answer"])
+
+    def test_guard_rejects_wrong_number(self):
+        from law_for_all.guard import GuardError, guard_llm_output
+        ctx = [{"key": "labor-standards:36", "lawId": "labor-standards", "lawName": "근로기준법", "articleNo": "36", "title": "금품 청산",
+                "text": "사용자는 근로자가 사망 또는 퇴직한 경우에는 그 지급 사유가 발생한 때부터 14일 이내에 임금, 보상금, 그 밖의 모든 금품을 지급하여야 한다.", "url": "", "source": "mock"}]
+        ok = {"summary": "퇴직 후 14일 이내에 받아야 해요 [[labor-standards:36]]", "steps": [], "easyTerms": [], "citations": ["labor-standards:36"]}
+        self.assertIn("14일", guard_llm_output(ok, "citizen", ctx)["summary"])
+        with self.assertRaisesRegex(GuardError, "확인되지 않은 수치 1건: 30일"):
+            guard_llm_output({**ok, "summary": "퇴직 후 30일 이내에 받아야 해요 [[labor-standards:36]]"}, "citizen", ctx)
+        with_user = {**ok, "summary": "못 받은 180만원은 14일 이내에 받아야 해요 [[labor-standards:36]]"}
+        with self.assertRaises(GuardError):
+            guard_llm_output(with_user, "citizen", ctx)
+        self.assertIn("180만원", guard_llm_output(with_user, "citizen", ctx, ["마지막 월급 180만원을 못 받았어요"])["summary"])
+
+
 class TrafficCasesTest(unittest.TestCase):
     """교통사고 보험처리 — 라우팅과 이런 경우라면(tests/case-rank.test.ts 와 같은 사례)"""
 

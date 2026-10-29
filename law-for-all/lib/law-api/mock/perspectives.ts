@@ -198,7 +198,7 @@ const LIVING_PERSPECTIVES: Record<string, Perspectives> = {
       arguments: [
         "행정기관은 민원 접수를 정당한 이유 없이 보류·거부할 수 없습니다 [[civil-petition:9]].",
         "질의민원은 법령 해석 14일, 제도·절차 7일 이내에 처리해야 합니다 [[civil-petition-decree:14]].",
-        "법정민원 거부처분에는 90일 이내 이의신청이 가능하고 행정심판도 별도로 청구할 수 있습니다 [[civil-petition:35]].",
+        "법정민원 거부처분에는 60일 이내 이의신청이 가능하고 행정심판도 별도로 청구할 수 있습니다 [[civil-petition:35]].",
       ],
       evidence: ["접수증·접수번호", "처리기간 연장 통지 여부", "거부처분 통지서"],
       strategy: ["민원 유형을 특정하여 처리기한 산정 [[civil-petition:19]]", "기한 경과 시 처리 지연 사유 문의", "거부 시 이의신청과 행정심판 병행 검토 [[admin-appeal:27]]"],
@@ -210,7 +210,7 @@ const LIVING_PERSPECTIVES: Record<string, Perspectives> = {
       requirements: [
         { label: "민원을 문서(전자문서 포함)로 신청", ref: "civil-petition:8", facts: ["신청", "국민신문고", "접수", "제출"] },
         { label: "법정 처리기간 경과", ref: "civil-petition:18", facts: ["지났", "넘었", "답이 없", "답변이 안", "며칠째", "주째"] },
-        { label: "거부처분일부터 90일 이내 이의신청", ref: "civil-petition:35", facts: ["거부", "반려", "불허"] },
+        { label: "거부처분일부터 60일 이내 이의신청", ref: "civil-petition:35", facts: ["거부", "반려", "불허"] },
       ],
       outlook: "처리기간 경과 자체로 처분의 효력이 정해지지는 않지만, 지연은 감사·고충민원 대상이 되며 거부처분은 이의신청·행정심판으로 다툴 수 있습니다.",
     },

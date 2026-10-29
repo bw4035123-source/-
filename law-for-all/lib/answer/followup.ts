@@ -168,7 +168,7 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
         maxTokens: 1200,
       });
       usedProvider = { ...usedProvider, model: res.model || provider.model };
-      const g = guardLLMOutput(parseLooseJson(res.text), mode, context);
+      const g = guardLLMOutput(parseLooseJson(res.text), mode, context, [prevQuery, question]);
       answer = g.summary;
       removed = g.removed;
     } catch (e) {

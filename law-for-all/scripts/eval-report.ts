@@ -8,6 +8,7 @@ import { execSync } from "node:child_process";
 import { matchLawAliases, matchTopics } from "../lib/law-api/search";
 import { ask } from "../lib/answer/ask";
 import { findUnverifiedMentions, guardLLMOutput } from "../lib/answer/guard";
+import { extractQuantities, unverifiedQuantities } from "../lib/answer/numbers";
 import { maskPII } from "../lib/privacy-mask";
 import { LLM_SWAP_RESULTS } from "../lib/llm/display";
 import { serverConfig } from "../lib/config";
@@ -68,6 +69,8 @@ async function main() {
   // 3) 답변 근거: 모든 질문에 대해(국민·공직자) 답변의 조문 번호가 근거 목록 안에만 있는지, 인용 검증 통과 여부
   const questions = [...dev.cases, ...holdout.cases, ...blindV1.cases, ...blindV2.cases, ...blindV3.cases, ...blindV4.cases, ...blindV5.cases, ...blind.cases].map((c) => c.q);
   let answers = 0, withCitation = 0, guardPassed = 0, outsideMarkers = 0, noResultHonest = 0;
+  // 수치 대조 오경보: 사람이 검수한(또는 원문에서 옮긴) 정상 답변의 금액·기간이 근거 원문에서 확인되는지
+  let qtyChecked = 0, qtyFalseAlarm = 0;
   const topicAnswers: Awaited<ReturnType<typeof ask>>[] = [];
   for (const q of questions) {
     for (const mode of ["citizen", "officer"] as const) {
@@ -76,6 +79,11 @@ async function main() {
       const keys = new Set(r.citations.map((c) => c.key));
       const text = [r.summary, ...(r.citizen?.steps ?? []).flatMap((s) => [s.title, s.detail]), ...(r.officer?.keyPoints ?? [])].join("\n");
       outsideMarkers += Array.from(text.matchAll(MARKER)).filter((m) => !keys.has(m[1])).length;
+      if (r.citations.length) {
+        qtyChecked++;
+        const texts = [r.summary, ...(r.citizen?.easyTerms ?? []).map((t) => t.meaning), ...(r.citizen?.steps ?? []).flatMap((s) => [s.title, s.detail]), r.citizen?.tip ?? "", ...(r.citizen?.cases ?? []).map((c) => c.detail), r.officer?.background ?? "", ...(r.officer?.keyPoints ?? [])];
+        if (unverifiedQuantities(texts, [...r.citations.map((c) => `${c.title}\n${c.text}`), q]).length) qtyFalseAlarm++;
+      }
       if (r.citations.length) withCitation++;
       else if (r.summary.includes("찾지 못했어요")) noResultHonest++;
       if (r.guard.passed) guardPassed++;
@@ -113,6 +121,37 @@ async function main() {
     }
   }
   const injection = { answers: topicAnswers.length, injected, blocked };
+
+  // 4-2) 수치 바꿔치기 시험: 실제 답변에 근거 원문의 금액·기간 하나를 다른 값으로 바꾼 문장을 섞어 가드가 답변을 막는지
+  let qtyTampered = 0, qtyCaught = 0, qtyCleanPassed = 0;
+  const MUT: Record<string, (v: number) => string> = {
+    원: (v) => (v * 2 >= 1e4 ? `${(v * 2) / 1e4}만원` : `${v * 2}원`),
+    "%": (v) => `${v * 2}%`, 개월: (v) => `${v + 1}개월`, 년: (v) => `${v + 1}년`, 일: (v) => `${v + 7}일`, 시간: (v) => `${v + 1}시간`, 배: (v) => `${v + 1}배`, 세: (v) => `${v + 1}세`, dB: (v) => `${v + 5}dB`,
+  };
+  for (const r of topicAnswers) {
+    const ctx = r.citations;
+    const sources = [...ctx.map((c) => `${c.title}\n${c.text}`), r.query];
+    const base = { summary: r.summary, steps: [], easyTerms: [], citations: [ctx[0].key] };
+    try {
+      guardLLMOutput(base, "citizen", ctx, [r.query]);
+      qtyCleanPassed++;
+    } catch {
+      /* 정상 답변이 막힘 = 오경보(아래 성적표에 그대로 드러남) */
+    }
+    const known = new Set(sources.flatMap(extractQuantities));
+    const target = extractQuantities(sources.join("\n")).find((x) => MUT[x.split(":")[0]]);
+    if (!target) continue;
+    const [u, v] = target.split(":");
+    const fake = MUT[u](Number(v));
+    if (extractQuantities(fake).some((x) => known.has(x))) continue;
+    qtyTampered++;
+    try {
+      guardLLMOutput({ ...base, summary: `${r.summary} 기준은 ${fake}이에요 [[${ctx[0].key}]]` }, "citizen", ctx, [r.query]);
+    } catch (e) {
+      if (/수치/.test((e as Error).message)) qtyCaught++;
+    }
+  }
+  const quantity = { checked: qtyChecked, falseAlarm: qtyFalseAlarm, answers: topicAnswers.length, cleanPassed: qtyCleanPassed, tampered: qtyTampered, caught: qtyCaught };
   void findUnverifiedMentions;
 
   // 5) 개인정보 가림: 여러 표기의 개인정보는 가리고, 일반 질문(날짜·금액·수치 포함)은 건드리지 않는지
@@ -150,6 +189,7 @@ async function main() {
     alias,
     grounding,
     injection,
+    quantity,
     privacy,
     parity: parityRes,
     llm: LLM_SWAP_RESULTS,
@@ -170,6 +210,7 @@ async function main() {
 | 생활 용어 → 법령 사전 | ${alias.correct}/${alias.total} | '산재'·'보이스피싱' 등 일상어가 가리키는 법령 |
 | 답변 근거 | 조문 번호 ${grounding.outsideMarkers}건 근거 밖 · 인용 검증 통과 ${grounding.guardPassed}/${grounding.answers} | 질문 ${questions.length}건 × 국민·공직자 = 답변 ${grounding.answers}건. 근거 있음 ${grounding.withCitation}건, 근거가 없으면 지어내지 않고 '찾지 못함' 안내 ${grounding.noResultHonest}건 |
 | 환각 주입 차단 | ${injection.blocked}/${injection.injected} (${pct(injection.blocked, injection.injected)}%) | 실제 답변 ${injection.answers}건에 없는 조문 번호·없는 조문·근거 밖 법령·전부 지어낸 인용을 섞어 가드가 걸러내는지 |
+| 수치 바꿔치기 차단 | ${quantity.caught}/${quantity.tampered} (${pct(quantity.caught, quantity.tampered)}%) · 오경보 ${quantity.falseAlarm}/${quantity.checked} | 실제 답변에 근거 원문의 금액·기간·비율을 다른 값으로 바꾼 문장을 섞으면 가드가 답변을 막고 규칙기반으로 대체하는지 / 근거가 있는 정상 답변 ${quantity.checked}건 중 수치 때문에 잘못 막힌 답변(규칙은 이 답변들을 보며 다듬었으므로 블라인드 아님). 놓친 경우는 원문에 '전액'이 있어 100%를 정상 풀이로 인정한 경우 |
 | 개인정보 가림 | ${privacy.masked}/${privacy.positives} 가림 · 오탐 ${privacy.falsePositives}/${privacy.negatives} | 주민등록번호·전화번호·카드·이메일·계좌·여권번호 여러 표기 / 날짜·금액·수치가 든 일반 질문 |
 | Next.js ↔ Python 동일성 | ${parityRes.passed ? "일치" : "불일치"} (${parityRes.cases}건) | 같은 질문에 두 실행판이 같은 답·같은 근거 |
 | LLM 교체 실측 | ${LLM_SWAP_RESULTS.models.map((m) => `${m.name} ${m.passed}/${m.total}`).join(" · ")} | ${LLM_SWAP_RESULTS.cases}, ${LLM_SWAP_RESULTS.date} |

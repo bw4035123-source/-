@@ -200,7 +200,7 @@ def analyze(situation: str, provider: str | None = None) -> dict:
         else:
             try:
                 res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500, schema=ANALYSIS_SCHEMA)
-                g = guard_analysis_output(parse_loose_json(res["text"]), citations)
+                g = guard_analysis_output(parse_loose_json(res["text"]), citations, [situation])
                 used["model"] = res["model"] or p.model
                 label = f"종합 분석({'·'.join(i['topic']['label'] for i in issues)})" if issues else "종합 분석"
                 analyses = [{"issue": {"id": "ai", "label": label}, "perspectives": g["perspectives"]}]

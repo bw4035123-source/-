@@ -108,6 +108,14 @@
   "injected": 1456,
   "blocked": 1456
  },
+ "quantity": {
+  "checked": 828,
+  "falseAlarm": 0,
+  "answers": 364,
+  "cleanPassed": 364,
+  "tampered": 320,
+  "caught": 298
+ },
  "privacy": {
   "positives": 20,
   "masked": 20,

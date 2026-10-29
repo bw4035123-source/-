@@ -128,7 +128,7 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
         try:
             res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(f"이전 질문: {prev_query}\n이어서 묻는 질문: {question}", context)}], json_mode=True, temperature=0.1, max_tokens=1200, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
-            g = guard_llm_output(parse_loose_json(res["text"]), mode, context)
+            g = guard_llm_output(parse_loose_json(res["text"]), mode, context, [prev_query, question])
             out.update(answer=g["summary"], removed=g["removed"])
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
             fallback = f"{p.label} 응답을 검증하지 못해 규칙기반 엔진으로 대체했습니다({e})."

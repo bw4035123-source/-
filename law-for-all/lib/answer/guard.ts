@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Citation } from "../law-api/types";
 import type { CitizenAnswer, OfficerAnswer } from "./types";
+import { quantityLabel, unverifiedQuantities } from "./numbers";
 
 /**
  * 환각(Hallucination) 방지 가드
@@ -142,8 +143,17 @@ export interface GuardedOutput {
   unverified: string[];
 }
 
-/** LLM JSON → 검증·정제된 답변. 근거 인용이 하나도 없으면 예외(상위에서 규칙엔진으로 대체) */
-export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", context: Citation[]): GuardedOutput {
+/**
+ * 수치 대조 — 답변의 금액·기간·비율이 근거 원문(과 사용자 질문)에 없으면 예외(상위에서 규칙엔진으로 대체).
+ * 조문 번호가 맞아도 숫자를 잘못 옮기거나 지어낸 답(예: 소형 모델의 '2년 이내 반환')을 내보내지 않기 위함.
+ */
+export function assertQuantities(texts: string[], context: Citation[], userTexts: string[] = []): void {
+  const bad = unverifiedQuantities(texts, [...context.map((c) => `${c.title}\n${c.text}`), ...userTexts]);
+  if (bad.length) throw new Error(`근거 원문에서 확인되지 않은 수치 ${bad.length}건: ${bad.slice(0, 3).map(quantityLabel).join(", ")}`);
+}
+
+/** LLM JSON → 검증·정제된 답변. 근거 인용이 하나도 없거나, 근거 원문에 없는 수치가 있으면 예외(상위에서 규칙엔진으로 대체) */
+export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", context: Citation[], userTexts: string[] = []): GuardedOutput {
   raw = unwrapLlmJson(raw, ["summary", "steps", "keyPoints", "background"]);
   const allowed = new Set(context.map((c) => c.key));
   const removed: string[] = [];
@@ -171,7 +181,7 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
         .map((s) => ({ title: clean(s.title), detail: clean(s.detail), ref: s.ref && allowed.has(s.ref) ? s.ref : undefined })),
       tip: p.tip ? clean(p.tip) : undefined,
     };
-    allText.push(summary, ...citizen.steps.flatMap((s) => [s.title, s.detail]), citizen.tip ?? "");
+    allText.push(summary, ...citizen.easyTerms.map((t) => t.meaning), ...citizen.steps.flatMap((s) => [s.title, s.detail]), citizen.tip ?? "");
     declared = p.citations;
   } else {
     const p = OfficerSchema.parse(raw);
@@ -193,6 +203,7 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
   if (!used.length) used.push(...inferCitationKeys(allText, context));
   if (!summary) throw new Error("요약이 비어 있습니다");
   if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+  assertQuantities(allText, context, userTexts);
 
   return { summary, citizen, officer, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(allText.join("\n"), context) };
 }
@@ -212,7 +223,7 @@ export const AnalysisSchema = z.object({
   citations: keyList.catch([]),
 });
 
-export function guardAnalysisOutput(raw: unknown, context: Citation[]) {
+export function guardAnalysisOutput(raw: unknown, context: Citation[], userTexts: string[] = []) {
   raw = unwrapLlmJson(raw, ["lawyer", "prosecutor", "judge"]);
   const allowed = new Set(context.map((c) => c.key));
   const removed: string[] = [];
@@ -249,5 +260,6 @@ export function guardAnalysisOutput(raw: unknown, context: Citation[]) {
   if (!used.length) used.push(...inferCitationKeys(texts, context));
   if (!perspectives.lawyer.stance || !perspectives.judge.stance) throw new Error("관점 분석이 비어 있습니다");
   if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+  assertQuantities(texts, context, userTexts);
   return { perspectives, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(texts.join("\n"), context) };
 }

@@ -55,7 +55,7 @@ export async function analyze({ situation: raw, provider: requested }: { situati
           temperature: 0.1,
           maxTokens: 2500,
         });
-        const g = guardAnalysisOutput(parseLooseJson(res.text), citations);
+        const g = guardAnalysisOutput(parseLooseJson(res.text), citations, [situation]);
         usedProvider = { ...usedProvider, model: res.model || provider.model };
         analyses = [{ issue: { id: "ai", label: issues.length ? `종합 분석(${issues.map((i) => i.topic.label).join("·")})` : "종합 분석" }, perspectives: g.perspectives }];
         removed = g.removed;

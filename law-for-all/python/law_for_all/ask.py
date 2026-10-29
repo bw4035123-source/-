@@ -108,7 +108,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         try:
             res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
-            g = guard_llm_output(parse_loose_json(res["text"]), mode, context)
+            g = guard_llm_output(parse_loose_json(res["text"]), mode, context, [query])
             out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"])
             citation_keys = g["citationKeys"] + [k for k in citation_keys if k not in g["citationKeys"]]
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체

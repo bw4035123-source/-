@@ -95,7 +95,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
         maxTokens: 1800,
       });
       usedProvider = { ...usedProvider, model: res.model || provider.model };
-      const g = guardLLMOutput(parseLooseJson(res.text), mode, context);
+      const g = guardLLMOutput(parseLooseJson(res.text), mode, context, [query]);
       summary = g.summary;
       citizen = g.citizen;
       officer = g.officer;

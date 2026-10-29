@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import re
 
+from .numbers import quantity_label, unverified_quantities
+
 MARKER = re.compile(r"\[\[([^\]\s]+)\]\]")
 
 
@@ -176,7 +178,14 @@ class _Cleaner:
         return list(dict.fromkeys(self.removed))
 
 
-def guard_llm_output(raw, mode: str, context: list[dict]) -> dict:
+def assert_quantities(texts: list[str], context: list[dict], user_texts: list[str] | None = None) -> None:
+    """수치 대조 — 답변의 금액·기간·비율이 근거 원문(과 사용자 질문)에 없으면 예외(상위에서 규칙엔진으로 대체)"""
+    bad = unverified_quantities(texts, [f"{c['title']}\n{c['text']}" for c in context] + list(user_texts or []))
+    if bad:
+        raise GuardError(f"근거 원문에서 확인되지 않은 수치 {len(bad)}건: {', '.join(quantity_label(q) for q in bad[:3])}")
+
+
+def guard_llm_output(raw, mode: str, context: list[dict], user_texts: list[str] | None = None) -> dict:
     raw = unwrap_llm_json(raw, ("summary", "steps", "keyPoints", "background"))
     if not isinstance(raw, dict):
         raise GuardError("JSON 객체가 아닙니다")
@@ -205,10 +214,11 @@ def guard_llm_output(raw, mode: str, context: list[dict]) -> dict:
         raise GuardError("요약이 비어 있습니다")
     if not c.used:
         raise GuardError("근거 조문 인용이 없습니다")
+    assert_quantities(c.texts + ([t["meaning"] for t in citizen["easyTerms"]] if citizen else []), context, user_texts)
     return {"summary": summary, "citizen": citizen, "officer": officer, "citationKeys": c.used, "removed": c.removed_unique(), "unverified": find_unverified_mentions("\n".join(c.texts), context)}
 
 
-def guard_analysis_output(raw, context: list[dict]) -> dict:
+def guard_analysis_output(raw, context: list[dict], user_texts: list[str] | None = None) -> dict:
     raw = unwrap_llm_json(raw, ("lawyer", "prosecutor", "judge"))
     if not isinstance(raw, dict):
         raise GuardError("JSON 객체가 아닙니다")
@@ -239,4 +249,5 @@ def guard_analysis_output(raw, context: list[dict]) -> dict:
         raise GuardError("관점 분석이 비어 있습니다")
     if not c.used:
         raise GuardError("근거 조문 인용이 없습니다")
+    assert_quantities(c.texts, context, user_texts)
     return {"perspectives": perspectives, "citationKeys": c.used, "removed": c.removed_unique(), "unverified": find_unverified_mentions("\n".join(c.texts), context)}
