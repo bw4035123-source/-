@@ -8,6 +8,8 @@ export interface CitizenAnswer {
   easyTerms: { term: string; meaning: string }[];
   steps: { title: string; detail: string; ref?: string }[];
   tip?: string;
+  /** 이런 경우라면 — 질문에 맞는 검수된 상황별 안내(토픽 데이터에서 고름) */
+  cases?: { situation: string; detail: string; ref?: string }[];
 }
 
 export interface OfficerAnswer {

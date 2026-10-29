@@ -32,6 +32,12 @@ describe("내장 법령 데이터 무결성", () => {
       for (const s of t.citizen.steps) if (s.ref) expect(exists(s.ref), `${t.id} step ${s.ref}`).toBe(true);
       for (const m of Array.from(t.citizen.summary.matchAll(/\[\[([^\]]+)\]\]/g))) expect(exists(m[1]), `${t.id} summary ${m[1]}`).toBe(true);
       expect(t.citizen.steps.length).toBe(3);
+      // 이런 경우라면: 근거 조문·본문 표식이 모두 실존하고, 그 토픽의 근거 목록 안에 있어야 함(답변 근거 카드에 함께 표시되도록)
+      for (const c of t.citizen.cases ?? []) {
+        if (c.ref) expect(t.refs.includes(c.ref), `${t.id} case ${c.situation} ref ${c.ref}`).toBe(true);
+        for (const m of Array.from(c.detail.matchAll(/\[\[([^\]]+)\]\]/g))) expect(t.refs.includes(m[1]) && exists(m[1]), `${t.id} case ${c.situation} ${m[1]}`).toBe(true);
+        expect(c.when.length, `${t.id} case ${c.situation} when`).toBeGreaterThan(0);
+      }
     }
   });
 });
@@ -62,7 +68,7 @@ describe("토픽 문장 ↔ 근거 대조(환각 가드)", () => {
         const law = getMockLaw(p.lawId)!;
         return toCitation(law, law.articles.find((a) => a.no === p.articleNo)!);
       });
-      const text = [t.citizen.summary, t.officer.background, ...t.officer.keyPoints, ...t.officer.adminNotes].join("\n");
+      const text = [t.citizen.summary, t.citizen.tip ?? "", ...(t.citizen.cases ?? []).map((c) => c.detail), t.officer.background, ...t.officer.keyPoints, ...t.officer.adminNotes].join("\n");
       expect(findUnverifiedMentions(text, cites), t.id).toEqual([]);
     }
   });

@@ -88,6 +88,18 @@ export function ReportView() {
                 </ol>
               </section>
             )}
+            {r.citizen.cases && r.citizen.cases.length > 0 && (
+              <section className="mt-6">
+                <h2 className="text-lg font-extrabold">이런 경우라면</h2>
+                <ul className="mt-2 space-y-1.5 text-sm leading-6">
+                  {r.citizen.cases.map((x) => (
+                    <li key={x.situation}>
+                      <strong>{x.situation}</strong> — {strip(x.detail, keys)}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             {r.citizen.easyTerms.length > 0 && (
               <section className="mt-6">
                 <h2 className="text-lg font-extrabold">용어 풀이</h2>

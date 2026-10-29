@@ -600,6 +600,24 @@ class LiveMergeTest(unittest.TestCase):
         self.assertEqual(merged["25"].count("[별표 2] <개정 2026.6.30>"), 1)
 
 
+class TrafficCasesTest(unittest.TestCase):
+    """교통사고 보험처리 — 라우팅과 이런 경우라면(tests/case-rank.test.ts 와 같은 사례)"""
+
+    def test_route_and_cases(self):
+        from law_for_all.ask import ask
+        from law_for_all.cases import pick_cases
+        from law_for_all.data import TOPICS
+        r = ask("교통사고 났는데 상대가 보험처리 안 해줘요", "citizen")
+        self.assertEqual(r["topic"]["id"], "traffic-insurance")
+        self.assertEqual(r["citizen"]["cases"][0]["situation"], "상대가 보험 접수를 안 해 줄 때")
+        keys = {c["key"] for c in r["citations"]}
+        self.assertIn("commercial-act:724", keys)
+        t = next(x for x in TOPICS if x["id"] == "traffic-insurance")
+        self.assertEqual(pick_cases(t, "상대 차가 무보험이래요")[0]["situation"], "상대 차가 보험이 없을 때")
+        self.assertEqual(len(pick_cases(t, "교통사고 났어요")), 3)
+        self.assertEqual(pick_cases(None, "아무 질문"), [])
+
+
 class CaseRankTest(unittest.TestCase):
     """판례·해석례 관련도 정리 — tests/case-rank.test.ts 와 같은 사례"""
 

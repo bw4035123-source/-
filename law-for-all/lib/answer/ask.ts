@@ -15,6 +15,7 @@ import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
 import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
 import { relatedLawsOf, retrieve } from "./retrieve";
 import { buildRuleAnswer } from "./rule-engine";
+import { pickCases } from "./cases";
 import { maskNotice, maskPII } from "../privacy-mask";
 import type { AskResult, UserMode } from "./types";
 
@@ -113,6 +114,10 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
 
   const citations = citationKeys.map((k) => context.find((c) => c.key === k)!).filter(Boolean);
   notices.push(...svc.warnings);
+  // 이런 경우라면: 검수된 토픽 데이터에서 고르므로 LLM 답변이어도 같은 안내. 근거 표식이 이번 근거 목록에 모두 있는 것만
+  const have = new Set(citations.map((c) => c.key));
+  const cases = pickCases(topic, query).filter((c) => Array.from(c.detail.matchAll(/\[\[([^\]]+)\]\]/g)).every((m) => have.has(m[1])));
+  if (citizen! && cases.length) citizen = { ...citizen!, cases };
 
   return {
     query,

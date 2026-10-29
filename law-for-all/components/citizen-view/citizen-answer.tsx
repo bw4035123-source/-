@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { BookA, Footprints, Lightbulb, MessageCircleHeart, Sparkles } from "lucide-react";
+import { BookA, Footprints, Lightbulb, MessageCircleHeart, Signpost, Sparkles } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import { CitedLines, CitedText } from "@/components/law-search/cited-text";
 import { useCitations } from "@/components/law-search/citation-context";
@@ -87,6 +87,39 @@ export function CitizenAnswer({ result }: { result: AskResult }) {
               );
             })}
           </ol>
+        </section>
+      )}
+
+      {/* 이런 경우라면 — 같은 주제 안의 구체적 상황별 안내(검수된 문장, 질문에 맞는 것이 앞) */}
+      {c?.cases && c.cases.length > 0 && (
+        <section aria-labelledby="cases-h">
+          <h2 id="cases-h" className="mb-3 flex items-center gap-2 text-lg font-extrabold">
+            <Signpost className="h-5 w-5 text-accent" /> 이런 경우라면
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {c.cases.map((x, i) => {
+              const ref = x.ref ? citations.find((y) => y.key === x.ref) : undefined;
+              return (
+                <motion.div
+                  key={x.situation}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 + i * 0.06 }}
+                  className={`rounded-xl border bg-card p-4 shadow-sm ${i === 0 ? "border-accent/50 sm:col-span-2" : ""}`}
+                >
+                  <p className="font-bold text-accent">{x.situation}</p>
+                  <p className="mt-1 text-sm leading-7 text-foreground/85">
+                    <CitedText text={x.detail} />
+                  </p>
+                  {ref && (
+                    <button type="button" onClick={() => open(ref.key)} className="mt-1 text-xs font-semibold text-accent underline-offset-2 hover:underline">
+                      근거: {ref.lawName} {articleLabel(ref.articleNo)}
+                    </button>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
         </section>
       )}
 

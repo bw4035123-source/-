@@ -228,8 +228,12 @@ class LawService:
 
     def _fetch_by_name(self, name: str, law_id: str, fast: bool = False) -> dict | None:
         t = FAST if fast else {"timeout": 20, "retries": None}
-        lst = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": name, "display": "20"}, self.oc, t["timeout"], t["retries"]))
-        exact = [x for x in lst if x["name"].replace(" ", "") == name.replace(" ", "")]
+        def exact_in(display: str) -> list[dict]:
+            lst = parse_law_list(drf_get("lawSearch.do", {"target": "law", "query": name, "display": display}, self.oc, t["timeout"], t["retries"]))
+            return [x for x in lst if x["name"].replace(" ", "") == name.replace(" ", "")]
+
+        # 목록은 가나다순이라 짧은 이름('상법')은 앞 20건에 안 들 수 있어 넓혀 한 번 더
+        exact = exact_in("20") or exact_in("100")
         if not exact:
             raise LawApiError(f"'{name}'을(를) 국가법령정보에서 찾지 못했습니다")
         current = [x for x in exact if not x["status"] or x["status"] == "현행"] or exact

@@ -41,3 +41,16 @@ describe("판례·해석례 관련도 정리", () => {
     expect(liveCaseQuery("아르바이트 최저시급 못 받았어요")).toBe("최저임금");
   });
 });
+
+describe("이런 경우라면(상황별 안내) 고르기", () => {
+  it("질문에 맞는 상황을 앞에, 최대 3개 · 토픽이 없으면 빈 목록", async () => {
+    const { pickCases } = await import("@/lib/answer/cases");
+    const { TOPICS } = await import("@/lib/law-api/mock/topics");
+    const t = TOPICS.find((x) => x.id === "traffic-insurance")!;
+    expect(pickCases(t, "교통사고 났는데 상대가 보험처리 안 해줘요")[0].situation).toBe("상대가 보험 접수를 안 해 줄 때");
+    expect(pickCases(t, "상대 차가 무보험이래요")[0].situation).toBe("상대 차가 보험이 없을 때");
+    expect(pickCases(t, "뺑소니 당했어요")[0].situation).toContain("뺑소니");
+    expect(pickCases(t, "교통사고 났어요")).toHaveLength(3);
+    expect(pickCases(undefined, "아무 질문")).toEqual([]);
+  });
+});

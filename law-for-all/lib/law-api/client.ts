@@ -203,8 +203,10 @@ export class LawService {
 
   private async fetchLiveByName(name: string, id: string, fast = false): Promise<LawDoc | null> {
     const t = fast ? FAST : { timeoutMs: 20000, retries: undefined };
-    const list = parseLawList(await drfGet("lawSearch.do", { target: "law", query: name, display: "20" }, this.oc, t.timeoutMs, t.retries));
-    const exact = list.filter((x) => x.name.replace(/\s/g, "") === name.replace(/\s/g, ""));
+    const same = (x: { name: string }) => x.name.replace(/\s/g, "") === name.replace(/\s/g, "");
+    let exact = parseLawList(await drfGet("lawSearch.do", { target: "law", query: name, display: "20" }, this.oc, t.timeoutMs, t.retries)).filter(same);
+    // 목록은 가나다순이라 짧은 이름('상법')은 앞 20건에 안 들 수 있어 넓혀 한 번 더
+    if (!exact.length) exact = parseLawList(await drfGet("lawSearch.do", { target: "law", query: name, display: "100" }, this.oc, t.timeoutMs, t.retries)).filter(same);
     if (!exact.length) throw new LawApiError(`'${name}'을(를) 국가법령정보에서 찾지 못했습니다`);
     const current = exact.filter((x) => !x.status || x.status === "현행");
     const pick = (current.length ? current : exact).sort((a, b) => b.effective.localeCompare(a.effective))[0];

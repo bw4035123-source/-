@@ -1,9 +1,11 @@
 """질의응답 파이프라인: 근거 검색 → 원문 확보 → 공급자 선택 → 생성/조립 → 환각 가드"""
 from __future__ import annotations
 
+import re
 import time
 from datetime import datetime, timezone
 
+from .cases import pick_cases
 from .config import config
 from .data import LAWS, article_key, get_law, parse_key
 from .guard import find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
@@ -138,7 +140,10 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     if topic:
         result["topic"] = {"id": topic["id"], "label": topic["label"]}
     if out.get("citizen"):
-        result["citizen"] = out["citizen"]
+        # 이런 경우라면: 검수된 토픽 데이터에서 고름(LLM 답변이어도 같음). 근거 표식이 이번 근거 목록에 모두 있는 것만
+        have = {c["key"] for c in citations}
+        cases = [c for c in pick_cases(topic, query) if all(k in have for k in re.findall(r"\[\[([^\]]+)\]\]", c["detail"]))]
+        result["citizen"] = {**out["citizen"], "cases": cases} if cases else out["citizen"]
     if out.get("officer"):
         result["officer"] = out["officer"]
     return result

@@ -99,7 +99,7 @@
     {"q": "택배가 분실됐는데 반환받을 수 있나요", "topic": null},
     {"q": "이사 가면 전입신고 해야 하나요", "topic": null},
     {"q": "세입자가 월세를 안 내요", "topic": null},
-    {"q": "교통사고 합의금은 어떻게 정하나요", "topic": null},
+    {"q": "교통사고 합의금은 어떻게 정하나요", "topic": "traffic-insurance", "_변경": "10-29 교통사고 보험처리 토픽 추가로 기대값 변경(이전: null — 당시 해당 토픽 없음)"},
     {"q": "이혼할 때 재산분할은 어떻게 하나요", "topic": null},
     {"q": "반려견 산책할 때 목줄 안 하면 과태료", "topic": null},
     {"q": "아파트 주차장 장애인 구역 주차 과태료", "topic": null},
@@ -109,6 +109,15 @@
     {"q": "오늘 날씨가 좋네요", "topic": null},
     {"q": "운전면허 갱신은 어떻게 하나요", "topic": null},
     {"q": "헬스장 환불 거부 당했어요", "topic": null},
-    {"q": "이웃집 개가 너무 짖어요", "topic": null}
+    {"q": "이웃집 개가 너무 짖어요", "topic": null},
+    {"q": "교통사고 났는데 상대가 보험처리 안 해줘요", "topic": "traffic-insurance"},
+    {"q": "접촉사고 났는데 상대방이 보험 접수를 안 해줘요", "topic": "traffic-insurance"},
+    {"q": "뒤에서 추돌당했는데 치료비는 어떻게 받나요", "topic": "traffic-insurance"},
+    {"q": "뺑소니를 당했는데 보상받을 수 있나요", "topic": "traffic-insurance"},
+    {"q": "상대 차가 무보험이래요 치료비는요", "topic": "traffic-insurance"},
+    {"q": "길 건너다 차에 치였어요", "topic": "traffic-insurance"},
+    {"q": "음주운전하다 사고 냈어요 처벌은?", "topic": "drunk-driving"},
+    {"q": "자동차보험료가 너무 올랐어요", "topic": null},
+    {"q": "실손보험 청구 거절당했어요", "topic": null}
   ]
 }

@@ -1,11 +1,11 @@
 {
- "generatedAt": "2026-10-27",
+ "generatedAt": "2026-10-29",
  "command": "npm run eval",
  "routing": {
   "dev": {
-   "total": 392,
-   "correct": 392,
-   "strict": 389,
+   "total": 401,
+   "correct": 401,
+   "strict": 398,
    "wrongTopic": 0,
    "misses": []
   },
@@ -97,25 +97,25 @@
   "correct": 45
  },
  "grounding": {
-  "answers": 904,
-  "withCitation": 786,
-  "noResultHonest": 118,
-  "guardPassed": 904,
+  "answers": 922,
+  "withCitation": 828,
+  "noResultHonest": 94,
+  "guardPassed": 922,
   "outsideMarkers": 0
  },
  "injection": {
-  "answers": 353,
-  "injected": 1412,
-  "blocked": 1412
+  "answers": 364,
+  "injected": 1456,
+  "blocked": 1456
  },
  "privacy": {
   "positives": 20,
   "masked": 20,
-  "negatives": 462,
+  "negatives": 471,
   "falsePositives": 0
  },
  "parity": {
-  "cases": 58,
+  "cases": 60,
   "passed": true
  },
  "llm": {
