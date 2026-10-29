@@ -14,7 +14,10 @@ for (const c of set.cases) {
     await new Promise((ok) => setTimeout(ok, 3000));
   }
   const laws = [...new Set((r?.citations ?? []).map((x) => x.lawName))];
-  rows.push({ q: c.q, external: !!c.external, result: laws.some((l) => c.laws.includes(l)) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3), topic: r?.topic?.id ?? null });
+  // 법령 이름 표기 차이(띄어쓰기·가운뎃점 ·ㆍ•)는 같은 법으로 채점
+  const norm = (n) => n.replace(/\s+/g, "").replace(/[ㆍ•‧・]/g, "·");
+  const want = new Set(c.laws.map(norm));
+  rows.push({ q: c.q, external: !!c.external, result: laws.some((l) => want.has(norm(l))) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3), topic: r?.topic?.id ?? null });
 }
 const count = (rs) => ({ total: rs.length, correct: rs.filter((r) => r.result === "correct").length, miss: rs.filter((r) => r.result === "miss").length, wrong: rs.filter((r) => r.result === "wrong").length });
 const out = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};

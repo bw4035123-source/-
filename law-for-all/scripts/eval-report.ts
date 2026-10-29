@@ -22,6 +22,7 @@ import blindV5 from "../tests/fixtures/routing-blind-v5.json";
 import blind from "../tests/fixtures/routing-blind-v6.json";
 import coverageSet from "../tests/fixtures/coverage-v1.json";
 import coverageBlindSet from "../tests/fixtures/coverage-blind-v1.json";
+import coverageBlindSet2 from "../tests/fixtures/coverage-blind-v2.json";
 import aliases from "../tests/fixtures/alias-cases.json";
 import parity from "../python/tests/parity_fixtures.json";
 
@@ -96,24 +97,30 @@ async function main() {
 
   // 3-2) 처음 보는 일상 질문 대응률: 기대 법령을 근거로 인용하면 정답, '찾지 못함'은 정직한 미응답, 다른 법이면 오답(국민 모드)
   type CovRow = { q: string; external: boolean; result: "correct" | "miss" | "wrong"; got: string[] };
+  // 법령 이름 표기 차이(띄어쓰기·가운뎃점 ·ㆍ•)는 같은 법으로 채점
+  const normLaw = (n: string) => n.replace(/\s+/g, "").replace(/[ㆍ•‧・]/g, "·");
   const covRun = async (cases: { q: string; laws: string[]; external?: boolean }[]) => {
     const rows: CovRow[] = [];
     for (const c of cases) {
       const r = await ask({ query: c.q, mode: "citizen" });
       const laws = Array.from(new Set(r.citations.map((x) => x.lawName)));
-      rows.push({ q: c.q, external: !!c.external, result: laws.some((l) => c.laws.includes(l)) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3) });
+      const want = new Set(c.laws.map(normLaw));
+      rows.push({ q: c.q, external: !!c.external, result: laws.some((l) => want.has(normLaw(l))) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3) });
     }
     return rows;
   };
   const covRows = await covRun(coverageSet.cases as { q: string; laws: string[]; external?: boolean }[]);
   // 독립 작성자(로컬 EXAONE) 블라인드 — 넓은 생활 분야 이름만 보고 쓴 문항, 측정 후 이 문항으로 규칙을 고치지 않음
   const blindRows = await covRun(coverageBlindSet.cases as { q: string; laws: string[] }[]);
+  // 2차 블라인드 — 1차 결과로 실시간 검색 기준·생활 용어 사전을 고친 뒤 처음 연 새 문항(seed 20261030)
+  const blind2Rows = await covRun(coverageBlindSet2.cases as { q: string; laws: string[] }[]);
   const covCount = (rows: CovRow[]) => ({ total: rows.length, correct: rows.filter((r) => r.result === "correct").length, miss: rows.filter((r) => r.result === "miss").length, wrong: rows.filter((r) => r.result === "wrong").length });
-  const coverage = { ...covCount(covRows), external: covCount(covRows.filter((r) => r.external)), rows: covRows, blind: { ...covCount(blindRows), rows: blindRows } };
+  const coverage = { ...covCount(covRows), external: covCount(covRows.filter((r) => r.external)), rows: covRows, blind: { ...covCount(blindRows), rows: blindRows }, blind2: { ...covCount(blind2Rows), rows: blind2Rows } };
   // 실서비스(실시간 전체 법령 검색 포함) 측정값 — scripts/coverage-live.mjs 로 개선 전·후 기록(인증키·네트워크 필요해 재현 시험과 분리)
   type LiveCov = { date: string; correct: number; total: number; miss: number; wrong: number; external: { correct: number; total: number } };
   const covLive = (fs.existsSync("lib/eval/coverage-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-live.json", "utf8")) : {}) as { before?: LiveCov; after?: LiveCov };
   const covBlindLive = (fs.existsSync("lib/eval/coverage-blind-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-blind-live.json", "utf8")) : {}) as { once?: LiveCov };
+  const covBlind2Live = (fs.existsSync("lib/eval/coverage-blind-v2-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-blind-v2-live.json", "utf8")) : {}) as { once?: LiveCov };
 
   // 4) 환각 주입 시험: 실제 답변에 지어낸 인용을 섞어 가드가 걸러내는지(LLM이 틀리게 답한 상황을 흉내)
   let injected = 0, blocked = 0;
@@ -232,6 +239,7 @@ async function main() {
 | 상황 분류(6차 블라인드, 독립 작성자) | ${b.correct}/${b.total} (${pct(b.correct, b.total)}%) · 엄격 ${b.strict}/${b.total} (${pct(b.strict, b.total)}%) | **정해진 상황 안에서의 분류 정확도**(상황 밖 질문 대응은 아래 '처음 보는 일상 질문' 참고). 로컬 EXAONE 3.5가 상황 이름·한 줄 설명만 보고 쓴 질문(규칙 사전 미제공). 규칙 개선 중에는 열어 보지 않고, 라벨만 검토해 커밋한 뒤 한 번 측정. 법적으로 두 답이 가능한 문항은 측정 전에 둘 다 인정(엄격 채점은 첫 라벨만). 틀린 ${b.total - b.correct}건 중 엉뚱한 상황 ${b.wrongTopic}건 |
 | 상황 분류(회귀 시험) | ${routing.dev.correct}/${routing.dev.total} (${pct(routing.dev.correct, routing.dev.total)}%) | 개발 중 쓴 질문 + 1~5차 블라인드 — 고칠 때 이전 동작이 깨지지 않았는지 확인 |
 | 처음 보는 일상 질문 · 블라인드(독립 작성자) | 실서비스 ${covBlindLive.once ? `${covBlindLive.once.correct}/${covBlindLive.once.total} (${pct(covBlindLive.once.correct, covBlindLive.once.total)}%) · 찾지 못함 ${covBlindLive.once.miss} · 다른 법 ${covBlindLive.once.wrong}` : "미측정"} · 내장만 ${coverage.blind.correct}/${coverage.blind.total} (${pct(coverage.blind.correct, coverage.blind.total)}%) | 로컬 EXAONE 3.5가 넓은 생활 분야 이름만 보고 쓴 질문(법이음 상황 목록 미제공). 기대 법령 이름만 사람이 검토(정식 명칭·없는 법 정리, 사유 공개)한 뒤 커밋하고 한 번 측정, 이 문항으로 규칙을 고치지 않음 |
+| 처음 보는 일상 질문 · 블라인드 2차(독립 작성자) | 실서비스 ${covBlind2Live.once ? `${covBlind2Live.once.correct}/${covBlind2Live.once.total} (${pct(covBlind2Live.once.correct, covBlind2Live.once.total)}%) · 찾지 못함 ${covBlind2Live.once.miss} · 다른 법 ${covBlind2Live.once.wrong}` : "미측정"} · 내장만 ${coverage.blind2.correct}/${coverage.blind2.total} (${pct(coverage.blind2.correct, coverage.blind2.total)}%) | 1차 결과를 보고 실시간 검색 기준·생활 용어 사전을 고친 뒤, 같은 방식(seed만 바꿈)으로 새로 받은 문항. 라벨 검토본을 측정 전에 커밋하고 한 번 측정 |
 ${covLive.before && covLive.after ? `| 처음 보는 일상 질문(실서비스) | 개선 전 ${covLive.before.correct}/${covLive.before.total} → 개선 후 ${covLive.after.correct}/${covLive.after.total} (${pct(covLive.after.correct, covLive.after.total)}%) · 찾지 못함 ${covLive.after.miss} · 다른 법 ${covLive.after.wrong} | 같은 질문을 실서비스(국가법령정보 실시간 전체 법령 검색 포함)에 넣은 결과(${covLive.before.date} → ${covLive.after.date}, \`scripts/coverage-live.mjs\`). 외부 평가자 질문 ${covLive.before.external.correct}/${covLive.before.external.total} → ${covLive.after.external.correct}/${covLive.after.external.total} |\n` : ""}| 처음 보는 일상 질문(내장 데이터만) | ${coverage.correct}/${coverage.total} (${pct(coverage.correct, coverage.total)}%) · 찾지 못함 ${coverage.miss} · 다른 법 ${coverage.wrong} | 상황 이름을 보지 않고 쓴 일상 질문 ${coverage.total}건(외부 평가자 질문 ${coverage.external.total}건 포함: ${coverage.external.correct}건 정답)에 기대 법령을 근거로 답했는지. 인터넷 없이 내장 법령만 쓴 값이며, 실서비스는 실시간 전체 법령 검색이 더해짐. 개발자 작성(블라인드 아님) |
 | 생활 용어 → 법령 사전 | ${alias.correct}/${alias.total} | '산재'·'보이스피싱' 등 일상어가 가리키는 법령 |
 | 답변 근거 | 조문 번호 ${grounding.outsideMarkers}건 근거 밖 · 인용 검증 통과 ${grounding.guardPassed}/${grounding.answers} | 질문 ${questions.length}건 × 국민·공직자 = 답변 ${grounding.answers}건. 근거 있음 ${grounding.withCitation}건, 근거가 없으면 지어내지 않고 '찾지 못함' 안내 ${grounding.noResultHonest}건. 규칙기반 답변은 사람이 검수한 문장이라 근거 밖 인용이 원래 생기기 어렵고, 생성형 AI를 연결했을 때 가드가 막는지는 아래 '환각 주입'·'수치 바꿔치기' 행이 보여 줌 |
@@ -248,6 +256,10 @@ ${coverage.rows.map((r) => `- ${r.result === "correct" ? "○" : r.result === "m
 ## 처음 보는 일상 질문 · 블라인드(독립 작성자) — 문항별 결과(내장 데이터만)
 
 ${coverage.blind.rows.map((r) => `- ${r.result === "correct" ? "○" : r.result === "miss" ? "△ 찾지 못함" : "✕ 다른 법"} ${r.q}${r.got.length ? ` — 근거: ${r.got.join(", ")}` : ""}`).join("\n")}
+
+## 처음 보는 일상 질문 · 블라인드 2차 — 문항별 결과(${covBlind2Live.once ? "실서비스" : "내장 데이터만"})
+
+${((covBlind2Live.once as unknown as { rows?: CovRow[] })?.rows ?? coverage.blind2.rows).map((r) => `- ${r.result === "correct" ? "○" : r.result === "miss" ? "△ 찾지 못함" : "✕ 다른 법"} ${r.q}${r.got.length ? ` — 근거: ${r.got.join(", ")}` : ""}`).join("\n")}
 
 ## 블라인드 측정 이력(모두 공개)
 
