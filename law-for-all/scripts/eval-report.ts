@@ -224,6 +224,11 @@ async function main() {
     privacy,
     parity: parityRes,
     llm: LLM_SWAP_RESULTS,
+    // 블라인드 실서비스 측정값(행만 빼고 요약) — 소개 화면 표시용
+    coverageLive: {
+      blind: covBlindLive.once ? { correct: covBlindLive.once.correct, total: covBlindLive.once.total, miss: covBlindLive.once.miss, wrong: covBlindLive.once.wrong } : null,
+      blind2: covBlind2Live.once ? { correct: covBlind2Live.once.correct, total: covBlind2Live.once.total, miss: covBlind2Live.once.miss, wrong: covBlind2Live.once.wrong } : null,
+    },
   };
   fs.mkdirSync("lib/eval", { recursive: true });
   fs.writeFileSync("lib/eval/report.json", JSON.stringify(report, null, 1) + "\n");

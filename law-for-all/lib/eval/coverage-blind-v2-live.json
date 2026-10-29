@@ -1,0 +1,362 @@
+{
+ "once": {
+  "date": "2026-10-29",
+  "base": "https://lawon.onrender.com",
+  "total": 40,
+  "correct": 23,
+  "miss": 14,
+  "wrong": 3,
+  "external": {
+   "total": 0,
+   "correct": 0,
+   "miss": 0,
+   "wrong": 0
+  },
+  "rows": [
+   {
+    "q": "결혼 5년 차인데 이혼 절차 어떻게 시작해야 하나요? 재산 분배는 어떻게 될까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": "divorce"
+   },
+   {
+    "q": "아내와 이혼 합의했는데 아이 양육권은 어떻게 결정되나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": "divorce"
+   },
+   {
+    "q": "아이가 둘인데 친권과 양육권 분리 가능한지 궁금해요. 혼자 양육해도 될까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": "divorce"
+   },
+   {
+    "q": "혼인신고 후 자녀가 생겼는데 이혼하면 자녀 양육 비용 부담은 어떻게 나뉘나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": "divorce"
+   },
+   {
+    "q": "상속 잘 안 될 것 같은데 어떻게 해야 하나요? 부모님 유산 분배가 이상해요.",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "유산에 대한 유언장이 없는데, 가족끼리 어떻게 합의해야 할지 모르겠어요.",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법",
+     "교통사고처리 특례법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "사촌들이 제 지분을 빼앗으려고 하는데, 저도 상속권이 있나요? 억울해요.",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "상속세 내야 하나요? 얼마나 되는지, 어떻게 준비해야 할지 궁금해요.",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법",
+     "상속세 및 증여세법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "친구에게 빌린 돈 아직 못 갚았는데 연락 두절인데 어떻게 해야 하나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "돈 빌려줬는데 약속한 날짜 훨씬 지났는데도 주지 않아서 짜증나요. 법적으로 뭐 할 수 있을까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "도로교통법",
+     "민법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "온라인으로 중고거래하면서 돈 주고받았는데 사기 당한 것 같은데요, 구제 방법 없나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "형법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "대출해줬다고 주장하며 과도한 이자 요구하는데, 이런 요구는 법적으로 맞나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "물건 샀는데 품질 문제로 교환이 안 돼요. 이거 어떻게 해야 하나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "온라인으로 물건 샀는데 배송 늦어져서 취소하려고 하는데 힘들어요. 방법 있나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "중고 거래 중 판매자가 제품 상태를 속인 것 같은데 보상받을 수 있을까요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "구매 후 보증기간인데도 하자 발생했어요. 수리나 교환 가능할까요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "집주인이 임대료 올리자고 하는데, 어떻게 해야 하나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "임대차 계약 중간에 이사하려고 하는데, 보증금 돌려받는 데 문제가 생길까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "주택임대차보호법"
+    ],
+    "topic": "deposit-return"
+   },
+   {
+    "q": "옆집에서 밤 늦게까지 소음이 나는데, 어떻게 대처해야 할까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공동주택관리법",
+     "공동주택 층간소음의 범위와 기준에 관한 규칙"
+    ],
+    "topic": "floor-noise"
+   },
+   {
+    "q": "계약 기간 만료 후 임대인이 집을 비우라고 하는데, 제가 계속 살 수 있을까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "주택임대차보호법",
+     "자동차손해배상 보장법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "운전면허 정지인데 택시 운전하다 걸렸어요. 어떻게 되나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "도로교통법",
+     "도로교통법 시행규칙",
+     "행정심판법"
+    ],
+    "topic": "drunk-driving"
+   },
+   {
+    "q": "차 사고로 상대가 다쳤는데 보상 어떻게 해야 할지 모르겠어요.",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "자동차손해배상 보장법",
+     "상법",
+     "도로교통법"
+    ],
+    "topic": "traffic-insurance"
+   },
+   {
+    "q": "주차 중 차 파손 당했는데, 주차 중 사고 책임은 뭔가요?",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "주차장법",
+     "자동차관리법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "교통법 위반으로 벌금 낸 지 얼마 안 됐는데 또 걸렸어요. 처벌 더 심해질까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "도로교통법",
+     "근로기준법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "병원에서 잘못 진단 받아서 큰 병이 됐는데, 보상 받을 수 있을까?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "수술 후 부작용으로 고통받고 있는데, 병원 측 책임 있는지 어떻게 알아봐야 하나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "의료사고 피해구제 및 의료분쟁 조정 등에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "지인이 병원 치료비 빚 때문에 힘들어하는데, 어떤 법적 지원이 있을까?",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "자동차손해배상 보장법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "환자 정보 보호 문제로 인해 개인정보 유출 걱정인데, 이걸 어떻게 해결해야 하나요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "개인정보 보호법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "학교에서 제 아이의 징계 처리가 너무 과한 것 같아요. 어떻게 해야 할지 모르겠네요.",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "근로기준법",
+     "군인 징계령"
+    ],
+    "topic": null
+   },
+   {
+    "q": "성적 조작 의혹이 제기된 학교에 대해 제가 직접 확인할 수 있는 방법이 있을까요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "학비 납부 후 환급 조건에 대해 정확히 모르겠어요. 제 권리는 뭔가요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "학교에서 주최한 대회 참여 후 부상으로 학교 책임이 있는지 확인하고 싶은데 어떻게 해야 하나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "복지 혜택 못 받고 있어요, 혹시 제가 놓친 부분 있나요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "정부 지원금 신청했는데 왜 아직까지 소식이 없는지 모르겠어요... 도와주세요!",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "연금 받는 중인데, 의료비 지원 어떻게 받을 수 있는지 궁금해요.",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "실업자 지원금 받다가 일자리 구했어요, 제가 해야 할 절차가 뭔가요?",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "우리 반려견이 길에서 사고 당했는데 보상 어떻게 받을 수 있을까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "동물보호법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "아파트에서 반려견 짖음 때문에 이웃이랑 갈등, 해결 방법 없을까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "동물보호법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "길에서 잃어버린 반려견 찾는 방법, 도움 청할 수 있는 곳 어디인가요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "동물보호법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "반려견 유기 의심 사례 목격했는데 어떻게 신고해야 할까요?",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "동물보호법"
+    ],
+    "topic": null
+   }
+  ]
+ }
+}
