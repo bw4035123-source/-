@@ -1,0 +1,266 @@
+{
+ "before": {
+  "date": "2026-10-29",
+  "base": "https://lawon.onrender.com",
+  "total": 32,
+  "correct": 4,
+  "miss": 22,
+  "wrong": 6,
+  "external": {
+   "total": 0,
+   "correct": 0,
+   "miss": 0,
+   "wrong": 0
+  },
+  "rows": [
+   {
+    "q": "경찰에서 참고인으로 나오라는데 꼭 가야 하나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "피의자 신문 받을 때 변호사가 같이 들어갈 수 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "형사소송법",
+     "형법"
+    ],
+    "topic": "accused"
+   },
+   {
+    "q": "경찰 조사 받을 때 말하기 싫은 건 진술 안 해도 되나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "검찰청에서 출석하라는 문자가 왔어요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "형사소송법",
+     "형법"
+    ],
+    "topic": "accused"
+   },
+   {
+    "q": "압수수색으로 휴대폰을 가져갔는데 언제 돌려받나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "주택임대차보호법"
+    ],
+    "topic": "deposit-return"
+   },
+   {
+    "q": "고소했는데 불기소가 나왔어요 다시 다툴 방법 있나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "가족이 체포됐는데 연락도 못 받았어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "거짓말로 저를 고소한 사람을 처벌할 수 있나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "종합소득세 신고 기간을 놓쳤어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "재산세가 너무 많이 나온 것 같아 이의신청하고 싶어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "부가세 신고를 늦게 해서 가산세가 나왔어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "세금 밀리면 출국금지 되나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "속도위반 과태료 안 내고 버티면 어떻게 돼요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "주정차 위반 딱지 받았는데 억울해요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "연말정산 때 빠뜨린 공제 지금이라도 돌려받을 수 있나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "주택임대차보호법"
+    ],
+    "topic": "deposit-return"
+   },
+   {
+    "q": "자동차세 1년치 미리 내면 할인되나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "아이가 학교에서 징계를 받았는데 재심 신청할 수 있나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "행정심판법"
+    ],
+    "topic": "admin-appeal"
+   },
+   {
+    "q": "학생부에 잘못 적힌 내용 고칠 수 있나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "담임 선생님이 아이를 때렸어요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "형법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "학원 그만두면 학원비 환불되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "학원의 설립ㆍ운영 및 과외교습에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "대학교 자퇴하면 등록금 돌려받을 수 있나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "주택임대차보호법"
+    ],
+    "topic": "deposit-return"
+   },
+   {
+    "q": "이사 가서 아이 전학시키려면 어떻게 하나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "초등학교 안 보내고 집에서 가르치면 불법인가요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "학교 급식 먹고 아이가 배탈이 났어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "헬스장 회원권 중간에 해지하면 환불받을 수 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "방문판매 등에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "새로 산 냉장고가 일주일 만에 고장 났어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "할부로 산 물건 계약을 철회하고 싶어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "집에 찾아온 판매원한테 산 정수기 계약 취소하고 싶어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "한국소비자원에 피해구제 신청은 어떻게 하나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "근로기준법",
+     "석면피해구제법 시행령",
+     "의료사고 피해구제 및 의료분쟁 조정 등에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "렌터카 반납했더니 수리비를 너무 많이 청구해요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "웨딩업체가 계약금을 안 돌려줘요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "택배로 받은 물건이 깨져서 왔어요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   }
+  ]
+ }
+}

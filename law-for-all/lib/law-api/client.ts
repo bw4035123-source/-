@@ -1,7 +1,7 @@
 import type { CaseDetail, CaseItem, Citation, LawDoc, LawSummary } from "./types";
 import { MOCK_LAWS, getMockLaw } from "./mock";
 import { drfGet, findAll, txt, type DrfLawListItem, parseAdmrulDoc, parseAdmrulList, parseCaseDetail, parseCaseList, parseLawDoc, parseLawList, parseOrdinDoc, parseOrdinList, LawApiError } from "./drf";
-import { bigramOverlap, lawNameHas, lawNameLooksLike, matchLawAliases, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
+import { bigramOverlap, lawNameHas, lawNameLooksLike, matchLawAliases, normalize, queryTerms, scoreArticleByTerms, searchLawNames } from "./search";
 import { parseArticleKey, toCitation } from "./util";
 import { rankCases } from "./case-rank";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
@@ -154,14 +154,17 @@ export class LawService {
       const scored: { key: string; score: number }[] = [];
       for (const doc of docs) {
         if (!doc) continue;
-        // 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름
-        const alias = aliases.find((x) => x.law.replace(/\s/g, "") === doc.name.replace(/\s/g, ""));
-        const kw = alias?.keywords ?? [];
+        // 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름(같은 법령의 항목이 여럿 걸리면 키워드를 합침)
+        const matched = aliases.filter((x) => x.law.replace(/\s/g, "") === doc.name.replace(/\s/g, ""));
+        const alias = matched[0];
+        const kw = Array.from(new Set(matched.flatMap((x) => x.keywords)));
         const ts = [...terms, ...kw.filter((k) => !terms.includes(k))];
+        // 사람이 고른 키워드가 조문 제목에 있으면 가산 — 질문의 흔한 말('경찰')만 제목에 겹친 조문보다 앞에
+        const kwTitle = (a: { title: string }) => (kw.some((k) => normalize(a.title).includes(normalize(k))) ? 6 : 0);
         // 법령명이 질문과 전혀 안 닮았고 사전에서 찾은 법령도 아니면 더 강한 일치(3점 이상)만 근거로('도서'→섬 '도서(島嶼)' 같은 우연 일치 방지)
         const min = alias || bigramOverlap(doc.name, terms) > 0 ? 2 : 3;
         for (const a of doc.articles) {
-          const sc = scoreArticleByTerms(a, ts);
+          const sc = scoreArticleByTerms(a, ts) + kwTitle(a);
           // 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
           if (sc >= min) scored.push({ key: `${doc.id}:${a.no}`, score: sc });
         }

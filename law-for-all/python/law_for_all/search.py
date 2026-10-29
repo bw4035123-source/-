@@ -172,7 +172,8 @@ def strong_local_hit(title: str, keywords: list[str], query: str) -> bool:
     두 글자 키워드('갱신'·'반환'·'고소')는 다른 법에도 흔해, 제목 단어나 다른 키워드가 하나 더 맞을 때만 인정 — lib/law-api/search.ts 와 같음"""
     nq = normalize(query)
     t = sum(1 for x in query_terms(query) if x in title)
-    kw = [w for w in (normalize(w) for w in keywords) if len(w) >= 2 and w in nq]
+    # 키워드는 낱말 첫머리에서 시작할 때만('피해구제 신청'≠'구제신청')
+    kw = [w for w in (normalize(w) for w in keywords) if len(w) >= 2 and w in nq and _word_start_has(query, w[:2])]
     return t >= 2 or any(len(w) >= 3 for w in kw) or (bool(kw) and (t >= 1 or len(kw) >= 2))
 
 

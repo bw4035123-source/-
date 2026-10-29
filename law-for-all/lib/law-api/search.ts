@@ -168,12 +168,13 @@ const KEEP = /(허가|평가|국가|대가|단가|원가|시가|휴가|증가|�
 
 /**
  * 실시간 검색과 함께 쓸 내장 조문인지: 질문 단어 2개 이상이 조문 제목에 있거나, 세 글자 이상 조문 키워드('욕을 했'·'단톡방')가 질문에 그대로 있을 때.
- * 두 글자 키워드('갱신'·'반환'·'고소')는 다른 법에도 흔해, 제목 단어나 다른 키워드가 하나 더 맞을 때만 인정
+ * 두 글자 키워드('갱신'·'반환'·'고소')는 다른 법에도 흔해, 제목 단어나 다른 키워드가 하나 더 맞을 때만 인정. 키워드는 낱말 첫머리에서 시작해야 함
  */
 export function strongLocalHit(title: string, keywords: string[], query: string): boolean {
   const nq = normalize(query);
   const t = queryTerms(query).filter((x) => title.includes(x)).length;
-  const kw = keywords.map(normalize).filter((w) => w.length >= 2 && nq.includes(w));
+  // 키워드는 낱말 첫머리에서 시작할 때만('피해구제 신청'≠'구제신청')
+  const kw = keywords.map(normalize).filter((w) => w.length >= 2 && nq.includes(w) && wordStartHas(query, w.slice(0, 2)));
   return t >= 2 || kw.some((w) => w.length >= 3) || (kw.length > 0 && (t >= 1 || kw.length >= 2));
 }
 

@@ -9,7 +9,14 @@ for (const c of set.cases) {
   // 실시간 검색이 서버 시간 제한에 걸리면(안내 문구 '늦어') 근거 없이 끝나므로, 잠시 뒤 다시 물어 측정 잡음을 줄인다(최대 3회)
   let r;
   for (let i = 0; i < 4; i++) {
-    r = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: "citizen" }) }).then((x) => x.json()).catch(() => null);
+    // 서버의 요청 수 제한(429)에 걸리면 안내된 시간만큼 기다렸다가 다시(측정 잡음이 '찾지 못함'으로 섞이지 않게)
+    let res;
+    for (let k = 0; k < 10; k++) {
+      res = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: "citizen" }) }).catch(() => null);
+      if (res?.status !== 429) break;
+      await new Promise((ok) => setTimeout(ok, (Number(res.headers.get("retry-after")) || 10) * 1000 + 500));
+    }
+    r = res?.ok ? await res.json().catch(() => null) : null;
     if (r && !(r.notices ?? []).some((n) => n.includes("늦어"))) break;
     await new Promise((ok) => setTimeout(ok, 3000));
   }

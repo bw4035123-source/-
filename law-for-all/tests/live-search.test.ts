@@ -67,5 +67,6 @@ describe("실시간 검색과 함께 쓸 내장 조문 기준", async () => {
     expect(hit("criminal-act:347", "중고거래 사기를 당했어요")).toBe(true);
     expect(hit("criminal-act:311", "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요")).toBe(true);
     expect(hit("criminal-act:260", "길에서 모르는 사람한테 맞았어요")).toBe(true);
+    expect(hit("labor-standards:28", "한국소비자원에 피해구제 신청은 어떻게 하나요")).toBe(false);
   });
 });

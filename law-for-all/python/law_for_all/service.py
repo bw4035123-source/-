@@ -8,7 +8,7 @@ import time
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
 from .drf import LawApiError, drf_get, find_all, txt, parse_admrul_doc, parse_admrul_list, parse_case_detail, parse_case_list, parse_law_doc, parse_law_list, parse_ordin_doc, parse_ordin_list
 from .case_rank import rank_cases
-from .search import bigram_overlap, law_name_has, law_name_looks_like, match_law_aliases, query_terms, score_article_by_terms, search_law_names
+from .search import bigram_overlap, law_name_has, law_name_looks_like, match_law_aliases, normalize, query_terms, score_article_by_terms, search_law_names
 
 CASE_TIMEOUT = 25
 # 판례 검색 전체 대기 한도(초)
@@ -180,14 +180,17 @@ class LawService:
                 doc = LawService(oc).get_law(f"mst-{c['mst']}")
                 if not doc:
                     continue
-                # 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름
-                alias = next((x for x in aliases if x["law"].replace(" ", "") == doc["name"].replace(" ", "")), None)
-                kw = alias["keywords"] if alias else []
+                # 사전 법령은 그 항목의 키워드도 함께 써서 조문을 고름(같은 법령의 항목이 여럿 걸리면 키워드를 합침)
+                matched = [x for x in aliases if x["law"].replace(" ", "") == doc["name"].replace(" ", "")]
+                alias = matched[0] if matched else None
+                kw = list(dict.fromkeys(k for x in matched for k in x["keywords"]))
                 ts = terms + [k for k in kw if k not in terms]
+                # 사람이 고른 키워드가 조문 제목에 있으면 가산 — 질문의 흔한 말('경찰')만 제목에 겹친 조문보다 앞에
+                kw_n = [normalize(k) for k in kw]
                 # 법령명이 질문과 전혀 안 닮았고 사전에서 찾은 법령도 아니면 더 강한 일치(3점 이상)만 근거로('도서'→섬 '도서(島嶼)' 같은 우연 일치 방지)
                 min_sc = 2 if alias or bigram_overlap(doc["name"], terms) > 0 else 3
                 for a in doc["articles"]:
-                    sc = score_article_by_terms(a, ts)
+                    sc = score_article_by_terms(a, ts) + (6 if any(k in normalize(a["title"]) for k in kw_n) else 0)
                     # 흔한 말 하나만 겹치는 조문은 근거로 쓰지 않음(제목 일치 또는 본문에 두 말 이상)
                     if sc >= min_sc:
                         scored.append((sc, f"{doc['id']}:{a['no']}"))
