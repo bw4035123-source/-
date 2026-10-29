@@ -433,9 +433,9 @@
   "date": "2026-10-29",
   "base": "https://lawon.onrender.com",
   "total": 50,
-  "correct": 44,
+  "correct": 45,
   "miss": 4,
-  "wrong": 2,
+  "wrong": 1,
   "external": {
    "total": 7,
    "correct": 7,
@@ -805,9 +805,10 @@
    {
     "q": "택배가 분실됐는데 배상받을 수 있나요",
     "external": false,
-    "result": "wrong",
+    "result": "correct",
     "got": [
-     "생활물류서비스산업발전법"
+     "생활물류서비스산업발전법",
+     "상법"
     ],
     "topic": null
    },
