@@ -20,6 +20,7 @@ import blindV3 from "../tests/fixtures/routing-blind-v3.json";
 import blindV4 from "../tests/fixtures/routing-blind-v4.json";
 import blindV5 from "../tests/fixtures/routing-blind-v5.json";
 import blind from "../tests/fixtures/routing-blind-v6.json";
+import coverageSet from "../tests/fixtures/coverage-v1.json";
 import aliases from "../tests/fixtures/alias-cases.json";
 import parity from "../python/tests/parity_fixtures.json";
 
@@ -91,6 +92,16 @@ async function main() {
     }
   }
   const grounding = { answers, withCitation, noResultHonest, guardPassed, outsideMarkers };
+
+  // 3-2) 처음 보는 일상 질문 대응률: 기대 법령을 근거로 인용하면 정답, '찾지 못함'은 정직한 미응답, 다른 법이면 오답(국민 모드)
+  const covRows: { q: string; external: boolean; result: "correct" | "miss" | "wrong"; got: string[] }[] = [];
+  for (const c of coverageSet.cases as { q: string; laws: string[]; external?: boolean }[]) {
+    const r = await ask({ query: c.q, mode: "citizen" });
+    const laws = Array.from(new Set(r.citations.map((x) => x.lawName)));
+    covRows.push({ q: c.q, external: !!c.external, result: laws.some((l) => c.laws.includes(l)) ? "correct" : laws.length ? "wrong" : "miss", got: laws.slice(0, 3) });
+  }
+  const covCount = (rows: typeof covRows) => ({ total: rows.length, correct: rows.filter((r) => r.result === "correct").length, miss: rows.filter((r) => r.result === "miss").length, wrong: rows.filter((r) => r.result === "wrong").length });
+  const coverage = { ...covCount(covRows), external: covCount(covRows.filter((r) => r.external)), rows: covRows };
 
   // 4) 환각 주입 시험: 실제 답변에 지어낸 인용을 섞어 가드가 걸러내는지(LLM이 틀리게 답한 상황을 흉내)
   let injected = 0, blocked = 0;
@@ -188,6 +199,7 @@ async function main() {
     routing,
     alias,
     grounding,
+    coverage,
     injection,
     quantity,
     privacy,
@@ -207,6 +219,7 @@ async function main() {
 |---|---|---|
 | 상황 분류(6차 블라인드, 독립 작성자) | ${b.correct}/${b.total} (${pct(b.correct, b.total)}%) · 엄격 ${b.strict}/${b.total} (${pct(b.strict, b.total)}%) | 로컬 EXAONE 3.5가 상황 이름·한 줄 설명만 보고 쓴 질문(규칙 사전 미제공). 규칙 개선 중에는 열어 보지 않고, 라벨만 검토해 커밋한 뒤 한 번 측정. 법적으로 두 답이 가능한 문항은 측정 전에 둘 다 인정(엄격 채점은 첫 라벨만). 틀린 ${b.total - b.correct}건 중 엉뚱한 상황 ${b.wrongTopic}건 |
 | 상황 분류(회귀 시험) | ${routing.dev.correct}/${routing.dev.total} (${pct(routing.dev.correct, routing.dev.total)}%) | 개발 중 쓴 질문 + 1~5차 블라인드 — 고칠 때 이전 동작이 깨지지 않았는지 확인 |
+| 처음 보는 일상 질문(내장 데이터만) | ${coverage.correct}/${coverage.total} (${pct(coverage.correct, coverage.total)}%) · 찾지 못함 ${coverage.miss} · 다른 법 ${coverage.wrong} | 상황 이름을 보지 않고 쓴 일상 질문 ${coverage.total}건(외부 평가자 질문 ${coverage.external.total}건 포함: ${coverage.external.correct}건 정답)에 기대 법령을 근거로 답했는지. 인터넷 없이 내장 법령만 쓴 값이며, 실서비스는 실시간 전체 법령 검색이 더해짐. 개발자 작성(블라인드 아님) |
 | 생활 용어 → 법령 사전 | ${alias.correct}/${alias.total} | '산재'·'보이스피싱' 등 일상어가 가리키는 법령 |
 | 답변 근거 | 조문 번호 ${grounding.outsideMarkers}건 근거 밖 · 인용 검증 통과 ${grounding.guardPassed}/${grounding.answers} | 질문 ${questions.length}건 × 국민·공직자 = 답변 ${grounding.answers}건. 근거 있음 ${grounding.withCitation}건, 근거가 없으면 지어내지 않고 '찾지 못함' 안내 ${grounding.noResultHonest}건 |
 | 환각 주입 차단 | ${injection.blocked}/${injection.injected} (${pct(injection.blocked, injection.injected)}%) | 실제 답변 ${injection.answers}건에 없는 조문 번호·없는 조문·근거 밖 법령·전부 지어낸 인용을 섞어 가드가 걸러내는지 |
@@ -214,6 +227,10 @@ async function main() {
 | 개인정보 가림 | ${privacy.masked}/${privacy.positives} 가림 · 오탐 ${privacy.falsePositives}/${privacy.negatives} | 주민등록번호·전화번호·카드·이메일·계좌·여권번호 여러 표기 / 날짜·금액·수치가 든 일반 질문 |
 | Next.js ↔ Python 동일성 | ${parityRes.passed ? "일치" : "불일치"} (${parityRes.cases}건) | 같은 질문에 두 실행판이 같은 답·같은 근거 |
 | LLM 교체 실측 | ${LLM_SWAP_RESULTS.models.map((m) => `${m.name} ${m.passed}/${m.total}`).join(" · ")} | ${LLM_SWAP_RESULTS.cases}, ${LLM_SWAP_RESULTS.date} |
+
+## 처음 보는 일상 질문 — 문항별 결과
+
+${coverage.rows.map((r) => `- ${r.result === "correct" ? "○" : r.result === "miss" ? "△ 찾지 못함" : "✕ 다른 법"} ${r.q}${r.external ? " (외부 평가자)" : ""}${r.got.length ? ` — 근거: ${r.got.join(", ")}` : ""}`).join("\n")}
 
 ## 블라인드 측정 이력(모두 공개)
 
