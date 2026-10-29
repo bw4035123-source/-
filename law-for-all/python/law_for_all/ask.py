@@ -13,7 +13,7 @@ from .llm import resolve_provider
 from .prompts import schema_for, system_prompt, user_prompt
 from .privacy import mask_notice, mask_pii
 from .rule_engine import build_rule_answer
-from .search import live_case_query, match_law_aliases, match_topics, normalize, query_terms, search_articles
+from .search import live_case_query, match_law_aliases, match_topics, search_articles, strong_local_hit
 from .service import LawService
 
 DEFAULT_CONTACTS = [
@@ -77,13 +77,10 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         topic, local_keys = None, []
     # 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
     live_keys = svc.search_live_keys(query) if not topic and svc.mode == "live" else []
-    # 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있거나, 조문 키워드('욕을 했'·'맞았')가 질문에 그대로 있는 것만 남긴다
-    terms = query_terms(query)
-    nq = normalize(query)
-
+    # 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문과 확실히 맞는 조문만 남긴다(기준: strong_local_hit)
     def strong(k: str) -> bool:
         a = _mock_article(k) or {}
-        return sum(1 for t in terms if t in a.get("title", "")) >= 2 or any(len(normalize(w)) >= 2 and normalize(w) in nq for w in a.get("keywords") or [])
+        return strong_local_hit(a.get("title", ""), a.get("keywords") or [], query)
 
     if not topic and svc.mode == "live":
         local_keys = [k for k in local_keys if strong(k)]

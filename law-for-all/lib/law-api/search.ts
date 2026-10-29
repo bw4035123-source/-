@@ -166,6 +166,17 @@ const VERB = /(받나요|받으면|받는|받나|받아|받|했는데요|했는�
 /** 끝 글자가 조사처럼 보여도 명사의 일부인 말 */
 const KEEP = /(허가|평가|국가|대가|단가|원가|시가|휴가|증가|추가|참가|전문가|주가|지가|차이|나이|아이|거리|자리|자료|도로|경로|진로|근로|노무|임대료|과태료|수수료|보험료)$/;
 
+/**
+ * 실시간 검색과 함께 쓸 내장 조문인지: 질문 단어 2개 이상이 조문 제목에 있거나, 세 글자 이상 조문 키워드('욕을 했'·'단톡방')가 질문에 그대로 있을 때.
+ * 두 글자 키워드('갱신'·'반환'·'고소')는 다른 법에도 흔해, 제목 단어나 다른 키워드가 하나 더 맞을 때만 인정
+ */
+export function strongLocalHit(title: string, keywords: string[], query: string): boolean {
+  const nq = normalize(query);
+  const t = queryTerms(query).filter((x) => title.includes(x)).length;
+  const kw = keywords.map(normalize).filter((w) => w.length >= 2 && nq.includes(w));
+  return t >= 2 || kw.some((w) => w.length >= 3) || (kw.length > 0 && (t >= 1 || kw.length >= 2));
+}
+
 /** 질문 → 법령명·조문 검색어(2글자 이상 명사 위주, 조사 제거, 중복 제거, 긴 말 우선) */
 export function queryTerms(query: string, max = 4): string[] {
   const out: string[] = [];

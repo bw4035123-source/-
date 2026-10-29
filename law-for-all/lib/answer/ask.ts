@@ -1,7 +1,7 @@
 import "server-only";
 import { serverConfig } from "../config";
 import { LawService } from "../law-api/client";
-import { liveCaseQuery, matchLawAliases, normalize, queryTerms } from "../law-api/search";
+import { liveCaseQuery, matchLawAliases, strongLocalHit } from "../law-api/search";
 import { getMockLaw } from "../law-api/mock";
 import { parseArticleKey } from "../law-api/util";
 
@@ -49,12 +49,10 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
   const localKeys = precise ? [] : r.keys;
   // 내장 토픽에 없는 질문은 국가법령정보 Open API로 전체 법령에서 근거 조문을 찾는다
   const liveKeys = !topic && svc.mode === "live" ? await svc.searchLiveKeys(query) : [];
-  // 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문 단어 2개 이상이 조문 제목에 있거나, 조문 키워드('욕을 했'·'맞았')가 질문에 그대로 있는 것만 남긴다
-  const terms = queryTerms(query);
-  const nq = normalize(query);
+  // 실시간 검색을 한 경우, 내장 데이터의 약한 검색 결과는 질문과 확실히 맞는 조문만 남긴다(기준: strongLocalHit)
   const strong = (k: string) => {
     const a = getMockArticle(k);
-    return terms.filter((t) => (a?.title ?? "").includes(t)).length >= 2 || (a?.keywords ?? []).some((w) => normalize(w).length >= 2 && nq.includes(normalize(w)));
+    return strongLocalHit(a?.title ?? "", a?.keywords ?? [], query);
   };
   const local = !topic && svc.mode === "live" ? localKeys.filter(strong) : localKeys;
   // 생활 용어 사전으로 찾은 법령(사람이 검수)이 있으면 그 실시간 결과를 앞에, 없으면 키워드가 질문과 그대로 맞은 내장 조문을 앞에

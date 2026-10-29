@@ -51,3 +51,21 @@ describe("실시간 검색 법령의 이름 닮음 기준", async () => {
     expect(lawNameLooksLike("군사기밀 보호법", ["사기", "피해"])).toBe(false);
   });
 });
+
+describe("실시간 검색과 함께 쓸 내장 조문 기준", async () => {
+  const { strongLocalHit } = await import("@/lib/law-api/search");
+  const { getMockLaw } = await import("@/lib/law-api/mock");
+  const hit = (key: string, q: string) => {
+    const [law, no] = key.split(":");
+    const a = getMockLaw(law)!.articles.find((x) => x.no === no)!;
+    return strongLocalHit(a.title, a.keywords ?? [], q);
+  };
+  it("두 글자 키워드 하나만 겹친 다른 법은 빼고, 질문과 확실히 맞는 조문은 남김", () => {
+    expect(hit("public-property:21", "운전면허 갱신은 어떻게 하나요")).toBe(false);
+    expect(hit("anti-graft:9", "택배가 분실됐는데 반환받을 수 있나요")).toBe(false);
+    expect(hit("criminal-act:347", "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요")).toBe(false);
+    expect(hit("criminal-act:347", "중고거래 사기를 당했어요")).toBe(true);
+    expect(hit("criminal-act:311", "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요")).toBe(true);
+    expect(hit("criminal-act:260", "길에서 모르는 사람한테 맞았어요")).toBe(true);
+  });
+});

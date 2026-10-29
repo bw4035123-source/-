@@ -656,6 +656,26 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertFalse(f("군사기밀 보호법", ["사기", "피해"]))
 
 
+class StrongLocalHitTest(unittest.TestCase):
+    """실시간 검색과 함께 쓸 내장 조문 기준 — tests/live-search.test.ts 와 같은 사례"""
+
+    def test_cases(self):
+        from law_for_all.data import get_law
+        from law_for_all.search import strong_local_hit
+
+        def hit(key: str, q: str) -> bool:
+            law, no = key.split(":")
+            a = next(x for x in get_law(law)["articles"] if x["no"] == no)
+            return strong_local_hit(a["title"], a.get("keywords") or [], q)
+
+        self.assertFalse(hit("public-property:21", "운전면허 갱신은 어떻게 하나요"))
+        self.assertFalse(hit("anti-graft:9", "택배가 분실됐는데 반환받을 수 있나요"))
+        self.assertFalse(hit("criminal-act:347", "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요"))
+        self.assertTrue(hit("criminal-act:347", "중고거래 사기를 당했어요"))
+        self.assertTrue(hit("criminal-act:311", "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요"))
+        self.assertTrue(hit("criminal-act:260", "길에서 모르는 사람한테 맞았어요"))
+
+
 class TrafficCasesTest(unittest.TestCase):
     """교통사고 보험처리 — 라우팅과 이런 경우라면(tests/case-rank.test.ts 와 같은 사례)"""
 
