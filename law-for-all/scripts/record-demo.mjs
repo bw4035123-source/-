@@ -288,7 +288,7 @@ await scene("s07", async () => {
     const t = document.querySelector("main textarea");
     if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 200 });
   });
-  await cap("② AI 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절 — 사연을 적다 보면 전화번호 같은 개인정보도 들어가곤 합니다");
+  await cap("② 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절 — 사연을 적다 보면 전화번호 같은 개인정보도 들어가곤 합니다");
   await wait(400);
   await click(page.locator("button", { hasText: "전세 보증금" }).first());
   await wait(400);
@@ -475,7 +475,7 @@ await scene("sE", async () => {
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · AI 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;

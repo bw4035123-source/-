@@ -79,7 +79,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
         />
         <MicButton size={hero ? "lg" : "md"} onText={voice.onVoice} />
         <Button type="submit" variant="accent" size={hero ? "lg" : "default"} className="shrink-0 rounded-xl" disabled={q.trim().length < 2}>
-          <span className="hidden sm:inline">AI 법률 검색</span>
+          <span className="hidden sm:inline">법률 검색</span>
           <ArrowRight className="sm:hidden" aria-hidden />
           <span className="sr-only sm:hidden">검색</span>
         </Button>

@@ -37,7 +37,7 @@ export function analysisText(r: import("./answer/types").AnalyzeResult): string 
     const i = r.citations.findIndex((c) => c.key === k);
     return i >= 0 ? `[${i + 1}]` : "";
   });
-  const lines = ["[AI 법률 상황 분석]", `상황: ${r.situation}`, "", `쟁점: ${r.issues.map((i) => i.label).join(", ") || "-"}`, "", "■ 추천 관련 법령"];
+  const lines = ["[법률 상황 분석]", `상황: ${r.situation}`, "", `쟁점: ${r.issues.map((i) => i.label).join(", ") || "-"}`, "", "■ 추천 관련 법령"];
   r.recommendations.forEach((rec, i) => {
     const c = r.citations.find((x) => x.key === rec.key);
     if (c) lines.push(`  ${i + 1}. ${formalCitation(c)} — ${rec.reason}`);

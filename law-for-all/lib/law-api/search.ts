@@ -92,7 +92,7 @@ export function matchTopics(query: string): TopicHit[] {
     let score = 0;
     // 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산.
     // "전세+사기"처럼 +로 이은 트리거는 모든 말이 들어 있을 때만(순서 무관) — 혼자서는 너무 넓은 말('사기'·'경매')을 문맥으로 좁힘
-    for (const key of Array.from(new Set(topic.triggers.map((t) => t.split("+").map(normalize).join("+"))))) score += triggerScore(nq, key);
+    for (const key of Array.from(new Set(topic.triggers.map((t) => t.split("+").map(normalize).join("+"))))) score += triggerScore(nq, key) * (topic.weight ?? 1);
     score += overlap(qg, bigrams(topic.label + topic.triggers.join(" "))) * 2;
     return { topic, score };
   })

@@ -102,6 +102,9 @@ async function main() {
   }
   const covCount = (rows: typeof covRows) => ({ total: rows.length, correct: rows.filter((r) => r.result === "correct").length, miss: rows.filter((r) => r.result === "miss").length, wrong: rows.filter((r) => r.result === "wrong").length });
   const coverage = { ...covCount(covRows), external: covCount(covRows.filter((r) => r.external)), rows: covRows };
+  // 실서비스(실시간 전체 법령 검색 포함) 측정값 — scripts/coverage-live.mjs 로 개선 전·후 기록(인증키·네트워크 필요해 재현 시험과 분리)
+  type LiveCov = { date: string; correct: number; total: number; miss: number; wrong: number; external: { correct: number; total: number } };
+  const covLive = (fs.existsSync("lib/eval/coverage-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-live.json", "utf8")) : {}) as { before?: LiveCov; after?: LiveCov };
 
   // 4) 환각 주입 시험: 실제 답변에 지어낸 인용을 섞어 가드가 걸러내는지(LLM이 틀리게 답한 상황을 흉내)
   let injected = 0, blocked = 0;
@@ -217,11 +220,11 @@ async function main() {
 
 | 항목 | 결과 | 설명 |
 |---|---|---|
-| 상황 분류(6차 블라인드, 독립 작성자) | ${b.correct}/${b.total} (${pct(b.correct, b.total)}%) · 엄격 ${b.strict}/${b.total} (${pct(b.strict, b.total)}%) | 로컬 EXAONE 3.5가 상황 이름·한 줄 설명만 보고 쓴 질문(규칙 사전 미제공). 규칙 개선 중에는 열어 보지 않고, 라벨만 검토해 커밋한 뒤 한 번 측정. 법적으로 두 답이 가능한 문항은 측정 전에 둘 다 인정(엄격 채점은 첫 라벨만). 틀린 ${b.total - b.correct}건 중 엉뚱한 상황 ${b.wrongTopic}건 |
+| 상황 분류(6차 블라인드, 독립 작성자) | ${b.correct}/${b.total} (${pct(b.correct, b.total)}%) · 엄격 ${b.strict}/${b.total} (${pct(b.strict, b.total)}%) | **정해진 상황 안에서의 분류 정확도**(상황 밖 질문 대응은 아래 '처음 보는 일상 질문' 참고). 로컬 EXAONE 3.5가 상황 이름·한 줄 설명만 보고 쓴 질문(규칙 사전 미제공). 규칙 개선 중에는 열어 보지 않고, 라벨만 검토해 커밋한 뒤 한 번 측정. 법적으로 두 답이 가능한 문항은 측정 전에 둘 다 인정(엄격 채점은 첫 라벨만). 틀린 ${b.total - b.correct}건 중 엉뚱한 상황 ${b.wrongTopic}건 |
 | 상황 분류(회귀 시험) | ${routing.dev.correct}/${routing.dev.total} (${pct(routing.dev.correct, routing.dev.total)}%) | 개발 중 쓴 질문 + 1~5차 블라인드 — 고칠 때 이전 동작이 깨지지 않았는지 확인 |
-| 처음 보는 일상 질문(내장 데이터만) | ${coverage.correct}/${coverage.total} (${pct(coverage.correct, coverage.total)}%) · 찾지 못함 ${coverage.miss} · 다른 법 ${coverage.wrong} | 상황 이름을 보지 않고 쓴 일상 질문 ${coverage.total}건(외부 평가자 질문 ${coverage.external.total}건 포함: ${coverage.external.correct}건 정답)에 기대 법령을 근거로 답했는지. 인터넷 없이 내장 법령만 쓴 값이며, 실서비스는 실시간 전체 법령 검색이 더해짐. 개발자 작성(블라인드 아님) |
+${covLive.before && covLive.after ? `| 처음 보는 일상 질문(실서비스) | 개선 전 ${covLive.before.correct}/${covLive.before.total} → 개선 후 ${covLive.after.correct}/${covLive.after.total} (${pct(covLive.after.correct, covLive.after.total)}%) · 찾지 못함 ${covLive.after.miss} · 다른 법 ${covLive.after.wrong} | 같은 질문을 실서비스(국가법령정보 실시간 전체 법령 검색 포함)에 넣은 결과(${covLive.before.date} → ${covLive.after.date}, \`scripts/coverage-live.mjs\`). 외부 평가자 질문 ${covLive.before.external.correct}/${covLive.before.external.total} → ${covLive.after.external.correct}/${covLive.after.external.total} |\n` : ""}| 처음 보는 일상 질문(내장 데이터만) | ${coverage.correct}/${coverage.total} (${pct(coverage.correct, coverage.total)}%) · 찾지 못함 ${coverage.miss} · 다른 법 ${coverage.wrong} | 상황 이름을 보지 않고 쓴 일상 질문 ${coverage.total}건(외부 평가자 질문 ${coverage.external.total}건 포함: ${coverage.external.correct}건 정답)에 기대 법령을 근거로 답했는지. 인터넷 없이 내장 법령만 쓴 값이며, 실서비스는 실시간 전체 법령 검색이 더해짐. 개발자 작성(블라인드 아님) |
 | 생활 용어 → 법령 사전 | ${alias.correct}/${alias.total} | '산재'·'보이스피싱' 등 일상어가 가리키는 법령 |
-| 답변 근거 | 조문 번호 ${grounding.outsideMarkers}건 근거 밖 · 인용 검증 통과 ${grounding.guardPassed}/${grounding.answers} | 질문 ${questions.length}건 × 국민·공직자 = 답변 ${grounding.answers}건. 근거 있음 ${grounding.withCitation}건, 근거가 없으면 지어내지 않고 '찾지 못함' 안내 ${grounding.noResultHonest}건 |
+| 답변 근거 | 조문 번호 ${grounding.outsideMarkers}건 근거 밖 · 인용 검증 통과 ${grounding.guardPassed}/${grounding.answers} | 질문 ${questions.length}건 × 국민·공직자 = 답변 ${grounding.answers}건. 근거 있음 ${grounding.withCitation}건, 근거가 없으면 지어내지 않고 '찾지 못함' 안내 ${grounding.noResultHonest}건. 규칙기반 답변은 사람이 검수한 문장이라 근거 밖 인용이 원래 생기기 어렵고, 생성형 AI를 연결했을 때 가드가 막는지는 아래 '환각 주입'·'수치 바꿔치기' 행이 보여 줌 |
 | 환각 주입 차단 | ${injection.blocked}/${injection.injected} (${pct(injection.blocked, injection.injected)}%) | 실제 답변 ${injection.answers}건에 없는 조문 번호·없는 조문·근거 밖 법령·전부 지어낸 인용을 섞어 가드가 걸러내는지 |
 | 수치 바꿔치기 차단 | ${quantity.caught}/${quantity.tampered} (${pct(quantity.caught, quantity.tampered)}%) · 오경보 ${quantity.falseAlarm}/${quantity.checked} | 실제 답변에 근거 원문의 금액·기간·비율을 다른 값으로 바꾼 문장을 섞으면 가드가 답변을 막고 규칙기반으로 대체하는지 / 근거가 있는 정상 답변 ${quantity.checked}건 중 수치 때문에 잘못 막힌 답변(규칙은 이 답변들을 보며 다듬었으므로 블라인드 아님). 놓친 경우는 원문에 '전액'이 있어 100%를 정상 풀이로 인정한 경우 |
 | 개인정보 가림 | ${privacy.masked}/${privacy.positives} 가림 · 오탐 ${privacy.falsePositives}/${privacy.negatives} | 주민등록번호·전화번호·카드·이메일·계좌·여권번호 여러 표기 / 날짜·금액·수치가 든 일반 질문 |

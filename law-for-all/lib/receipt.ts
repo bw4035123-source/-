@@ -4,7 +4,7 @@ import { latestAmendment, recentAmendment } from "./law-api/amend";
 import { MOCK_DATASET_DATE } from "./law-api/mock/dataset-date";
 
 /**
- * AI 답변 검증 영수증 — 답변이 어떤 조문 원문을 언제·어디서 가져와 근거로 삼았는지, 인용 검증에서 무엇을 걸렀는지 한 장으로.
+ * 답변 검증 영수증 — 답변이 어떤 조문 원문을 언제·어디서 가져와 근거로 삼았는지, 인용 검증에서 무엇을 걸렀는지 한 장으로.
  * 조문마다 원문의 SHA-256 지문을 붙여, 나중에 같은 원문으로 다시 계산하면 일치하는지 확인할 수 있다.
  */
 export interface ReceiptRow {
@@ -92,7 +92,7 @@ export async function buildReceipt(r: AskResult): Promise<Receipt> {
 
 export function receiptText(rc: Receipt): string {
   return [
-    "법이음(LAW:ON) AI 답변 검증 영수증",
+    "법이음(LAW:ON) 답변 검증 영수증",
     `영수증 번호: ${rc.id ?? "(이 환경에서는 지문을 계산할 수 없음)"}`,
     `발급 시각: ${rc.issuedAt}`,
     `질문: ${rc.query} (${rc.mode})`,

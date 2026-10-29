@@ -32,7 +32,7 @@ describe("국민 모드 서류 초안", () => {
   });
 });
 
-describe("AI 답변 검증 영수증", () => {
+describe("답변 검증 영수증", () => {
   it("조문 원문 지문은 SHA-256과 일치, 검증 항목·영수증 번호 포함", async () => {
     const r = await ask({ query: "윗집 층간소음 기준이 어떻게 되나요?", mode: "citizen" });
     const rc = await buildReceipt(r);

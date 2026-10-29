@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 
-/** 메인 화면 큰 바로가기 — 국민: AI 법률 상황 분석실 / 공직자: 자체규정 점검 */
+/** 메인 화면 큰 바로가기 — 국민: 법률 상황 분석실 / 공직자: 자체규정 점검 */
 export function ModeCta() {
   const { mode, ready } = useSettings();
   if (!ready) return <div className="mt-6 h-[84px] w-full max-w-3xl" aria-hidden />;
@@ -29,7 +29,7 @@ export function ModeCta() {
         <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white ring-2 ring-card"><Gavel className="h-4 w-4" /></span>
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-extrabold">복잡한 상황이라면? AI 법률 상황 분석실</span>
+        <span className="block font-extrabold">복잡한 상황이라면? 법률 상황 분석실</span>
         <span className="block text-sm text-muted-foreground">겪은 일을 이야기하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 검토해 드려요.</span>
       </span>
       <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
@@ -39,7 +39,7 @@ export function ModeCta() {
 
 const CITIZEN = [
   { icon: Users, title: "쉬운 법률 안내", desc: "일상 언어로 물으면 쉬운 용어 풀이와 '지금 해야 할 3단계'를 알려드려요." },
-  { icon: Gavel, title: "AI 법률 상황 분석실", desc: "상황을 말하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 검토해요." },
+  { icon: Gavel, title: "법률 상황 분석실", desc: "상황을 말하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 검토해요." },
   { icon: Landmark, title: "판례 보기", desc: "비슷한 사건에서 법원이 어떻게 판단했는지 쉬운 설명과 함께 보여드려요." },
   { icon: ShieldCheck, title: "근거 인용·환각 방지", desc: "모든 답변에 조문 번호와 원문을 인용하고, 근거 밖 인용은 자동 제거합니다." },
   { icon: Layers3, title: "LLM 비종속", desc: "OpenAI·Claude·Ollama(EXAONE·Gemma·Llama·Solar)를 설정 하나로 전환합니다." },

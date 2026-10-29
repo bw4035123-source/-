@@ -85,7 +85,7 @@ export function AnalyzeView() {
             );
           })}
         </div>
-        <h1 className="text-2xl font-black tracking-tight sm:text-3xl">AI 법률 상황 분석실</h1>
+        <h1 className="text-2xl font-black tracking-tight sm:text-3xl">법률 상황 분석실</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
           겪고 있는 상황을 이야기하면 <strong className="text-foreground">관련 법령을 추천</strong>하고, <strong className="text-foreground">변호사·검사·판사</strong>의 시각으로 각각 검토해 드려요.
         </p>
@@ -145,7 +145,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           <Badge variant="outline" className="gap-1">
             <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : `법령 원문 ${MOCK_DATASET_DATE} 기준`}
           </Badge>
-          <Badge variant={r.guard.passed ? "success" : "warning"}>{r.guard.passed ? "근거 검증 통과" : `확인 필요 표현 ${r.guard.unverifiedMentions.length}건`}</Badge>
+          <Badge variant={r.guard.passed ? "success" : "warning"}>{!r.guard.passed ? `확인 필요 표현 ${r.guard.unverifiedMentions.length}건` : r.provider.kind === "llm" ? "근거 검증 통과" : "검수된 분석(규칙기반)"}</Badge>
           <span className="text-muted-foreground">{(r.elapsedMs / 1000).toFixed(1)}초</span>
           <Button variant="ghost" size="sm" className="ml-auto" onClick={onCopy}>
             <ClipboardCopy /> 분석 결과 복사

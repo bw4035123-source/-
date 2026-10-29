@@ -628,6 +628,22 @@ class QuantityGuardTest(unittest.TestCase):
         self.assertIn("180만원", guard_llm_output(with_user, "citizen", ctx, ["마지막 월급 180만원을 못 받았어요"])["summary"])
 
 
+class ReviewerCasesTest(unittest.TestCase):
+    """외부 평가자가 지적한 질문 — 입장 뒤집힘(고소당함)·맞지 않는 조문(재직 중 체불)·흔한 말투"""
+
+    def test_reviewer_questions(self):
+        from law_for_all.ask import ask
+        r = ask("층간소음으로 따졌더니 윗집이 저를 협박죄로 고소한대요", "citizen")
+        self.assertEqual(r["topic"]["id"], "accused")
+        self.assertIn("criminal-procedure:244의3", {c["key"] for c in r["citations"]})
+        self.assertEqual(r["citizen"]["cases"][0]["situation"], "협박죄로 고소한다고 할 때")
+        r = ask("사장님이 월급을 두 달째 안 줘요", "citizen")
+        self.assertEqual(r["citizen"]["cases"][0]["situation"], "다니는 중인데 월급이 밀릴 때")
+        self.assertEqual(r["citations"][0]["key"], "labor-standards:43")
+        for q, t in (("집주인이 계약 끝났는데 돈을 안 돌려줘요", "deposit-return"), ("회사가 돈을 안 줘요", "unpaid-wages"), ("이혼하고 싶어요", "divorce"), ("친구가 돈 빌려가고 안 갚아요", "loan-repayment")):
+            self.assertEqual(ask(q, "citizen")["topic"]["id"], t, q)
+
+
 class TrafficCasesTest(unittest.TestCase):
     """교통사고 보험처리 — 라우팅과 이런 경우라면(tests/case-rank.test.ts 와 같은 사례)"""
 

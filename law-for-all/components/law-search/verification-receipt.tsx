@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { downloadWord } from "@/lib/word-export";
 
-/** AI 답변 검증 영수증 — 근거 원문의 출처·시각·지문과 인용 검증 결과를 한 장으로(보고서·기안문 붙임용) */
+/** 답변 검증 영수증 — 근거 원문의 출처·시각·지문과 인용 검증 결과를 한 장으로(보고서·기안문 붙임용) */
 export function VerificationReceipt({ result }: { result: AskResult }) {
   const toast = useToast();
   const [open, setOpen] = React.useState(false);
@@ -26,7 +26,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
     const pre = w.document.createElement("pre");
     pre.textContent = text;
     pre.style.cssText = "white-space:pre-wrap;font-family:'Malgun Gothic',sans-serif;font-size:10.5pt;line-height:1.7";
-    w.document.title = "AI 답변 검증 영수증";
+    w.document.title = "답변 검증 영수증";
     w.document.body.appendChild(pre);
     w.print();
   };
@@ -40,7 +40,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
         <SheetContent className="sm:max-w-2xl" aria-describedby={undefined}>
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <ReceiptText className="h-5 w-5 text-accent" /> AI 답변 검증 영수증
+              <ReceiptText className="h-5 w-5 text-accent" /> 답변 검증 영수증
             </SheetTitle>
             <SheetDescription>이 답변이 어떤 조문 원문을 언제·어디서 가져와 근거로 삼았는지, 인용 검증에서 무엇을 걸렀는지 기록해요.</SheetDescription>
           </SheetHeader>

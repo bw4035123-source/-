@@ -3,9 +3,9 @@
  "command": "npm run eval",
  "routing": {
   "dev": {
-   "total": 401,
-   "correct": 401,
-   "strict": 398,
+   "total": 417,
+   "correct": 417,
+   "strict": 414,
    "wrongTopic": 0,
    "misses": []
   },
@@ -97,47 +97,56 @@
   "correct": 45
  },
  "grounding": {
-  "answers": 922,
-  "withCitation": 828,
-  "noResultHonest": 94,
-  "guardPassed": 922,
+  "answers": 954,
+  "withCitation": 838,
+  "noResultHonest": 116,
+  "guardPassed": 954,
   "outsideMarkers": 0
  },
  "coverage": {
   "total": 50,
-  "correct": 11,
-  "miss": 28,
-  "wrong": 11,
+  "correct": 23,
+  "miss": 22,
+  "wrong": 5,
   "external": {
    "total": 7,
-   "correct": 2,
-   "miss": 4,
-   "wrong": 1
+   "correct": 7,
+   "miss": 0,
+   "wrong": 0
   },
   "rows": [
    {
     "q": "이혼하고 싶어요",
     "external": true,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "민법"
+    ]
    },
    {
     "q": "친구가 돈 빌려가고 안 갚아요",
     "external": true,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "민법",
+     "민사소송법"
+    ]
    },
    {
     "q": "회사가 돈을 안 줘요",
     "external": true,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ]
    },
    {
     "q": "집주인이 계약 끝났는데 돈을 안 돌려줘요",
     "external": true,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "주택임대차보호법"
+    ]
    },
    {
     "q": "사장님이 월급을 두 달째 안 줘요",
@@ -150,10 +159,10 @@
    {
     "q": "층간소음으로 따졌더니 윗집이 저를 협박죄로 고소한대요",
     "external": true,
-    "result": "wrong",
+    "result": "correct",
     "got": [
-     "공동주택관리법",
-     "공동주택 층간소음의 범위와 기준에 관한 규칙"
+     "형사소송법",
+     "형법"
     ]
    },
    {
@@ -169,15 +178,17 @@
    {
     "q": "남편이랑 성격이 안 맞아서 갈라서려면 어떻게 해야 하나요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "민법"
+    ]
    },
    {
     "q": "이혼하면 아이 양육비는 얼마나 받을 수 있나요",
     "external": false,
-    "result": "wrong",
+    "result": "correct",
     "got": [
-     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"
+     "민법"
     ]
    },
    {
@@ -195,14 +206,20 @@
    {
     "q": "지인한테 500만원 빌려줬는데 차용증이 없어요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "민법",
+     "민사소송법"
+    ]
    },
    {
     "q": "빌려준 돈 받으려면 지급명령 신청하면 되나요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "민법",
+     "민사소송법"
+    ]
    },
    {
     "q": "중고거래로 돈 보냈는데 물건을 안 보내요",
@@ -219,10 +236,8 @@
    {
     "q": "일하다가 다쳤는데 회사가 산재 처리를 안 해줘요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "자동차손해배상 보장법"
-    ]
+    "result": "miss",
+    "got": []
    },
    {
     "q": "회사 그만뒀는데 실업급여 받을 수 있나요",
@@ -241,10 +256,8 @@
    {
     "q": "주휴수당 못 받았는데 신고할 수 있나요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "도로교통법"
-    ]
+    "result": "miss",
+    "got": []
    },
    {
     "q": "팀장이 매일 폭언하고 괴롭혀요",
@@ -261,8 +274,10 @@
    {
     "q": "인터넷에 저에 대한 악성 댓글이 달렸어요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "형법"
+    ]
    },
    {
     "q": "친구가 단톡방에서 저한테 욕을 했어요 고소할 수 있나요",
@@ -275,8 +290,10 @@
    {
     "q": "길에서 모르는 사람한테 맞았어요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "형법"
+    ]
    },
    {
     "q": "모르는 사람이 계속 따라오고 연락해요",
@@ -287,10 +304,8 @@
    {
     "q": "아이가 학교에서 괴롭힘을 당하고 있어요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"
-    ]
+    "result": "miss",
+    "got": []
    },
    {
     "q": "산책하다가 남의 개한테 물렸어요",
@@ -329,8 +344,7 @@
     "external": false,
     "result": "wrong",
     "got": [
-     "주택임대차보호법",
-     "도로교통법"
+     "주택임대차보호법"
     ]
    },
    {
@@ -339,8 +353,7 @@
     "result": "wrong",
     "got": [
      "민원 처리에 관한 법률",
-     "공공기관의 정보공개에 관한 법률",
-     "부정청탁 및 금품등 수수의 금지에 관한 법률"
+     "공공기관의 정보공개에 관한 법률"
     ]
    },
    {
@@ -370,8 +383,7 @@
     "result": "correct",
     "got": [
      "근로기준법",
-     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률",
-     "민원 처리에 관한 법률"
+     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률"
     ]
    },
    {
@@ -442,24 +454,26 @@
    {
     "q": "경찰서에서 피의자로 출석하라고 연락이 왔어요",
     "external": false,
-    "result": "miss",
-    "got": []
+    "result": "correct",
+    "got": [
+     "형사소송법",
+     "형법"
+    ]
    },
    {
     "q": "사기죄로 고소당했는데 어떻게 대응해야 하나요",
     "external": false,
     "result": "correct",
     "got": [
+     "형사소송법",
      "형법"
     ]
    },
    {
     "q": "계약직인데 2년 넘게 일하면 정규직이 되나요",
     "external": false,
-    "result": "wrong",
-    "got": [
-     "주택임대차보호법"
-    ]
+    "result": "miss",
+    "got": []
    },
    {
     "q": "아르바이트생인데 근로계약서를 안 써줬어요",
@@ -472,26 +486,26 @@
   ]
  },
  "injection": {
-  "answers": 364,
-  "injected": 1456,
-  "blocked": 1456
+  "answers": 379,
+  "injected": 1516,
+  "blocked": 1516
  },
  "quantity": {
-  "checked": 828,
+  "checked": 838,
   "falseAlarm": 0,
-  "answers": 364,
-  "cleanPassed": 364,
-  "tampered": 320,
-  "caught": 298
+  "answers": 379,
+  "cleanPassed": 379,
+  "tampered": 331,
+  "caught": 309
  },
  "privacy": {
   "positives": 20,
   "masked": 20,
-  "negatives": 471,
+  "negatives": 487,
   "falsePositives": 0
  },
  "parity": {
-  "cases": 60,
+  "cases": 64,
   "passed": true
  },
  "llm": {

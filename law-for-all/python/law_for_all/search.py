@@ -94,7 +94,7 @@ def match_topics(query: str) -> list[dict]:
         # 정규화하면 같은 표현(예: '처리 기한'·'처리기한')은 한 번만 계산.
         # "전세+사기"처럼 +로 이은 트리거는 모든 말이 들어 있을 때만(순서 무관) — 혼자서는 너무 넓은 말('사기'·'경매')을 문맥으로 좁힘
         for key in dict.fromkeys("+".join(normalize(p) for p in t.split("+")) for t in topic["triggers"]):
-            score += trigger_score(nq, key)
+            score += trigger_score(nq, key) * topic.get("weight", 1)
         score += _overlap(qg, bigrams(topic["label"] + " ".join(topic["triggers"]))) * 2
         if score >= 1.2:
             hits.append({"topic": topic, "score": score})
