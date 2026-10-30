@@ -660,6 +660,23 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertTrue(f("개인정보 보호법", ["개인정보", "유출"]))
 
 
+class FallbackNoticeTest(unittest.TestCase):
+    """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
+
+    def test_cases(self):
+        from law_for_all.fallback import llm_fallback
+        from law_for_all.llm import LLMError
+
+        c = llm_fallback("업스테이지 Solar", LLMError("openai 연결 실패: 응답 제한시간(45초) 초과", "openai"))
+        self.assertEqual(c["kind"], "connection")
+        self.assertEqual(c["notice"], "AI(업스테이지 Solar)에 연결하지 못해 사람이 검수한 규칙기반 답변으로 안내합니다.")
+        self.assertIn("제한시간", c["reason"])
+        g = llm_fallback("업스테이지 Solar", ValueError("근거에 없는 수치: 90일"), "분석")
+        self.assertEqual(g["kind"], "guard")
+        self.assertNotIn("90일", g["notice"])
+        self.assertIn("근거 검증을 통과하지 못해", g["notice"])
+
+
 class StrongLocalHitTest(unittest.TestCase):
     """실시간 검색과 함께 쓸 내장 조문 기준 — tests/live-search.test.ts 와 같은 사례"""
 

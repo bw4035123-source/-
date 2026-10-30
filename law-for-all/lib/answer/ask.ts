@@ -16,6 +16,7 @@ import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers
 import { relatedLawsOf, retrieve } from "./retrieve";
 import { buildRuleAnswer } from "./rule-engine";
 import { pickCases } from "./cases";
+import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
 import { maskNotice, maskPII } from "../privacy-mask";
 import type { AskResult, UserMode } from "./types";
 
@@ -70,6 +71,8 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
   let removed: string[] = [];
   let unverified: string[] = [];
   let fallbackReason: string | undefined;
+  let fallbackNotice: string | undefined;
+  let fallbackKind: FallbackKind | undefined;
   let usedProvider = { id: provider.id as string, label: provider.label, model: provider.model, kind: provider.kind };
 
   const applyRuleEngine = () => {
@@ -87,7 +90,8 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
     applyRuleEngine();
   } else if (!context.length) {
     // 근거 없이 LLM을 호출하면 환각 위험 → 호출하지 않음
-    fallbackReason = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다.";
+    fallbackReason = fallbackNotice = NO_EVIDENCE_REASON;
+    fallbackKind = "no-evidence";
     applyRuleEngine();
   } else {
     try {
@@ -109,12 +113,12 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
       // 실제 인용한 조문을 앞에, 나머지 검색 근거는 뒤에
       citationKeys = [...g.citationKeys, ...context.map((c) => c.key).filter((k) => !g.citationKeys.includes(k))];
     } catch (e) {
-      fallbackReason = `${provider.label} 응답을 검증하지 못해 규칙기반 엔진으로 대체했습니다(${(e as Error).message}).`;
-      usedProvider = { id: "mock", label: "규칙기반 엔진(LLM 없음)", model: "law-rule-engine-v1", kind: "rule" };
+      ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e));
+      usedProvider = { id: "mock", label: "규칙기반 엔진(AI 답변 대체)", model: "law-rule-engine-v1", kind: "rule" };
       applyRuleEngine();
     }
   }
-  if (fallbackReason) notices.push(fallbackReason);
+  if (fallbackNotice) notices.push(fallbackNotice);
   if (removed.length) notices.push(`근거 목록에 없는 인용 ${removed.length}건을 자동 제거했습니다.`);
 
   const citations = citationKeys.map((k) => context.find((c) => c.key === k)!).filter(Boolean);
@@ -140,7 +144,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
       ...relatedLawsOf(citations.map((c) => c.key)),
       ...Array.from(new Map(citations.filter((c) => liveKeys.includes(c.key)).map((c) => [c.lawId, { id: c.lawId, name: c.lawName }])).values()),
     ],
-    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
+    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, fallbackKind, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",
     notices: Array.from(new Set(notices)),
     elapsedMs: Date.now() - started,

@@ -26,6 +26,8 @@ export interface GuardReport {
   unverifiedMentions: string[];
   /** LLM 응답을 쓰지 못해 규칙엔진으로 대체한 사유 */
   fallbackReason?: string;
+  /** 대체 사유 종류: 근거 없음(AI 미호출)·연결 실패·검증 실패 */
+  fallbackKind?: "no-evidence" | "connection" | "guard";
   /** 검증 통과 여부 */
   passed: boolean;
 }

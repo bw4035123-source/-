@@ -9,6 +9,7 @@ import { findUnverifiedMentions, guardAnalysisOutput, parseLooseJson } from "./g
 import { ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, buildAnalysisPrompt } from "./prompts";
 import type { AnalyzeResult, IssueAnalysis } from "./types";
 import { maskNotice, maskPII } from "../privacy-mask";
+import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
 
 const DEFAULT_CONTACTS: Contact[] = [
   { name: "대한법률구조공단", phone: "132", url: "https://www.klac.or.kr", desc: "무료 법률상담·소송 지원" },
@@ -41,10 +42,13 @@ export async function analyze({ situation: raw, provider: requested }: { situati
   let removed: string[] = [];
   let unverified = findUnverifiedMentions(JSON.stringify(analyses).replace(/\\n/g, " "), citations);
   let fallbackReason: string | undefined;
+  let fallbackNotice: string | undefined;
+  let fallbackKind: FallbackKind | undefined;
 
   if (provider.kind === "llm") {
     if (!citations.length) {
-      fallbackReason = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다.";
+      fallbackReason = fallbackNotice = NO_EVIDENCE_REASON;
+      fallbackKind = "no-evidence";
     } else {
       try {
         const res = await provider.generate({
@@ -61,12 +65,12 @@ export async function analyze({ situation: raw, provider: requested }: { situati
         removed = g.removed;
         unverified = g.unverified;
       } catch (e) {
-        fallbackReason = `${provider.label} 응답을 검증하지 못해 규칙기반 분석으로 대체했습니다(${(e as Error).message}).`;
-        usedProvider = { id: "mock", label: "규칙기반 엔진(LLM 없음)", model: "law-rule-engine-v1", kind: "rule" };
+        ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e, "분석"));
+        usedProvider = { id: "mock", label: "규칙기반 엔진(AI 답변 대체)", model: "law-rule-engine-v1", kind: "rule" };
       }
     }
   }
-  if (fallbackReason) notices.push(fallbackReason);
+  if (fallbackNotice) notices.push(fallbackNotice);
   if (removed.length) notices.push(`근거 목록에 없는 인용 ${removed.length}건을 자동 제거했습니다.`);
   if (!issues.length) notices.push("상황에서 뚜렷한 생활 법률 쟁점을 찾지 못해 조문 검색 결과로 분석했습니다. 당사자·행위·금액·시점을 더 구체적으로 적으면 정확도가 올라갑니다.");
   notices.push(...svc.warnings);
@@ -84,7 +88,7 @@ export async function analyze({ situation: raw, provider: requested }: { situati
     contacts: contacts.length ? contacts.slice(0, 5) : DEFAULT_CONTACTS,
     caseQuery: issues[0]?.topic.caseQuery ?? null,
     provider: usedProvider,
-    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
+    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, fallbackKind, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",
     notices: Array.from(new Set(notices)),
     elapsedMs: Date.now() - started,

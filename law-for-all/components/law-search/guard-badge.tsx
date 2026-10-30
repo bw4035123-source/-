@@ -13,7 +13,9 @@ export function GuardBadge({ result }: { result: AskResult }) {
   // 답변 방식에 맞게: 근거 없음 / 사람이 검수한 규칙기반 답변 / 생성형 AI 답변(검증을 통과했을 때만 '검증 통과')
   const none = result.citations.length === 0;
   const llm = result.provider.kind === "llm";
-  const label = none ? "관련 조문 없음 · 지어내지 않음" : !ok ? `확인 필요 표현 ${g.unverifiedMentions.length}건` : llm ? `근거 검증 통과 · 인용 ${cited}건` : `검수된 답변 · 인용 ${cited}건`;
+  // AI를 불렀지만 연결 실패·검증 실패로 쓰지 않고 규칙기반 답변으로 대신한 경우
+  const fell = !llm && (g.fallbackKind === "connection" || g.fallbackKind === "guard");
+  const label = none ? "관련 조문 없음 · 지어내지 않음" : !ok ? `확인 필요 표현 ${g.unverifiedMentions.length}건` : llm ? `근거 검증 통과 · 인용 ${cited}건` : fell ? `검수된 답변으로 대체 · 인용 ${cited}건` : `검수된 답변 · 인용 ${cited}건`;
   return (
     <div className="text-sm">
       <button
@@ -37,7 +39,11 @@ export function GuardBadge({ result }: { result: AskResult }) {
               ? "질문과 맞는 근거 조문을 찾지 못해 답을 지어내지 않고 상담 기관을 안내했어요."
               : llm
                 ? `생성형 AI(${result.provider.model ?? result.provider.label})가 검색된 근거 조문만 보고 쓴 답변을 아래 방식으로 검증했어요.`
-                : "생성형 AI를 쓰지 않고, 사람이 검수한 문장과 법령 원문으로 조립한 규칙기반 답변이에요."}
+                : fell
+                  ? g.fallbackKind === "connection"
+                    ? "생성형 AI에 연결하지 못해, 사람이 검수한 문장과 법령 원문으로 조립한 규칙기반 답변으로 안내했어요."
+                    : "생성형 AI가 쓴 답변이 아래 검증을 통과하지 못해 쓰지 않고, 사람이 검수한 문장과 법령 원문으로 조립한 규칙기반 답변으로 대신 안내했어요."
+                  : "생성형 AI를 쓰지 않고, 사람이 검수한 문장과 법령 원문으로 조립한 규칙기반 답변이에요."}
           </p>
           <p>
             <strong className="text-foreground">검증 방식</strong>: 답변 문장은 검색된 근거 조문 목록 안에서만 인용할 수 있으며, 목록 밖 인용은 자동 제거됩니다. 생성형 AI 답변은 금액·기간·비율도 원문과 대조해 다르면 쓰지 않습니다. 본문에 쓰인 조문 번호는 근거 원문과 대조하고, 인용 카드에는 AI 문장이 아닌 법령 원문만 표시합니다.

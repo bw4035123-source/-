@@ -12,6 +12,7 @@ import { FOLLOWUP_SUGGESTIONS } from "./followup-suggestions";
 import { retrieve } from "./retrieve";
 import { maskNotice, maskPII } from "../privacy-mask";
 import type { UserMode } from "./types";
+import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
 
 /**
  * 이어서 묻기 — 검색 결과를 본 뒤 같은 사안을 더 묻는 질문에 답한다.
@@ -34,7 +35,7 @@ export interface FollowUpResult {
   provider: { id: string; label: string; model: string; kind: "llm" | "rule" };
   answer: string;
   citations: Citation[];
-  guard: { removedCitations: string[]; unverifiedMentions: string[]; fallbackReason?: string; passed: boolean };
+  guard: { removedCitations: string[]; unverifiedMentions: string[]; fallbackReason?: string; fallbackKind?: FallbackKind; passed: boolean };
   suggestions: string[];
   dataSource: "live" | "mock";
   notices: string[];
@@ -146,6 +147,8 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
   let answer = "";
   let removed: string[] = [];
   let fallbackReason: string | undefined;
+  let fallbackNotice: string | undefined;
+  let fallbackKind: FallbackKind | undefined;
 
   const applyRule = () => {
     const s = sanitizeMarkers(buildFollowUpRuleAnswer(question, mode, intent, topic, context, [...liveKeys, ...prev.keys], prevQuery), new Set(context.map((c) => c.key)));
@@ -155,7 +158,8 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
 
   if (provider.kind === "rule") applyRule();
   else if (!context.length) {
-    fallbackReason = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다.";
+    fallbackReason = fallbackNotice = NO_EVIDENCE_REASON;
+    fallbackKind = "no-evidence";
     applyRule();
   } else {
     try {
@@ -172,12 +176,12 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
       answer = g.summary;
       removed = g.removed;
     } catch (e) {
-      fallbackReason = `${provider.label} 응답을 검증하지 못해 규칙기반 엔진으로 대체했습니다(${(e as Error).message}).`;
-      usedProvider = { id: "mock", label: "규칙기반 엔진(LLM 없음)", model: "law-rule-engine-v1", kind: "rule" };
+      ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e));
+      usedProvider = { id: "mock", label: "규칙기반 엔진(AI 답변 대체)", model: "law-rule-engine-v1", kind: "rule" };
       applyRule();
     }
   }
-  if (fallbackReason) notices.push(fallbackReason);
+  if (fallbackNotice) notices.push(fallbackNotice);
   if (removed.length) notices.push(`근거 목록에 없는 인용 ${removed.length}건을 자동 제거했습니다.`);
   notices.push(...svc.warnings);
 
@@ -193,7 +197,7 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
     provider: usedProvider,
     answer,
     citations,
-    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, passed: unverified.length === 0 },
+    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, fallbackKind, passed: unverified.length === 0 },
     suggestions: FOLLOWUP_SUGGESTIONS[mode].filter((s) => detectIntent(s) !== intent).slice(0, 3),
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",
     notices: Array.from(new Set(notices)),

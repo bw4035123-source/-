@@ -5,6 +5,7 @@ import re
 import time
 from datetime import datetime, timezone
 
+from .fallback import NO_EVIDENCE, llm_fallback
 from .cases import pick_cases
 from .config import config
 from .data import LAWS, article_key, get_law, parse_key
@@ -107,7 +108,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     if p.kind == "rule":
         rule()
     elif not context:
-        fallback = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다."
+        fallback = NO_EVIDENCE
         rule()
     else:
         try:
@@ -117,12 +118,12 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
             out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"])
             citation_keys = g["citationKeys"] + [k for k in citation_keys if k not in g["citationKeys"]]
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
-            fallback = f"{p.label} 응답을 검증하지 못해 규칙기반 엔진으로 대체했습니다({e})."
-            used = {"id": "mock", "label": "규칙기반 엔진(LLM 없음)", "model": "law-rule-engine-v1", "kind": "rule"}
+            fallback = llm_fallback(p.label, e)
+            used = {"id": "mock", "label": "규칙기반 엔진(AI 답변 대체)", "model": "law-rule-engine-v1", "kind": "rule"}
             rule()
     removed = out["removed"]
     if fallback:
-        notices.append(fallback)
+        notices.append(fallback["notice"])
     if removed:
         notices.append(f"근거 목록에 없는 인용 {len(removed)}건을 자동 제거했습니다.")
 
@@ -137,7 +138,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         # 판례 검색어: 화면이 /api/cases 로 따로 불러옴(답변 속도 보호)
         "caseQuery": topic.get("caseQuery") if topic else (live_case_query(query) if live_keys else None),
         "relatedLaws": related_laws_of([c["key"] for c in citations]) + list({c["lawId"]: {"id": c["lawId"], "name": c["lawName"]} for c in citations if c["key"] in live_keys}.values()),
-        "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback} if fallback else {})},
+        "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback["reason"], "fallbackKind": fallback["kind"]} if fallback else {})},
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",
         "notices": list(dict.fromkeys(notices)),
         "elapsedMs": int((time.time() - started) * 1000), "generatedAt": now_iso(),

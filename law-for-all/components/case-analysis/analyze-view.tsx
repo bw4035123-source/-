@@ -145,7 +145,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           <Badge variant="outline" className="gap-1">
             <Database className="h-3 w-3" /> {r.dataSource === "live" ? "국가법령정보 실시간" : `법령 원문 ${MOCK_DATASET_DATE} 기준`}
           </Badge>
-          <Badge variant={r.guard.passed ? "success" : "warning"}>{!r.guard.passed ? `확인 필요 표현 ${r.guard.unverifiedMentions.length}건` : r.provider.kind === "llm" ? "근거 검증 통과" : "검수된 분석(규칙기반)"}</Badge>
+          <Badge variant={r.guard.passed ? "success" : "warning"}>{!r.guard.passed ? `확인 필요 표현 ${r.guard.unverifiedMentions.length}건` : r.provider.kind === "llm" ? "근거 검증 통과" : r.guard.fallbackKind === "connection" || r.guard.fallbackKind === "guard" ? "검수된 분석으로 대체(규칙기반)" : "검수된 분석(규칙기반)"}</Badge>
           <span className="text-muted-foreground">{(r.elapsedMs / 1000).toFixed(1)}초</span>
           <Button variant="ghost" size="sm" className="ml-auto" onClick={onCopy}>
             <ClipboardCopy /> 분석 결과 복사

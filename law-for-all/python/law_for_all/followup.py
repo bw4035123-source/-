@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 import time
 
+from .fallback import NO_EVIDENCE, llm_fallback
 from .ask import DEFAULT_CONTACTS, now_iso, retrieve
 from .config import config
 from .data import article_label
@@ -122,7 +123,7 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
     if p.kind == "rule":
         rule()
     elif not context:
-        fallback = "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다."
+        fallback = NO_EVIDENCE
         rule()
     else:
         try:
@@ -131,11 +132,11 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
             g = guard_llm_output(parse_loose_json(res["text"]), mode, context, [prev_query, question])
             out.update(answer=g["summary"], removed=g["removed"])
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
-            fallback = f"{p.label} 응답을 검증하지 못해 규칙기반 엔진으로 대체했습니다({e})."
-            used = {"id": "mock", "label": "규칙기반 엔진(LLM 없음)", "model": "law-rule-engine-v1", "kind": "rule"}
+            fallback = llm_fallback(p.label, e)
+            used = {"id": "mock", "label": "규칙기반 엔진(AI 답변 대체)", "model": "law-rule-engine-v1", "kind": "rule"}
             rule()
     if fallback:
-        notices.append(fallback)
+        notices.append(fallback["notice"])
     if out["removed"]:
         notices.append(f"근거 목록에 없는 인용 {len(out['removed'])}건을 자동 제거했습니다.")
     notices += svc.warnings
@@ -146,7 +147,7 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
     result = {
         "question": question, "prevQuery": prev_query, "mode": mode,
         "intent": intent, "provider": used, "answer": out["answer"], "citations": citations,
-        "guard": {"removedCitations": out["removed"], "unverifiedMentions": unverified, "passed": not unverified, **({"fallbackReason": fallback} if fallback else {})},
+        "guard": {"removedCitations": out["removed"], "unverifiedMentions": unverified, "passed": not unverified, **({"fallbackReason": fallback["reason"], "fallbackKind": fallback["kind"]} if fallback else {})},
         "suggestions": [s for s in FOLLOWUP_SUGGESTIONS[mode] if detect_intent(s) != intent][:3],
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",
         "notices": list(dict.fromkeys(notices)),
