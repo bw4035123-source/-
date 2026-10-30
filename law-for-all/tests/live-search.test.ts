@@ -49,6 +49,10 @@ describe("실시간 검색 법령의 이름 닮음 기준", async () => {
     expect(lawNameLooksLike("학교폭력예방 및 대책에 관한 법률", ["학교폭력", "신고"])).toBe(true);
     expect(lawNameLooksLike("온라인투자연계금융업 및 이용자 보호에 관한 법률", ["온라인", "배송"])).toBe(false);
     expect(lawNameLooksLike("군사기밀 보호법", ["사기", "피해"])).toBe(false);
+    expect(lawNameLooksLike("우주손해배상법", ["중고폰", "판매자", "손해배상"])).toBe(false);
+    expect(lawNameLooksLike("디지털포용법", ["디지털", "리뷰"])).toBe(false);
+    expect(lawNameLooksLike("자동차손해배상 보장법", ["자동차", "손해배상"])).toBe(true);
+    expect(lawNameLooksLike("개인정보 보호법", ["개인정보", "유출"])).toBe(true);
   });
 });
 

@@ -654,6 +654,10 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertTrue(f("학교폭력예방 및 대책에 관한 법률", ["학교폭력", "신고"]))
         self.assertFalse(f("온라인투자연계금융업 및 이용자 보호에 관한 법률", ["온라인", "배송"]))
         self.assertFalse(f("군사기밀 보호법", ["사기", "피해"]))
+        self.assertFalse(f("우주손해배상법", ["중고폰", "판매자", "손해배상"]))
+        self.assertFalse(f("디지털포용법", ["디지털", "리뷰"]))
+        self.assertTrue(f("자동차손해배상 보장법", ["자동차", "손해배상"]))
+        self.assertTrue(f("개인정보 보호법", ["개인정보", "유출"]))
 
 
 class StrongLocalHitTest(unittest.TestCase):

@@ -91,8 +91,13 @@ export function lawNameHas(name: string, term: string): boolean {
  * 질문 낱말 2개 이상이 이름에 있거나, 낱말 하나가 이름의 40% 이상이거나 4글자 이상의 구체적인 말('학교폭력'),
  * 또는 짧은 법령 이름의 핵심어가 질문 낱말에 들어 있을 때('건축법' ← '건축허가').
  */
+/** 여러 법령 이름에 흔히 들어가 그 말 하나만으로는 법령을 가리키지 못하는 말('손해배상'→우주손해배상법·원자력 손해배상법) */
+const GENERIC_NAME_TERM = new Set(["손해배상", "배상", "보상", "피해", "피해구제", "구제", "지원", "보호", "관리", "신고", "처벌", "디지털", "온라인", "플랫폼", "정보", "서비스", "진흥", "특별", "기본"]);
+
 export function lawNameLooksLike(name: string, terms: string[]): boolean {
+  // 흔한 말은 다른 낱말과 함께 겹칠 때만 근거가 됨
   const hits = terms.filter((t) => t.length >= 2 && lawNameHas(name, t));
+  if (hits.length && hits.every((t) => GENERIC_NAME_TERM.has(t))) return false;
   const n = normalize(name);
   const core = /^[가-힣]+법$/.test(n) ? n.slice(0, -1) : "";
   return hits.length >= 2 || hits.some((t) => t.length >= 4 || t.length / (n.length || 1) >= 0.4) || (core.length >= 2 && terms.some((t) => t.includes(core)));

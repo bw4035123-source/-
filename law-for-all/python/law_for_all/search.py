@@ -84,11 +84,18 @@ def law_name_has(name: str, term: str) -> bool:
     return term in name if len(term) >= 3 else _word_start_has(name, term)
 
 
+# 여러 법령 이름에 흔히 들어가 그 말 하나만으로는 법령을 가리키지 못하는 말('손해배상'→우주손해배상법·원자력 손해배상법)
+_GENERIC_NAME_TERM = {"손해배상", "배상", "보상", "피해", "피해구제", "구제", "지원", "보호", "관리", "신고", "처벌", "디지털", "온라인", "플랫폼", "정보", "서비스", "진흥", "특별", "기본"}
+
+
 def law_name_looks_like(name: str, terms: list[str]) -> bool:
     """실시간 검색 법령을 근거로 써도 될 만큼 이름이 질문과 닮았는지(Next.js 판 lawNameLooksLike 와 같음) —
     질문 낱말 2개 이상이 이름에 있거나, 낱말 하나가 이름의 40% 이상이거나 4글자 이상('학교폭력'),
     또는 짧은 법령 이름의 핵심어가 질문 낱말에 들어 있을 때('건축법' ← '건축허가')"""
     hits = [t for t in terms if len(t) >= 2 and law_name_has(name, t)]
+    # 흔한 말은 다른 낱말과 함께 겹칠 때만 근거가 됨
+    if hits and all(t in _GENERIC_NAME_TERM for t in hits):
+        return False
     n = normalize(name)
     core = n[:-1] if re.fullmatch(r"[가-힣]+법", n) else ""
     return len(hits) >= 2 or any(len(t) >= 4 or len(t) / (len(n) or 1) >= 0.4 for t in hits) or (len(core) >= 2 and any(core in t for t in terms))

@@ -12,7 +12,7 @@ export class OpenAIProvider implements LLMProvider {
   readonly kind = "llm" as const;
   readonly label: string;
   constructor(private readonly cfg: Cfg) {
-    this.label = /api\.openai\.com/.test(cfg.baseUrl) ? "OpenAI" : "OpenAI 호환(Solar·vLLM 등)";
+    this.label = /api\.openai\.com/.test(cfg.baseUrl) ? "OpenAI" : /upstage\.ai/.test(cfg.baseUrl) ? "업스테이지 Solar" : "OpenAI 호환(Solar·vLLM 등)";
   }
   get model() {
     return this.cfg.model;

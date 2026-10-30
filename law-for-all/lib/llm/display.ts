@@ -3,7 +3,7 @@ import type { ProviderInfo } from "./types";
 /** 화면 표시용 공급자 이름 — 행정안전부 AI 공통기반 모델을 어떻게 연결하는지 함께 보이게 */
 export function providerDisplayName(p: Pick<ProviderInfo, "id" | "label">): string {
   if (p.id === "ollama") return "공통기반 모델(EXAONE·Gemma·Llama) · Ollama";
-  if (p.id === "openai") return "OpenAI 호환(Solar·HyperCLOVA X·GPT-OSS 등)";
+  if (p.id === "openai") return p.label.startsWith("업스테이지") ? `${p.label} · 국산 LLM` : "OpenAI 호환(Solar·HyperCLOVA X·GPT-OSS 등)";
   return p.label;
 }
 

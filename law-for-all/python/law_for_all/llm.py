@@ -63,7 +63,7 @@ class OpenAIProvider:
     def __init__(self, cfg: dict, timeout_ms: int):
         self.cfg, self.timeout_ms = cfg, timeout_ms
         self.official = "api.openai.com" in cfg["baseUrl"]
-        self.label = "OpenAI" if self.official else "OpenAI 호환(Solar·vLLM 등)"
+        self.label = "OpenAI" if self.official else "업스테이지 Solar" if "upstage.ai" in cfg["baseUrl"] else "OpenAI 호환(Solar·vLLM 등)"
         self.model = cfg["model"]
 
     def is_configured(self) -> bool:
