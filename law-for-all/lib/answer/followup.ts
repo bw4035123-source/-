@@ -103,6 +103,9 @@ export function buildFollowUpRuleAnswer(question: string, mode: UserMode, intent
   if (intentId === "where") {
     const contacts = topic?.contacts ?? DEFAULT_CONTACTS;
     lines.push(`도움받을 수 있는 곳: ${contacts.slice(0, 3).map((c) => (c.phone ? `${c.name}(☎${c.phone})` : c.name)).join(" · ")}`);
+    // 사람이 검수한 '해야 할 일' 중 신고·진정 방법을 다룬 단계(예: 노동청 진정)를 그 근거 조문과 함께
+    const step = mode === "citizen" ? topic?.citizen.steps.find((s) => intent!.find.test(`${s.title} ${s.detail}`) || terms.some((t) => `${s.title} ${s.detail}`.includes(t))) : undefined;
+    if (step) lines.push(`${step.title}: ${step.detail}${step.ref && keys.has(step.ref) ? ` [[${step.ref}]]` : ""}`);
   }
   if (intentId === "prepare" && topic) {
     const ref = topic.citizen.steps.find((s) => s.ref && keys.has(s.ref))?.ref;

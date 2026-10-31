@@ -95,7 +95,7 @@ export function AnalyzeView() {
         <AnalyzeForm initial={situation} onSubmit={run} busy={state.status === "loading"} />
       </div>
 
-      <div id="analysis-result" className="scroll-mt-24">
+      <div id="analysis-result" className="scroll-mt-40">
         {state.status === "loading" && (
           <div className="mt-8 space-y-4" role="status" aria-live="polite">
             <p className="flex items-center justify-center gap-2 font-semibold text-accent">

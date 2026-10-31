@@ -18,7 +18,7 @@ export function ModeGate({ mode, feature, children }: { mode: UserMode; feature:
       <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-accent/10 text-accent">
         <Icon className="h-7 w-7" aria-hidden />
       </span>
-      <h1 className="mt-4 text-xl font-extrabold">{feature}은(는) {LABEL[mode]} 전용 기능이에요</h1>
+      <h1 className="mt-4 text-xl font-extrabold">{`${feature}${topicParticle(feature)}`} {LABEL[mode]} 전용 기능이에요</h1>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         현재 {LABEL[current]}입니다. {mode === "citizen" ? "생활 속 법률 상황을 변호사·검사·판사의 시각으로 살펴보는 기능은 국민 모드에서 제공해요." : "우리 기관 규정 검증·규정 제·개정 같은 실무 기능은 공직자 모드에서 제공해요."}
       </p>
@@ -33,4 +33,11 @@ export function ModeGate({ mode, feature, children }: { mode: UserMode; feature:
 export function OnlyMode({ mode, children }: { mode: UserMode; children: React.ReactNode }) {
   const { mode: current, ready } = useSettings();
   return ready && current === mode ? <>{children}</> : null;
+}
+
+/** 받침이 있으면 '은', 없으면 '는'(한글이 아니면 '은(는)') */
+function topicParticle(word: string): string {
+  const c = word.charCodeAt(word.length - 1) - 0xac00;
+  if (c < 0 || c > 11171) return "은(는)";
+  return c % 28 ? "은" : "는";
 }

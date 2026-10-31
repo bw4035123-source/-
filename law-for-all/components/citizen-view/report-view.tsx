@@ -35,7 +35,15 @@ export function ReportView() {
       .catch((e) => setErr((e as Error).message || "리포트를 불러오지 못했습니다."));
   }, [q, ready, mode, provider]);
 
-  if (err) return <p className="container py-20 text-center text-muted-foreground">{err}</p>;
+  if (err)
+    return (
+      <div className="container py-20 text-center text-muted-foreground">
+        <p>{err}</p>
+        <Button className="mt-4" variant="outline" onClick={() => router.push("/")}>
+          <ArrowLeft className="h-4 w-4" /> 질문하러 가기
+        </Button>
+      </div>
+    );
   if (!r)
     return (
       <p className="container flex items-center justify-center gap-2 py-20 text-muted-foreground">

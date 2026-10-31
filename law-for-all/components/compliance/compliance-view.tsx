@@ -315,12 +315,12 @@ export function ComplianceView() {
           </div>
         </section>
 
-        <section id="compliance-result" className="min-w-0 space-y-4" aria-label="교차 검증 결과" aria-live="polite">
+        <section id="compliance-result" className="min-w-0 scroll-mt-40 space-y-4" aria-label="교차 검증 결과" aria-live="polite">
           {!report ? (
-            <div className="grid h-full min-h-[320px] place-items-center rounded-2xl border border-dashed bg-card/60 p-8 text-center text-sm text-muted-foreground">
+            <div className="grid min-h-[320px] place-items-center rounded-2xl border border-dashed bg-card/60 p-8 text-center text-sm text-muted-foreground">
               <div>
                 <ScanSearch className="mx-auto h-10 w-10 text-accent/60" />
-                <p className="mt-3 font-semibold text-foreground">규정을 붙여 넣거나 예시를 고른 뒤 교차 검증을 눌러 주세요.</p>
+                <p className="mt-3 font-semibold text-foreground">왼쪽 ‘모의데이터로 바로 체험’에서 검증 ▶을 누르거나, 규정 파일을 넣고 교차 검증을 눌러 주세요.</p>
                 <p className="mt-1">근로시간·연차·가산수당, 금품 수수 한도, 선거운동, 임원 임기, 사용허가·대부기간, 인용 조문의 현행 여부를 점검합니다.</p>
               </div>
             </div>

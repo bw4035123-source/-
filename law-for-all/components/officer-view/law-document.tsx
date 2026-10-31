@@ -105,7 +105,7 @@ export function LawDocument({ root, lawsChildren, initialLawId, warnings }: Prop
                 <article
                   key={a.no}
                   id={articleAnchor(a.no)}
-                  className={cn("scroll-mt-28 rounded-xl border bg-card p-5 transition", active === articleAnchor(a.no) && "border-accent ring-2 ring-accent/30")}
+                  className={cn("scroll-mt-40 rounded-xl border bg-card p-5 transition", active === articleAnchor(a.no) && "border-accent ring-2 ring-accent/30")}
                 >
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                     <h2 className="font-serif text-lg font-bold">

@@ -74,6 +74,10 @@ def build_followup_rule_answer(question: str, mode: str, intent_id: str | None, 
     if intent_id == "where":
         contacts = topic["contacts"] if topic else DEFAULT_CONTACTS
         lines.append("도움받을 수 있는 곳: " + " · ".join(f"{c['name']}(☎{c['phone']})" if c.get("phone") else c["name"] for c in contacts[:3]))
+        # 사람이 검수한 '해야 할 일' 중 신고·진정 방법을 다룬 단계(예: 노동청 진정)를 그 근거 조문과 함께
+        step = next((s for s in topic["citizen"]["steps"] if intent["find"].search(f"{s['title']} {s['detail']}") or any(t in f"{s['title']} {s['detail']}" for t in terms)), None) if mode == "citizen" and topic else None
+        if step:
+            lines.append(f"{step['title']}: {step['detail']}" + (f" [[{step['ref']}]]" if step.get("ref") and step["ref"] in keys else ""))
     if intent_id == "prepare" and topic:
         ref = next((s["ref"] for s in topic["citizen"]["steps"] if s.get("ref") and s["ref"] in keys), None)
         lines.append("해야 할 일: " + " → ".join(s["title"] for s in topic["citizen"]["steps"]) + (f" [[{ref}]]" if ref else ""))
