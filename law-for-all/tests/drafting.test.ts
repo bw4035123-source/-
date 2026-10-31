@@ -80,3 +80,57 @@ describe("보완: 들여쓰기 보존·끝맺음 점검·개정이유 문장", (
     expect(t).toContain("7일에서 5일로 단축, ‘사유’ 삭제 등 「법」 제1조(목적)의 내용을 정비하려는 것임.");
   });
 });
+
+describe("규정 제정 — 조문 체계·표준 조문·위임 사항", async () => {
+  const { enactDraft, delegatedMatters, unitOf } = await import("@/lib/enact");
+  it("규범 이름에 맞는 자기 지칭", () => {
+    expect(unitOf("행정규칙", "○○공단 재택근무 운영 지침")).toBe("지침");
+    expect(unitOf("자치법규", "○○구 청년 지원 조례")).toBe("조례");
+    expect(unitOf("행정규칙", "○○공단 보수 규정")).toBe("규정");
+  });
+  it("상위 조문에서 이 규범 종류로 위임한 사항만 찾음", () => {
+    const t = "① 감면의 대상·기준 및 절차에 필요한 사항은 조례로 정한다.\n② 그 밖에 신고에 관하여 필요한 사항은 대통령령으로 정한다.";
+    expect(delegatedMatters(t, "자치법규")).toEqual(["감면의 대상·기준 및 절차"]);
+    expect(delegatedMatters(t, "법령")).toEqual(["신고"]);
+  });
+  it("목적·적용 범위·실체 조문·세부 사항·부칙 순 조문 체계", () => {
+    const d = enactDraft({ kind: "행정규칙", name: "○○공단 재택근무 운영 지침", purpose: "직원의 재택근무 신청·승인과 복무 관리 기준을 정하기 위함", items: ["신청 절차", "정보 보안"], terms: ["재택근무"], basis: [], org: "○○공단" });
+    expect(d.articles.map((a) => a.label)).toEqual(["제1조(목적)", "제2조(정의)", "제3조(적용 범위)", "제4조(신청 절차)", "제5조(정보 보안)", "제6조(세부 사항)"]);
+    expect(d.articles[0].text).toBe("이 지침은 직원의 재택근무 신청·승인과 복무 관리에 관한 사항을 정함을 목적으로 한다.");
+    expect(d.articles[1].text).toContain("“재택근무”란");
+    expect(d.articles[3].text).toContain("○○공단의 장에게 신청하여야 한다");
+    expect(d.addenda).toContain("이 지침은 발령한 날부터 시행한다.");
+    expect(d.steps).toContain("유사 규정 조사(다른 기관 규정·자치법규)");
+  });
+  it("담을 내용을 비우면 위임 사항을 조문으로 배정하고, 빠진 위임 사항·위임 없는 의무 부과를 알림", () => {
+    const basis = [{ label: "「○○법」 제9조(감면)", text: "③ 감면의 대상·기준 및 절차에 필요한 사항은 조례로 정한다." }];
+    const auto = enactDraft({ kind: "자치법규", name: "○○구 사용료 감면 조례", purpose: "", items: [], terms: [], basis });
+    expect(auto.articles.some((a) => a.label.startsWith("제") && a.label.includes("감면의 대상"))).toBe(true);
+    expect(auto.delegated[0].covered).toBe(true);
+    expect(auto.articles[0].text).toContain("「○○법」 제9조에 따라");
+    const miss = enactDraft({ kind: "자치법규", name: "○○구 사용료 감면 조례", purpose: "", items: ["교육"], terms: [], basis });
+    expect(miss.checks.some((c) => c.title === "위임 사항 누락 가능")).toBe(true);
+    const burden = enactDraft({ kind: "자치법규", name: "○○구 금연 조례", purpose: "흡연자에게 과태료를 부과하기 위함", items: [], terms: [], basis: [] });
+    expect(burden.checks.some((c) => c.title === "법률 위임 필요" && c.detail.includes("지방자치법"))).toBe(true);
+  });
+});
+
+describe("조 번호 정리 — 신설·삭제에 따른 인용 정정", async () => {
+  const { renumber } = await import("@/lib/renumber");
+  const T = "제1조(목적) 목적.\n제2조(정의) 「민원 처리에 관한 법률」 제2조에 따른다.\n제3조(접수) ① 제4조에 따른 서식으로 접수한다.\n② 제5조제1항의 기간에 따른다.\n제4조(서식) 별지 서식에 따른다.\n제5조(처리기간) ① 7일 이내. ② 법 제17조에 따른다.\n제6조(이의신청) 제5조에 따르며 제9조를 준용한다.";
+  it("신설: 뒤 조문 번호와 같은 규정 안 인용만 정정(다른 법령 인용은 그대로), 없는 조문 인용은 기존 오류로", () => {
+    const r = renumber(T, { type: "insert", at: 4 });
+    expect(r.fixes.map((f) => `${f.from}→${f.to}`)).toEqual(["제4조→제5조", "제5조→제6조", "제5조→제6조"]);
+    expect(r.text).toContain("「민원 처리에 관한 법률」 제2조");
+    expect(r.text).toContain("법 제17조");
+    expect(r.text).toContain("제4조(○○) (신설할 조문)\n제5조(서식)");
+    expect(r.broken.map((f) => f.from)).toEqual(["제9조"]);
+  });
+  it("삭제: 뒤 번호를 당기고, 삭제 조문을 가리키던 인용은 '정비 필요'로 표시", () => {
+    const r = renumber(T, { type: "delete", no: 4 });
+    expect(r.fixes.map((f) => `${f.from}→${f.to}`)).toEqual(["제5조→제4조", "제5조→제4조"]);
+    expect(r.dangling.map((f) => f.where)).toEqual(["제3조(접수)"]);
+    expect(r.text).toContain("【삭제된 제4조 인용 — 정비 필요】");
+    expect(r.text).not.toContain("별지 서식에 따른다");
+  });
+});

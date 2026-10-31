@@ -276,8 +276,11 @@ export function noticeDraft(meta: DraftMeta, reason: string): string {
   ].join("\n");
 }
 
-export function procedureChecklist(kind: DraftKind): string[] {
-  const common = ["개정 필요성·현황 자료 정리", "상위법 위임 근거 및 범위 확인", "관계 부서·기관 협의", "신·구조문 대비표 작성"];
+export function procedureChecklist(kind: DraftKind, action: "제정" | "개정" = "개정"): string[] {
+  const common =
+    action === "제정"
+      ? ["제정 필요성·현황 자료 정리", "유사 규정 조사(다른 기관 규정·자치법규)", "상위법 위임 근거 및 범위 확인", "관계 부서·기관 협의", "조문 체계·제정안 확정"]
+      : ["개정 필요성·현황 자료 정리", "상위법 위임 근거 및 범위 확인", "관계 부서·기관 협의", "신·구조문 대비표 작성"];
   if (kind === "법령") return [...common, "규제영향분석서 작성(규제 신설·강화 시)", "입법예고(40일 이상)", "규제개혁위원회 심사", "법제처 심사", "차관·국무회의 심의", "공포"];
   if (kind === "자치법규") return [...common, "입법예고(20일 이상)", "규제 심사(해당 시)", "조례·규칙심의회 심의", "지방의회 의결(조례)", "공포 및 보고"];
   return [...common, "자체 법률 검토", "행정규칙 심사·등록(법제처 법령정보시스템)", "발령 및 게시"];

@@ -25,6 +25,8 @@ import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
+import { EnactPanel } from "./enact-panel";
+import { RenumberPanel } from "./renumber-panel";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
 const kindOf = (k?: string): DraftKind => (k === "행정규칙" ? "행정규칙" : k === "자치법규" ? "자치법규" : "법령");
@@ -50,10 +52,11 @@ function DiffText({ parts, side }: { parts: DiffPart[]; side: "old" | "new" }) {
   );
 }
 
-/** 규정 제·개정 지원: 개정 방향 → 개정안·신구조문대비표·정합성 점검·개정이유·부칙·입법예고문·절차를 한 번에 */
+/** 규정 제·개정 지원: (개정) 개정 방향 → 개정안·신구조문대비표·정합성 점검·개정이유·부칙·입법예고문·절차 / (제정) 목적·위임 조항 → 조문 체계·제정안 */
 export function DraftingView() {
   const params = useSearchParams();
   const toast = useToast();
+  const [mode, setMode] = React.useState<"amend" | "enact" | "renumber">(params.get("mode") === "enact" ? "enact" : params.get("mode") === "renumber" ? "renumber" : "amend");
   const [source, setSource] = React.useState<"law" | "custom">("law");
   const [laws, setLaws] = React.useState<LawSummary[]>([]);
   const [lawId, setLawId] = React.useState(params.get("law") ?? "");
@@ -157,8 +160,27 @@ export function DraftingView() {
         <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
           <FilePenLine className="h-7 w-7 text-accent" /> 규정 제·개정 지원
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground sm:text-base">바꾸고 싶은 내용을 말하듯 적으면 개정안, 신·구조문 대비표, 상위법 정합성 점검, 개정이유·부칙·입법예고문 초안을 한 번에 만들어 드려요.</p>
+        <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+          {mode === "amend"
+            ? "바꾸고 싶은 내용을 말하듯 적으면 개정안, 신·구조문 대비표, 상위법 정합성 점검, 개정이유·부칙·입법예고문 초안을 한 번에 만들어 드려요."
+            : mode === "enact"
+              ? "제정 목적과 상위법 위임 조항을 넣으면 조문 체계와 표준 조문 초안, 위임 사항 대조, 제정이유·입법예고문 초안을 만들어 드려요."
+              : "조문을 새로 넣거나 삭제해 번호가 바뀔 때, 같은 규정 안에서 고쳐야 할 인용을 모두 찾고 정정한 전문을 만들어 드려요."}
+        </p>
+        <div className="mt-4 inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold" role="tablist" aria-label="제정·개정 선택">
+          {(["amend", "enact", "renumber"] as const).map((m) => (
+            <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("rounded-md px-4 py-1.5", mode === m ? "bg-card shadow-sm" : "text-muted-foreground")}>
+              {m === "amend" ? "개정(조문 고치기)" : m === "enact" ? "제정(새 규정 만들기)" : "조 번호 정리(인용 정정)"}
+            </button>
+          ))}
+        </div>
       </header>
+
+      {mode === "enact" ? (
+        <EnactPanel laws={laws} />
+      ) : mode === "renumber" ? (
+        <RenumberPanel />
+      ) : (
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         {/* 왼쪽: 입력 */}
@@ -359,6 +381,7 @@ export function DraftingView() {
           )}
         </section>
       </div>
+      )}
     </div>
   );
 }

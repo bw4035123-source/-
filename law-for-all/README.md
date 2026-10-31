@@ -187,7 +187,7 @@ law-for-all/
 │  │  ├─ providers/             #   openai · anthropic · ollama · mock
 │  │  └─ registry.ts            #   환경변수 기반 생성·선택·안전 대체
 │  └─ answer/                   # 질의응답·상황분석 파이프라인 · 사실 추출 · 프롬프트 · 환각 가드 · 규칙엔진
-├─ tests/                       # Vitest 164개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석·자체규정 점검·문서 추출)
+├─ tests/                       # Vitest 170개(데이터 무결성·검색·가드·DRF 파서·3종 LLM·상황 분석·자체규정 점검·문서 추출)
 ├─ scripts/llm-check.ts         # 설정된 LLM 전체 비교 점검
 ├─ python/                     # Python 실행판(표준 라이브러리 서버 + 동등성 테스트)
 ├─ Dockerfile · docker-compose.yml · .gitlab-ci.yml
