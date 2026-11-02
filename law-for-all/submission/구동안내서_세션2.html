@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>구동안내서(세션 2) — 법이음(LAW:ON)</title>
+<link rel="stylesheet" href="../public/fonts/pretendard-gov/pretendardvariable-gov-dynamic-subset.css">
+<style>
+  @page { size: A4; margin: 13mm 14mm 12mm; }
+  :root { --blue: #1e3a8a; --point: #2563eb; --line: #c9d6ea; --soft: #f2f6fc; --ink: #111827; --muted: #4b5563; }
+  * { box-sizing: border-box; }
+  body { font-family: "Pretendard GOV Variable", "Pretendard GOV", "Noto Sans KR", sans-serif; color: var(--ink); font-size: 8.6pt; line-height: 1.46; word-break: keep-all; margin: 0; }
+  h1 { font-size: 17pt; margin: 0; letter-spacing: -0.02em; }
+  .head { border-bottom: 2.5px solid var(--blue); padding-bottom: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .head p { margin: 2px 0 0; color: var(--muted); font-size: 9pt; }
+  .tag { background: var(--blue); color: #fff; font-weight: 700; font-size: 8.5pt; padding: 2px 9px; border-radius: 4px; white-space: nowrap; }
+  table.form { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  table.form > tbody > tr > th { width: 22mm; background: var(--soft); color: var(--blue); font-weight: 800; text-align: center; vertical-align: middle; border: 1px solid var(--line); padding: 6px 4px; font-size: 9.5pt; }
+  table.form > tbody > tr > td { border: 1px solid var(--line); padding: 5px 8px; vertical-align: top; }
+  .note { color: var(--muted); font-size: 8.3pt; }
+  ul, ol { margin: 2px 0; padding-left: 16px; }
+  li { margin: 1px 0; }
+  code, .mono { font-family: "D2Coding", Consolas, monospace; font-size: 8.6pt; background: #eef2f8; padding: 0 4px; border-radius: 3px; }
+  pre { font-family: Consolas, monospace; font-size: 8pt; background: #0f1f4d; color: #e5edff; padding: 6px 9px; border-radius: 5px; margin: 4px 0; white-space: pre-wrap; line-height: 1.5; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .shot { border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .shot img { width: 100%; height: 66mm; object-fit: cover; object-position: top; display: block; }
+  .shot p { margin: 0; padding: 3px 7px; font-size: 8pt; color: var(--muted); background: var(--soft); }
+  table.mini { width: 100%; border-collapse: collapse; margin: 3px 0; font-size: 8.8pt; }
+  table.mini th, table.mini td { border: 1px solid var(--line); padding: 2px 5px; text-align: left; vertical-align: top; }
+  table.mini th { background: var(--soft); font-weight: 700; }
+  b.k { color: var(--point); }
+  .flow { counter-reset: f; }
+  .flow > li { list-style: none; position: relative; padding-left: 0; margin: 0 0 5px; }
+  .flow h4 { margin: 0 0 1px; font-size: 9.8pt; color: var(--blue); }
+  .pb { break-before: page; }
+  .story p { margin: 0 0 5px; }
+  .story h4 { margin: 6px 0 2px; color: var(--blue); font-size: 9.8pt; }
+</style>
+</head>
+<body>
+
+<div class="head">
+  <div>
+    <h1>[양식 2] 구동 안내서 — 법이음(LAW:ON)</h1>
+    <p>규정 제·개정 지원 — 제정·개정 문서 세트, 유사 규정 비교, 인용 정정, 상위법 대조를 한 화면에서</p>
+  </div>
+  <span class="tag">세션 2 · 지정과제 ③ 규정 제·개정 에이전트</span>
+</div>
+
+<table class="form"><tbody>
+<tr><th>실행 환경</th><td>
+  <table class="mini">
+    <tr><th style="width:24%">방법</th><th>필요 환경</th><th style="width:30%">비고</th></tr>
+    <tr><td><b class="k">① 웹 접속</b>(권장·설치 없음)</td><td>최신 Chrome·Edge·Whale·Safari(PC·모바일)</td><td><span class="mono">https://lawon.onrender.com</span> — 판례·실시간 법령</td></tr>
+    <tr><td><b class="k">② 공유판 HTML</b>(설치 없음)</td><td>최신 Chrome·Edge(PC), 파일 하나(약 10MB)</td><td><span class="mono">LAW-ON_share.html</span> 더블클릭 — 서버 없이 열림</td></tr>
+    <tr><td><b class="k">③ Python 실행판</b>(선택)</td><td>Windows 10/11·macOS·Linux, <b>Python 3.9 이상</b>, 추가 설치(pip) 없음</td><td>폐쇄망·기관 내부 설치, <b>LLM 교체 시험</b>용</td></tr>
+  </table>
+  <p class="note">· 오른쪽 위 스위치로 <b>공직자 모드</b>로 바꾸면 상단에 <b>제·개정 지원 · 자체규정 점검</b> 메뉴가 나옵니다. ②·③도 판례·실시간 법령을 <b>클라우드 서버를 거쳐</b> 받아 <b>심사위원 PC에 인증키·IP 등록이 필요 없습니다</b>.<br>· 인터넷이 안 되면 <b>내장 공식 원문(30개 법령, 2026-10-15 수집) + 규칙기반 엔진</b>으로 동작(키 없이도 동작). Node.js·Docker판 포함.</p>
+</td></tr>
+
+<tr><th>설치·실행<br>절차</th><td>
+  <b>①</b> 주소창에 <span class="mono">https://lawon.onrender.com</span>(첫 접속이 늦으면 30초~1분) · <b>②</b> GitLab의 <span class="mono">LAW-ON_share.html</span>(또는 웹 바닥글 ‘공유판 내려받기’)을 더블클릭<br>
+  <b>③ Python 실행판</b>(공공 GitLab 산출물의 <span class="mono">law-on-python.zip</span>)
+  <ol>
+    <li>압축을 풉니다(<span class="mono">law-on-python</span> 폴더). Python이 없으면 python.org 에서 3.9 이상 설치(Windows는 ‘Add to PATH’ 선택).</li>
+    <li>Windows는 <span class="mono">run.bat</span> 더블클릭, macOS·Linux는 터미널에서 아래를 실행합니다.
+<pre>cd law-on-python && python3 run.py      # 브라우저가 http://127.0.0.1:8000 을 자동으로 엽니다</pre></li>
+    <li>인증키는 <b>따로 입력하지 않습니다</b>(클라우드 서버가 대신 조회) — 화면 상단 배너가 ‘실시간 연동’이면 전체 법령·판례가 실시간으로 조회됩니다.</li>
+    <li>연결 점검 <span class="mono">python3 run.py --check</span>, 포트 변경 <span class="mono">--port 8080</span> · Node.js판 <span class="mono">npm install && npm run dev</span> · Docker <span class="mono">docker compose up --build</span></li>
+  </ol>
+</td></tr>
+
+<tr><th>LLM 연결<br>설정</th><td>
+  <span class="mono">.env.example</span>을 <span class="mono">.env.local</span>로 복사해 값만 넣고, 화면 왼쪽 위 <b>‘AI 모델’ 메뉴</b>에서 즉시 전환(키는 서버에만 둠).
+  <table class="mini">
+    <tr><th style="width:20%">공급자</th><th>설정(.env.local)</th><th style="width:34%">연결 가능 모델 예</th></tr>
+    <tr><td><b>업스테이지 Solar</b><br>(실서비스 기본)</td><td><span class="mono">LLM_PROVIDER=openai</span> <span class="mono">OPENAI_BASE_URL=https://api.upstage.ai/v1</span> <span class="mono">OPENAI_MODEL=solar-pro4</span> · 키</td><td>국산 LLM(대회 지원 API) — 시연 주소에 연결</td></tr>
+    <tr><td>Ollama(폐쇄망)</td><td><span class="mono">LLM_PROVIDER=ollama</span> <span class="mono">OLLAMA_MODEL=exaone3.5:7.8b</span></td><td><b>EXAONE·Gemma·Llama·Solar</b>·GPT-OSS(행안부 AI 공통기반 지원 모델)</td></tr>
+    <tr><td>OpenAI 호환·Claude</td><td><span class="mono">OPENAI_BASE_URL</span>·<span class="mono">OPENAI_API_KEY</span>·<span class="mono">OPENAI_MODEL</span> / <span class="mono">ANTHROPIC_API_KEY</span></td><td>vLLM 사내 서버, HyperCLOVA X, GPT, Claude</td></tr>
+    <tr><td>규칙기반(예비)</td><td><span class="mono">LLM_PROVIDER=mock</span>(아무것도 안 넣으면 자동)</td><td>AI 없이 사람이 검수한 문장·근거 조문으로 답변 — AI가 끊기거나 검증에 걸리면 자동 대체</td></tr>
+  </table>
+  <p class="note">· <b>제·개정 지원(제정·개정·조 번호 정리)은 AI 없이</b> 법제 표준 문형과 원문 대조로 만들어 어떤 모델·폐쇄망에서도 같은 결과입니다. 아래 설정은 근거 상담·민원 회신 초안에 쓰입니다.<br>· 모델 교체 시 코드 수정 없음. 모든 모델이 같은 <b>인용·수치 검증 가드</b>를 거치고, 통과 못 하면 규칙기반 답변으로 대체. · <b>공통기반 모델 실측(10-22)</b>: Llama 3.2(3B)·EXAONE 3.5(7.8B) 각 4/4 통과 — <span class="mono">python3 run.py --llm-test ollama:exaone3.5:7.8b</span></p>
+</td></tr>
+
+<tr><th>모의데이터<br>안내</th><td>
+  제출 폴더 <span class="mono">모의데이터/</span>(GitLab <span class="mono">submission/mock-data/</span>) — 가상 기관 이름으로 새로 쓴 규정, 개인정보·민감정보 없음
+  <table class="mini">
+    <tr><th>파일</th><th style="width:14%">형식</th><th style="width:34%">용도(자체규정 점검 결과)</th></tr>
+    <tr><td>가상시설관리공단_복무및보수규정(모의).hwpx</td><td>한글</td><td>근로기준법 대조 — 상충 7·검토 1</td></tr>
+    <tr><td>가상도시개발공사_임직원행동강령(모의).docx</td><td>Word</td><td>청탁금지법·공직선거법 — 상충 3·검토 3</td></tr>
+    <tr><td>가상군_공유재산사용허가운영지침(모의).pdf</td><td>PDF</td><td>공유재산법·없는 조문 인용 — 상충 3</td></tr>
+  </table>
+  <p class="note">투입: 공직자 모드 → 자체규정 점검 → <b>‘모의데이터로 바로 체험’</b> 한 번(검증까지 자동) 또는 끌어다 놓기. 원본은 브라우저에서 읽기만 하고 수정·이동·삭제하지 않으며 결과는 화면·Word로 따로 만듦. 제·개정 지원의 <b>‘예시 채우기’</b>(외부강의등 신고 처리 지침 제정, ○○공단 민원 처리 규정 조 번호 정리)도 같은 가상 자료입니다.</p>
+</td></tr>
+</tbody></table>
+
+<table class="form pb"><tbody>
+<tr><th>기능 사용<br>순서</th><td>
+  <ol class="flow">
+    <li><h4>흐름 1 · 제정 — 목적·위임 조항 → 조문 체계·제정안·문서 세트 (2분)</h4>
+      공직자 모드 → <b>제·개정 지원</b> → <b>제정(새 규정 만들기)</b> → <b>예시 채우기</b>(「○○공단 외부강의등 신고 처리 지침」, 근거 「청탁금지법」 제10조 원문 자동 불러오기) → 오른쪽에 <b>조문 체계</b>(목적·정의·적용 범위·다른 법령과의 관계·신고 절차·사례금 상한·반환·점검·세부 사항·부칙)와 <b>표준 조문 초안</b>, 상위 조문 기준(‘10일 이내’), <b>정합성 점검</b>(위임 근거·재검토기한·채울 자리) → <b>유사 규정 찾기</b>: 규정명을 “○○공단 재택근무 운영 지침”으로 바꾸고 찾기 → 부처 재택근무 규정 3건 → <b>비교 ▶</b> → 우리 초안에 없는 조문 9개 <b>없는 조문 모두 담기</b> → 초안이 바로 다시 만들어짐 → <b>제정이유·입법예고문·절차 체크리스트</b> → <b>전체 Word 저장</b>.</li>
+    <li><h4>흐름 2 · 개정 — 개정 의도 → 수정안·신구조문대비표 (1분)</h4>
+      <b>개정(조문 고치기)</b> → 법령에서 선택하거나 <b>직접 입력</b>(자체 규정·조례 조문 붙여넣기) → 개정 방향을 말하듯 적기: “7일에서 5일로 단축 / ‘민원인’을 ‘신청인’으로 변경 / 신설: ③ …” → <b>개정안 작성</b> → <b>신구조문대비표</b>(삭제 취소선·개정 밑줄), 정합성 점검(기간·금액 변경, 상위법 기준 초과, 인용 조문, 규제 신설·강화 표현) → 개정이유·부칙·입법예고문·절차 → 대비표 포함 Word 저장.</li>
+    <li><h4>흐름 3 · 조 번호 정리·상위법 대조 (1분)</h4>
+      <b>조 번호 정리(인용 정정)</b> → 예시 채우기 → “제4조를 새로 넣기” → 같은 규정 안에서 고칠 인용 3건(다른 법령 인용은 그대로), 지금도 없는 조문 인용(제9조) 1건, <b>정정한 전문</b> → “삭제하기”로 바꾸면 삭제 조문 인용은 ‘정비 필요’ 표시 → 상단 <b>자체규정 점검</b> → 모의데이터 <b>HWPX 복무 및 보수 규정</b> → 상충 7건·상위법 최근 개정 조항 알림 → 현행↔개정안 대비 → 제·개정 지원으로 이어서 개정.</li>
+  </ol>
+  <div class="grid2">
+    <div class="shot"><img src="assets/s2-enact.png" alt="" style="object-fit:contain;background:#fff"><p>흐름 1 — 조문 체계와 표준 조문 초안(제정)</p></div>
+    <div class="shot"><img src="assets/s2-similar.png" alt="" style="object-fit:contain;background:#fff"><p>흐름 1 — 유사 규정 비교: 빠진 조문 9개</p></div>
+    <div class="shot"><img src="assets/s2-amend.png" alt="" style="object-fit:contain;background:#fff"><p>흐름 2 — 신구조문대비표(삭제·밑줄)</p></div>
+    <div class="shot"><img src="assets/s2-renumber.png" alt="" style="object-fit:contain;background:#fff"><p>흐름 3 — 조 번호 변경에 따른 인용 정정</p></div>
+  </div>
+</td></tr>
+</tbody></table>
+
+<table class="form pb"><tbody>
+<tr><th>과제 카드<br>대응·검증</th><td>
+  <table class="mini">
+    <tr><th style="width:30%">과제 카드</th><th style="width:16%">구현</th><th>확인 방법·결과</th></tr>
+    <tr><td><b>(기본) 제정</b> — 목적·위임 조항 → 조문 체계·표준 조문</td><td><b class="k">구현</b></td><td>위임 문구(“○○에 필요한 사항은 조례로 정한다”)를 찾아 조문 배정, 빠진 위임 사항·위임 없는 의무 부과 경고</td></tr>
+    <tr><td><b>(기본) 개정</b> — 개정 의도 → 수정안·신구조문대비표</td><td><b class="k">구현</b></td><td>치환·삭제·신설 해석, 단어 단위 대비, 찾지 못한 표현 보고</td></tr>
+    <tr><td>절차 단계별 안내·문서 준비</td><td><b class="k">구현</b></td><td>규범 종류별 절차 체크리스트(입법예고 기간·심의·공포), 제정·개정이유·부칙·입법예고문 초안, 전체 Word</td></tr>
+    <tr><td>유사 규정 검색·비교표</td><td><b class="k">구현</b></td><td>국가법령정보 행정규칙·자치법규 실시간 검색 → 조문 구성 비교 — ‘재택근무’ 3건, 빠진 조문 9개</td></tr>
+    <tr><td>개정 조문 인용 탐지·인용 오류 점검</td><td><b class="k">구현</b></td><td>조 번호 신설·삭제 시 인용 정정, 삭제 조문 인용·없는 조문 인용 탐지, 가지조문 처리</td></tr>
+    <tr><td>상위법 개정 → 영향 조문 후보</td><td>부분</td><td>자체규정 점검이 근거 상위법의 최근 1년 개정 조항을 알림(개정 전후 조문 직접 투입은 미구현)</td></tr>
+    <tr><td>규정 전체 상위법 대조</td><td><b class="k">구현</b></td><td>한글·PDF·Word 규정 파일 ↔ 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법 — 모의 규정 11개 조문 약 2초, 상충 7·검토 1</td></tr>
+  </table>
+  <p class="note">· 자동 시험: 제·개정·조 번호 정리·유사 규정 비교 단위시험 20건 포함 TypeScript 174건 · Python 47건, 웹판↔실행판 결과 동일성 64건 — <span class="mono">npm test</span>, <span class="mono">npm run eval</span>(성적표 <span class="mono">submission/정확도_성적표.md</span>)</p>
+</td></tr>
+<tr><th>기관별 설정<br>·이관</th><td>
+  <ul>
+    <li><b>전 기관 공통</b> — 규범 종류(훈령·예규·내부 규정 / 조례·규칙 / 법령), 기관명, 소관 부서, 시행 시기만 바꾸면 자기 지칭(이 지침·이 조례), 기관의 장 표현, 입법예고 기간·절차가 맞춰집니다.</li>
+    <li><b>기관별 확장</b> — 점검 기준(근로시간·금품 한도·임원 임기·사용허가기간 등)과 대조 법령은 코드와 분리된 데이터라 기관 규정·소관 법령을 추가해 넓힙니다. 원문 동기화(<span class="mono">sync_official.py --check</span>)로 법령 개정 시 다시 볼 기준을 찾습니다.</li>
+    <li><b>정보화사업 이관</b> — 제·개정 로직은 브라우저·서버 공용 순수 함수(<span class="mono">lib/enact.ts · lib/drafting.ts · lib/renumber.ts</span>)와 단위시험으로 분리돼 있어 기관 문서관리시스템에 그대로 옮길 수 있고, 추가 설치 없는 Python 실행판으로 폐쇄망에 설치합니다.</li>
+  </ul>
+</td></tr>
+<tr><th>알려진<br>제약 사항</th><td>
+  <ul>
+    <li>조문 초안은 법제 표준 문형으로 조립한 <b>초안</b>이며, 대상·기한·서식처럼 기관마다 다른 부분은 ○○로 비워 둡니다. 위임 범위·관계 부서 의견을 반영해 담당자가 확정해야 합니다.</li>
+    <li>개정 방향 해석은 치환(“A에서 B로”, “‘A’을 ‘B’로”)·삭제·신설 문장 형식을 지원하며, 찾지 못한 표현은 화면에 알리고 직접 고치게 합니다.</li>
+    <li>조 번호 정리는 같은 규정 안의 ‘제N조’ 인용만 고칩니다. 별표·별지 서식 번호, ‘같은 조’ 표현, 다른 규정이 이 규정을 인용하는 부분은 함께 확인해야 합니다.</li>
+    <li>유사 규정 찾기는 국가법령정보에 등록된 행정규칙·자치법규 이름 검색이며(공공기관 내부 규정은 대부분 미등록), 인터넷 연결이 필요합니다.</li>
+    <li>자체규정 점검 대조 법령은 현재 5종이며 최종 판단은 소관 부처 해석 확인이 필요합니다. 스캔 이미지 PDF·배포용 한글 문서·예전 Word(.doc)는 읽을 수 없습니다.</li>
+    <li>오픈소스: Next.js·React 등 MIT, pdf.js(Apache-2.0), Pretendard GOV 글꼴(SIL OFL 1.1), 실행판은 Python 표준 라이브러리만 사용 — <b>재배포가 제한되는 구성요소 없음</b>(<span class="mono">docs/THIRD_PARTY_LICENSES.md</span>).</li>
+  </ul>
+</td></tr>
+<tr><th>개발 경위<br>요약</th><td class="story">
+  <h4>문제 인식</h4>
+  <p>지침을 새로 만들거나 고칠 때 담당자는 무엇부터 해야 하는지, 어떤 문서가 필요한지 막막합니다. 다른 기관의 유사 규정을 찾아 참고하고, 상위법 위임 범위와 조문 체계를 확인해 조문을 손으로 쓰며, 신구조문대비표·부칙을 따로 만들고, 조 번호가 밀리면 인용 정정 대상을 눈으로 찾느라 변경 범위를 놓칠 위험이 있습니다. 상위법이 바뀌어도 기관 규정이 따라가지 못해 감사 지적과 노사 분쟁의 원인이 되기도 합니다.</p>
+  <h4>접근 방식</h4>
+  <p><b>① 틀리면 안 되는 부분은 결정적으로</b> — 조문 체계·신구조문대비표·인용 정정·정합성 점검은 생성형 문장이 아니라 법제 표준 문형과 원문 대조로 만들어, 같은 입력에 늘 같은 결과가 나오고 형식 오류·지어낸 조문이 없습니다. 기관마다 다른 내용은 ○○로 비워 담당자가 채웁니다.</p>
+  <p><b>② 근거는 공식 원문에서</b> — 상위 조문은 국가법령정보 공동활용 API의 현행 원문을 쓰고, 위임 문구와 기한·금액 기준을 원문에서 읽어 초안에 맞춥니다. 유사 규정도 같은 API로 실시간 검색합니다.</p>
+  <p><b>③ 한 흐름으로</b> — 자체규정 점검(상충 발견) → 개정(수정안·대비표) 또는 제정(조문 체계) → 유사 규정 비교 → 조 번호 정리 → 문서 세트·Word까지 한 화면에서 이어지게 했습니다.</p>
+  <p><b>④ 바로 옮겨 쓸 수 있게</b> — 원본 파일은 브라우저에서 읽기만 하고 서버로 보내지 않으며, 로직은 단위시험이 붙은 순수 함수로 분리하고, 모델 비종속·폐쇄망 실행판을 함께 두었습니다.</p>
+  <h4>기대 효과</h4>
+  <p>제정안 초안·대비표·제정(개정)이유·입법예고문을 한 번에 만들어 문서 작성 시간을 줄이고, 유사 규정 비교로 빠진 조문을 미리 찾으며, 인용 정정 누락과 위임 없는 의무 부과 같은 법제 오류를 줄입니다. 규범 종류와 기관명만 바꾸면 되므로 중앙부처·지자체·공공기관이 공통으로 쓸 수 있습니다.</p>
+</td></tr>
+</tbody></table>
+
+</body>
+</html>
