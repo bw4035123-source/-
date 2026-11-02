@@ -20,17 +20,25 @@ def extract_markers(text: str) -> list[str]:
     return MARKER.findall(text)
 
 
+def resolve_key(key: str, allowed: set[str]) -> str | None:
+    """근거 키 확인 — AI가 항 번호까지 붙인 키(예: labor-standards:74:1 = 제74조 제1항)는 그 조문 키로 인정(lib/answer/guard.ts 와 같음)"""
+    if key in allowed:
+        return key
+    m = re.match(r"^(.+?:[^:]+):\d+$", key)
+    return m.group(1) if m and m.group(1) in allowed else None
+
+
 def sanitize_markers(text: str, allowed: set[str]):
     removed: list[str] = []
     used: list[str] = []
 
     def rep(m):
-        k = m.group(1)
-        if k in allowed:
+        k = resolve_key(m.group(1), allowed)
+        if k:
             if k not in used:
                 used.append(k)
             return f"[[{k}]]"
-        removed.append(k)
+        removed.append(m.group(1))
         return ""
 
     out = MARKER.sub(rep, text)
@@ -167,12 +175,13 @@ class _Cleaner:
         return out
 
     def declare(self, keys: list[str]):
-        for k in keys:
-            if k in self.allowed:
+        for raw in keys:
+            k = resolve_key(raw, self.allowed)
+            if k:
                 if k not in self.used:
                     self.used.append(k)
-            elif k not in self.removed:
-                self.removed.append(k)
+            elif raw not in self.removed:
+                self.removed.append(raw)
 
     def removed_unique(self) -> list[str]:
         return list(dict.fromkeys(self.removed))
@@ -201,7 +210,7 @@ def guard_llm_output(raw, mode: str, context: list[dict], user_texts: list[str] 
         steps = [s for s in _objs(raw.get("steps"), ("title", "detail", "ref")) if s["title"]][:3]
         citizen = {
             "easyTerms": [{"term": _s(t["term"]), "meaning": _s(t["meaning"])} for t in _objs(raw.get("easyTerms"), ("term", "meaning")) if t["term"] and t["meaning"]][:5],
-            "steps": [{"title": c(s["title"]), "detail": c(s["detail"]), **({"ref": _key(s["ref"])} if _key(s["ref"]) in c.allowed else {})} for s in steps],
+            "steps": [{"title": c(s["title"]), "detail": c(s["detail"]), **({"ref": resolve_key(_key(s["ref"]), c.allowed)} if resolve_key(_key(s["ref"]), c.allowed) else {})} for s in steps],
         }
         if raw.get("tip"):
             citizen["tip"] = c(raw.get("tip"))
@@ -235,7 +244,7 @@ def guard_analysis_output(raw, context: list[dict], user_texts: list[str] | None
     reqs = []
     for r in _objs(jd.get("requirements"), ("label", "ref", "status", "basis"))[:8]:
         r["ref"] = _key(r["ref"])
-        ref = r["ref"] if r["ref"] in c.allowed else None
+        ref = resolve_key(r["ref"], c.allowed) if r["ref"] else None
         if ref and ref not in c.used:
             c.used.append(ref)
         if r["ref"] and not ref:

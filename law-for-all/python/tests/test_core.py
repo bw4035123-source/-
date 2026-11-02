@@ -660,6 +660,21 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertTrue(f("개인정보 보호법", ["개인정보", "유출"]))
 
 
+class ResolveKeyTest(unittest.TestCase):
+    """항 번호까지 붙인 근거 키 — tests/guard.test.ts 와 같은 사례"""
+
+    def test_cases(self):
+        from law_for_all.guard import resolve_key, sanitize_markers
+
+        allowed = {"labor-standards:74", "housing-lease:3의3"}
+        self.assertEqual(resolve_key("labor-standards:74:1", allowed), "labor-standards:74")
+        self.assertEqual(resolve_key("housing-lease:3의3:2", allowed), "housing-lease:3의3")
+        self.assertIsNone(resolve_key("labor-standards:75:1", allowed))
+        text, removed, _ = sanitize_markers("출산전후휴가는 90일이에요 [[labor-standards:74:1]] [[labor-standards:99:1]]", allowed)
+        self.assertEqual(text, "출산전후휴가는 90일이에요 [[labor-standards:74]]")
+        self.assertEqual(removed, ["labor-standards:99:1"])
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

@@ -16,15 +16,23 @@ export function extractMarkers(text: string): string[] {
   return Array.from(text.matchAll(MARKER), (m) => m[1]);
 }
 
+/** 근거 키 확인 — AI가 항 번호까지 붙인 키(예: labor-standards:74:1 = 제74조 제1항)는 그 조문 키로 인정 */
+export function resolveKey(key: string, allowed: Set<string>): string | null {
+  if (allowed.has(key)) return key;
+  const base = key.match(/^(.+?:[^:]+):\d+$/)?.[1];
+  return base && allowed.has(base) ? base : null;
+}
+
 export function sanitizeMarkers(text: string, allowed: Set<string>): { text: string; removed: string[]; used: string[] } {
   const removed: string[] = [];
   const used: string[] = [];
-  const out = text.replace(MARKER, (_, key: string) => {
-    if (allowed.has(key)) {
+  const out = text.replace(MARKER, (_, raw: string) => {
+    const key = resolveKey(raw, allowed);
+    if (key) {
       if (!used.includes(key)) used.push(key);
       return `[[${key}]]`;
     }
-    removed.push(key);
+    removed.push(raw);
     return "";
   });
   return { text: out.replace(/\s+([.,])/g, "$1").replace(/ {2,}/g, " ").trim(), removed, used };
@@ -184,7 +192,7 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
       steps: p.steps
         .filter((s) => s.title)
         .slice(0, 3)
-        .map((s) => ({ title: clean(s.title), detail: clean(s.detail), ref: s.ref && allowed.has(s.ref) ? s.ref : undefined })),
+        .map((s) => ({ title: clean(s.title), detail: clean(s.detail), ref: (s.ref && resolveKey(s.ref, allowed)) || undefined })),
       tip: p.tip ? clean(p.tip) : undefined,
     };
     allText.push(summary, ...citizen.easyTerms.map((t) => t.meaning), ...citizen.steps.flatMap((s) => [s.title, s.detail]), citizen.tip ?? "");
@@ -204,9 +212,10 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
     declared = p.citations;
   }
 
-  for (const k of declared) {
-    if (allowed.has(k)) !used.includes(k) && used.push(k);
-    else if (!removed.includes(k)) removed.push(k);
+  for (const raw of declared) {
+    const k = resolveKey(raw, allowed);
+    if (k) !used.includes(k) && used.push(k);
+    else if (!removed.includes(raw)) removed.push(raw);
   }
   if (!used.length) used.push(...inferCitationKeys(allText, context));
   if (!summary) throw new Error("요약이 비어 있습니다");
@@ -253,7 +262,7 @@ export function guardAnalysisOutput(raw: unknown, context: Citation[], userTexts
       stance: clean(p.judge.stance),
       issues: list(p.judge.issues),
       requirements: p.judge.requirements.slice(0, 8).map((r) => {
-        const ref = r.ref && allowed.has(r.ref) ? r.ref : undefined;
+        const ref = (r.ref && resolveKey(r.ref, allowed)) || undefined;
         if (ref && !used.includes(ref)) used.push(ref);
         if (r.ref && !ref) removed.push(r.ref);
         return { label: clean(r.label), ref, status: r.status, basis: clean(r.basis) };
@@ -261,9 +270,10 @@ export function guardAnalysisOutput(raw: unknown, context: Citation[], userTexts
       outlook: clean(p.judge.outlook),
     },
   };
-  for (const k of p.citations) {
-    if (allowed.has(k)) !used.includes(k) && used.push(k);
-    else if (!removed.includes(k)) removed.push(k);
+  for (const raw of p.citations) {
+    const k = resolveKey(raw, allowed);
+    if (k) !used.includes(k) && used.push(k);
+    else if (!removed.includes(raw)) removed.push(raw);
   }
   if (!used.length) used.push(...inferCitationKeys(texts, context));
   if (!perspectives.lawyer.stance || !perspectives.judge.stance) throw new Error("관점 분석이 비어 있습니다");

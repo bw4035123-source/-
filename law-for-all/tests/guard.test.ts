@@ -73,3 +73,16 @@ describe("환각 방지 가드", () => {
     expect(g.removed).toContain("fake:1");
   });
 });
+
+describe("항 번호까지 붙인 근거 키", async () => {
+  const { resolveKey, sanitizeMarkers } = await import("@/lib/answer/guard");
+  it("labor-standards:74:1 → labor-standards:74 로 인정, 없는 조문은 그대로 제거", () => {
+    const allowed = new Set(["labor-standards:74", "housing-lease:3의3"]);
+    expect(resolveKey("labor-standards:74:1", allowed)).toBe("labor-standards:74");
+    expect(resolveKey("housing-lease:3의3:2", allowed)).toBe("housing-lease:3의3");
+    expect(resolveKey("labor-standards:75:1", allowed)).toBeNull();
+    const r = sanitizeMarkers("출산전후휴가는 90일이에요 [[labor-standards:74:1]] [[labor-standards:99:1]]", allowed);
+    expect(r.text).toBe("출산전후휴가는 90일이에요 [[labor-standards:74]]");
+    expect(r.removed).toEqual(["labor-standards:99:1"]);
+  });
+});
