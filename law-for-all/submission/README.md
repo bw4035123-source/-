@@ -20,7 +20,7 @@
 |---|---|---|
 | 참가신청서(양식1) | `참가신청서_세션2.pdf` | 세션 2·규정 제·개정 에이전트 체크, 공직자 제·개정 기능 중심 |
 | 구동안내서(양식2) | `구동안내서_세션2.pdf`(A4 4쪽) | 제정·개정·조 번호 정리·유사 규정 비교 흐름, 과제 카드 대응표 |
-| 시연영상 | `demo-s2.mp4`(3분, 자막) | 제정(AI 빈칸 채우기)·유사 규정 비교·개정·조 번호 정리·자체규정 점검 |
+| 시연영상 | `demo-s2.mp4`(2분 40초, 자막) | 제정(AI 빈칸 채우기)·유사 규정 비교·개정·조 번호 정리·자체규정 점검 |
 | 모의데이터(선택) | `mock-data/` | 세션 1과 같음 |
 
 - 이메일 제목: `[공공 AI 대전환 챌린지 제출]_세션2_기관명_팀명(개인은 성명)`
@@ -34,7 +34,7 @@ node scripts/build-python.mjs                       # dist/law-on-python.zip (�
 # 문서 PDF: Chromium으로 구동안내서.html · 참가신청서.html 을 A4 인쇄(PDF 저장)
 python3 run.py --no-browser --port 8765             # (실행판 폴더에서) 녹화용 서버
 NO_AUDIO=1 SESSION=1 TARGET_SEC=210 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo-s1.mp4   # 세션 1 시연영상(자막)
-NO_AUDIO=1 SESSION=2 TARGET_SEC=180 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo-s2.mp4   # 세션 2 시연영상(자막)
+NO_AUDIO=1 SESSION=2 TARGET_SEC=160 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo-s2.mp4   # 세션 2 시연영상(자막)
 ```
 
 ## 심사 기준과 대응
