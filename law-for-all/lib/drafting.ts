@@ -66,7 +66,8 @@ export function applyEdits(current: string, edits: Edit[]): ApplyResult {
   const notFound: Edit[] = [];
   for (const e of edits) {
     if (e.type === "append" && e.text) {
-      text = `${text.trimEnd()}\n${nextParagraphMark(text)} ${e.text}`;
+      // 신설 문장에 항 번호(③)를 이미 적었으면 그대로, 없으면 다음 항 번호를 붙임
+      text = `${text.trimEnd()}\n${/^[①-⑳]/.test(e.text.trim()) ? e.text.trim() : `${nextParagraphMark(text)} ${e.text}`}`;
       applied.push(e);
     } else if (e.from && text.includes(e.from)) {
       text = text.split(e.from).join(e.type === "delete" ? "" : e.to ?? "");

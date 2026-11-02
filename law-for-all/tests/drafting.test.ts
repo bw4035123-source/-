@@ -26,8 +26,10 @@ describe("개정안 반영·대비", () => {
     expect(r.text).toBe("① 행정기관의 장은 질의민원을 5일 이내에 처리하여야 한다.");
     expect(r.notFound).toHaveLength(1);
   });
-  it("신설 시 다음 항 번호", () => {
+  it("신설 시 다음 항 번호(이미 적은 항 번호는 겹치지 않게)", () => {
     expect(applyEdits(cur, [{ type: "append", text: "새 항." }]).text.endsWith("② 새 항.")).toBe(true);
+    expect(applyEdits(cur, [{ type: "append", text: "② 새 항." }]).text.endsWith("\n② 새 항.")).toBe(true);
+    expect(applyEdits(cur, [{ type: "append", text: "② 새 항." }]).text).not.toContain("② ②");
   });
   it("단어 단위 대비", () => {
     const d = diffWords(cur, cur.replace("7일", "5일"));
