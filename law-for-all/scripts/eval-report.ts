@@ -129,6 +129,11 @@ async function main() {
   const covBlind2Live = (fs.existsSync("lib/eval/coverage-blind-v2-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-blind-v2-live.json", "utf8")) : {}) as { once?: LiveCov; offlineOnce?: { correct: number; total: number } };
   const covBlind3Live = (fs.existsSync("lib/eval/coverage-blind-v3-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-blind-v3-live.json", "utf8")) : {}) as { once?: LiveCov; offlineOnce?: { correct: number; total: number } };
   const covBlind4Live = (fs.existsSync("lib/eval/coverage-blind-v4-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-blind-v4-live.json", "utf8")) : {}) as { once?: LiveCov; offlineOnce?: { correct: number; total: number } };
+  // 실서비스 생성형 AI 답변 실측(scripts/llm-live.mjs) — AI가 쓴 답이 검증을 통과해 그대로 쓰인 비율·대체 사유·응답 시간
+  type LlmLive = { date: string; model: string | null; withEvidence: number; llmAnswered: number; ruleFallback: number; removedTotal: number; medianMs: number | null; p90Ms: number | null };
+  const llmLive = (f: string) => (fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, "utf8")).summary as LlmLive) : null);
+  const llmCitizen = llmLive("lib/eval/llm-live-citizen.json");
+  const llmOfficer = llmLive("lib/eval/llm-live-officer.json");
   const covWeak = (fs.existsSync("lib/eval/coverage-weak-live.json") ? JSON.parse(fs.readFileSync("lib/eval/coverage-weak-live.json", "utf8")) : {}) as { before?: LiveCov; after?: LiveCov };
 
   // 4) 환각 주입 시험: 실제 답변에 지어낸 인용을 섞어 가드가 걸러내는지(LLM이 틀리게 답한 상황을 흉내)
@@ -234,6 +239,7 @@ async function main() {
     parity: parityRes,
     llm: LLM_SWAP_RESULTS,
     // 블라인드 실서비스 측정값(행만 빼고 요약) — 소개 화면 표시용
+    llmLive: { citizen: llmCitizen, officer: llmOfficer },
     coverageLive: {
       blind: covBlindLive.once ? { correct: covBlindLive.once.correct, total: covBlindLive.once.total, miss: covBlindLive.once.miss, wrong: covBlindLive.once.wrong } : null,
       blind2: covBlind2Live.once ? { correct: covBlind2Live.once.correct, total: covBlind2Live.once.total, miss: covBlind2Live.once.miss, wrong: covBlind2Live.once.wrong } : null,
@@ -266,7 +272,7 @@ ${covLive.before && covLive.after ? `| 처음 보는 일상 질문(실서비스)
 | 수치 바꿔치기 차단 | ${quantity.caught}/${quantity.tampered} (${pct(quantity.caught, quantity.tampered)}%) · 오경보 ${quantity.falseAlarm}/${quantity.checked} | 실제 답변에 근거 원문의 금액·기간·비율을 다른 값으로 바꾼 문장을 섞으면 가드가 답변을 막고 규칙기반으로 대체하는지 / 근거가 있는 정상 답변 ${quantity.checked}건 중 수치 때문에 잘못 막힌 답변(규칙은 이 답변들을 보며 다듬었으므로 블라인드 아님). 놓친 경우는 원문에 '전액'이 있어 100%를 정상 풀이로 인정한 경우 |
 | 개인정보 가림 | ${privacy.masked}/${privacy.positives} 가림 · 오탐 ${privacy.falsePositives}/${privacy.negatives} | 주민등록번호·전화번호·카드·이메일·계좌·여권번호 여러 표기 / 날짜·금액·수치가 든 일반 질문 |
 | Next.js ↔ Python 동일성 | ${parityRes.passed ? "일치" : "불일치"} (${parityRes.cases}건) | 같은 질문에 두 실행판이 같은 답·같은 근거 |
-| LLM 교체 실측 | ${LLM_SWAP_RESULTS.models.map((m) => `${m.name} ${m.passed}/${m.total}`).join(" · ")} | ${LLM_SWAP_RESULTS.cases}, ${LLM_SWAP_RESULTS.date} |
+${llmCitizen ? `| 실서비스 AI 답변(${llmCitizen.model}) | 국민 ${llmCitizen.llmAnswered}/${llmCitizen.withEvidence}${llmOfficer ? ` · 공직자 ${llmOfficer.llmAnswered}/${llmOfficer.withEvidence}` : ""} 검증 통과 · 응답 중앙값 ${((llmCitizen.medianMs ?? 0) / 1000).toFixed(1)}초 | 근거 조문이 있는 개발용 일상 질문에 실서비스(업스테이지 Solar Pro 4)가 쓴 답이 인용·수치 검증을 통과해 그대로 쓰인 수(${llmCitizen.date}, \`scripts/llm-live.mjs\`). 통과하지 못한 답은 쓰지 않고 검수된 규칙기반 답변으로 대체(국민 ${llmCitizen.ruleFallback}건: 원문 '3영업일'을 '3일'로 바꿔 쓴 답 차단). 측정 중 AI가 항 번호까지 붙인 근거 표기(제74조 제1항)를 가드가 버리던 문제를 찾아 고친 뒤 다시 잼(고치기 전 35/46) |\n` : ""}| LLM 교체 실측 | ${LLM_SWAP_RESULTS.models.map((m) => `${m.name} ${m.passed}/${m.total}`).join(" · ")} | ${LLM_SWAP_RESULTS.cases}, ${LLM_SWAP_RESULTS.date} |
 
 ## 처음 보는 일상 질문 — 문항별 결과
 

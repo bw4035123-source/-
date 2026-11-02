@@ -19,7 +19,12 @@ const PIPELINE = [
 
 const pctOf = (a: number, b: number) => `${Math.round((a / b) * 1000) / 10}%`;
 const R = evalReport;
+const LC = R.llmLive?.citizen;
+const LO = R.llmLive?.officer;
 const EVAL_ROWS = [
+  ...(LC
+    ? [{ label: "실서비스 AI 답변", value: `${LC.llmAnswered + (LO?.llmAnswered ?? 0)}/${LC.withEvidence + (LO?.withEvidence ?? 0)} 검증 통과`, desc: `국산 Solar Pro 4가 쓴 답이 인용·수치 검증을 통과해 그대로 쓰인 수(국민 ${LC.llmAnswered}/${LC.withEvidence}${LO ? ` · 공직자 ${LO.llmAnswered}/${LO.withEvidence}` : ""}) · 응답 중앙값 ${((LC.medianMs ?? 0) / 1000).toFixed(1)}초 · 통과 못 한 답은 검수된 답변으로 대체` }]
+    : []),
   { label: "상황 분류 · 블라인드(독립 작성자)", value: `${R.routing.blind.correct}/${R.routing.blind.total} (${pctOf(R.routing.blind.correct, R.routing.blind.total)})`, desc: `정해진 상황 안에서의 분류 · 엄격 채점 ${pctOf(R.routing.blind.strict, R.routing.blind.total)} · 독립 작성자 첫 측정 ${pctOf(R.routing.history[3].correct, R.routing.history[3].total)} → 6차 · 엉뚱한 상황 ${R.routing.blind.wrongTopic}건` },
   { label: "답변 근거", value: `근거 밖 인용 ${R.grounding.outsideMarkers}건`, desc: `답변 ${R.grounding.answers}건(국민·공직자) 인용 검증 통과 ${R.grounding.guardPassed}건 · 근거 없으면 '찾지 못함' 안내` },
   { label: "환각 주입 차단", value: `${R.injection.blocked}/${R.injection.injected} (${pctOf(R.injection.blocked, R.injection.injected)})`, desc: "없는 조문 번호·없는 조문·근거 밖 법령·지어낸 인용을 섞었을 때 가드가 거름" },

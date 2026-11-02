@@ -1771,6 +1771,56 @@
   ],
   "command": "python run.py --llm-test ollama:llama3.2:3b,ollama:exaone3.5:7.8b"
  },
+ "llmLive": {
+  "citizen": {
+   "date": "2026-11-02",
+   "base": "https://lawon.onrender.com",
+   "provider": "openai",
+   "files": [
+    "tests/fixtures/coverage-v1.json"
+   ],
+   "modes": [
+    "citizen"
+   ],
+   "total": 50,
+   "errors": 0,
+   "noResult": 4,
+   "withEvidence": 46,
+   "llmAnswered": 45,
+   "ruleFallback": 1,
+   "removedTotal": 1,
+   "unverifiedTotal": 0,
+   "correct": 45,
+   "graded": 50,
+   "medianMs": 8488,
+   "p90Ms": 12525,
+   "model": "solar-pro4-260806"
+  },
+  "officer": {
+   "date": "2026-11-02",
+   "base": "https://lawon.onrender.com",
+   "provider": "openai",
+   "files": [
+    "tests/fixtures/coverage-v1.json"
+   ],
+   "modes": [
+    "officer"
+   ],
+   "total": 50,
+   "errors": 0,
+   "noResult": 4,
+   "withEvidence": 46,
+   "llmAnswered": 46,
+   "ruleFallback": 0,
+   "removedTotal": 0,
+   "unverifiedTotal": 2,
+   "correct": 45,
+   "graded": 50,
+   "medianMs": 9594,
+   "p90Ms": 12016,
+   "model": "solar-pro4-260806"
+  }
+ },
  "coverageLive": {
   "blind": {
    "correct": 13,
