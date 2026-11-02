@@ -1,10 +1,12 @@
 "use client";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, FileDown, Info, Loader2, Plus, Search, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, FileDown, Info, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import type { LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import type { DraftKind } from "@/lib/drafting";
 import { compareStructure, enactDraft, similarQuery, type Basis } from "@/lib/enact";
+import type { FillResult } from "@/lib/enact-fill";
+import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +29,21 @@ const EXAMPLE = {
   terms: "외부강의등",
   basis: { lawId: "anti-graft", no: "10" },
 };
+
+/** AI가 채운 값을 조문에서 차례로 찾아 강조(빈칸으로 남은 ○○는 그대로) */
+function markValues(text: string, values: string[]): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let pos = 0;
+  values.forEach((v, i) => {
+    if (/^○/.test(v)) return;
+    const at = text.indexOf(v, pos);
+    if (at < 0) return;
+    out.push(text.slice(pos, at), <mark key={i} className="rounded bg-amber-100 px-0.5 dark:bg-amber-900/40">{v}</mark>);
+    pos = at + v.length;
+  });
+  out.push(text.slice(pos));
+  return out;
+}
 
 /** 규정 제정 지원: 제정 목적·상위법 위임 조항·담을 내용 → 조문 체계·표준 조문 초안·위임 사항 대조·제정이유·입법예고문 */
 export function EnactPanel({ laws }: { laws: LawSummary[] }) {
@@ -148,7 +165,33 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
     { id: "notice", label: "입법예고문", body: d.notice },
     { id: "steps", label: "절차 체크리스트", body: d.steps.map((s, i) => `□ ${i + 1}. ${s}`).join("\n") },
   ];
-  const exportAll = () => downloadWord(`${name.trim() || "제정안"} 제정안`, [{ title: "제정안", body: d.fullText }, ...docs.map((x) => ({ title: x.label, body: x.body }))]);
+  // AI 빈칸 채우기 — 초안이 바뀌면 다시 채워야 함(채운 결과는 그 초안에만 유효)
+  const [fill, setFill] = React.useState<(FillResult & { key: string; label: string; model: string }) | null>(null);
+  const [fillBusy, setFillBusy] = React.useState(false);
+  const [useFill, setUseFill] = React.useState(true);
+  const fillFresh = fill && fill.key === d.fullText ? fill : null;
+  const filledText = fillFresh ? [name.trim() || `(${d.unit} 이름)`, "", ...fillFresh.articles.map((a) => `${a.label} ${a.text}`), "", d.addenda].join("\n") : null;
+  const shownText = filledText && useFill ? filledText : d.fullText;
+  const runFill = async () => {
+    setFillBusy(true);
+    try {
+      const r = await fetchJson<FillResult & { model: string; label: string }>("/api/enact-fill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, kind, org: org || undefined, purpose, articles: d.articles, basis }),
+        timeoutMs: 90000,
+      });
+      setFill({ ...r, key: d.fullText });
+      setUseFill(true);
+      const n = r.articles.reduce((s, a) => s + a.filled, 0);
+      toast(`AI가 빈칸 ${n}곳을 채웠어요${r.rejected.length ? ` · 검증에 걸린 조문 ${r.rejected.length}개는 표준 초안 유지` : ""}`);
+    } catch (e) {
+      toast((e as Error).message || "AI 채우기에 실패했어요. 표준 초안을 그대로 쓰세요");
+    } finally {
+      setFillBusy(false);
+    }
+  };
+  const exportAll = () => downloadWord(`${name.trim() || "제정안"} 제정안`, [{ title: "제정안", body: shownText }, ...docs.map((x) => ({ title: x.label, body: x.body }))]);
   const lawGroups = laws.filter((l) => !l.parentId);
 
   return (
@@ -261,10 +304,40 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
             <div className="rounded-2xl border bg-card p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-extrabold">조문 체계 · 제정안 초안</h2>
-                <Button size="sm" variant="outline" onClick={async () => toast((await copyText(d.fullText)) ? "제정안을 복사했습니다" : "복사 실패")}>
-                  <ClipboardCopy /> 제정안 복사
-                </Button>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button size="sm" variant="accent" onClick={runFill} disabled={fillBusy}>
+                    {fillBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} AI로 빈칸 채우기
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={async () => toast((await copyText(shownText)) ? "제정안을 복사했습니다" : "복사 실패")}>
+                    <ClipboardCopy /> 제정안 복사
+                  </Button>
+                </div>
               </div>
+              {fill && !fillFresh && <p className="mb-3 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">초안이 바뀌어 AI가 채운 내용은 지웠어요. 다시 채우려면 ‘AI로 빈칸 채우기’를 누르세요.</p>}
+              {fillFresh && (
+                <div className="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p>
+                      <strong>AI({fillFresh.label} · {fillFresh.model})</strong>가 빈칸 <strong>{fillFresh.articles.reduce((s, a) => s + a.filled, 0)}곳</strong>을 채웠어요
+                      {fillFresh.rejected.length > 0 && <> · 검증에 걸린 조문 {fillFresh.rejected.length}개는 표준 초안 유지</>}
+                    </p>
+                    <div className="inline-flex gap-1 rounded-lg bg-secondary p-0.5 text-xs font-semibold">
+                      {[true, false].map((v) => (
+                        <button key={String(v)} type="button" onClick={() => setUseFill(v)} className={cn("rounded-md px-2.5 py-1", useFill === v ? "bg-card shadow-sm" : "text-muted-foreground")} aria-pressed={useFill === v}>
+                          {v ? "AI 채운 안" : "표준 초안"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">빈칸 밖 문구는 바꾸지 못하게 검증했고, 근거 목록 밖 법령 인용·새 제재가 든 조문은 버렸어요. <mark className="rounded bg-amber-100 px-1 dark:bg-amber-900/40">노란 표시</mark>가 AI가 채운 자리 — 기관 실정에 맞는지 확인하세요.</p>
+                  {fillFresh.rejected.map((r) => (
+                    <p key={r.label} className="mt-1 text-xs text-amber-800 dark:text-amber-300">△ {r.label}: {r.reason}</p>
+                  ))}
+                  {fillFresh.warnings.map((w) => (
+                    <p key={w} className="mt-1 text-xs text-amber-800 dark:text-amber-300">! {w}</p>
+                  ))}
+                </div>
+              )}
               <div className="mb-3 flex flex-wrap gap-1.5">
                 {d.articles.map((a) => (
                   <Badge key={a.label} variant="secondary">
@@ -273,7 +346,21 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
                 ))}
                 <Badge variant="secondary">부칙</Badge>
               </div>
-              <pre className="law-text max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">{d.fullText}</pre>
+              {fillFresh && useFill ? (
+                <pre className="law-text max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">
+                  {`${name.trim() || `(${d.unit} 이름)`}\n\n`}
+                  {fillFresh.articles.map((a) => (
+                    <React.Fragment key={a.label}>
+                      {`${a.label} `}
+                      {markValues(a.text, a.values)}
+                      {"\n"}
+                    </React.Fragment>
+                  ))}
+                  {`\n${d.addenda}`}
+                </pre>
+              ) : (
+                <pre className="law-text max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">{d.fullText}</pre>
+              )}
             </div>
 
             {(d.delegated.length > 0 || d.limits.length > 0) && (

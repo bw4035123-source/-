@@ -660,6 +660,45 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertTrue(f("개인정보 보호법", ["개인정보", "유출"]))
 
 
+class EnactFillTest(unittest.TestCase):
+    """제정안 AI 채우기 가드 — tests/enact-fill.test.ts 와 같은 사례"""
+
+    INPUT = {
+        "name": "○○공단 외부강의등 신고 처리 지침", "kind": "행정규칙", "purpose": "",
+        "basis": [{"label": "「부정청탁 및 금품등 수수의 금지에 관한 법률」 제10조(외부강의등의 사례금 수수 제한)", "text": "② 외부강의등을 마친 날부터 10일 이내에 서면으로 신고하여야 한다."}],
+        "articles": [
+            {"label": "제3조(적용 범위)", "text": "이 지침은 ○○공단 소속 ○○에 대하여 적용한다."},
+            {"label": "제5조(신고 절차)", "text": "① ○○을(를) 하려는 사람은 ○○ 서식에 따라 기관의 장에게 신고하여야 한다.\n② 기관의 장은 신고를 받은 날부터 ○일 이내에 처리 결과를 알려야 한다."},
+            {"label": "제7조(반환)", "text": "① ○○을(를) 받은 사람은 ○일 이내에 반환하여야 한다."},
+            {"label": "제8조(점검)", "text": "① 기관의 장은 ○○의 운영 실태를 연 ○회 이상 점검하여야 한다."},
+        ],
+    }
+
+    def test_fill(self):
+        from law_for_all.enact_fill import guard_fill, match_fill, settle_particles
+
+        self.assertEqual(match_fill("이 지침은 ○○공단 소속 ○○에 대하여 적용한다.", "이 지침은 ○○공단 소속 임직원에 대하여 적용한다."), ["○○", "임직원"])
+        self.assertEqual(settle_particles("외부강의등을(를) 하려는 ○○을(를)"), "외부강의등을 하려는 ○○을(를)")
+        r = guard_fill({"articles": [{"label": "제5조(신고 절차)", "text": "① 외부강의등을 하려는 사람은 별지 제1호 서식에 따라 기관의 장에게 신고하여야 한다. ② 기관의 장은 신고를 받은 날부터 7일 이내에 처리 결과를 알려야 한다."}]}, self.INPUT)
+        a = next(x for x in r["articles"] if x["label"] == "제5조(신고 절차)")
+        self.assertEqual(a["values"], ["외부강의등", "별지 제1호", "7일"])
+        self.assertEqual(a["text"], "① 외부강의등을 하려는 사람은 별지 제1호 서식에 따라 기관의 장에게 신고하여야 한다.\n② 기관의 장은 신고를 받은 날부터 7일 이내에 처리 결과를 알려야 한다.")
+        self.assertEqual(r["rejected"], [])
+
+    def test_reject(self):
+        from law_for_all.enact_fill import guard_fill
+
+        r = guard_fill({"articles": [
+            {"label": "제5조(신고 절차)", "text": "① 외부강의등을 하려는 사람은 별지 서식에 따라 기관의 장에게 신고하여야 한다. ② 기관의 장은 신고를 받은 날부터 14일 이내에 처리 결과를 알려야 한다."},
+            {"label": "제7조(반환)", "text": "① 「근로기준법」 제9조에 따른 금품을 받은 사람은 2일 이내에 반환하여야 한다."},
+            {"label": "제8조(점검)", "text": "① 이사장은 외부강의등의 운영 실태를 연 1회 이상 점검하여야 한다."},
+            {"label": "제3조(적용 범위)", "text": "이 지침은 ○○공단 소속 직원에 대하여 적용하며 위반 시 과태료를 부과한다."},
+        ]}, self.INPUT)
+        self.assertEqual([x["label"] for x in r["rejected"]], ["제3조(적용 범위)", "제7조(반환)", "제8조(점검)"])
+        self.assertIn("근로기준법", next(x for x in r["rejected"] if x["label"] == "제7조(반환)")["reason"])
+        self.assertIn("14일", r["warnings"][0])
+
+
 class NativeCountTest(unittest.TestCase):
     """고유어 기간 — tests/guard.test.ts 와 같은 사례"""
 

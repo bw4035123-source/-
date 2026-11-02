@@ -18,7 +18,9 @@ from .ask import ask
 from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
-from .llm import list_providers
+from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
+from .guard import parse_loose_json
+from .llm import list_providers, resolve_provider
 from .service import LawService
 
 WEB = Path(__file__).resolve().parent / "web"
@@ -107,6 +109,27 @@ def _validate_analyze(body: dict) -> dict:
         raise ApiError(400, "상황 설명은 2,000자 이내로 적어 주세요.")
     prov = body.get("provider")
     return {"situation": s, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def _validate_enact_fill(body: dict) -> dict:
+    """제정안 AI 채우기 입력 — 조문·근거는 {label, text} 목록(크기 제한)"""
+
+    def items(v, limit):
+        if not isinstance(v, list) or len(v) > limit:
+            raise ApiError(400, "요청 형식이 올바르지 않습니다.")
+        out = []
+        for x in v:
+            if not isinstance(x, dict) or not isinstance(x.get("label"), str) or not isinstance(x.get("text"), str) or len(x["label"]) > 80 or len(x["text"]) > 3000:
+                raise ApiError(400, "요청 형식이 올바르지 않습니다.")
+            out.append({"label": x["label"], "text": x["text"]})
+        return out
+
+    arts = items(body.get("articles"), 40)
+    if not arts:
+        raise ApiError(400, "채울 조문이 없습니다.")
+    s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
+    prov = body.get("provider")
+    return {"name": s("name", 100), "kind": s("kind", 20) or "행정규칙", "org": s("org", 60), "purpose": s("purpose", 500), "articles": arts, "basis": items(body.get("basis") or [], 10), "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -248,6 +271,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/enact-fill":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 10)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            inp = _validate_enact_fill(self._body())
+            p, _ = resolve_provider(config.llm, inp["provider"])
+            if p.kind == "rule":
+                return self._json(503, {"error": "생성형 AI가 연결되어 있지 않아 빈칸을 채울 수 없어요. 표준 문형 초안을 그대로 쓰세요."})
+            try:
+                res = p.generate(system=FILL_SYSTEM, messages=[{"role": "user", "content": build_fill_prompt(inp)}], json_mode=True, temperature=0.1, max_tokens=3000)
+            except Exception as e:  # noqa: BLE001 — 연결 실패는 안내로
+                return self._json(502, {"error": f"AI({p.label})에 연결하지 못했어요. 표준 문형 초안을 그대로 쓰거나 잠시 후 다시 시도하세요.", "detail": str(e)})
+            try:
+                raw = parse_loose_json(res["text"])
+            except Exception:  # noqa: BLE001 — 형식이 깨진 응답은 쓰지 않음
+                return self._json(502, {"error": f"AI({p.label}) 응답 형식이 올바르지 않아 쓰지 않았어요. 다시 시도하거나 표준 문형 초안을 쓰세요."})
+            return self._json(200, {**guard_fill(raw, inp), "model": res.get("model") or p.model, "label": p.label})
         if method == "POST" and path in ("/api/ask", "/api/analyze", "/api/followup"):
             ok, retry = rate_limit(f"{path}:{self._client()}", 20 if path == "/api/analyze" else 30)
             if not ok:

@@ -49,6 +49,7 @@ export function FollowUpChat({ prevQuery }: { prevQuery: string }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question, prevQuery, mode, provider: provider || undefined }),
+        timeoutMs: 60000,
       });
       setMsgs((m) => [...m, { role: "bot", result }]);
     } catch (e) {

@@ -47,6 +47,8 @@ export function AnalyzeView() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ situation: s, provider: provider || undefined }),
+          // 생성형 AI가 세 관점을 한 번에 쓰면 20~35초 걸림(서버 AI 제한 45초 + 근거 검색)
+          timeoutMs: 75000,
         });
         setState({ status: "done", result: j });
         // 공유 가능한 주소로 갱신 — 라우터 내비게이션 대신 history API를 써서 페이지 재마운트(→ 자동 재분석 반복)를 막음

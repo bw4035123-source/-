@@ -55,6 +55,7 @@ export function SearchResults({ q }: { q: string }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query: q, mode, provider: provider || undefined }),
       signal: ctrl.signal,
+      timeoutMs: 60000,
     })
       .then((result) => {
         cache.current.set(`${anyKey}|${mode}`, result);
