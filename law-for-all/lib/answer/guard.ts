@@ -153,6 +153,12 @@ export function assertQuantities(texts: string[], context: Citation[], userTexts
 }
 
 /** LLM JSON → 검증·정제된 답변. 근거 인용이 하나도 없거나, 근거 원문에 없는 수치가 있으면 예외(상위에서 규칙엔진으로 대체) */
+/** 인용 실패 진단: 근거 목록 밖 표기를 썼는지, 표기 자체가 없는지 */
+function noCitationHint(removed: string[]): string {
+  const u = Array.from(new Set(removed));
+  return u.length ? `근거 목록에 없는 표기 ${u.length}개: ${u.slice(0, 3).join(", ")}` : "인용 표기 없음";
+}
+
 export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", context: Citation[], userTexts: string[] = []): GuardedOutput {
   raw = unwrapLlmJson(raw, ["summary", "steps", "keyPoints", "background"]);
   const allowed = new Set(context.map((c) => c.key));
@@ -182,6 +188,8 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
       tip: p.tip ? clean(p.tip) : undefined,
     };
     allText.push(summary, ...citizen.easyTerms.map((t) => t.meaning), ...citizen.steps.flatMap((s) => [s.title, s.detail]), citizen.tip ?? "");
+    // 행동 단계의 근거 키(검증된 것)도 인용으로 인정
+    citizen.steps.forEach((s) => s.ref && !used.includes(s.ref) && used.push(s.ref));
     declared = p.citations;
   } else {
     const p = OfficerSchema.parse(raw);
@@ -202,7 +210,7 @@ export function guardLLMOutput(raw: unknown, mode: "citizen" | "officer", contex
   }
   if (!used.length) used.push(...inferCitationKeys(allText, context));
   if (!summary) throw new Error("요약이 비어 있습니다");
-  if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+  if (!used.length) throw new Error(`근거 조문 인용이 없습니다(${noCitationHint(removed)})`);
   assertQuantities(allText, context, userTexts);
 
   return { summary, citizen, officer, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(allText.join("\n"), context) };
@@ -259,7 +267,7 @@ export function guardAnalysisOutput(raw: unknown, context: Citation[], userTexts
   }
   if (!used.length) used.push(...inferCitationKeys(texts, context));
   if (!perspectives.lawyer.stance || !perspectives.judge.stance) throw new Error("관점 분석이 비어 있습니다");
-  if (!used.length) throw new Error("근거 조문 인용이 없습니다");
+  if (!used.length) throw new Error(`근거 조문 인용이 없습니다(${noCitationHint(removed)})`);
   assertQuantities(texts, context, userTexts);
   return { perspectives, citationKeys: used, removed: Array.from(new Set(removed)), unverified: findUnverifiedMentions(texts.join("\n"), context) };
 }

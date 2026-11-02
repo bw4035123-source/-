@@ -185,6 +185,11 @@ def assert_quantities(texts: list[str], context: list[dict], user_texts: list[st
         raise GuardError(f"근거 원문에서 확인되지 않은 수치 {len(bad)}건: {', '.join(quantity_label(q) for q in bad[:3])}")
 
 
+def _no_citation_hint(removed: list[str]) -> str:
+    """인용 실패 진단: 근거 목록 밖 표기를 썼는지, 표기 자체가 없는지"""
+    return f"근거 목록에 없는 표기 {len(removed)}개: {', '.join(removed[:3])}" if removed else "인용 표기 없음"
+
+
 def guard_llm_output(raw, mode: str, context: list[dict], user_texts: list[str] | None = None) -> dict:
     raw = unwrap_llm_json(raw, ("summary", "steps", "keyPoints", "background"))
     if not isinstance(raw, dict):
@@ -200,6 +205,8 @@ def guard_llm_output(raw, mode: str, context: list[dict], user_texts: list[str] 
         }
         if raw.get("tip"):
             citizen["tip"] = c(raw.get("tip"))
+        # 행동 단계의 근거 키(검증된 것)도 인용으로 인정
+        c.declare([s["ref"] for s in citizen["steps"] if s.get("ref")])
     else:
         officer = {
             "background": c(raw.get("background")),
@@ -213,7 +220,7 @@ def guard_llm_output(raw, mode: str, context: list[dict], user_texts: list[str] 
     if not summary:
         raise GuardError("요약이 비어 있습니다")
     if not c.used:
-        raise GuardError("근거 조문 인용이 없습니다")
+        raise GuardError(f"근거 조문 인용이 없습니다({_no_citation_hint(c.removed_unique())})")
     assert_quantities(c.texts + ([t["meaning"] for t in citizen["easyTerms"]] if citizen else []), context, user_texts)
     return {"summary": summary, "citizen": citizen, "officer": officer, "citationKeys": c.used, "removed": c.removed_unique(), "unverified": find_unverified_mentions("\n".join(c.texts), context)}
 
@@ -248,6 +255,6 @@ def guard_analysis_output(raw, context: list[dict], user_texts: list[str] | None
     if not perspectives["lawyer"]["stance"] or not perspectives["judge"]["stance"]:
         raise GuardError("관점 분석이 비어 있습니다")
     if not c.used:
-        raise GuardError("근거 조문 인용이 없습니다")
+        raise GuardError(f"근거 조문 인용이 없습니다({_no_citation_hint(c.removed_unique())})")
     assert_quantities(c.texts, context, user_texts)
     return {"perspectives": perspectives, "citationKeys": c.used, "removed": c.removed_unique(), "unverified": find_unverified_mentions("\n".join(c.texts), context)}
