@@ -28,8 +28,12 @@ const NARR = process.argv[4] ? path.resolve(process.argv[4]) : null;
 const DUR = NARR ? JSON.parse(fs.readFileSync(path.join(NARR, "durations.json"), "utf8")) : {};
 const AUDIO = !!NARR && !process.env.NO_AUDIO;
 const TARGET = Number(process.env.TARGET_SEC ?? 210);
+// SESSION=1: 세션 1(자유주제) — 국민 모드 중심 / SESSION=2: 세션 2(지정과제 ③ 규정 제·개정 에이전트) — 제·개정 지원 중심
+const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
-const PLAN = { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 7, s15: 8, s16: 9.5, s17: 8, sE: 7.5 };
+const PLAN = SESSION === 2
+  ? { t00: 4, t01: 9, t02: 7, t03: 10, t04: 6, t05: 11, t06: 7, t07: 8, t08: 11, t09: 9, t10: 9, t11: 9, t12: 9, t13: 8 }
+  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 7, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -167,6 +171,22 @@ const setMode = (mode, fontScale = 1) =>
 const SEC = AUDIO ? DUR : PLAN;
 const cues = [];
 let sceneEnd = 0;
+// 생성형 AI가 답을 쓰는 동안: 앞부분(1.2초)만 보여 주고 나머지 대기 구간은 영상에서 잘라 낸다(자막으로 알림).
+// 잘라 낸 만큼 그 장면의 자막 시간은 늘려, 결과 화면을 읽을 시간이 줄지 않게 한다
+const cuts = [];
+async function aiWait(waitFn, what = "답변") {
+  const s = Date.now();
+  await cap(`AI(국산 업스테이지 Solar Pro 4)가 근거 조문만 보고 ${what}을 쓰는 중…`, "기다리는 구간은 영상에서 줄였습니다");
+  await waitFn();
+  const e = Date.now();
+  const k0 = s + 1200;
+  const k1 = e - 300;
+  if (k1 > k0) {
+    cuts.push([(k0 - t0) / 1000, (k1 - t0) / 1000]);
+    sceneEnd += k1 - k0;
+  }
+  return ((e - s) / 1000).toFixed(1);
+}
 async function scene(id, fn) {
   const now = Date.now();
   if (now < sceneEnd) await wait(sceneEnd - now);
@@ -182,8 +202,9 @@ await page.reload();
 await page.waitForLoadState("networkidle").catch(() => {});
 
 let introAt = 0; // 표지가 뜬 시각 — 그 앞(빈 화면·첫 로딩)은 잘라 낸다
+if (SESSION === 1) {
 await scene("s00", async () => {
-  await card(`<span class="chip">2026 공공 AI 대전환 챌린지 · 세션 1</span><h1>법이음 (LAW:ON)</h1><p>국민에게는 쉬운 말로, 공직자에게는 정확한 근거로<br>근거 조문을 먼저 찾고 답하는 AI 법률 지능형 포털</p>`);
+  await card(`<span class="chip">2026 공공 AI 대전환 챌린지 · 세션 1</span><h1>법이음 (LAW:ON)</h1><p>말하듯 물으면 근거 조문과 지금 해야 할 일까지<br>근거 없는 답은 하지 않는 대국민 생활법률 AI · 국산 AI Solar Pro 4</p>`);
   await wait(150);
   introAt = (Date.now() - t0) / 1000;
 });
@@ -197,10 +218,18 @@ await scene("s01", async () => {
 });
 await scene("s02", async () => {
   await page.waitForURL(/search/);
-  await page.locator("[aria-label^='근거 1:']").first().waitFor().catch(() => {});
-  await cap("문장마다 근거 조문 번호 — 근거 목록 밖 인용은 자동 제거(환각 방지)", "AI가 지어낸 가짜 조문·판례를 막습니다");
+  const sec = await aiWait(() => page.locator("[aria-label^='근거 1:']").first().waitFor({ timeout: 60000 }).catch(() => {}));
+  await cap("국산 AI Solar Pro 4가 쓴 쉬운 답 — 문장마다 근거 조문 번호", `실제 약 ${sec}초 · 근거 목록 밖 인용은 자동 제거, 금액·기간은 원문과 대조(환각 방지)`);
   await wait(1200);
   await point(page.locator("[aria-label^='근거 1:']").first());
+});
+await scene("sAI", async () => {
+  const badge = page.locator("button[aria-expanded]", { hasText: /근거 검증 통과|검수된 답변/ }).first();
+  if (await has(badge)) await click(badge);
+  await wait(300);
+  await cap("AI 답변도 검증을 통과해야 화면에 나옵니다 — ‘근거 검증 통과’", "근거 밖 인용·원문과 다른 금액·기간이면 AI 답변을 쓰지 않고 사람이 검수한 답변으로 대체 · 실서비스 실측 91/92 통과");
+  await wait(3500);
+  if (await has(badge)) await badge.click();
 });
 await scene("s03", async () => {
   await page.locator("[aria-label^='근거 1:']").first().click();
@@ -226,9 +255,9 @@ await scene("sF1", async () => {
   await cap("이어서 묻기 — 같은 사안을 계속 물어보면", "답도 근거 번호가 붙고 같은 인용 검증을 거칩니다");
   await wait(900);
   await click(page.locator("section[aria-labelledby=followup-h] button.rounded-full", { hasText: "기한이 있나요?" }).first());
-  await page.waitForFunction(() => document.querySelectorAll("section[aria-labelledby=followup-h] li .rounded-2xl.border").length >= 1, null, { timeout: 20000 }).catch(() => {});
+  await aiWait(() => page.waitForFunction(() => document.querySelectorAll("section[aria-labelledby=followup-h] li .rounded-2xl.border").length >= 1, null, { timeout: 60000 }).catch(() => {}));
   await wait(300);
-  await cap("‘기한이 있나요?’ → 「근로기준법」 제36조: 퇴직 후 14일 이내 지급", "질문 유형(기한·신고·처벌·준비·예외)에 맞는 문장을 조문 원문에서 골라 답합니다");
+  await cap("‘기한이 있나요?’ → 「근로기준법」 제36조: 퇴직 후 14일 이내 지급", "같은 사안을 이어서 — 답도 근거 번호와 인용·수치 검증을 거칩니다");
 });
 await scene("sF2", async () => {
   await scrollToEl("#form-draft-h", 160);
@@ -299,7 +328,7 @@ await scene("s07", async () => {
   await page.keyboard.type(" 집주인 번호 010-1234-5678로 전화해도 받지 않아요.", { delay: 45 });
   await wait(300);
   await click(page.locator("button", { hasText: /3관점 분석/ }).first());
-  await page.getByText("사실관계 정리").first().waitFor().catch(() => {});
+  await aiWait(() => page.getByText("변호사").first().waitFor({ timeout: 80000 }).catch(() => {}), "세 관점 분석");
   await wait(900); // 결과로 자동 이동이 끝난 뒤 안내 문구가 화면 가운데 오도록
   await scrollToEl("#privacy-notice", 260);
   await wait(700);
@@ -341,14 +370,14 @@ await scene("s10", async () => {
 await scene("s11", async () => {
   await page.locator("button", { hasText: "부정청탁금지법" }).first().click();
   await page.waitForURL(/search/);
-  await page.getByText("검토 결론").first().waitFor().catch(() => {});
+  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
   await cap("검토 결론 → 법적 근거 체계 → 주요 쟁점 → 업무 유의사항 → 체크리스트", "보고서체로 정리 · 인용문 복사로 공문서에 바로 활용");
   await wait(3500);
   await scrollBy(480, 14);
 });
 await scene("sM", async () => {
   await page.goto(BASE + "/search?q=" + encodeURIComponent("공무원 외부강의 사례금 상한은?"));
-  await page.getByText("검토 결론").first().waitFor().catch(() => {});
+  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
   await wait(300);
   await cap("금액 기준은 시행령 별표 원문으로 — 공무원 외부강의 1시간당 40만원(총액 60만원)", "청탁금지법 시행령 제25조·별표 2 · 음식물·선물 가액(별표 1)도 원문 그대로");
   await wait(3800);
@@ -375,7 +404,7 @@ await scene("s12", async () => {
   }
   await cap("보고서 한 번에 작성 — 검토 보고서 · 기안문 · 민원 회신문 · 붙임 4종", "검증된 답변·근거 원문만 공문서 서식에 배치 · Word 저장");
 });
-if (casesLive) {
+if (casesLive && process.env.WITH_OFFICER_EXTRA) {
   // 공직자 모드의 판례 보기 — 업무 분야별 쟁점, 법제처 법령해석례(유권해석) 먼저, 검토보고서용 요지 복사
   await scene("sC", async () => {
     await page.keyboard.press("Escape").catch(() => {});
@@ -426,6 +455,7 @@ await scene("s14", async () => {
   await wait(700);
   await cap("상위법령과 조문 단위 대조 — 상충 · 검토 필요 · 적합으로 분류", "근거 상위법이 최근 개정된 조항은 ‘상위법 개정 — 규정 정비 확인’ 알림 · 판정은 정해진 기준과 원문으로");
 });
+if (process.env.WITH_OFFICER_EXTRA) {
 await scene("s15", async () => {
   await page.evaluate(() => {
     const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
@@ -457,6 +487,7 @@ await scene("s16", async () => {
   await wait(700);
   await cap("신·구조문 대비표 · 정합성 점검이 자동으로", "개정이유·주요내용 · 부칙 · 입법예고문 · 절차 체크리스트 초안 · Word 저장");
 });
+}
 await scene("s17", async () => {
   await page.goto(BASE + "/laws/labor-standards");
   await page.waitForLoadState("networkidle").catch(() => {});
@@ -464,23 +495,164 @@ await scene("s17", async () => {
   await wait(5000);
   await page.goto(BASE + "/about");
   await page.waitForLoadState("networkidle").catch(() => {});
-  await cap("LLM 비종속 — EXAONE·Gemma·Llama·Solar(Ollama) · OpenAI 호환 · Claude", "어떤 모델이든 같은 인용 검증 가드 · 실패 시 규칙기반 답변으로 자동 대체");
+  await cap("시연 주소는 국산 AI 업스테이지 Solar Pro 4 — 설정만 바꿔 EXAONE·Gemma 등 공통기반 모델로 교체", "어떤 모델이든 같은 인용·수치 검증 가드 · AI가 끊기거나 검증에 걸리면 검수된 답변으로 자동 대체");
   await wait(1500);
   await scrollBy(420, 14);
 });
 await scene("sE", async () => {
   await scrollToEl("#eval", 90);
   await wait(700);
-  await cap("정확도 성적표 공개 — 독립 작성자(EXAONE) 블라인드 90% · 근거 밖 인용 0건", "환각 주입 1412/1412 차단 · npm run eval 로 누구나 같은 결과 재현 · 측정 이력·틀린 문항 모두 공개");
+  await cap("정확도 성적표 공개 — 실서비스 Solar 답변 91/92 검증 통과 · 근거 밖 인용 0건", "가짜 인용 1516/1516 차단 · 독립 작성자(EXAONE) 블라인드 이력·틀린 문항 모두 공개 · npm run eval 로 누구나 재현");
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 자체규정 점검(모의데이터 원클릭) → 개정안 → 제·개정 문서까지</li><li>✔ LLM 비종속 · 설치 없는 웹·한 파일 공유판 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 실서비스 91/92 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
+} else {
+  // ───────────── 세션 2 — 지정과제 ③ 규정 제·개정 에이전트
+  await page.evaluate(() => sessionStorage.setItem("law-for-all:mode", "officer"));
+  await scene("t00", async () => {
+    await card(`<span class="chip">2026 공공 AI 대전환 챌린지 · 세션 2 · 지정과제 ③</span><h1>법이음 규정 제·개정 지원</h1><p>제정·개정 문서 세트부터 유사 규정 비교, 인용 정정, 상위법 대조까지<br>틀리면 안 되는 부분은 결정적으로 · 기관마다 다른 빈칸은 국산 AI가 채우고 가드가 검증</p>`);
+    await wait(150);
+    introAt = (Date.now() - t0) / 1000;
+  });
+  await scene("t01", async () => {
+    await page.goto(BASE + "/drafting?mode=enact");
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await card("");
+    await cap("① 제정 — 새 지침을 만들 때 ‘무엇부터?’", "규정명·종류·기관·제정 목적·상위법 근거 조문·담을 내용을 넣으면");
+    await wait(1500);
+    await click(page.getByRole("button", { name: "예시 채우기" }));
+    await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).waitFor({ timeout: 20000 }).catch(() => {});
+    await wait(500);
+    await cap("조문 체계와 표준 조문 초안이 바로 — 목적·정의·적용 범위·실체 조문·세부 사항·부칙", "근거: 「청탁금지법」 제10조 원문(국가법령정보) · 법제 표준 문형으로 조립해 형식 오류·지어낸 조문 없음");
+  });
+  await scene("t02", async () => {
+    await page.getByRole("heading", { name: "정합성 점검", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await scrollToEl("section[aria-label='제정안과 검토 결과'] h2:nth-of-type(1)", 120);
+    await page.evaluate(() => {
+      const h = [...document.querySelectorAll("h2")].find((x) => x.textContent.includes("상위법 대조"));
+      if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 160, behavior: "smooth" });
+    });
+    await wait(700);
+    await cap("상위 조문 기준(‘10일 이내’)과 정합성 점검", "위임 사항 누락 · 위임 없는 의무·벌칙(「지방자치법」 제28조) · 재검토기한 · 채울 자리 안내");
+  });
+  await scene("t03", async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    await wait(500);
+    const btn = page.getByRole("button", { name: /AI로 빈칸 채우기/ });
+    await btn.scrollIntoViewIfNeeded();
+    await point(btn);
+    await cap("기관마다 다른 빈칸(○○)은 AI로 채우기", "국산 AI Solar Pro 4가 근거 조문에 맞춰 ○○ 자리만 채웁니다");
+    await wait(1200);
+    await btn.click();
+    const sec = await aiWait(() => page.getByText(/가 빈칸 .*곳을 채웠어요|연결하지 못했어요|형식이 올바르지/).first().waitFor({ timeout: 95000 }).catch(() => {}), "빈칸");
+    await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await wait(300);
+    await cap("노란 표시가 AI가 채운 자리 — 빈칸 밖 문구를 바꾼 조문은 가드가 버리고 표준 초안 유지", `실제 약 ${sec}초 · 근거 목록 밖 법령 인용·새 벌칙도 차단, 상위 기준 초과는 경고`);
+  });
+  await scene("t04", async () => {
+    await scrollBy(380, 14);
+    await cap("채운 값이 기관 실정에 맞는지는 담당자가 확인 — ‘표준 초안’과 바로 비교", "AI 채운 안 ↔ 표준 초안 전환 · 복사·Word 저장은 보고 있는 쪽으로");
+  });
+  await scene("t05", async () => {
+    await page.getByLabel("규정명").fill("○○공단 재택근무 운영 지침");
+    await page.getByLabel("제정 목적").fill("직원의 재택근무 신청·승인과 복무 관리 기준을 정하기 위함");
+    await page.getByLabel("담을 내용").fill("신청 절차\n정보 보안");
+    const sim = page.getByRole("heading", { name: "유사 규정 찾기·조문 구성 비교" });
+    await sim.scrollIntoViewIfNeeded().catch(() => {});
+    await cap("② 유사 규정 찾기 — 다른 기관이 이미 만든 규정과 비교", "규정명에서 검색어를 뽑아 국가법령정보 행정규칙·자치법규를 실시간 검색");
+    await wait(1000);
+    await click(page.getByRole("button", { name: /찾기/ }).first());
+    const cmp = page.getByRole("button", { name: /비교/ }).first();
+    await cmp.waitFor({ timeout: 40000 }).catch(() => {});
+    await wait(800);
+    await click(cmp);
+    await page.getByText(/우리 초안에 없는 조문/).waitFor({ timeout: 40000 }).catch(() => {});
+    await wait(300);
+    await sim.scrollIntoViewIfNeeded().catch(() => {});
+    await cap("부처 재택근무 규정과 조문 구성 비교 — 우리 초안에 없는 조문 표시", "대상자 선정 · 일수·요일 · 승인·취소 · 근무시간 · 복무관리 · 근무지 · 휴가 …");
+    await wait(2200);
+    await click(page.getByRole("button", { name: /없는 조문 모두 담기/ }));
+  });
+  await scene("t06", async () => {
+    await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await wait(500);
+    await cap("빠진 조문을 한 번에 담으면 조문 체계와 초안이 바로 다시 만들어짐", "목차 배지 · 표준 조문 · 제정이유도 함께 갱신");
+  });
+  await scene("t07", async () => {
+    await page.getByRole("heading", { name: "제정 문서 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await wait(500);
+    await cap("제정이유·주요내용 · 입법예고문 · 절차 체크리스트", "규범 종류(훈령·예규 / 조례·규칙 / 법령)에 맞춘 절차 · 제정안 포함 전체 Word 저장");
+    for (const t of ["입법예고문", "절차 체크리스트"]) {
+      await wait(1700);
+      await click(page.getByRole("tab", { name: t }));
+    }
+  });
+  await scene("t08", async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    await wait(400);
+    await click(page.getByRole("tab", { name: /개정\(조문/ }));
+    await cap("③ 개정 — 개정 의도를 말하듯 적으면", "법령에서 고르거나 자체 규정·조례 조문을 붙여 넣기");
+    await click(page.getByRole("button", { name: /직접 입력/ }));
+    await page.getByPlaceholder("규정명 (예: ○○시 민원 처리 규정)").fill("○○공단 민원 처리 규정");
+    await page.getByPlaceholder("제5조(처리기간)").fill("제5조(처리기간)");
+    await page.getByPlaceholder("현행 조문을 붙여 넣으세요").fill("① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
+    const ins = page.getByPlaceholder(/처리기간을 7일에서 5일로/);
+    await click(ins);
+    await ins.type("7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경\n신설: ③ 제1항의 기간에는 공휴일과 토요일을 산입하지 아니한다.", { delay: 14 });
+    await click(page.getByRole("button", { name: /개정안 작성/ }));
+    await wait(500);
+    await page.getByRole("heading", { name: "신·구조문 대비표", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await wait(300);
+    await cap("조문 수정안 + 신·구조문 대비표(삭제 취소선·개정 밑줄)", "정합성 점검 — 기간·금액 변경, 상위법 기준 초과, 인용 조문, 규제 신설·강화 표현 · 개정이유·부칙·입법예고문");
+  });
+  await scene("t09", async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    await wait(400);
+    await click(page.getByRole("tab", { name: /조 번호/ }));
+    await cap("④ 조 번호 정리 — 조문을 넣거나 빼서 번호가 바뀔 때", "같은 규정 안에서 고칠 인용을 눈으로 찾지 않아도 됩니다");
+    await wait(900);
+    await click(page.getByRole("button", { name: "예시 채우기" }));
+    await wait(500);
+    await page.getByRole("heading", { name: "고칠 곳", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await cap("제4조 신설 → 고칠 인용 3건 · 지금도 없는 조문 인용(제9조) 1건 · 정정한 전문", "다른 법령 인용(「…」 제N조, 법 제N조)은 그대로 · 삭제하면 삭제 조문 인용은 ‘정비 필요’ 표시");
+  });
+  await scene("t10", async () => {
+    await page.goto(BASE + "/compliance");
+    await cap("⑤ 자체규정 점검 — 우리 기관 규정 파일 ↔ 상위법 조문 단위 대조", "한글·PDF·Word를 브라우저 안에서만 읽음(원본 수정·서버 전송 없음) · 모의데이터 버튼 한 번");
+    const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
+    await point(mock);
+    await wait(1000);
+    await mock.click();
+    await page.waitForFunction(() => document.querySelector("#compliance-result")?.innerText.includes("교차 검증 결과"), null, { timeout: 30000 }).catch(() => {});
+    await wait(400);
+    await scrollToEl("#compliance-result");
+    await wait(600);
+    await cap("상충 7 · 검토 필요 1 · 적합 3 — 약 2초", "근거 상위법이 최근 개정된 조항 알림 → 현행↔개정안 대비 → 제·개정 지원으로 이어서");
+  });
+  await scene("t11", async () => {
+    await page.evaluate(() => {
+      const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
+      if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
+    });
+    await wait(700);
+    await cap("1주 45시간 → 법정 40시간 초과 · 근거 조문 원문 확인 · 개정안 자동 제안", "판정은 생성형 문장이 아니라 정해진 기준과 원문으로");
+  });
+  await scene("t12", async () => {
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 176건</li></ul>`);
+  });
+  await scene("t13", async () => {
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 목적·위임 조항 → 조문 체계·표준 조문 · AI 빈칸 채우기(가드 검증)</li><li>✔ (개정) 개정 의도 → 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 자체규정 점검 → 상위법 개정 알림 → 개정안</li></ul>`);
+  });
+}
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
 const endAt = AUDIO ? sceneEnd + 800 : t0 + (introAt + TARGET + 0.3) * 1000;
 await wait(Math.max(6000, endAt - Date.now()));
-const recorded = (Date.now() - t0) / 1000 - introAt; // 잘라 낸 뒤의 실제 길이
+// AI 대기 구간(잘라 낼 부분) — 표지 앞을 잘라 낸 기준으로 옮김
+const cutList = cuts.map(([a, b]) => [a - introAt, b - introAt]).filter(([, b]) => b > 0);
+const cutTotal = cutList.reduce((n, [a, b]) => n + (b - Math.max(0, a)), 0);
+const recorded = (Date.now() - t0) / 1000 - introAt - cutTotal; // 잘라 낸 뒤의 실제 길이
 
 const video = page.video();
 await ctx.close();
@@ -500,9 +672,13 @@ if (!AUDIO) {
   // 화면 동작이 계획보다 길어져 목표를 넘으면 전체를 살짝 빠르게 재생해 마지막 장면까지 정확히 TARGET 초에 담는다.
   // 부하가 크면 녹화 파일이 실제 시간보다 길어질 수 있어 파일 길이도 함께 본다
   const webmSec = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", webm]).toString().trim()) || 0;
-  const span = Math.max(recorded, webmSec - introAt);
+  const span = Math.max(recorded, webmSec - introAt - cutTotal);
   const f = span > TARGET ? TARGET / span : 1;
-  if (f < 1) args.push("-vf", `setpts=${f.toFixed(4)}*PTS`, "-r", "25");
+  const vf = [];
+  if (cutList.length) vf.push("fps=25", `select='not(${cutList.map(([a, b]) => `between(t\\,${Math.max(0, a).toFixed(2)}\\,${b.toFixed(2)})`).join("+")})'`, "setpts=N/25/TB");
+  if (f < 1) vf.push(`setpts=${f.toFixed(4)}*PTS`);
+  if (vf.length) args.push("-vf", vf.join(","), "-r", "25");
+  if (cutList.length) console.log(`AI 대기 ${cutList.length}구간 ${cutTotal.toFixed(1)}초 잘라 냄`);
   args.push("-t", String(TARGET));
   console.log(`녹화 ${recorded.toFixed(1)}초(파일 ${webmSec.toFixed(1)}초) → ${TARGET}초${f < 1 ? ` (${(1 / f).toFixed(3)}배속)` : ""}`);
 }
