@@ -328,11 +328,11 @@ await scene("s07", async () => {
   await page.keyboard.type(" 집주인 번호 010-1234-5678로 전화해도 받지 않아요.", { delay: 45 });
   await wait(300);
   await click(page.locator("button", { hasText: /3관점 분석/ }).first());
-  await aiWait(() => page.getByText("변호사").first().waitFor({ timeout: 80000 }).catch(() => {}), "세 관점 분석");
+  await aiWait(() => page.getByText("사실관계 정리").first().waitFor({ timeout: 80000 }).catch(() => {}), "세 관점 분석");
   await wait(900); // 결과로 자동 이동이 끝난 뒤 안내 문구가 화면 가운데 오도록
   await scrollToEl("#privacy-notice", 260);
   await wait(700);
-  await point(page.locator("#privacy-notice"));
+  if (await has(page.locator("#privacy-notice"))) await point(page.locator("#privacy-notice"));
   await cap("적은 전화번호는 자동으로 ○○○ — 서버·AI로 보내기 전에 브라우저에서 가리고 화면에 알려 줍니다", "주민등록번호·전화·카드·계좌·이메일·여권번호 · 저장·전송하지 않음");
 });
 await scene("s07b", async () => {
