@@ -660,6 +660,19 @@ class LawNameLooksLikeTest(unittest.TestCase):
         self.assertTrue(f("개인정보 보호법", ["개인정보", "유출"]))
 
 
+class NativeCountTest(unittest.TestCase):
+    """고유어 기간 — tests/guard.test.ts 와 같은 사례"""
+
+    def test_cases(self):
+        from law_for_all.numbers import extract_quantities
+
+        self.assertIn("개월:3", extract_quantities("석 달째 월급이 밀렸어요"))
+        self.assertIn("개월:2", extract_quantities("두달 전에"))
+        q = extract_quantities("이틀 뒤, 일주일 안에")
+        self.assertIn("일:2", q)
+        self.assertIn("일:7", q)
+
+
 class ResolveKeyTest(unittest.TestCase):
     """항 번호까지 붙인 근거 키 — tests/guard.test.ts 와 같은 사례"""
 

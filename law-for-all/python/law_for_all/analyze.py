@@ -184,6 +184,10 @@ def analyze(situation: str, provider: str | None = None) -> dict:
     issues = spot_issues(situation)
     keys = collect_keys(situation, issues)
     recs = rank_recommendations(situation, issues, keys)
+    # 내장 데이터에서 근거를 못 찾으면 질의응답과 같이 생활 용어 사전·국가법령정보 실시간 검색으로 근거를 찾는다
+    if not recs and svc.mode == "live":
+        live = svc.search_live_keys(situation)
+        recs = [{"key": k, "score": len(live) - i, "reason": "국가법령정보 실시간 검색으로 찾은 근거", "relevance": "high" if i < 2 else "medium"} for i, k in enumerate(live)]
     citations = svc.get_citations([r["key"] for r in recs])
 
     p, notice = resolve_provider(config.llm, provider)

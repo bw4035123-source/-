@@ -13,14 +13,14 @@
   "errors": 0,
   "noResult": 4,
   "withEvidence": 46,
-  "llmAnswered": 35,
-  "ruleFallback": 11,
-  "removedTotal": 4,
+  "llmAnswered": 45,
+  "ruleFallback": 1,
+  "removedTotal": 1,
   "unverifiedTotal": 0,
   "correct": 45,
   "graded": 50,
-  "medianMs": 9663,
-  "p90Ms": 13092,
+  "medianMs": 8488,
+  "p90Ms": 12525,
   "model": "solar-pro4-260806"
  },
  "rows": [
@@ -37,8 +37,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11483,
-   "wallMs": 11964
+   "serverMs": 11367,
+   "wallMs": 11797
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -53,8 +53,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 7680,
-   "wallMs": 7970
+   "serverMs": 9205,
+   "wallMs": 9991
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -64,29 +64,29 @@
    "model": "solar-pro4-260806",
    "fallback": null,
    "passed": true,
-   "removed": 4,
+   "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6776,
-   "wallMs": 7051
+   "serverMs": 4432,
+   "wallMs": 4724
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "집주인이 계약 끝났는데 돈을 안 돌려줘요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8765,
-   "wallMs": 9050
+   "serverMs": 9288,
+   "wallMs": 9573
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -101,8 +101,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6779,
-   "wallMs": 7061
+   "serverMs": 7258,
+   "wallMs": 7546
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -117,8 +117,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 13289,
-   "wallMs": 13585
+   "serverMs": 9458,
+   "wallMs": 9745
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -133,8 +133,8 @@
    "citations": 4,
    "noResult": false,
    "correct": true,
-   "serverMs": 12980,
-   "wallMs": 13258
+   "serverMs": 21385,
+   "wallMs": 21677
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -149,24 +149,24 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6850,
-   "wallMs": 7650
+   "serverMs": 5919,
+   "wallMs": 6275
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "이혼하면 아이 양육비는 얼마나 받을 수 있나요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11378,
-   "wallMs": 11652
+   "serverMs": 5286,
+   "wallMs": 6104
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -181,8 +181,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 866,
-   "wallMs": 1150
+   "serverMs": 938,
+   "wallMs": 1247
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -197,8 +197,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10461,
-   "wallMs": 10732
+   "serverMs": 6855,
+   "wallMs": 7124
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -213,8 +213,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 8407,
-   "wallMs": 8679
+   "serverMs": 5588,
+   "wallMs": 6933
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -229,8 +229,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 4015,
-   "wallMs": 4294
+   "serverMs": 7685,
+   "wallMs": 7959
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -245,8 +245,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 1374,
-   "wallMs": 1641
+   "serverMs": 1283,
+   "wallMs": 1567
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -254,15 +254,15 @@
    "mode": "citizen",
    "used": "rule",
    "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 원문에서 확인되지 않은 수치 1건: 3일)",
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 14322,
-   "wallMs": 14594
+   "serverMs": 11648,
+   "wallMs": 11937
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -277,8 +277,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9893,
-   "wallMs": 10177
+   "serverMs": 8630,
+   "wallMs": 8909
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -293,24 +293,24 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 13120,
-   "wallMs": 13396
+   "serverMs": 13847,
+   "wallMs": 14274
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "알바 시급이 최저임금보다 적어요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 12538,
-   "wallMs": 12831
+   "serverMs": 8738,
+   "wallMs": 9024
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -325,8 +325,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7106,
-   "wallMs": 7384
+   "serverMs": 7040,
+   "wallMs": 7352
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -341,8 +341,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10094,
-   "wallMs": 10371
+   "serverMs": 8676,
+   "wallMs": 8953
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -357,8 +357,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8530,
-   "wallMs": 8806
+   "serverMs": 12525,
+   "wallMs": 12821
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -373,8 +373,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7459,
-   "wallMs": 7755
+   "serverMs": 7930,
+   "wallMs": 8227
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -389,24 +389,24 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7316,
-   "wallMs": 7603
+   "serverMs": 7797,
+   "wallMs": 8069
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "길에서 모르는 사람한테 맞았어요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7083,
-   "wallMs": 7354
+   "serverMs": 6726,
+   "wallMs": 7010
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -421,8 +421,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11801,
-   "wallMs": 12586
+   "serverMs": 9815,
+   "wallMs": 10090
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -437,8 +437,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9906,
-   "wallMs": 10190
+   "serverMs": 9404,
+   "wallMs": 9677
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -453,8 +453,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 12120,
-   "wallMs": 12401
+   "serverMs": 11452,
+   "wallMs": 11733
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -469,8 +469,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9427,
-   "wallMs": 9712
+   "serverMs": 6711,
+   "wallMs": 6995
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -485,8 +485,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6282,
-   "wallMs": 6577
+   "serverMs": 6764,
+   "wallMs": 7045
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -501,24 +501,24 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 13092,
-   "wallMs": 13367
+   "serverMs": 14914,
+   "wallMs": 15207
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "상가 계약 갱신 때 건물주가 권리금을 못 받게 해요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10884,
-   "wallMs": 11161
+   "serverMs": 10024,
+   "wallMs": 10321
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -533,8 +533,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 8713,
-   "wallMs": 9003
+   "serverMs": 10650,
+   "wallMs": 10926
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -549,8 +549,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11678,
-   "wallMs": 11960
+   "serverMs": 11561,
+   "wallMs": 11840
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -565,24 +565,24 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 13231,
-   "wallMs": 14059
+   "serverMs": 12315,
+   "wallMs": 12590
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "아파트 베란다에서 담배 피우는 이웃 때문에 괴로워요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11025,
-   "wallMs": 11307
+   "serverMs": 8010,
+   "wallMs": 8291
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -597,40 +597,40 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9663,
-   "wallMs": 9974
+   "serverMs": 10212,
+   "wallMs": 10500
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "출산휴가는 며칠 쓸 수 있나요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6992,
-   "wallMs": 7268
+   "serverMs": 6329,
+   "wallMs": 6605
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "연차휴가를 회사가 못 쓰게 해요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6393,
-   "wallMs": 6674
+   "serverMs": 4819,
+   "wallMs": 5105
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -645,8 +645,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 1263,
-   "wallMs": 1535
+   "serverMs": 1295,
+   "wallMs": 1570
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -661,8 +661,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 1289,
-   "wallMs": 1570
+   "serverMs": 1281,
+   "wallMs": 1567
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -677,8 +677,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 11276,
-   "wallMs": 11551
+   "serverMs": 13906,
+   "wallMs": 14185
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -688,13 +688,13 @@
    "model": "solar-pro4-260806",
    "fallback": null,
    "passed": true,
-   "removed": 0,
+   "removed": 1,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": false,
-   "serverMs": 11802,
-   "wallMs": 12088
+   "serverMs": 11077,
+   "wallMs": 11358
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -709,40 +709,40 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10376,
-   "wallMs": 10688
+   "serverMs": 11955,
+   "wallMs": 12233
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "가게 영업정지 처분을 받았는데 억울해요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7489,
-   "wallMs": 7760
+   "serverMs": 8412,
+   "wallMs": 8695
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "집주인이 월세를 갑자기 많이 올리겠대요",
    "mode": "citizen",
-   "used": "rule",
-   "model": "law-rule-engine-v1",
-   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 조문 인용이 없습니다)",
+   "used": "llm",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 5584,
-   "wallMs": 5895
+   "serverMs": 6323,
+   "wallMs": 6603
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -757,8 +757,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 4484,
-   "wallMs": 4774
+   "serverMs": 7516,
+   "wallMs": 7787
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -773,8 +773,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 7819,
-   "wallMs": 8091
+   "serverMs": 5998,
+   "wallMs": 6284
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -789,8 +789,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 6322,
-   "wallMs": 6609
+   "serverMs": 7101,
+   "wallMs": 7383
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -805,8 +805,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11141,
-   "wallMs": 11416
+   "serverMs": 8488,
+   "wallMs": 8760
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -821,8 +821,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7110,
-   "wallMs": 7389
+   "serverMs": 4736,
+   "wallMs": 5011
   }
  ]
 }

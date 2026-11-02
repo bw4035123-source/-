@@ -36,6 +36,10 @@ def _korean_amount(span: str) -> int:
     return round(total + section)
 
 
+_NATIVE_MONTH = {"한": 1, "두": 2, "세": 3, "석": 3, "네": 4, "넉": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+_NATIVE_DAY = {"하루": 1, "이틀": 2, "사흘": 3, "나흘": 4, "닷새": 5, "엿새": 6, "이레": 7, "여드레": 8, "아흐레": 9, "열흘": 10, "보름": 15, "일주일": 7}
+
+
 def extract_quantities(text: str) -> list[str]:
     """글에 나온 수치를 '단위:값' 형태로(같은 값은 한 번, 나온 순서)"""
     out: dict[str, None] = {}
@@ -63,6 +67,11 @@ def extract_quantities(text: str) -> list[str]:
                       (r"(\d+)\s*시간", "시간"), (r"(\d+(?:\.\d+)?)\s*배", "배"), (r"(\d+)\s*세(?![대금])", "세"), (r"(?i)(\d+)\s*(?:dB|데시벨)", "dB")):
         for m in re.finditer(pat, t):
             out[f"{name}:{_fmt(_num(m.group(1)))}"] = None
+    # 고유어 기간: '석 달' = 3개월, '이틀' = 2일, '일주일' = 7일(질문에 쓴 기간을 AI가 숫자로 옮겨도 근거로 인정)
+    for m in re.finditer(r"(한|두|세|석|네|넉|다섯|여섯|일곱|여덟|아홉|열)\s*달", t):
+        out[f"개월:{_NATIVE_MONTH[m.group(1)]}"] = None
+    for m in re.finditer(r"(하루|이틀|사흘|나흘|닷새|엿새|이레|여드레|아흐레|열흘|보름|일주일)", t):
+        out[f"일:{_NATIVE_DAY[m.group(1)]}"] = None
     return list(out)
 
 

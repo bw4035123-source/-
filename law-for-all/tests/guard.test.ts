@@ -86,3 +86,12 @@ describe("항 번호까지 붙인 근거 키", async () => {
     expect(r.removed).toEqual(["labor-standards:99:1"]);
   });
 });
+
+describe("고유어 기간", async () => {
+  const { extractQuantities } = await import("@/lib/answer/numbers");
+  it("석 달·두 달·이틀·일주일", () => {
+    expect(extractQuantities("석 달째 월급이 밀렸어요")).toContain("개월:3");
+    expect(extractQuantities("두달 전에")).toContain("개월:2");
+    expect(extractQuantities("이틀 뒤, 일주일 안에")).toEqual(expect.arrayContaining(["일:2", "일:7"]));
+  });
+});

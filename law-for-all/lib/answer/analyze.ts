@@ -30,7 +30,12 @@ export async function analyze({ situation: raw, provider: requested }: { situati
   const facts = extractFacts(situation);
   const issues = spotIssues(situation);
   const keys = collectKeys(situation, issues);
-  const recommendations = rankRecommendations(situation, issues, keys);
+  let recommendations = rankRecommendations(situation, issues, keys);
+  // 내장 데이터에서 근거를 못 찾으면 질의응답과 같이 생활 용어 사전·국가법령정보 실시간 검색으로 근거를 찾는다
+  if (!recommendations.length && svc.mode === "live") {
+    const live = await svc.searchLiveKeys(situation);
+    recommendations = live.map((key, i) => ({ key, score: live.length - i, reason: "국가법령정보 실시간 검색으로 찾은 근거", relevance: i < 2 ? "high" : "medium" }));
+  }
   // 추천 순서대로 근거 카드 구성(실시간 모드면 최신 원문)
   const citations = await svc.getCitations(recommendations.map((r) => r.key));
 

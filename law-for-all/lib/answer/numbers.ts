@@ -29,6 +29,9 @@ function koreanAmount(span: string): number {
 }
 
 /** 글에 나온 수치를 '단위:값' 형태로(같은 값은 한 번) */
+const NATIVE_MONTH: Record<string, number> = { 한: 1, 두: 2, 세: 3, 석: 3, 네: 4, 넉: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const NATIVE_DAY: Record<string, number> = { 하루: 1, 이틀: 2, 사흘: 3, 나흘: 4, 닷새: 5, 엿새: 6, 이레: 7, 여드레: 8, 아흐레: 9, 열흘: 10, 보름: 15, 일주일: 7 };
+
 export function extractQuantities(text: string): string[] {
   const out = new Set<string>();
   let t = text
@@ -59,6 +62,9 @@ export function extractQuantities(text: string): string[] {
   unit(/(\d+(?:\.\d+)?)\s*배/g, "배");
   unit(/(\d+)\s*세(?![대금])/g, "세");
   unit(/(\d+)\s*(?:dB|데시벨)/gi, "dB");
+  // 고유어 기간: '석 달' = 3개월, '이틀' = 2일, '일주일' = 7일(질문에 쓴 기간을 AI가 숫자로 옮겨도 근거로 인정)
+  for (const m of t.matchAll(/(한|두|세|석|네|넉|다섯|여섯|일곱|여덟|아홉|열)\s*달/g)) out.add(`개월:${NATIVE_MONTH[m[1]]}`);
+  for (const m of t.matchAll(/(하루|이틀|사흘|나흘|닷새|엿새|이레|여드레|아흐레|열흘|보름|일주일)/g)) out.add(`일:${NATIVE_DAY[m[1]]}`);
   return Array.from(out);
 }
 
