@@ -194,6 +194,8 @@ export function enactDraft(input: EnactInput): EnactDraft {
       checks.push({ level: "warn", title: "법률 위임 필요", detail: "주민의 권리 제한·의무 부과·벌칙은 법률의 위임이 있어야 조례로 정할 수 있습니다(「지방자치법」 제28조). 위임 근거 조문을 확인하세요." });
     if (input.kind === "행정규칙") checks.push({ level: "warn", title: "대외적 구속력 검토", detail: "행정규칙(내부 규정)으로는 법령의 위임 없이 국민의 권리를 제한하거나 의무를 부과할 수 없습니다. 내부 직원 대상인지, 위임 근거가 있는지 확인하세요." });
   }
+  if (input.kind === "행정규칙")
+    checks.push({ level: "info", title: "재검토기한", detail: "중앙행정기관의 훈령·예규라면 「훈령·예규 등의 발령 및 관리에 관한 규정」에 따라 재검토기한 조문을 두세요(기관 내부 규정은 기관 지침에 따름)." });
   const blanks = (fullText.match(/○○|○일|○명|○회/g) ?? []).length;
   if (blanks) checks.push({ level: "info", title: "채울 자리", detail: `초안의 ○○ 표시 ${blanks}곳에 기관 실정에 맞는 내용(대상·기한·서식 등)을 채우세요.` });
   if (!checks.some((c) => c.level === "warn")) checks.push({ level: "ok", title: "자동 점검 이상 없음", detail: "자동으로 찾을 수 있는 문제는 없습니다. 법제 심사 기준과 관계 부서 의견에 따라 최종 검토하세요." });
@@ -228,4 +230,40 @@ export function enactDraft(input: EnactInput): EnactDraft {
   ].join("\n");
 
   return { unit, articles, addenda, fullText, delegated, limits, reason, notice, steps: procedureChecklist(input.kind, "제정"), checks };
+}
+
+// ───────────── 유사 규정 찾기·조문 구성 비교
+/**
+ * 규정명 → 유사 규정 검색어(국가법령정보 행정규칙·자치법규 이름 검색용)
+ *  기관명(○○공단·○○구 등)과 규범 이름(지침·조례·운영 규정 등)을 떼고 첫 핵심어 하나만 남긴다(이름 검색은 여러 말을 넣으면 거의 안 걸림)
+ */
+export function similarQuery(name: string): string {
+  const tokens = name
+    .replace(/[「」『』()]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t) => !/○|^[가-힣]+(공단|공사|재단|진흥원|시|군|구|도|청|처|부|원|위원회)$/.test(t) || /^(재택|외부)/.test(t))
+    .map((t) => t.replace(/(시행규정|운영규정|관리지침|시행세칙|운영지침|규정|지침|조례|규칙|예규|훈령|기준|요령|세칙)$/, ""))
+    .map((t) => t.replace(/(등|에|에관한|의)$/, ""))
+    .filter((t) => t.length >= 2 && !/^(운영|처리|관리|관한|시행|및|등|지원에|대한)$/.test(t));
+  return tokens[0] ?? "";
+}
+
+export interface StructureRow {
+  title: string;
+  /** 우리 초안에 비슷한 조문이 있는지 */
+  matched: boolean;
+}
+
+/** 유사 규정의 조문 제목을 우리 초안 조문 제목과 대조(낱말이 하나라도 겹치면 있는 것으로) */
+export function compareStructure(ours: string[], theirs: string[]): StructureRow[] {
+  const ourWords = ours.map((t) => words(t));
+  return theirs
+    .map((t) => t.trim())
+    // 목적·정의·적용 범위 등 뼈대 조문은 초안이 따로 만들므로 비교에서 뺌(정의는 '정의할 용어'로)
+    .filter((t) => t && !/^(목적|부칙|정의|적용\s?범위|다른\s?(법령|규정)과의\s?관계|위임|세부\s?사항|시행세칙|재검토\s?기한)$/.test(t))
+    .map((title) => {
+      const w = words(title);
+      return { title, matched: ourWords.some((o) => o.some((x) => w.some((y) => x === y || (x.length >= 2 && y.includes(x)) || (y.length >= 2 && x.includes(y))))) };
+    });
 }

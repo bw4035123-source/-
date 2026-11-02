@@ -1,10 +1,10 @@
 "use client";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, Info, Plus, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, FileDown, Info, Loader2, Plus, Search, X } from "lucide-react";
 import type { LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import type { DraftKind } from "@/lib/drafting";
-import { enactDraft, type Basis } from "@/lib/enact";
+import { compareStructure, enactDraft, similarQuery, type Basis } from "@/lib/enact";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +14,7 @@ import { downloadWord } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
+type Similar = { id: string; name: string; org?: string; date?: string };
 const inputCls = "h-10 w-full rounded-md border bg-card px-2.5 text-sm";
 
 // 예시: 공공기관 직원이 실제로 만드는 내부 지침(근거 조문은 내장 공식 원문에서 불러옴)
@@ -44,6 +45,13 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
   const [no, setNo] = React.useState("");
   const [hier, setHier] = React.useState<Hier | null>(null);
   const [own, setOwn] = React.useState({ label: "", text: "" });
+  // 유사 규정 찾기(국가법령정보 행정규칙·자치법규 실시간 검색)
+  const [simQ, setSimQ] = React.useState<string | null>(null);
+  const [simKind, setSimKind] = React.useState<"admrul" | "ordin" | null>(null);
+  const [simList, setSimList] = React.useState<Similar[] | null>(null);
+  const [simBusy, setSimBusy] = React.useState(false);
+  const [picked, setPicked] = React.useState<{ id: string; name: string; titles: string[] } | null>(null);
+  const [pickBusy, setPickBusy] = React.useState("");
 
   const loadLaw = React.useCallback(async (id: string): Promise<Hier | null> => {
     if (!id) return null;
@@ -103,6 +111,38 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
       }),
     [kind, name, purpose, items, terms, basis, org, dept, days],
   );
+  const query = simQ ?? similarQuery(name);
+  const scope = simKind ?? (kind === "자치법규" ? "ordin" : "admrul");
+  const searchSimilar = async () => {
+    if (!query.trim()) return;
+    setSimBusy(true);
+    setPicked(null);
+    try {
+      const j = await (await fetch(`/api/laws?q=${encodeURIComponent(query.trim())}&kind=${scope}`)).json();
+      setSimList(((j.laws ?? []) as LawSummary[]).filter((l) => l.source === "live").slice(0, 10).map((l) => ({ id: l.id, name: l.name, org: l.ministry, date: l.effectiveDate })));
+    } catch {
+      setSimList([]);
+    } finally {
+      setSimBusy(false);
+    }
+  };
+  const pick = async (x: Similar) => {
+    setPickBusy(x.id);
+    const h = await loadLaw(x.id);
+    setPickBusy("");
+    if (!h) return toast("원문을 불러오지 못했어요. 잠시 후 다시 눌러 주세요");
+    setPicked({ id: x.id, name: h.root.name || x.name, titles: h.root.articles.map((a) => a.title).filter(Boolean) });
+  };
+  const ourTitles = d.articles.map((a) => a.label.replace(/^제\d+조\((.*)\)$/, "$1"));
+  const rows = picked ? compareStructure(ourTitles, picked.titles) : [];
+  const addItems = (titles: string[]) => {
+    const cur = items.split("\n").map((x) => x.trim()).filter(Boolean);
+    const add = titles.filter((t) => !cur.includes(t));
+    if (!add.length) return;
+    setItems([...cur, ...add].join("\n"));
+    toast(`담을 내용에 ${add.length}개를 넣었어요`);
+  };
+
   const docs = [
     { id: "reason", label: "제정이유·주요내용", body: d.reason },
     { id: "notice", label: "입법예고문", body: d.notice },
@@ -266,6 +306,73 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
                 )}
               </div>
             )}
+
+            <div className="rounded-2xl border bg-card p-5 shadow-sm">
+              <h2 className="mb-1 font-extrabold">유사 규정 찾기·조문 구성 비교</h2>
+              <p className="mb-3 text-xs text-muted-foreground">다른 기관이 이미 만든 비슷한 규정을 국가법령정보에서 찾아, 우리 초안에 빠진 조문이 없는지 비교해요.</p>
+              <div className="flex flex-wrap gap-2">
+                <input value={query} onChange={(e) => setSimQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && searchSimilar()} placeholder="검색어(핵심어 하나, 예: 재택근무)" className="h-10 min-w-0 flex-1 rounded-md border bg-card px-2.5 text-sm" aria-label="유사 규정 검색어" />
+                <select value={scope} onChange={(e) => setSimKind(e.target.value as "admrul" | "ordin")} className="h-10 rounded-md border bg-card px-2 text-sm" aria-label="검색 범위">
+                  <option value="admrul">행정규칙(훈령·예규·지침)</option>
+                  <option value="ordin">자치법규(조례·규칙)</option>
+                </select>
+                <Button type="button" variant="outline" onClick={searchSimilar} disabled={simBusy || !query.trim()}>
+                  {simBusy ? <Loader2 className="animate-spin" /> : <Search />} 찾기
+                </Button>
+              </div>
+              {simList && (
+                <div className="mt-3">
+                  {simList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">찾은 규정이 없어요. 검색어를 핵심어 하나로 줄이거나 범위를 바꿔 보세요. (국가법령정보 실시간 연결이 필요해요)</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {simList.map((x) => (
+                        <li key={x.id}>
+                          <button type="button" onClick={() => pick(x)} className={cn("flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm hover:border-accent", picked?.id === x.id && "border-accent bg-accent/5")}>
+                            <span>
+                              <span className="font-semibold">{x.name}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{[x.org, x.date].filter(Boolean).join(" · ")}</span>
+                            </span>
+                            {pickBusy === x.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <span className="shrink-0 text-xs text-accent">비교 ▶</span>}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {picked && (
+                <div className="mt-4 rounded-xl bg-secondary/50 p-3">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-bold">「{picked.name}」 조문 {picked.titles.length}개 · 우리 초안에 없는 조문 {rows.filter((r) => !r.matched).length}개</p>
+                    <div className="flex gap-1.5">
+                      <a href={`/laws/${picked.id}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border bg-card px-2 py-1 text-xs font-semibold hover:border-accent">
+                        <ExternalLink className="h-3.5 w-3.5" /> 원문
+                      </a>
+                      <Button size="sm" variant="accent" disabled={!rows.some((r) => !r.matched)} onClick={() => addItems(rows.filter((r) => !r.matched).map((r) => r.title))}>
+                        <Plus /> 없는 조문 모두 담기
+                      </Button>
+                    </div>
+                  </div>
+                  <ul className="grid gap-1 sm:grid-cols-2">
+                    {rows.map((r) => (
+                      <li key={r.title} className="flex items-center justify-between gap-2 rounded-md bg-card px-2.5 py-1.5 text-sm">
+                        <span className="flex items-center gap-1.5">
+                          {r.matched ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <Info className="h-4 w-4 shrink-0 text-amber-600" />}
+                          {r.title}
+                        </span>
+                        {!r.matched && (
+                          <button type="button" onClick={() => addItems([r.title])} className="shrink-0 text-xs font-semibold text-accent">
+                            + 담기
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-muted-foreground">✓ 우리 초안에 비슷한 조문 있음 · ! 없음 — 담으면 왼쪽 ‘담을 내용’에 들어가 초안이 바로 다시 만들어져요.</p>
+                </div>
+              )}
+            </div>
 
             <div className="rounded-2xl border bg-card p-5 shadow-sm">
               <h2 className="mb-3 font-extrabold">정합성 점검</h2>

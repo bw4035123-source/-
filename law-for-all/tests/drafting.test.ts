@@ -134,3 +134,20 @@ describe("조 번호 정리 — 신설·삭제에 따른 인용 정정", async (
     expect(r.text).not.toContain("별지 서식에 따른다");
   });
 });
+
+describe("유사 규정 찾기·조문 구성 비교", async () => {
+  const { similarQuery, compareStructure } = await import("@/lib/enact");
+  it("기관명·규범 이름을 떼고 핵심어 하나", () => {
+    expect(similarQuery("○○공단 재택근무 운영 지침")).toBe("재택근무");
+    expect(similarQuery("○○공단 외부강의등 신고 처리 지침")).toBe("외부강의");
+    expect(similarQuery("○○시 공유재산 관리 조례")).toBe("공유재산");
+  });
+  it("우리 초안에 없는 조문만 '없음'으로", () => {
+    const rows = compareStructure(["목적", "정의", "신청 절차", "정보 보안"], ["목적", "정의", "재택근무 대상자 선정", "근무시간", "보안관리", ""]);
+    expect(rows).toEqual([
+      { title: "재택근무 대상자 선정", matched: false },
+      { title: "근무시간", matched: false },
+      { title: "보안관리", matched: true },
+    ]);
+  });
+});
