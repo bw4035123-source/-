@@ -31,7 +31,8 @@ export interface FilledArticle {
 }
 export interface FillResult {
   articles: FilledArticle[];
-  rejected: { label: string; reason: string }[];
+  /** got: 진단용(받은 문장 앞부분, 화면에는 표시하지 않음) */
+  rejected: { label: string; reason: string; got?: string }[];
   warnings: string[];
 }
 
@@ -96,7 +97,8 @@ export function settleParticles(text: string): string {
 export function guardFill(raw: unknown, input: FillInput): FillResult {
   const got = new Map<string, string>();
   const list = raw && typeof raw === "object" && Array.isArray((raw as { articles?: unknown }).articles) ? ((raw as { articles: unknown[] }).articles as { label?: unknown; text?: unknown }[]) : [];
-  for (const a of list) if (typeof a?.label === "string" && typeof a?.text === "string") got.set(a.label.trim(), a.text);
+  // AI가 조문 머리(제N조(제목))를 본문 앞에 다시 붙여도 본문만 대조
+  for (const a of list) if (typeof a?.label === "string" && typeof a?.text === "string") got.set(a.label.trim(), a.text.replace(/^\s*제\d+조(?:의\d+)?\([^)]*\)\s*/, ""));
   const basisLaws = input.basis.flatMap((b) => lawRefs(b.label));
   // 상위 조문 기준(같은 단위의 '이내·이하' 값)
   const limits = input.basis.flatMap((b) => Array.from(b.text.matchAll(/(\d[\d,]*)\s*(일|개월|년|만원|원)\s*(?:이내|이하|까지|를 넘지|을 넘지)/g), (m) => ({ v: Number(m[1].replace(/,/g, "")), unit: m[2], label: b.label.replace(/\(.*\)$/, "") })));
@@ -111,7 +113,7 @@ export function guardFill(raw: unknown, input: FillInput): FillResult {
     if (!t) return keep;
     const values = matchFill(a.text, t);
     if (!values) {
-      rejected.push({ label: a.label, reason: "빈칸 밖 문구를 바꿈" });
+      rejected.push({ label: a.label, reason: "빈칸 밖 문구를 바꿈", got: t.slice(0, 160) });
       return keep;
     }
     const joined = values.join(" ");

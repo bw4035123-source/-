@@ -75,7 +75,8 @@ def guard_fill(raw, inp: dict) -> dict:
     lst = raw.get("articles") if isinstance(raw, dict) and isinstance(raw.get("articles"), list) else []
     for a in lst:
         if isinstance(a, dict) and isinstance(a.get("label"), str) and isinstance(a.get("text"), str):
-            got[a["label"].strip()] = a["text"]
+            # AI가 조문 머리(제N조(제목))를 본문 앞에 다시 붙여도 본문만 대조
+            got[a["label"].strip()] = re.sub(r"^\s*제\d+조(?:의\d+)?\([^)]*\)\s*", "", a["text"])
     basis_laws = [r for b in inp["basis"] for r in _law_refs(b["label"])]
     limits = [
         (int(m.group(1).replace(",", "")), m.group(2), re.sub(r"\(.*\)$", "", b["label"]))
@@ -95,7 +96,7 @@ def guard_fill(raw, inp: dict) -> dict:
             continue
         values = match_fill(a["text"], t)
         if values is None:
-            rejected.append({"label": a["label"], "reason": "빈칸 밖 문구를 바꿈"})
+            rejected.append({"label": a["label"], "reason": "빈칸 밖 문구를 바꿈", "got": t[:160]})
             articles.append(keep)
             continue
         joined = " ".join(values)
