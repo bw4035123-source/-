@@ -9,7 +9,7 @@
 | 산출물(소스+실행물) | 이 저장소 전체 + `law-on-python.zip` | 공공 GitLab(gitlab.aigov.go.kr) | 비공개 프로젝트 생성 → 주제(Topics) **'2026 공공 AI 대전환 챌린지 세션1'** → 푸시 → 실행판 zip 함께 등록 |
 | 참가신청서(양식1) | `참가신청서.pdf` | databus@nia.or.kr | 기관명·참가자 정보·GitLab 링크 기재, 동의란 체크, 서명 → `[참가신청서]_기관명_팀명.pdf` |
 | 구동안내서(양식2) | `구동안내서.pdf`(A4 4쪽 — 요강 3~5쪽) | databus@nia.or.kr | `[구동안내서]_기관명_팀명.pdf`로 파일명 변경 |
-| 시연영상 | `demo.mp4`(3분 30초 — 요강 약 5분 이내, 자막, 개인정보 가림·판례 실시간 조회·금액 기준·정확도 성적표 포함) | databus@nia.or.kr | `[시연영상]_기관명_팀명.mp4`로 파일명 변경 |
+| 시연영상 | `demo-s1.mp4`(3분 30초 — 요강 약 5분 이내, 자막, 국민 모드·Solar 답변 검증·개인정보 가림·판례 실시간·정확도 성적표) | databus@nia.or.kr | `[시연영상]_기관명_팀명.mp4`로 파일명 변경 |
 | 모의데이터(선택) | `mock-data/` | databus@nia.or.kr | 그대로 압축해 첨부 |
 
 - 이메일 제목: `[공공 AI 대전환 챌린지 제출]_세션1_기관명_팀명(개인은 성명)`
@@ -20,7 +20,7 @@
 |---|---|---|
 | 참가신청서(양식1) | `참가신청서_세션2.pdf` | 세션 2·규정 제·개정 에이전트 체크, 공직자 제·개정 기능 중심 |
 | 구동안내서(양식2) | `구동안내서_세션2.pdf`(A4 4쪽) | 제정·개정·조 번호 정리·유사 규정 비교 흐름, 과제 카드 대응표 |
-| 시연영상 | `demo-session2.mp4` | 제·개정 지원 중심 |
+| 시연영상 | `demo-s2.mp4`(3분, 자막) | 제정(AI 빈칸 채우기)·유사 규정 비교·개정·조 번호 정리·자체규정 점검 |
 | 모의데이터(선택) | `mock-data/` | 세션 1과 같음 |
 
 - 이메일 제목: `[공공 AI 대전환 챌린지 제출]_세션2_기관명_팀명(개인은 성명)`
@@ -33,7 +33,8 @@
 node scripts/build-python.mjs                       # dist/law-on-python.zip (실행판)
 # 문서 PDF: Chromium으로 구동안내서.html · 참가신청서.html 을 A4 인쇄(PDF 저장)
 python3 run.py --no-browser --port 8765             # (실행판 폴더에서) 녹화용 서버
-node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo.mp4   # 시연영상 자동 녹화(자막만, 정확히 3분 30초 — TARGET_SEC 로 변경)
+NO_AUDIO=1 SESSION=1 TARGET_SEC=210 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo-s1.mp4   # 세션 1 시연영상(자막)
+NO_AUDIO=1 SESSION=2 TARGET_SEC=180 node scripts/record-demo.mjs http://127.0.0.1:8765 dist/demo-s2.mp4   # 세션 2 시연영상(자막)
 ```
 
 ## 심사 기준과 대응
