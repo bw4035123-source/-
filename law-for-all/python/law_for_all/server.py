@@ -18,6 +18,7 @@ from .ask import ask
 from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
+from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
 from .guard import parse_loose_json
 from .llm import list_providers, resolve_provider
@@ -130,6 +131,28 @@ def _validate_enact_fill(body: dict) -> dict:
     s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
     prov = body.get("provider")
     return {"name": s("name", 100), "kind": s("kind", 20) or "행정규칙", "org": s("org", 60), "purpose": s("purpose", 500), "articles": arts, "basis": items(body.get("basis") or [], 10), "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def _validate_amend_ai(body: dict) -> dict:
+    """개정안 AI 작성 입력(크기 제한) — app/api/amend-ai/route.ts 와 같은 한도"""
+    bad = ApiError(400, "요청 형식이 올바르지 않습니다.")
+    s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
+    cur, ins = body.get("current"), body.get("instruction")
+    if not isinstance(cur, str) or not cur.strip() or len(cur) > 4000 or not isinstance(ins, str) or not ins.strip() or len(ins) > 1000:
+        raise bad
+    up = body.get("upper") or []
+    if not isinstance(up, list) or len(up) > 6:
+        raise bad
+    upper = []
+    for x in up:
+        if not isinstance(x, dict) or not isinstance(x.get("label"), str) or not isinstance(x.get("text"), str) or len(x["label"]) > 120 or len(x["text"]) > 4000:
+            raise bad
+        upper.append({"label": x["label"], "text": x["text"]})
+    orig = body.get("original")
+    if orig is not None and (not isinstance(orig, str) or len(orig) > 4000):
+        raise bad
+    prov = body.get("provider")
+    return {"lawName": s("lawName", 100), "kind": s("kind", 20) or "행정규칙", "label": s("label", 120), "current": cur, "original": orig, "instruction": ins, "upper": upper, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -271,6 +294,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/amend-ai":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 10)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            inp = _validate_amend_ai(self._body())
+            p, _ = resolve_provider(config.llm, inp["provider"])
+            if p.kind == "rule":
+                return self._json(503, {"error": "생성형 AI가 연결되어 있지 않아 개정안을 쓸 수 없어요. ‘A에서 B로’처럼 적거나 개정안을 직접 고쳐 주세요."})
+            messages = [{"role": "user", "content": build_amend_prompt(inp)}]
+            result, model = {"ok": False, "reason": "응답 없음"}, p.model
+            try:
+                for attempt in range(2):
+                    res = p.generate(system=AMEND_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=2000)
+                    model = res.get("model") or model
+                    try:
+                        raw = parse_loose_json(res["text"])
+                    except Exception:  # noqa: BLE001 — 형식이 깨진 응답 → 가드에서 '비어 있음'
+                        raw = None
+                    result = guard_amend(raw, inp)
+                    if result["ok"]:
+                        return self._json(200, {**result, "retried": attempt > 0, "model": model, "label": p.label})
+                    messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": amend_retry(result["reason"])}]
+            except Exception as e:  # noqa: BLE001 — 연결 실패는 안내로
+                return self._json(502, {"error": f"AI({p.label})에 연결하지 못했어요. 개정안을 직접 고치거나 잠시 후 다시 시도하세요.", "detail": str(e)})
+            return self._json(200, {**result, "retried": True, "model": model, "label": p.label})
         if method == "POST" and path == "/api/enact-fill":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
             if not ok:

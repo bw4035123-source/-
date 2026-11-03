@@ -772,6 +772,42 @@ class GuardedRetryTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
+class AmendAiTest(unittest.TestCase):
+    """개정안 AI 가드 — tests/amend-ai.test.ts 와 같은 사례"""
+
+    CUR = "① 신청을 받은 날부터 7일 이내에 처리하여야 한다.\n② 부득이한 경우 7일의 범위에서 한 차례 연장할 수 있다.\n③ 연장한 경우 신청인에게 알려야 한다."
+
+    def g(self, amended, instruction):
+        from law_for_all.amend_ai import guard_amend
+
+        inp = {"lawName": "○○ 민원 처리 규정", "kind": "행정규칙", "label": "제5조(처리기간)", "current": self.CUR, "instruction": instruction, "upper": [{"label": "「민원 처리에 관한 법률」 제17조", "text": "민원의 처리기간은 30일 이내로 한다."}]}
+        return guard_amend({"amended": amended}, inp)
+
+    def test_cases(self):
+        C = self.CUR
+        r = self.g(C + "\n④ 제1항의 신청은 전자문서로도 할 수 있다.", "신청은 전자문서로도 할 수 있도록 추가")
+        self.assertEqual((r["ok"], r["changes"]), (True, ["제4항 신설"]))
+        r = self.g("제5조(처리기간) " + C.replace("7일 이내", "5일 이내"), "처리를 빨리 하도록 5일 이내로")
+        self.assertEqual((r["ok"], r["changes"]), (True, ["제1항 개정"]))
+        self.assertFalse(self.g(C.replace("7일 이내", "10일 이내"), "처리기간을 늘려 주세요")["ok"])
+        self.assertIn("9명", self.g(C + "\n④ 위원은 9명 이내로 한다.", "위원 규정 추가")["reason"])
+        self.assertTrue(self.g(C + "\n④ 위원은 9명 이내로 한다.", "위원을 9명 이내로 두도록 추가")["ok"])
+        self.assertTrue(self.g(C + "\n④ 접수는 18시까지 한다.", "접수는 오후 6시까지로 추가")["ok"])
+        two = "① 신청을 받은 날부터 7일 이내에 처리하여야 한다.\n② 연장한 경우 신청인에게 알려야 한다."
+        self.assertEqual(self.g(two, "알림 문구 정비")["reason"], "개정 방향에 없는 항을 지움")
+        self.assertIn("번호를 남기지", self.g(two, "제2항 연장 규정을 없애 주세요")["reason"])
+        self.assertFalse(self.g(C.replace("③", "④"), "정비")["ok"])
+        self.assertIn("제재", self.g(C + "\n④ 이를 위반한 자에게는 과태료를 부과한다.", "위반 시 조치 추가")["reason"])
+        self.assertIn("전자정부법", self.g(C + "\n④ 「전자정부법」에 따른 전자문서로도 신청할 수 있다.", "전자문서 신청 추가")["reason"])
+        self.assertEqual(self.g(C, "아무거나")["reason"], "현행과 바뀐 내용이 없음")
+        import re as _re
+
+        r = self.g(_re.sub(r"② [^\n]+", "② 삭제", C), "연장 규정을 없애 주세요")
+        self.assertEqual((r["ok"], r["changes"]), (True, ["제2항 삭제"]))
+        r = self.g(C + "\n④ 제8조에 따른 신청은 전자문서로도 할 수 있다.", "전자문서 신청 추가")
+        self.assertIn("제8조", r["warnings"][0])
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

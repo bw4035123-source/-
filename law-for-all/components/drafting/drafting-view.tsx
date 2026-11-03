@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, Info, Loader2, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, Info, Loader2, Sparkles, Wand2 } from "lucide-react";
 import type { LawArticle, LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import {
@@ -25,12 +25,13 @@ import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
+import { fetchJson } from "@/lib/fetch-json";
 import { EnactPanel } from "./enact-panel";
 import { RenumberPanel } from "./renumber-panel";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
 const kindOf = (k?: string): DraftKind => (k === "행정규칙" ? "행정규칙" : k === "자치법규" ? "자치법규" : "법령");
-const EXAMPLES = ["7일에서 5일로 단축", "‘행정기관의 장’을 ‘시장ㆍ군수ㆍ구청장’으로 변경", "‘다만,’ 이하 단서 문장을 삭제하려면 ‘삭제할 문장’ 삭제", "신설: ③ 제1항의 기간에는 공휴일과 토요일을 산입하지 아니한다."];
+const EXAMPLES = ["7일에서 5일로 단축", "신청은 전자문서로도 할 수 있도록 추가", "제2항을 삭제", "‘행정기관의 장’을 ‘시장ㆍ군수ㆍ구청장’으로 변경", "‘다만,’ 이하 단서 문장을 삭제하려면 ‘삭제할 문장’ 삭제", "신설: ③ 제1항의 기간에는 공휴일과 토요일을 산입하지 아니한다."];
 
 function DiffText({ parts, side }: { parts: DiffPart[]; side: "old" | "new" }) {
   return (
@@ -69,6 +70,9 @@ export function DraftingView() {
   const [amended, setAmended] = React.useState("");
   const [applied, setApplied] = React.useState<Edit[]>([]);
   const [notFound, setNotFound] = React.useState<Edit[]>([]);
+  // 규칙(문형)으로 반영하지 못한 개정 방향 → 생성형 AI가 쓴 개정안(가드 검증 통과분만)
+  type AiAmend = { loading?: boolean; changes?: string[]; warnings?: string[]; label?: string; model?: string; retried?: boolean; failed?: string; text?: string };
+  const [ai, setAi] = React.useState<AiAmend | null>(null);
   const [dept, setDept] = React.useState("");
   const [days, setDays] = React.useState(0);
 
@@ -103,6 +107,7 @@ export function DraftingView() {
     setAmended(current);
     setApplied([]);
     setNotFound([]);
+    setAi(null);
   }, [current]);
 
   const upper: UpperArticle[] = React.useMemo(() => {
@@ -116,17 +121,37 @@ export function DraftingView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, article, hier, lawId]);
 
-  const run = () => {
+  const run = async () => {
     const edits = parseInstruction(instruction);
-    if (!edits.length) {
-      toast("개정 방향에서 바꿀 표현을 찾지 못했어요. 예시처럼 적거나 개정안을 직접 고쳐 주세요");
-      return;
-    }
     const r = applyEdits(current, edits);
     setAmended(r.text);
     setApplied(r.applied);
     setNotFound(r.notFound);
-    toast(`개정 사항 ${r.applied.length}건을 반영했어요`);
+    setAi(null);
+    // 문형으로 알아듣지 못한 줄(또는 현행에서 찾지 못한 표현)이 있으면 그 부분만 생성형 AI에 맡김
+    const leftover = instruction.split("\n").map((x) => x.trim()).filter((x) => x && !parseInstruction(x).length);
+    if (!leftover.length && !r.notFound.length) {
+      toast(`개정 사항 ${r.applied.length}건을 반영했어요`);
+      return;
+    }
+    setAi({ loading: true });
+    try {
+      const j = await fetchJson<{ ok: boolean; text?: string; changes?: string[]; warnings?: string[]; reason?: string; retried?: boolean; model: string; label: string }>("/api/amend-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lawName: meta.lawName, kind: meta.kind, label: meta.label, current: r.text, original: current, instruction, upper: upper.slice(0, 6) }),
+        timeoutMs: 75000,
+      });
+      if (j.ok && j.text) {
+        setAmended(j.text);
+        setAi({ changes: j.changes, warnings: j.warnings, label: j.label, model: j.model, retried: j.retried, text: j.text });
+        toast("AI가 쓴 개정안이 검증을 통과했어요 — 내용을 꼭 확인하세요");
+      } else {
+        setAi({ failed: `AI(${j.label})가 쓴 개정안이 검증을 통과하지 못해 쓰지 않았어요(${j.reason ?? "검증 실패"}). 개정안을 직접 고쳐 주세요.` });
+      }
+    } catch (e) {
+      setAi({ failed: `${(e as Error).message} ${r.applied.length ? `규칙으로 반영한 ${r.applied.length}건만 적용했어요.` : ""}`.trim() });
+    }
   };
 
   const ready = !!current.trim();
@@ -136,7 +161,7 @@ export function DraftingView() {
     [ready, current, amended, source, law, upper],
   );
   const dmeta = { kind: meta.kind, lawName: meta.lawName, articleLabel: meta.label, instruction, dept: dept || undefined, effectiveDays: days };
-  const reason = reasonDraft(dmeta, applied);
+  const reason = reasonDraft(dmeta, applied, ai?.text && ai.text === amended ? ai.changes ?? [] : []);
   const docs = [
     { id: "reason", label: "개정이유·주요내용", body: reason },
     { id: "addenda", label: "부칙", body: addendaDraft(dmeta) },
@@ -269,16 +294,16 @@ export function DraftingView() {
             </label>
           </div>
 
-          <Button variant="accent" size="lg" className="w-full" onClick={run} disabled={!ready || !instruction.trim()}>
-            <Wand2 /> 개정안 작성
+          <Button variant="accent" size="lg" className="w-full" onClick={run} disabled={!ready || !instruction.trim() || !!ai?.loading}>
+            {ai?.loading ? <Loader2 className="animate-spin" /> : <Wand2 />} {ai?.loading ? "AI가 개정 조문을 쓰는 중…" : "개정안 작성"}
           </Button>
           {(applied.length > 0 || notFound.length > 0) && (
             <div className="space-y-1 text-xs">
               {applied.map((e, i) => (
-                <p key={i} className="text-emerald-700 dark:text-emerald-400">✓ {e.type === "replace" ? `‘${e.from}’ → ‘${e.to}’` : e.type === "delete" ? `‘${e.from}’ 삭제` : "항 신설"}</p>
+                <p key={i} className="text-emerald-700 dark:text-emerald-400">✓ {e.type === "replace" ? `‘${e.from}’ → ‘${e.to}’` : e.type === "delete" ? `‘${e.from}’ 삭제` : e.type === "deleteParagraph" ? `제${e.no}항 삭제(번호는 남기고 ‘삭제’ 표시)` : "항 신설"}</p>
               ))}
               {notFound.map((e, i) => (
-                <p key={i} className="text-amber-700 dark:text-amber-300">△ 현행 조문에서 ‘{e.from}’을(를) 찾지 못했어요 — 개정안을 직접 고쳐 주세요</p>
+                <p key={i} className="text-amber-700 dark:text-amber-300">△ 현행 조문에서 {e.type === "deleteParagraph" ? `제${e.no}항` : `‘${e.from}’`}을(를) 찾지 못했어요{ai ? "" : " — 개정안을 직접 고쳐 주세요"}</p>
               ))}
             </div>
           )}
@@ -298,6 +323,27 @@ export function DraftingView() {
             </div>
           ) : (
             <>
+              {ai && !ai.loading && (
+                <div className={cn("rounded-2xl border p-4 text-sm", ai.failed ? "border-amber-300 bg-amber-50 text-amber-950 dark:bg-amber-900/20 dark:text-amber-100" : "border-sky-200 bg-sky-50 text-sky-950 dark:bg-sky-900/20 dark:text-sky-100")}>
+                  {ai.failed ? (
+                    <p className="flex gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {ai.failed}</p>
+                  ) : (
+                    <>
+                      <p className="flex flex-wrap items-center gap-2 font-bold">
+                        <Sparkles className="h-4 w-4" /> AI({ai.label}{ai.model ? ` · ${ai.model}` : ""})가 쓴 개정안 — 검증 통과 · 담당자 확인 필요
+                        {ai.text !== amended && <Badge variant="outline">직접 고침</Badge>}
+                      </p>
+                      <p className="mt-1 text-xs opacity-90">
+                        문형으로 알아듣지 못한 개정 방향을 AI가 조문으로 썼어요. 가드가 항 번호 체계, 지시에 없는 항 삭제, 현행·개정 방향·상위법에 없는 수치·법령 인용, 새 벌칙을 검사해 통과한 안만 보여 줍니다{ai.retried ? "(첫 안이 검증에 걸려 이유를 알려 다시 쓰게 함)" : ""}.
+                      </p>
+                      {!!ai.changes?.length && <p className="mt-1 text-xs font-semibold">바뀐 곳: {ai.changes.join(" · ")}</p>}
+                      {ai.warnings?.map((w, i) => (
+                        <p key={i} className="mt-1 flex gap-1.5 text-xs text-amber-800 dark:text-amber-200"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {w}</p>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="font-extrabold">신·구조문 대비표</h2>

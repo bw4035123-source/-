@@ -10,10 +10,12 @@
 export type DraftKind = "법령" | "자치법규" | "행정규칙";
 
 export interface Edit {
-  type: "replace" | "delete" | "append";
+  type: "replace" | "delete" | "append" | "deleteParagraph";
   from?: string;
   to?: string;
   text?: string;
+  /** deleteParagraph: 지울 항 번호(제2항 → 2) */
+  no?: number;
 }
 
 const OPEN = "[‘'\"“「]";
@@ -30,7 +32,10 @@ export function parseInstruction(instruction: string): Edit[] {
   const edits: Edit[] = [];
   // 신설 문장은 먼저 떼어 냄(신설 내용 속 '…을 제외한다' 등을 지시로 오해하지 않도록)
   const appends = Array.from(instruction.matchAll(/(?:신설|추가|새로\s*두)\s*[:：]\s*(.+)/g), (m) => m[1].trim());
-  const text = instruction.replace(/\r/g, "").replace(/(?:신설|추가|새로\s*두)\s*[:：]\s*.+/g, "");
+  let text = instruction.replace(/\r/g, "").replace(/(?:신설|추가|새로\s*두)\s*[:：]\s*.+/g, "");
+  // 항 삭제: '제2항을 삭제' → 그 항을 '② 삭제 <날짜>'로(법제 관행 — 항 번호는 남김)
+  const paraDeletes = Array.from(text.matchAll(/제\s*(\d+)\s*항\s*(?:을|를)?\s*(?:삭제|폐지)/g), (m) => Number(m[1]));
+  text = text.replace(/제\s*(\d+)\s*항\s*(?:을|를)?\s*(?:삭제|폐지)/g, " ");
   const add = (e: Edit) => {
     if (e.type !== "append" && (!e.from || edits.some((x) => x.from === e.from))) return;
     if (e.type === "replace" && e.from === e.to) return;
@@ -50,6 +55,7 @@ export function parseInstruction(instruction: string): Edit[] {
   for (const m of Array.from(text.matchAll(/(?:^|\s)([^\s'"‘’“”「」]{1,20}?)(?:을|를)\s*(?:삭제|제외)/g))) add({ type: "delete", from: m[1].trim() });
   // 5) 신설
   for (const t of appends) add({ type: "append", text: t });
+  for (const no of paraDeletes) if (!edits.some((e) => e.type === "deleteParagraph" && e.no === no)) edits.push({ type: "deleteParagraph", no });
   return edits;
 }
 
@@ -65,7 +71,21 @@ export function applyEdits(current: string, edits: Edit[]): ApplyResult {
   const applied: Edit[] = [];
   const notFound: Edit[] = [];
   for (const e of edits) {
-    if (e.type === "append" && e.text) {
+    if (e.type === "deleteParagraph" && e.no) {
+      const mark = CIRCLED[e.no - 1];
+      const at = mark ? text.indexOf(mark) : -1;
+      if (at < 0 || /^.\s*삭제/.test(text.slice(at))) {
+        notFound.push(e);
+        continue;
+      }
+      const rest = text.slice(at + 1);
+      const next = Array.from(rest).findIndex((ch) => CIRCLED.includes(ch));
+      // 다음 항 앞까지(줄바꿈은 유지)
+      const end = next < 0 ? text.length : at + 1 + Array.from(rest).slice(0, next).join("").length;
+      const tail = text.slice(at, end).match(/\s*$/)?.[0] ?? "";
+      text = `${text.slice(0, at)}${mark} 삭제 <${today()}>${tail}${text.slice(end)}`;
+      applied.push(e);
+    } else if (e.type === "append" && e.text) {
       // 신설 문장에 항 번호(③)를 이미 적었으면 그대로, 없으면 다음 항 번호를 붙임
       text = `${text.trimEnd()}\n${/^[①-⑳]/.test(e.text.trim()) ? e.text.trim() : `${nextParagraphMark(text)} ${e.text}`}`;
       applied.push(e);
@@ -224,10 +244,11 @@ const today = () => {
   return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
 };
 
-export function reasonDraft(meta: DraftMeta, applied: Edit[]): string {
+/** extra: 규칙 밖에서 반영한 사항(AI 작성 개정안의 항 단위 변경 — 예: '② 개정') */
+export function reasonDraft(meta: DraftMeta, applied: Edit[], extra: string[] = []): string {
   const items = applied.map((e) =>
-    e.type === "replace" ? `‘${e.from}’을(를) ‘${e.to}’(으)로 변경` : e.type === "delete" ? `‘${e.from}’ 삭제` : `조항 신설(${(e.text ?? "").slice(0, 30)}${(e.text ?? "").length > 30 ? "…" : ""})`,
-  );
+    e.type === "replace" ? `‘${e.from}’을(를) ‘${e.to}’(으)로 변경` : e.type === "delete" ? `‘${e.from}’ 삭제` : e.type === "deleteParagraph" ? `제${e.no}항 삭제` : `조항 신설(${(e.text ?? "").slice(0, 30)}${(e.text ?? "").length > 30 ? "…" : ""})`,
+  ).concat(extra.map((x) => x.replace(/ (개정|신설|삭제)$/, "을 $1")));
   const why = meta.instruction
     .split("\n")
     .map((x) => x.trim())
