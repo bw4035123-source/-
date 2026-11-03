@@ -806,6 +806,16 @@ class AmendAiTest(unittest.TestCase):
         self.assertEqual((r["ok"], r["changes"]), (True, ["제2항 삭제"]))
         r = self.g(C + "\n④ 제8조에 따른 신청은 전자문서로도 할 수 있다.", "전자문서 신청 추가")
         self.assertIn("제8조", r["warnings"][0])
+        opt = C.replace("처리하여야 한다", "처리할 수 있다")
+        self.assertIn("의무 → 재량", self.g(opt, "처리기간 문구 정비")["reason"])
+        self.assertIn("제1항: 의무 → 재량", " ".join(self.g(opt, "처리는 재량으로 할 수 있도록")["warnings"]))
+        from law_for_all.amend_ai import guard_amend
+
+        cur = _re.sub(r"③ [^\n]+", "③ 삭제 <2026. 11. 3.>", C)
+        amended = cur.replace("7일 이내", "7일 이내(전자문서 포함)").replace("③ 삭제 <2026. 11. 3.>", "③ 삭제")
+        r = guard_amend({"amended": amended}, {"lawName": "", "kind": "행정규칙", "label": "", "current": cur, "original": C, "instruction": "전자문서 접수도 포함", "upper": []})
+        self.assertEqual((r["ok"], r["changes"]), (True, ["제1항 개정"]))
+        self.assertIn("③ 삭제 <2026. 11. 3.>", r["text"])
 
 
 class FallbackNoticeTest(unittest.TestCase):

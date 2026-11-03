@@ -16,8 +16,9 @@ AMEND_SYSTEM = """너는 행정규칙·자치법규·법령 개정안 작성을 
 3. 개정 방향에 없는 항을 지우지 않는다. 항 삭제 지시가 있으면 그 항을 '② 삭제'처럼 번호를 남기고 '삭제'라고만 쓴다.
 4. 기간·인원·금액·시각 같은 수치는 개정 방향·현행 조문·상위법 조문에 있는 값만 쓴다. 시각은 개정 방향에 쓴 표기(예: 오후 6시)를 그대로 쓴다.
 5. 현행 조문·상위법 조문에 없는 법령명을 새로 쓰지 않는다. 벌칙·과태료·벌금 같은 새 제재를 만들지 않는다.
-6. 법제 문체(~한다, ~할 수 있다)로 쓴다.
-7. 출력은 {"amended":"개정한 조문 본문 전체"} 형식의 JSON 객체 하나만 출력한다."""
+6. 의무(~하여야 한다)·재량(~할 수 있다)·금지(~아니 된다) 표현은 개정 방향이 그것을 바꾸라고 할 때만 바꾼다. 새로 허용하는 방법은 기존 의무 문장에 덧붙인다(예: '방문 또는 우편으로' → '방문, 우편 또는 전자문서로').
+7. 법제 문체(~한다, ~할 수 있다)로 쓴다.
+8. 출력은 {"amended":"개정한 조문 본문 전체"} 형식의 JSON 객체 하나만 출력한다."""
 
 
 def build_amend_prompt(inp: dict) -> str:
@@ -35,6 +36,12 @@ def amend_retry(reason: str) -> str:
 
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 _PENALTY = re.compile(r"(과태료|벌금|벌칙|징역|구류|과징금|금고)")
+# 의무(하여야 한다)·재량(할 수 있다)·금지(아니 된다) 표현
+_MODAL = re.compile(r"하여야\s*한다|해야\s*한다|하여야\s*하며|할\s*수\s*있|아니\s*된다|못한다|수\s*없다")
+
+
+def _modal_name(w: str) -> str:
+    return "재량" if "있" in w else "금지" if re.search(r"아니|못|없", w) else "의무"
 
 
 def _norm(s: str) -> str:
@@ -78,6 +85,10 @@ def guard_amend(raw, inp: dict) -> dict:
     got = raw.get("amended") if isinstance(raw, dict) and isinstance(raw.get("amended"), str) else ""
     text = re.sub(r"^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*", "", got).strip()
     cur = inp["current"]
+    # 이미 '② 삭제 <날짜>'로 지운 항은 AI가 다시 써도 현행(규칙 반영본) 그대로
+    for m in re.finditer(r"([①-⑳])\s*삭제[^\n①-⑳]*", cur):
+        keep = m.group(0).rstrip()
+        text = re.sub(re.escape(m.group(1)) + r"\s*삭제[^\n①-⑳]*", lambda _m, k=keep: k, text, count=1)
     if not text:
         return {"ok": False, "reason": "개정 조문이 비어 있음"}
     if len(text) > len(cur) * 3 + 600:
@@ -109,6 +120,20 @@ def guard_amend(raw, inp: dict) -> dict:
         return {"ok": False, "reason": "현행에 없던 제재(벌칙·과태료 등)를 만듦"}
 
     warnings: list[str] = []
+    # 의무·재량 표현이 바뀐 항 — 개정 방향에 그런 말이 없으면 버리고, 있으면 확인 경고
+    def modal(p: str) -> str:
+        return "·".join(sorted({_modal_name(m.group(0)) for m in _MODAL.finditer(p)}))
+
+    changed = []
+    for i, c in enumerate(cur_paras):
+        if i < len(new_paras) and not re.match(r"^.\s*삭제", new_paras[i]) and modal(c) and modal(new_paras[i]) != modal(c):
+            changed.append((i, modal(c), modal(new_paras[i]) or "없음"))
+    if changed:
+        if not _MODAL.search(inp["instruction"]) and not re.search(r"의무|재량|임의|강행", inp["instruction"]):
+            what = ", ".join(f"{a} → {b}" for _, a, b in changed)
+            return {"ok": False, "reason": f"개정 방향에 없는 의무·재량 표현 변경({what})"}
+        where = ", ".join(("제%d항" % i if i else "본문") + f": {a} → {b}" for i, a, b in changed)
+        warnings.append(f"의무·재량 표현이 바뀌었어요({where}) — 의도한 변경인지 확인하세요.")
     known_arts = {n for s in sources for n in _article_refs(s)}
     new_arts = list(dict.fromkeys(n for n in _article_refs(text) if n not in known_arts))
     if new_arts:

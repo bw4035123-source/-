@@ -33,8 +33,9 @@ export const AMEND_SYSTEM = `너는 행정규칙·자치법규·법령 개정안
 3. 개정 방향에 없는 항을 지우지 않는다. 항 삭제 지시가 있으면 그 항을 '② 삭제'처럼 번호를 남기고 '삭제'라고만 쓴다.
 4. 기간·인원·금액·시각 같은 수치는 개정 방향·현행 조문·상위법 조문에 있는 값만 쓴다. 시각은 개정 방향에 쓴 표기(예: 오후 6시)를 그대로 쓴다.
 5. 현행 조문·상위법 조문에 없는 법령명을 새로 쓰지 않는다. 벌칙·과태료·벌금 같은 새 제재를 만들지 않는다.
-6. 법제 문체(~한다, ~할 수 있다)로 쓴다.
-7. 출력은 {"amended":"개정한 조문 본문 전체"} 형식의 JSON 객체 하나만 출력한다.`;
+6. 의무(~하여야 한다)·재량(~할 수 있다)·금지(~아니 된다) 표현은 개정 방향이 그것을 바꾸라고 할 때만 바꾼다. 새로 허용하는 방법은 기존 의무 문장에 덧붙인다(예: '방문 또는 우편으로' → '방문, 우편 또는 전자문서로').
+7. 법제 문체(~한다, ~할 수 있다)로 쓴다.
+8. 출력은 {"amended":"개정한 조문 본문 전체"} 형식의 JSON 객체 하나만 출력한다.`;
 
 export function buildAmendPrompt(input: AmendInput): string {
   const upper = input.upper.length ? input.upper.map((u) => `<<${u.label}>>\n${u.text}`).join("\n\n") : "(없음)";
@@ -47,6 +48,9 @@ export const AMEND_RETRY = (reason: string) => `방금 개정안이 검증에 �
 const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
 const PENALTY = /(과태료|벌금|벌칙|징역|구류|과징금|금고)/;
 const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+// 의무(하여야 한다)·재량(할 수 있다)·금지(아니 된다) 표현
+const MODAL = /하여야\s*한다|해야\s*한다|하여야\s*하며|할\s*수\s*있|아니\s*된다|못한다|수\s*없다/g;
+const MODAL_NAME = (w: string) => (/있/.test(w) ? "재량" : /아니|못|없/.test(w) ? "금지" : "의무");
 
 /** 항 단위로 나눔: ['', '① …', '② …'] — 맨 앞은 항 번호 앞 본문 */
 export function paragraphs(text: string): string[] {
@@ -76,7 +80,9 @@ function counts(text: string, withPm = false): Set<string> {
 export function guardAmend(raw: unknown, input: AmendInput): AmendResult {
   const got = raw && typeof raw === "object" && typeof (raw as { amended?: unknown }).amended === "string" ? (raw as { amended: string }).amended : "";
   // AI가 조문 머리를 다시 붙여도 본문만
-  const text = got.replace(/^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*/, "").trim();
+  let text = got.replace(/^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*/, "").trim();
+  // 이미 '② 삭제 <날짜>'로 지운 항은 AI가 다시 써도 현행(규칙 반영본) 그대로
+  for (const m of input.current.matchAll(/([①-⑳])\s*삭제[^\n①-⑳]*/g)) text = text.replace(new RegExp(`${m[1]}\\s*삭제[^\\n①-⑳]*`), m[0].trimEnd());
   if (!text) return { ok: false, reason: "개정 조문이 비어 있음" };
   if (text.length > input.current.length * 3 + 600) return { ok: false, reason: "개정 조문이 지나치게 김(조문 체계 변경 의심)" };
   if (norm(text) === norm(input.current)) return { ok: false, reason: "현행과 바뀐 내용이 없음" };
@@ -105,6 +111,13 @@ export function guardAmend(raw: unknown, input: AmendInput): AmendResult {
   if (PENALTY.test(text) && !PENALTY.test([input.current, input.original ?? "", input.instruction].join(" "))) return { ok: false, reason: "현행에 없던 제재(벌칙·과태료 등)를 만듦" };
 
   const warnings: string[] = [];
+  // 의무·재량 표현이 바뀐 항(‘하여야 한다’ ↔ ‘할 수 있다’) — 개정 방향에 그런 말이 없으면 버리고, 있으면 확인 경고
+  const modal = (p: string) => Array.from(new Set(Array.from(p.matchAll(MODAL), (m) => MODAL_NAME(m[0])))).sort().join("·");
+  const modalChanged = curParas.flatMap((c, i) => (newParas[i] !== undefined && !/^.\s*삭제/.test(newParas[i]) && modal(c) && modal(newParas[i]) !== modal(c) ? [{ i, from: modal(c), to: modal(newParas[i]) || "없음" }] : []));
+  if (modalChanged.length) {
+    if (!new RegExp(MODAL.source).test(input.instruction) && !/의무|재량|임의|강행/.test(input.instruction)) return { ok: false, reason: `개정 방향에 없는 의무·재량 표현 변경(${modalChanged.map((x) => `${x.from} → ${x.to}`).join(", ")})` };
+    warnings.push(`의무·재량 표현이 바뀌었어요(${modalChanged.map((x) => `${x.i ? `제${x.i}항` : "본문"}: ${x.from} → ${x.to}`).join(", ")}) — 의도한 변경인지 확인하세요.`);
+  }
   const knownArts = new Set(sources.flatMap(articleRefs));
   const newArts = Array.from(new Set(articleRefs(text).filter((n) => !knownArts.has(n))));
   if (newArts.length) warnings.push(`현행에 없던 조문 인용(${newArts.map((n) => `제${n.replace("의", "조의")}${n.includes("의") ? "" : "조"}`).join(", ")}) — 같은 규정에 실제로 있는지 확인하세요.`);

@@ -50,4 +50,16 @@ describe("AI 개정안 가드", () => {
     const w = g(`${CUR}\n④ 제8조에 따른 신청은 전자문서로도 할 수 있다.`, "전자문서 신청 추가");
     expect(w.ok && w.warnings[0]).toContain("제8조");
   });
+  it("의무·재량 표현 변경: 지시에 없으면 버리고, 지시에 있으면 확인 경고", () => {
+    const opt = CUR.replace("처리하여야 한다", "처리할 수 있다");
+    expect(g(opt, "처리기간 문구 정비")).toMatchObject({ ok: false, reason: expect.stringContaining("의무 → 재량") });
+    const w = g(opt, "처리는 재량으로 할 수 있도록");
+    expect(w.ok && w.warnings.join()).toContain("제1항: 의무 → 재량");
+  });
+  it("규칙으로 이미 ‘③ 삭제 <날짜>’ 한 항은 AI가 다시 써도 그대로(중복 개정 표시 없음)", () => {
+    const cur = CUR.replace(/③ [^\n]+/, "③ 삭제 <2026. 11. 3.>");
+    const r = guardAmend({ amended: cur.replace("7일 이내", "7일 이내(전자문서 포함)").replace("③ 삭제 <2026. 11. 3.>", "③ 삭제") }, { ...base, current: cur, original: CUR, instruction: "전자문서 접수도 포함" });
+    expect(r).toMatchObject({ ok: true, changes: ["제1항 개정"] });
+    expect(r.ok && r.text).toContain("③ 삭제 <2026. 11. 3.>");
+  });
 });
