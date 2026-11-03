@@ -32,7 +32,7 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, t05: 13, t06: 8.5, t07: 10, t08: 13, t09: 11, t10: 11, t11: 11, t12: 9, t13: 8 }
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, t10: 11, t11: 11, t12: 9, t13: 8 }
   : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 7, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
@@ -600,12 +600,20 @@ await scene("s18", async () => {
     await page.getByPlaceholder("현행 조문을 붙여 넣으세요").fill("① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
     const ins = page.getByPlaceholder(/처리기간을 7일에서 5일로/);
     await click(ins);
-    await ins.type("7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경\n신설: ③ 제1항의 기간에는 공휴일과 토요일을 산입하지 아니한다.", { delay: 14 });
+    await ins.type("7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경\n처리 결과는 전자우편으로도 알릴 수 있도록", { delay: 14 });
+    await cap("정해진 문형(‘A에서 B로’)은 규칙으로 정확히 · 말하듯 쓴 의도는 AI가 조문으로", "‘처리 결과는 전자우편으로도 알릴 수 있도록’ → 국산 AI Solar Pro 4가 개정 조문을 쓰고 가드가 검증");
+    await wait(1500);
     await click(page.getByRole("button", { name: /개정안 작성/ }));
-    await wait(500);
+    const sec = await aiWait(() => page.getByText(/담당자 확인 필요|검증을 통과하지 못해|바꿀 내용을 정하지|연결하지 못했어요/).first().waitFor({ timeout: 80000 }).catch(() => {}), "개정 조문");
     await page.getByRole("heading", { name: "신·구조문 대비표", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await page.evaluate(() => window.scrollBy({ top: -150 }));
     await wait(300);
-    await cap("조문 수정안 + 신·구조문 대비표(삭제 취소선·개정 밑줄)", "정합성 점검 — 기간·금액 변경, 상위법 기준 초과, 인용 조문, 규제 신설·강화 표현 · 개정이유·부칙·입법예고문");
+    await cap("AI 작성 개정안 — 검증 통과분만 신·구조문 대비표로(삭제 취소선·개정 밑줄)", `실제 약 ${sec}초 · 지시에 없는 항 삭제·근거 밖 수치·법령·새 벌칙·의무↔재량 표현 변경은 가드가 차단, 담당자 확인 표시`);
+  });
+  await scene("t08b", async () => {
+    await page.getByRole("heading", { name: "정합성 점검", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await wait(300);
+    await cap("정합성 점검 → 개정이유·주요내용(바뀐 항 자동 정리) · 부칙 · 입법예고문", "기간·금액 변경, 상위법 기준 초과, 인용 조문, 규제 신설·강화 표현 · ‘제2항 삭제’는 법제 관행대로 ‘② 삭제 <날짜>’");
   });
   await scene("t09", async () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
@@ -641,10 +649,10 @@ await scene("s18", async () => {
   });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 179건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 188건</li></ul>`);
   });
   await scene("t13", async () => {
-    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 목적·위임 조항 → 조문 체계·표준 조문 · AI 빈칸 채우기(가드 검증)</li><li>✔ (개정) 개정 의도 → 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 자체규정 점검 → 상위법 개정 알림 → 개정안</li></ul>`);
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 목적·위임 조항 → 조문 체계·표준 조문 · AI 빈칸 채우기(가드 검증)</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 자체규정 점검 → 상위법 개정 알림 → 개정안</li></ul>`);
   });
 }
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지

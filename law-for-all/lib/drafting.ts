@@ -223,7 +223,7 @@ export function consistencyChecks(params: { current: string; amended: string; la
 
   // 5) 문장 형식
   const lastLine = amended.trim().split("\n").pop() ?? "";
-  if (!/^\s*(\d+\.|[가-하]\.)/.test(lastLine) && !/^\s*[①-⑳]?\s*삭제\b/.test(lastLine) && !/다\.\s*$/.test(lastLine)) checks.push({ level: "info", title: "문장 끝맺음", detail: "조문의 마지막 문장이 '~다.'로 끝나는지 확인하세요." });
+  if (!/^\s*(\d+\.|[가-하]\.)/.test(lastLine) && !/^\s*[①-⑳]?\s*삭제(?:\s|<|$)/.test(lastLine) && !/다\.\s*$/.test(lastLine)) checks.push({ level: "info", title: "문장 끝맺음", detail: "조문의 마지막 문장이 '~다.'로 끝나는지 확인하세요." });
 
   if (!checks.some((c) => c.level === "warn")) checks.push({ level: "ok", title: "자동 점검 이상 없음", detail: "자동으로 찾을 수 있는 문제는 없습니다. 법제 심사 기준에 따라 최종 검토하세요." });
   return checks;

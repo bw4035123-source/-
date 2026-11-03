@@ -55,6 +55,9 @@ describe("AI 개정안 가드", () => {
     expect(g(opt, "처리기간 문구 정비")).toMatchObject({ ok: false, reason: expect.stringContaining("의무 → 재량") });
     const w = g(opt, "처리는 재량으로 할 수 있도록");
     expect(w.ok && w.warnings.join()).toContain("제1항: 의무 → 재량");
+    // 활용형만 바뀐 경우(아니 된다 → 아니 되며)는 같은 금지 표현
+    const sec = guardAmend({ amended: "위원은 비밀을 누설하여서는 아니 되며, 물러난 뒤에도 같다." }, { ...base, current: "위원은 비밀을 누설하여서는 아니 된다.", instruction: "물러난 뒤에도 적용" });
+    expect(sec).toMatchObject({ ok: true, warnings: [] });
   });
   it("규칙으로 이미 ‘③ 삭제 <날짜>’ 한 항은 AI가 다시 써도 그대로(중복 개정 표시 없음)", () => {
     const cur = CUR.replace(/③ [^\n]+/, "③ 삭제 <2026. 11. 3.>");

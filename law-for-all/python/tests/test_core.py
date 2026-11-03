@@ -809,6 +809,10 @@ class AmendAiTest(unittest.TestCase):
         opt = C.replace("처리하여야 한다", "처리할 수 있다")
         self.assertIn("의무 → 재량", self.g(opt, "처리기간 문구 정비")["reason"])
         self.assertIn("제1항: 의무 → 재량", " ".join(self.g(opt, "처리는 재량으로 할 수 있도록")["warnings"]))
+        from law_for_all.amend_ai import guard_amend as _ga
+
+        sec = _ga({"amended": "위원은 비밀을 누설하여서는 아니 되며, 물러난 뒤에도 같다."}, {"lawName": "", "kind": "행정규칙", "label": "", "current": "위원은 비밀을 누설하여서는 아니 된다.", "instruction": "물러난 뒤에도 적용", "upper": []})
+        self.assertEqual((sec["ok"], sec["warnings"]), (True, []))
         from law_for_all.amend_ai import guard_amend
 
         cur = _re.sub(r"③ [^\n]+", "③ 삭제 <2026. 11. 3.>", C)

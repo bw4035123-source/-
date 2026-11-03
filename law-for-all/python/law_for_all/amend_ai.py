@@ -37,7 +37,7 @@ def amend_retry(reason: str) -> str:
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 _PENALTY = re.compile(r"(과태료|벌금|벌칙|징역|구류|과징금|금고)")
 # 의무(하여야 한다)·재량(할 수 있다)·금지(아니 된다) 표현
-_MODAL = re.compile(r"하여야\s*한다|해야\s*한다|하여야\s*하며|할\s*수\s*있|아니\s*된다|못한다|수\s*없다")
+_MODAL = re.compile(r"하여야\s*[한하]|해야\s*[한하]|할\s*수\s*있|아니\s*[된되]|못[한하]|수\s*없")
 
 
 def _modal_name(w: str) -> str:
