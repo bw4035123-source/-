@@ -147,7 +147,12 @@ export function DraftingView() {
         setAi({ changes: j.changes, warnings: j.warnings, label: j.label, model: j.model, retried: j.retried, text: j.text });
         toast("AI가 쓴 개정안이 검증을 통과했어요 — 내용을 꼭 확인하세요");
       } else {
-        setAi({ failed: `AI(${j.label})가 쓴 개정안이 검증을 통과하지 못해 쓰지 않았어요(${j.reason ?? "검증 실패"}). 개정안을 직접 고쳐 주세요.` });
+        setAi({
+          failed:
+            j.reason === "현행과 바뀐 내용이 없음"
+              ? `AI(${j.label})가 근거 없이 바꿀 내용을 정하지 않았어요. 따를 기준(예: 상위 규정의 금액·기간)을 개정 방향에 구체적으로 적거나, 개정안을 직접 고쳐 주세요.`
+              : `AI(${j.label})가 쓴 개정안이 검증을 통과하지 못해 쓰지 않았어요(${j.reason ?? "검증 실패"}). 개정안을 직접 고쳐 주세요.`,
+        });
       }
     } catch (e) {
       setAi({ failed: `${(e as Error).message} ${r.applied.length ? `규칙으로 반영한 ${r.applied.length}건만 적용했어요.` : ""}`.trim() });
