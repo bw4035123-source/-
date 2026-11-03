@@ -7,12 +7,12 @@ import { articleLabel } from "../law-api/util";
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
 import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
-import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
+import { findUnverifiedMentions, guardLLMOutput, sanitizeMarkers } from "./guard";
 import { FOLLOWUP_SUGGESTIONS } from "./followup-suggestions";
 import { retrieve } from "./retrieve";
 import { maskNotice, maskPII } from "../privacy-mask";
 import type { UserMode } from "./types";
-import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
+import { generateGuarded, llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
 
 /**
  * 이어서 묻기 — 검색 결과를 본 뒤 같은 사안을 더 묻는 질문에 답한다.
@@ -166,16 +166,12 @@ export async function followUp({ question: rawQ, prevQuery: rawPrev, mode, provi
     applyRule();
   } else {
     try {
-      const res = await provider.generate({
-        system: buildSystemPrompt(mode),
-        messages: [{ role: "user", content: buildUserPrompt(`이전 질문: ${prevQuery}\n이어서 묻는 질문: ${question}`, context) }],
-        json: true,
-        schema: schemaFor(mode),
-        temperature: 0.1,
-        maxTokens: 1200,
-      });
+      const { res, g } = await generateGuarded(
+        provider,
+        { system: buildSystemPrompt(mode), messages: [{ role: "user", content: buildUserPrompt(`이전 질문: ${prevQuery}\n이어서 묻는 질문: ${question}`, context) }], json: true, schema: schemaFor(mode), temperature: 0.1, maxTokens: 1200 },
+        (raw) => guardLLMOutput(raw, mode, context, [prevQuery, question]),
+      );
       usedProvider = { ...usedProvider, model: res.model || provider.model };
-      const g = guardLLMOutput(parseLooseJson(res.text), mode, context, [prevQuery, question]);
       answer = g.summary;
       removed = g.removed;
     } catch (e) {

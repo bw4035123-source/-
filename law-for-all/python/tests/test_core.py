@@ -727,6 +727,51 @@ class ResolveKeyTest(unittest.TestCase):
         self.assertEqual(removed, ["labor-standards:99:1"])
 
 
+class GuardedRetryTest(unittest.TestCase):
+    """검증 실패 시 한 번 다시 쓰기 — tests/fallback.test.ts 와 같은 사례"""
+
+    @staticmethod
+    def fake(outputs):
+        calls = []
+
+        class P:
+            def generate(self, **o):
+                calls.append(o)
+                out = outputs[len(calls) - 1]
+                if isinstance(out, Exception):
+                    raise out
+                return {"text": out, "model": "t"}
+
+        return P(), calls
+
+    @staticmethod
+    def guard(raw):
+        if raw.get("n") != 14:
+            raise ValueError(f"근거 원문에서 확인되지 않은 수치 1건: {raw.get('n')}일")
+        return raw["n"]
+
+    def test_retry(self):
+        from law_for_all.fallback import generate_guarded
+        from law_for_all.llm import LLMError
+
+        opts = {"system": "s", "messages": [{"role": "user", "content": "q"}], "json_mode": True}
+        p, calls = self.fake(['{"n":60}', '{"n":14}'])
+        res, g, retried = generate_guarded(p, self.guard, **opts)
+        self.assertEqual((g, retried, len(calls)), (14, True, 2))
+        self.assertIn("60일", calls[1]["messages"][-1]["content"])
+        self.assertEqual(calls[1]["messages"][1], {"role": "assistant", "content": '{"n":60}'})
+        p, calls = self.fake(['{"n":14}'])
+        self.assertEqual(generate_guarded(p, self.guard, **opts)[1:], (14, False))
+        self.assertEqual(len(calls), 1)
+        p, _ = self.fake(['{"n":60}', '{"n":30}'])
+        with self.assertRaisesRegex(ValueError, "30일"):
+            generate_guarded(p, self.guard, **opts)
+        p, calls = self.fake([LLMError("openai 연결 실패: 429", "openai")])
+        with self.assertRaises(LLMError):
+            generate_guarded(p, self.guard, **opts)
+        self.assertEqual(len(calls), 1)
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

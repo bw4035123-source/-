@@ -12,11 +12,11 @@ const getMockArticle = (key: string) => {
 import type { Contact } from "../law-api/mock/topics";
 import { resolveProvider } from "../llm/registry";
 import { buildSystemPrompt, buildUserPrompt, schemaFor } from "./prompts";
-import { findUnverifiedMentions, guardLLMOutput, parseLooseJson, sanitizeMarkers } from "./guard";
+import { findUnverifiedMentions, guardLLMOutput, sanitizeMarkers } from "./guard";
 import { relatedLawsOf, retrieve } from "./retrieve";
 import { buildRuleAnswer } from "./rule-engine";
 import { pickCases } from "./cases";
-import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
+import { generateGuarded, llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
 import { maskNotice, maskPII } from "../privacy-mask";
 import type { AskResult, UserMode } from "./types";
 
@@ -95,16 +95,12 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
     applyRuleEngine();
   } else {
     try {
-      const res = await provider.generate({
-        system: buildSystemPrompt(mode),
-        messages: [{ role: "user", content: buildUserPrompt(query, context) }],
-        json: true,
-        schema: schemaFor(mode),
-        temperature: 0.1,
-        maxTokens: 1800,
-      });
+      const { res, g } = await generateGuarded(
+        provider,
+        { system: buildSystemPrompt(mode), messages: [{ role: "user", content: buildUserPrompt(query, context) }], json: true, schema: schemaFor(mode), temperature: 0.1, maxTokens: 1800 },
+        (raw) => guardLLMOutput(raw, mode, context, [query]),
+      );
       usedProvider = { ...usedProvider, model: res.model || provider.model };
-      const g = guardLLMOutput(parseLooseJson(res.text), mode, context, [query]);
       summary = g.summary;
       citizen = g.citizen;
       officer = g.officer;

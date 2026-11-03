@@ -6,11 +6,11 @@ from __future__ import annotations
 import re
 import time
 
-from .fallback import NO_EVIDENCE, llm_fallback
+from .fallback import NO_EVIDENCE, generate_guarded, llm_fallback
 from .ask import DEFAULT_CONTACTS, now_iso, retrieve
 from .config import config
 from .data import article_label
-from .guard import MARKER, find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
+from .guard import MARKER, find_unverified_mentions, guard_llm_output, sanitize_markers
 from .llm import resolve_provider
 from .privacy import mask_notice, mask_pii
 from .prompts import schema_for, system_prompt, user_prompt
@@ -131,9 +131,8 @@ def followup(question: str, prev_query: str, mode: str = "citizen", provider: st
         rule()
     else:
         try:
-            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(f"이전 질문: {prev_query}\n이어서 묻는 질문: {question}", context)}], json_mode=True, temperature=0.1, max_tokens=1200, schema=schema_for(mode))
+            res, g, _ = generate_guarded(p, lambda raw: guard_llm_output(raw, mode, context, [prev_query, question]), system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(f"이전 질문: {prev_query}\n이어서 묻는 질문: {question}", context)}], json_mode=True, temperature=0.1, max_tokens=1200, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
-            g = guard_llm_output(parse_loose_json(res["text"]), mode, context, [prev_query, question])
             out.update(answer=g["summary"], removed=g["removed"])
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
             fallback = llm_fallback(p.label, e)

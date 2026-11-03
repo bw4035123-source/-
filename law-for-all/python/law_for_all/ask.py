@@ -5,11 +5,11 @@ import re
 import time
 from datetime import datetime, timezone
 
-from .fallback import NO_EVIDENCE, llm_fallback
+from .fallback import NO_EVIDENCE, generate_guarded, llm_fallback
 from .cases import pick_cases
 from .config import config
 from .data import LAWS, article_key, get_law, parse_key
-from .guard import find_unverified_mentions, guard_llm_output, parse_loose_json, sanitize_markers
+from .guard import find_unverified_mentions, guard_llm_output, sanitize_markers
 from .llm import resolve_provider
 from .prompts import schema_for, system_prompt, user_prompt
 from .privacy import mask_notice, mask_pii
@@ -112,9 +112,8 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         rule()
     else:
         try:
-            res = p.generate(system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800, schema=schema_for(mode))
+            res, g, _ = generate_guarded(p, lambda raw: guard_llm_output(raw, mode, context, [query]), system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
-            g = guard_llm_output(parse_loose_json(res["text"]), mode, context, [query])
             out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"])
             citation_keys = g["citationKeys"] + [k for k in citation_keys if k not in g["citationKeys"]]
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
