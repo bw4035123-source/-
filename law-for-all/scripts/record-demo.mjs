@@ -227,7 +227,7 @@ await scene("sAI", async () => {
   const badge = page.locator("button[aria-expanded]", { hasText: /근거 검증 통과|검수된 답변/ }).first();
   if (await has(badge)) await click(badge);
   await wait(300);
-  await cap("AI 답변도 검증을 통과해야 화면에 나옵니다 — ‘근거 검증 통과’", "근거 밖 인용·원문과 다른 금액·기간이면 AI 답변을 쓰지 않고 사람이 검수한 답변으로 대체 · 실서비스 실측 91/92 통과");
+  await cap("AI 답변도 검증을 통과해야 화면에 나옵니다 — ‘근거 검증 통과’", "근거 밖 인용·원문과 다른 금액·기간이면 AI 답변을 쓰지 않고 사람이 검수한 답변으로 대체 · 실서비스 실측 93/94 통과");
   await wait(3500);
   if (await has(badge)) await badge.click();
 });
@@ -502,11 +502,11 @@ await scene("s17", async () => {
 await scene("sE", async () => {
   await scrollToEl("#eval", 90);
   await wait(700);
-  await cap("정확도 성적표 공개 — 실서비스 Solar 답변 91/92 검증 통과 · 근거 밖 인용 0건", "가짜 인용 1516/1516 차단 · 독립 작성자(EXAONE) 블라인드 이력·틀린 문항 모두 공개 · npm run eval 로 누구나 재현");
+  await cap("정확도 성적표 공개 — 실서비스 Solar 답변 93/94 검증 통과 · 근거 밖 인용 0건", "가짜 인용 1516/1516 차단 · 독립 작성자(EXAONE) 블라인드 이력·틀린 문항 모두 공개 · npm run eval 로 누구나 재현");
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 실서비스 91/92 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 실서비스 93/94 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 } else {
   // ───────────── 세션 2 — 지정과제 ③ 규정 제·개정 에이전트

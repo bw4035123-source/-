@@ -1,6 +1,6 @@
 {
  "summary": {
-  "date": "2026-11-02",
+  "date": "2026-11-03",
   "base": "https://lawon.onrender.com",
   "provider": "openai",
   "files": [
@@ -11,16 +11,16 @@
   ],
   "total": 50,
   "errors": 0,
-  "noResult": 4,
-  "withEvidence": 46,
+  "noResult": 3,
+  "withEvidence": 47,
   "llmAnswered": 46,
-  "ruleFallback": 0,
-  "removedTotal": 0,
-  "unverifiedTotal": 2,
-  "correct": 45,
+  "ruleFallback": 1,
+  "removedTotal": 4,
+  "unverifiedTotal": 1,
+  "correct": 46,
   "graded": 50,
-  "medianMs": 9594,
-  "p90Ms": 12016,
+  "medianMs": 11198,
+  "p90Ms": 18055,
   "model": "solar-pro4-260806"
  },
  "rows": [
@@ -37,8 +37,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11751,
-   "wallMs": 12393
+   "serverMs": 17871,
+   "wallMs": 18548
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -53,8 +53,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 8435,
-   "wallMs": 8718
+   "serverMs": 6283,
+   "wallMs": 7077
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -69,8 +69,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6926,
-   "wallMs": 7399
+   "serverMs": 16123,
+   "wallMs": 16408
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -85,8 +85,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10488,
-   "wallMs": 10764
+   "serverMs": 18055,
+   "wallMs": 18337
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -101,8 +101,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7951,
-   "wallMs": 8233
+   "serverMs": 13058,
+   "wallMs": 13375
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -117,8 +117,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 6973,
-   "wallMs": 7252
+   "serverMs": 5432,
+   "wallMs": 5711
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -133,8 +133,8 @@
    "citations": 4,
    "noResult": false,
    "correct": true,
-   "serverMs": 7656,
-   "wallMs": 7936
+   "serverMs": 10742,
+   "wallMs": 11034
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -149,8 +149,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8881,
-   "wallMs": 9161
+   "serverMs": 11729,
+   "wallMs": 12023
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -165,8 +165,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11214,
-   "wallMs": 11494
+   "serverMs": 6469,
+   "wallMs": 6749
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -181,8 +181,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 6,
-   "wallMs": 286
+   "serverMs": 9,
+   "wallMs": 279
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -191,14 +191,14 @@
    "used": "llm",
    "model": "solar-pro4-260806",
    "fallback": null,
-   "passed": true,
+   "passed": false,
    "removed": 0,
-   "unverified": 0,
+   "unverified": 1,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11685,
-   "wallMs": 11963
+   "serverMs": 9361,
+   "wallMs": 9671
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -213,8 +213,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 8974,
-   "wallMs": 9258
+   "serverMs": 14277,
+   "wallMs": 14556
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -229,24 +229,24 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 13302,
-   "wallMs": 13577
+   "serverMs": 6169,
+   "wallMs": 6445
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "중고거래로 돈 보냈는데 물건을 안 보내요",
    "mode": "officer",
    "used": "llm",
-   "model": "solar-pro4",
-   "fallback": "근거 조문이 검색되지 않아 생성형 AI를 호출하지 않았습니다.",
+   "model": "solar-pro4-260806",
+   "fallback": null,
    "passed": true,
    "removed": 0,
    "unverified": 0,
-   "citations": 0,
-   "noResult": true,
-   "correct": false,
-   "serverMs": 9,
-   "wallMs": 288
+   "citations": 1,
+   "noResult": false,
+   "correct": true,
+   "serverMs": 11804,
+   "wallMs": 12074
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -261,8 +261,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9987,
-   "wallMs": 10260
+   "serverMs": 7733,
+   "wallMs": 8029
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -277,8 +277,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7331,
-   "wallMs": 7605
+   "serverMs": 12525,
+   "wallMs": 12804
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -293,8 +293,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9396,
-   "wallMs": 10154
+   "serverMs": 12219,
+   "wallMs": 12498
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -309,8 +309,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 13586,
-   "wallMs": 13886
+   "serverMs": 19631,
+   "wallMs": 19914
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -325,8 +325,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8295,
-   "wallMs": 8571
+   "serverMs": 9534,
+   "wallMs": 9819
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -341,8 +341,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10483,
-   "wallMs": 10808
+   "serverMs": 19491,
+   "wallMs": 19771
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -357,8 +357,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11764,
-   "wallMs": 12043
+   "serverMs": 12416,
+   "wallMs": 12698
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -373,8 +373,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 5526,
-   "wallMs": 5825
+   "serverMs": 8626,
+   "wallMs": 8911
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -389,8 +389,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6693,
-   "wallMs": 7499
+   "serverMs": 2769,
+   "wallMs": 3047
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -405,8 +405,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7450,
-   "wallMs": 7723
+   "serverMs": 7916,
+   "wallMs": 8187
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -421,8 +421,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10654,
-   "wallMs": 10933
+   "serverMs": 13206,
+   "wallMs": 13492
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -437,8 +437,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11750,
-   "wallMs": 12022
+   "serverMs": 12656,
+   "wallMs": 12939
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -453,8 +453,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 13573,
-   "wallMs": 13847
+   "serverMs": 13250,
+   "wallMs": 13530
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -469,8 +469,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11018,
-   "wallMs": 11311
+   "serverMs": 15837,
+   "wallMs": 16118
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -485,8 +485,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11438,
-   "wallMs": 11714
+   "serverMs": 4586,
+   "wallMs": 4877
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -501,8 +501,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 12016,
-   "wallMs": 12306
+   "serverMs": 5592,
+   "wallMs": 5873
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -512,13 +512,13 @@
    "model": "solar-pro4-260806",
    "fallback": null,
    "passed": true,
-   "removed": 0,
+   "removed": 4,
    "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10541,
-   "wallMs": 10854
+   "serverMs": 13353,
+   "wallMs": 13630
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -533,8 +533,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 7934,
-   "wallMs": 8206
+   "serverMs": 4009,
+   "wallMs": 4291
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -549,8 +549,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7543,
-   "wallMs": 7817
+   "serverMs": 9829,
+   "wallMs": 10647
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -565,8 +565,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11872,
-   "wallMs": 12790
+   "serverMs": 18807,
+   "wallMs": 19091
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -581,8 +581,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 10988,
-   "wallMs": 11268
+   "serverMs": 9007,
+   "wallMs": 9316
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -597,8 +597,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8903,
-   "wallMs": 9184
+   "serverMs": 14614,
+   "wallMs": 14901
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -613,8 +613,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 9441,
-   "wallMs": 9725
+   "serverMs": 11027,
+   "wallMs": 11303
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -629,8 +629,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7822,
-   "wallMs": 8109
+   "serverMs": 9619,
+   "wallMs": 9888
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -645,8 +645,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 15,
-   "wallMs": 288
+   "serverMs": 7,
+   "wallMs": 284
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -661,8 +661,8 @@
    "citations": 0,
    "noResult": true,
    "correct": false,
-   "serverMs": 9,
-   "wallMs": 291
+   "serverMs": 8,
+   "wallMs": 287
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -677,24 +677,24 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 11484,
-   "wallMs": 11767
+   "serverMs": 15324,
+   "wallMs": 15591
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
    "q": "운전면허 벌점이 쌓여서 정지된대요",
    "mode": "officer",
-   "used": "llm",
-   "model": "solar-pro4-260806",
-   "fallback": null,
-   "passed": false,
+   "used": "rule",
+   "model": "law-rule-engine-v1",
+   "fallback": "AI(업스테이지 Solar)의 답변이 근거 검증을 통과하지 못해 사람이 검수한 규칙기반 답변으로 대신 안내합니다. (기술 정보: 근거 원문에서 확인되지 않은 수치 1건: 28세)",
+   "passed": true,
    "removed": 0,
-   "unverified": 2,
+   "unverified": 0,
    "citations": 1,
    "noResult": false,
    "correct": false,
-   "serverMs": 7373,
-   "wallMs": 7652
+   "serverMs": 20946,
+   "wallMs": 21223
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -709,8 +709,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11013,
-   "wallMs": 11283
+   "serverMs": 18812,
+   "wallMs": 19112
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -725,8 +725,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 6804,
-   "wallMs": 7077
+   "serverMs": 4967,
+   "wallMs": 5244
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -741,8 +741,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7594,
-   "wallMs": 7883
+   "serverMs": 9566,
+   "wallMs": 10355
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -757,8 +757,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 7674,
-   "wallMs": 7954
+   "serverMs": 9709,
+   "wallMs": 9985
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -773,8 +773,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 13652,
-   "wallMs": 13922
+   "serverMs": 10766,
+   "wallMs": 11048
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -789,8 +789,8 @@
    "citations": 2,
    "noResult": false,
    "correct": true,
-   "serverMs": 9594,
-   "wallMs": 9868
+   "serverMs": 10798,
+   "wallMs": 11077
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -805,8 +805,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 8709,
-   "wallMs": 9000
+   "serverMs": 11198,
+   "wallMs": 11478
   },
   {
    "file": "tests/fixtures/coverage-v1.json",
@@ -821,8 +821,8 @@
    "citations": 1,
    "noResult": false,
    "correct": true,
-   "serverMs": 11363,
-   "wallMs": 11645
+   "serverMs": 13276,
+   "wallMs": 13560
   }
  ]
 }
