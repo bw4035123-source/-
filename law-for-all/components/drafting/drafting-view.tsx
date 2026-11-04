@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, Info, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, Info, Loader2, Sparkles, Table2, Wand2 } from "lucide-react";
 import type { LawArticle, LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import {
@@ -22,18 +22,111 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-import { copyText } from "@/lib/clipboard";
+import { copyRich, copyText } from "@/lib/clipboard";
 import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { fetchJson } from "@/lib/fetch-json";
 import { EnactPanel } from "./enact-panel";
-import { QuickAmend } from "./quick-amend";
 import { RenumberPanel } from "./renumber-panel";
 import { UpperPanel, type AmendHandoff } from "./upper-panel";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
 const kindOf = (k?: string): DraftKind => (k === "행정규칙" ? "행정규칙" : k === "자치법규" ? "자치법규" : "법령");
-const EXAMPLES = ["7일에서 5일로 단축", "신청은 전자문서로도 할 수 있도록 추가", "제2항을 삭제", "‘행정기관의 장’을 ‘시장ㆍ군수ㆍ구청장’으로 변경", "‘다만,’ 이하 단서 문장을 삭제하려면 ‘삭제할 문장’ 삭제", "신설: ③ 제1항의 기간에는 공휴일과 토요일을 산입하지 아니한다."];
+/** 개정 방향 입력 틀 — 누르면 ② 칸에 틀이 들어가고 O 자리만 고쳐 쓰면 됨 */
+const TEMPLATES = [
+  { label: "단어·기한 변경", text: "제O항의 'OO'을 'OO'(으)로 변경" },
+  { label: "단서·항목 신설", text: "제O항 뒤에 '다만, ~' 단서 추가" },
+  { label: "조항 삭제", text: "제O조 제O항 삭제 및 번호 순차 이동" },
+  { label: "용어 정비", text: "법제처 알기 쉬운 법령 기준에 맞게 용어 정비" },
+];
+const EXAMPLE_TEXT = "제5조(처리기간) ① 민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 부득이한 사유로 제1항의 기간 내에 처리할 수 없는 경우에는 한 차례만 연장할 수 있다.";
+const EXAMPLE_INSTRUCTION = "7일을 5일로 단축";
+/** 오른쪽 패널 처음 화면(결과물 예시) */
+const SAMPLE = {
+  label: "제5조(처리기간)",
+  current: "① 민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 부득이한 사유로 제1항의 기간 내에 처리할 수 없는 경우에는 한 차례만 연장할 수 있다.",
+  amended: "① 민원은 접수한 날부터 5일 이내에 처리하여야 한다.\n② 부득이한 사유로 제1항의 기간 내에 처리할 수 없는 경우에는 한 차례만 연장할 수 있다.",
+  reason: "1. 개정이유\n민원 처리기간을 단축하여 민원인의 편의를 높이고 신속한 행정서비스를 제공하려는 것임.\n\n2. 주요내용\n가. 민원 처리기간을 접수한 날부터 7일 이내에서 5일 이내로 단축함(안 제5조제1항).",
+};
+const HEAD = /^\s*(제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^)]*\))?)\s*/;
+const normHead = (h: string) => h.replace(/\s/g, "").replace(/\(/, "(");
+
+/** 신·구조문 대비표 HTML(복사·Word 공용) */
+function diffTableHtml(label: string, d: { old: DiffPart[]; new: DiffPart[] }) {
+  const cell = (parts: DiffPart[], side: "old" | "new") =>
+    parts.map((p) => (p.op === "same" ? escapeHtml(p.text) : side === "new" ? `<u><b>${escapeHtml(p.text)}</b></u>` : `<s>${escapeHtml(p.text)}</s>`)).join("").replace(/\n/g, "<br>");
+  const head = label ? `${escapeHtml(label)}<br>` : "";
+  return `<table border="1" cellspacing="0" cellpadding="6"><tr><th>현 행</th><th>개 정 안</th></tr><tr><td valign="top">${head}${cell(d.old, "old")}</td><td valign="top">${head}${cell(d.new, "new")}</td></tr></table>`;
+}
+
+/** 결과 탭: 신·구조문 대비표 / 개정문 전문 / 개정이유 */
+function ResultTabs({ label, current, amended, reason, sample }: { label: string; current: string; amended: string; reason: string; sample?: boolean }) {
+  const toast = useToast();
+  const d = React.useMemo(() => diffWords(current, amended), [current, amended]);
+  const full = `${label ? `${label} ` : ""}${amended}`;
+  const copyTable = async () => {
+    const text = `현행\t개정안\n${label} ${current.replace(/\n/g, " ")}\t${label} ${amended.replace(/\n/g, " ")}`;
+    toast((await copyRich(diffTableHtml(label, d), text)) ? "대비표를 복사했어요 — 한글·Word에 붙이면 표로 들어가요" : "복사 실패");
+  };
+  return (
+    <div className="rounded-2xl border bg-card p-5 shadow-sm">
+      {sample && (
+        <p className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-dashed border-accent/50 bg-accent/5 px-2.5 py-0.5 text-[11px] font-bold text-accent">결과물 예시 화면 — 왼쪽에서 생성하면 이 자리에 실제 결과가 나와요</p>
+      )}
+      <Tabs defaultValue="table">
+        <TabsList>
+          <TabsTrigger value="table">신·구조문 대비표</TabsTrigger>
+          <TabsTrigger value="full">개정문 전문</TabsTrigger>
+          <TabsTrigger value="reason">개정이유</TabsTrigger>
+        </TabsList>
+        <TabsContent value="table" className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              <del className="bg-rose-100 px-1 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">삭제</del> · <ins className="bg-sky-100 px-1 font-bold text-sky-900 underline dark:bg-sky-900/40 dark:text-sky-100">개정(밑줄)</ins>
+            </span>
+            <Button size="sm" variant="outline" onClick={copyTable}>
+              <Table2 /> 표 복사
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] table-fixed border-collapse text-sm">
+              <thead>
+                <tr className="bg-secondary/70">
+                  <th className="w-1/2 border px-3 py-2 text-center font-bold">현 행</th>
+                  <th className="w-1/2 border px-3 py-2 text-center font-bold">개 정 안</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="align-top">
+                  <td className="border px-3 py-2">
+                    {label && <p className="text-sm font-bold">{label}</p>}
+                    <DiffText parts={d.old} side="old" />
+                  </td>
+                  <td className="border bg-sky-50/40 px-3 py-2 dark:bg-sky-900/10">
+                    {label && <p className="text-sm font-bold">{label}</p>}
+                    <DiffText parts={d.new} side="new" />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </TabsContent>
+        <TabsContent value="full" className="space-y-2">
+          <pre className="law-text whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">{full}</pre>
+          <Button size="sm" variant="outline" onClick={async () => toast((await copyText(full)) ? "개정문 전문을 복사했어요" : "복사 실패")}>
+            <ClipboardCopy /> 복사
+          </Button>
+        </TabsContent>
+        <TabsContent value="reason" className="space-y-2">
+          <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 text-sm leading-7">{reason}</pre>
+          <Button size="sm" variant="outline" onClick={async () => toast((await copyText(reason)) ? "개정이유를 복사했어요" : "복사 실패")}>
+            <ClipboardCopy /> 복사
+          </Button>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
 function DiffText({ parts, side }: { parts: DiffPart[]; side: "old" | "new" }) {
   return (
@@ -62,14 +155,16 @@ export function DraftingView() {
   const qm = params.get("mode");
   // 제정이 먼저(기본) — 법령 뷰어의 '개정안 작성'처럼 조문을 넘겨받으면 개정
   const [mode, setMode] = React.useState<"amend" | "enact" | "renumber" | "upper">(qm === "amend" || qm === "renumber" || qm === "upper" || qm === "enact" ? qm : params.get("law") && params.get("no") ? "amend" : "enact");
-  const [source, setSource] = React.useState<"law" | "custom">("law");
+  const [source, setSource] = React.useState<"law" | "custom">(params.get("law") && params.get("no") ? "law" : "custom");
   const [laws, setLaws] = React.useState<LawSummary[]>([]);
   const [lawId, setLawId] = React.useState(params.get("law") ?? "");
   const [hier, setHier] = React.useState<Hier | null>(null);
   const [loadingLaw, setLoadingLaw] = React.useState(false);
   const [no, setNo] = React.useState(params.get("no") ?? "");
   // 직접 입력(자체 규정·조례)
-  const [custom, setCustom] = React.useState({ name: "", kind: "행정규칙" as DraftKind, label: "제1조(목적)", text: "" });
+  const [custom, setCustom] = React.useState({ name: "", kind: "행정규칙" as DraftKind, label: "", text: "" });
+  // 결과는 '생성'을 누른 조문에서만 보여 줌(그 전에는 결과물 예시)
+  const [ranFor, setRanFor] = React.useState<string | null>(null);
   const [instruction, setInstruction] = React.useState("");
   const [amended, setAmended] = React.useState("");
   const [applied, setApplied] = React.useState<Edit[]>([]);
@@ -103,7 +198,11 @@ export function DraftingView() {
 
   const meta = source === "law"
     ? { kind: kindOf(law?.kind === "법률" || law?.kind === "대통령령" || law?.kind?.includes("부령") ? "법령" : law?.kind), lawName: law?.name ?? "", label: article ? `${articleLabel(article.no)}(${article.title})` : "", current: article?.text ?? "" }
-    : { kind: custom.kind, lawName: custom.name || "(규정명)", label: custom.label, current: custom.text };
+    : (() => {
+        // 붙여 넣은 원문 첫머리의 '제N조(제목)'을 조 머리로 떼어 씀(상위법 개정 반영에서 넘어온 조문은 label 이 따로 있음)
+        const m = custom.text.match(HEAD);
+        return { kind: custom.kind, lawName: custom.name || "(규정명)", label: m ? normHead(m[1]) : custom.label, current: m ? custom.text.slice(m[0].length).trim() : custom.text.trim() };
+      })();
 
   const current = meta.current;
   // 조문을 바꾸면 개정안 초기화
@@ -138,6 +237,7 @@ export function DraftingView() {
   };
 
   const run = async () => {
+    setRanFor(current);
     const edits = parseInstruction(instruction);
     const r = applyEdits(current, edits);
     setAmended(r.text);
@@ -195,13 +295,8 @@ export function DraftingView() {
     { id: "notice", label: "입법예고문", body: noticeDraft(dmeta, reason) },
     { id: "steps", label: "절차 체크리스트", body: procedureChecklist(meta.kind).map((s, i) => `□ ${i + 1}. ${s}`).join("\n") },
   ];
-  const tableHtml = () => {
-    const cell = (parts: DiffPart[], side: "old" | "new") =>
-      parts.map((p) => (p.op === "same" ? escapeHtml(p.text) : side === "new" ? `<u>${escapeHtml(p.text)}</u>` : `<s>${escapeHtml(p.text)}</s>`)).join("");
-    return `<table><tr><th>현 행</th><th>개 정 안</th></tr><tr><td>${escapeHtml(meta.label)}\n${cell(diff.old, "old")}</td><td>${escapeHtml(meta.label)}\n${cell(diff.new, "new")}</td></tr></table>`;
-  };
   const exportAll = () =>
-    downloadWord(`${meta.lawName} ${meta.label} 개정안`, [{ title: "신·구조문 대비표", html: tableHtml() }, ...docs.map((d) => ({ title: d.label, body: d.body }))]);
+    downloadWord(`${meta.lawName} ${meta.label} 개정안`, [{ title: "신·구조문 대비표", html: diffTableHtml(meta.label, diff) }, ...docs.map((d) => ({ title: d.label, body: d.body }))]);
 
   const lawGroups = laws.filter((l) => !l.parentId);
 
@@ -237,18 +332,15 @@ export function DraftingView() {
       ) : mode === "upper" ? (
         <UpperPanel onAmend={handoff} initialLaw={params.get("law") ?? undefined} />
       ) : (
-      <>
-      <QuickAmend />
-      <p className="mb-3 text-sm font-bold text-muted-foreground">또는 법령을 골라 단계별로 개정안 만들기</p>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,45fr)_minmax(0,55fr)]">
         {/* 왼쪽: 입력 */}
-        <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm" aria-label="개정 대상과 방향">
+        <section className="space-y-5 rounded-2xl border bg-card p-5 shadow-sm" aria-label="개정 대상과 방향">
           <div>
             <p className="mb-2 text-sm font-bold">① 개정 대상</p>
-            <div className="mb-3 flex gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold">
-              {(["law", "custom"] as const).map((s) => (
-                <button key={s} type="button" onClick={() => setSource(s)} className={cn("flex-1 rounded-md px-3 py-1.5", source === s ? "bg-card shadow-sm" : "text-muted-foreground")} aria-pressed={source === s}>
-                  {s === "law" ? "법령에서 선택" : "직접 입력(자체 규정·조례)"}
+            <div className="mb-3 flex gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold" role="tablist" aria-label="개정 대상 입력 방식">
+              {(["custom", "law"] as const).map((s) => (
+                <button key={s} type="button" role="tab" onClick={() => setSource(s)} className={cn("flex-1 rounded-md px-3 py-1.5", source === s ? "bg-card shadow-sm" : "text-muted-foreground")} aria-selected={source === s}>
+                  {s === "law" ? "법령에서 선택" : "직접 입력"}
                 </button>
               ))}
             </div>
@@ -278,17 +370,25 @@ export function DraftingView() {
                 {law && <p className="text-xs text-muted-foreground">{law.kind} · {law.source === "live" ? "국가법령정보 실시간 원문" : "국가법령정보센터 원문 스냅샷"}</p>}
               </div>
             ) : (
-              <div className="grid gap-2">
-                <input value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="규정명 (예: ○○시 민원 처리 규정)" className="h-10 rounded-md border bg-card px-2.5 text-sm" />
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={custom.kind} onChange={(e) => setCustom({ ...custom, kind: e.target.value as DraftKind })} className="h-10 rounded-md border bg-card px-2 text-sm" aria-label="규범 종류">
-                    <option value="행정규칙">훈령·예규·내부 규정</option>
-                    <option value="자치법규">조례·규칙(자치법규)</option>
-                    <option value="법령">법령</option>
-                  </select>
-                  <input value={custom.label} onChange={(e) => setCustom({ ...custom, label: e.target.value })} placeholder="제5조(처리기간)" className="h-10 rounded-md border bg-card px-2.5 text-sm" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">현행 조문 원문</span>
+                  <button type="button" onClick={() => { setCustom({ ...custom, label: "", text: EXAMPLE_TEXT }); setInstruction(EXAMPLE_INSTRUCTION); }} className="rounded-full border bg-card px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
+                    예시 채우기
+                  </button>
                 </div>
-                <textarea value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} rows={6} placeholder="현행 조문을 붙여 넣으세요" className="rounded-md border bg-card p-2.5 text-sm leading-6" />
+                <textarea value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} rows={7} placeholder="기존 조문을 그대로 붙여넣으세요." className="w-full rounded-md border bg-card p-2.5 font-serif text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring" aria-label="현행 조문 원문" />
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-semibold text-muted-foreground">규정명·규범 종류 (선택 — 개정이유·부칙에 들어가요)</summary>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <input value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} placeholder="○○시 민원 처리 규정" className="h-9 rounded-md border bg-card px-2.5 text-sm" aria-label="규정명" />
+                    <select value={custom.kind} onChange={(e) => setCustom({ ...custom, kind: e.target.value as DraftKind })} className="h-9 rounded-md border bg-card px-2 text-sm" aria-label="규범 종류">
+                      <option value="행정규칙">훈령·예규·내부 규정</option>
+                      <option value="자치법규">조례·규칙(자치법규)</option>
+                      <option value="법령">법령</option>
+                    </select>
+                  </div>
+                </details>
               </div>
             )}
           </div>
@@ -299,37 +399,39 @@ export function DraftingView() {
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
               rows={4}
-              placeholder="예) 처리기간을 7일에서 5일로 단축 / ‘민원인’을 ‘신청인’으로 변경 / 신설: ③ …"
+              placeholder="바꿀 내용을 적으세요. 예: 7일을 5일로 단축"
               className="w-full rounded-md border bg-card p-2.5 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="개정 방향"
             />
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {EXAMPLES.map((x) => (
-                <button key={x} type="button" onClick={() => setInstruction((v) => (v ? `${v}\n${x}` : x))} className="rounded-full border bg-secondary/60 px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
-                  + {x.length > 22 ? `${x.slice(0, 22)}…` : x}
+            <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4" aria-label="개정 방향 입력 틀">
+              {TEMPLATES.map((t) => (
+                <button key={t.label} type="button" title={t.text} onClick={() => setInstruction((v) => (v.trim() ? `${v.replace(/\s+$/, "")}\n${t.text}` : t.text))} className="rounded-md border bg-secondary/60 px-2 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent">
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
-              소관 부서
-              <input value={dept} onChange={(e) => setDept(e.target.value)} placeholder="○○과" className="h-9 rounded-md border bg-card px-2 text-sm font-normal text-foreground" />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
-              시행 시기
-              <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="h-9 rounded-md border bg-card px-2 text-sm font-normal text-foreground">
-                <option value={0}>공포한 날부터</option>
-                <option value={30}>공포 후 30일</option>
-                <option value={90}>공포 후 3개월</option>
-                <option value={180}>공포 후 6개월</option>
-              </select>
-            </label>
+          <div className="space-y-3 border-t pt-4">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                소관 부서
+                <input value={dept} onChange={(e) => setDept(e.target.value)} placeholder="○○과" className="h-9 rounded-md border bg-card px-2 text-sm font-normal text-foreground" />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
+                시행 시기
+                <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="h-9 rounded-md border bg-card px-2 text-sm font-normal text-foreground">
+                  <option value={0}>공포한 날부터</option>
+                  <option value={30}>공포 후 30일</option>
+                  <option value={90}>공포 후 3개월</option>
+                  <option value={180}>공포 후 6개월</option>
+                </select>
+              </label>
+            </div>
+            <Button variant="accent" size="lg" className="w-full" onClick={run} disabled={!ready || !instruction.trim() || !!ai?.loading}>
+              {ai?.loading ? <Loader2 className="animate-spin" /> : <Wand2 />} {ai?.loading ? "AI가 개정 조문을 쓰는 중…" : "개정안 및 신·구조문대비표 생성"}
+            </Button>
           </div>
-
-          <Button variant="accent" size="lg" className="w-full" onClick={run} disabled={!ready || !instruction.trim() || !!ai?.loading}>
-            {ai?.loading ? <Loader2 className="animate-spin" /> : <Wand2 />} {ai?.loading ? "AI가 개정 조문을 쓰는 중…" : "개정안 작성"}
-          </Button>
           {(applied.length > 0 || notFound.length > 0) && (
             <div className="space-y-1 text-xs">
               {applied.map((e, i) => (
@@ -342,18 +444,16 @@ export function DraftingView() {
           )}
         </section>
 
-        {/* 오른쪽: 결과 */}
+        {/* 오른쪽: 결과(생성 전에는 결과물 예시) */}
         <section className="min-w-0 space-y-5" aria-label="개정안과 검토 결과">
-          {!ready ? (
-            <div className="grid h-full min-h-[300px] place-items-center rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              {loadingLaw ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" /> 법령을 불러오는 중…
-                </span>
-              ) : (
-                "왼쪽에서 개정할 조문을 선택하거나 직접 입력하세요."
-              )}
+          {loadingLaw && source === "law" ? (
+            <div className="grid min-h-[300px] place-items-center rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> 법령을 불러오는 중…
+              </span>
             </div>
+          ) : !ready || ranFor !== current ? (
+            <ResultTabs sample label={SAMPLE.label} current={SAMPLE.current} amended={SAMPLE.amended} reason={SAMPLE.reason} />
           ) : (
             <>
               {ai && !ai.loading && (
@@ -377,28 +477,11 @@ export function DraftingView() {
                   )}
                 </div>
               )}
-              <div className="rounded-2xl border bg-card p-5 shadow-sm">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="font-extrabold">신·구조문 대비표</h2>
-                  <span className="text-xs text-muted-foreground">
-                    <del className="bg-rose-100 px-1 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">삭제</del> · <ins className="bg-sky-100 px-1 font-bold text-sky-900 underline dark:bg-sky-900/40 dark:text-sky-100">개정(밑줄)</ins>
-                  </span>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-xl bg-secondary/50 p-3">
-                    <p className="mb-1 text-xs font-bold text-muted-foreground">현 행 · {meta.label}</p>
-                    <DiffText parts={diff.old} side="old" />
-                  </div>
-                  <div className="rounded-xl bg-sky-50/60 p-3 dark:bg-sky-900/10">
-                    <p className="mb-1 text-xs font-bold text-muted-foreground">개 정 안 · {meta.label}</p>
-                    <DiffText parts={diff.new} side="new" />
-                  </div>
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-accent">개정안 직접 고치기</summary>
-                  <textarea value={amended} onChange={(e) => setAmended(e.target.value)} rows={8} className="mt-2 w-full rounded-md border bg-card p-3 font-serif text-sm leading-7" aria-label="개정안 직접 수정" />
-                </details>
-              </div>
+              <ResultTabs label={meta.label} current={current} amended={amended} reason={reason} />
+              <details className="rounded-2xl border bg-card px-5 py-3 shadow-sm">
+                <summary className="cursor-pointer text-sm font-semibold text-accent">개정안 직접 고치기</summary>
+                <textarea value={amended} onChange={(e) => setAmended(e.target.value)} rows={8} className="mt-2 w-full rounded-md border bg-card p-3 font-serif text-sm leading-7" aria-label="개정안 직접 수정" />
+              </details>
 
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <h2 className="mb-3 font-extrabold">정합성 점검</h2>
@@ -432,20 +515,20 @@ export function DraftingView() {
 
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="font-extrabold">제·개정 문서 초안</h2>
+                  <h2 className="font-extrabold">부칙·입법예고문·절차</h2>
                   <Button size="sm" variant="accent" onClick={exportAll}>
                     <FileDown /> 대비표 포함 전체 Word 저장
                   </Button>
                 </div>
-                <Tabs defaultValue="reason">
+                <Tabs defaultValue="addenda">
                   <TabsList>
-                    {docs.map((d) => (
+                    {docs.filter((d) => d.id !== "reason").map((d) => (
                       <TabsTrigger key={d.id} value={d.id}>
                         {d.label}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  {docs.map((d) => (
+                  {docs.filter((d) => d.id !== "reason").map((d) => (
                     <TabsContent key={d.id} value={d.id} className="space-y-2">
                       <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 text-sm leading-7">{d.body}</pre>
                       <Button size="sm" variant="outline" onClick={async () => toast((await copyText(d.body)) ? `${d.label}을(를) 복사했습니다` : "복사 실패")}>
@@ -460,7 +543,6 @@ export function DraftingView() {
           )}
         </section>
       </div>
-      </>
       )}
     </div>
   );

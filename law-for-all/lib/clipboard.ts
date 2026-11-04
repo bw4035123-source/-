@@ -23,3 +23,16 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/** 표처럼 서식이 있는 내용 복사 — 한글·Word에 붙이면 표로 들어가도록 HTML과 일반 텍스트를 함께 넣음(안 되면 텍스트만) */
+export async function copyRich(html: string, text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext && typeof ClipboardItem !== "undefined") {
+      await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
+      return true;
+    }
+  } catch {
+    /* fallback */
+  }
+  return copyText(text);
+}
