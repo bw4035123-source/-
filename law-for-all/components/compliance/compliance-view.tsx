@@ -33,6 +33,8 @@ import { LawViewerSheet } from "@/components/law-search/law-viewer-sheet";
 import { copyText } from "@/lib/clipboard";
 import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
+import { complianceDocs, type CheckItem, type Verdict } from "@/lib/reg-report";
+import { RegReportPack } from "@/components/drafting/reg-report-pack";
 
 const TONE: Record<Severity, string> = {
   conflict: "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
@@ -263,6 +265,30 @@ export function ComplianceView() {
     ]);
   };
 
+  // 보고서 바로 만들기: 화면의 판정(규칙+AI 합친 것)·지적·근거·자동 개정안을 그대로 보고서 서식에
+  const VERDICT: Record<Severity, Verdict> = { conflict: "상충", review: "검토 필요", ok: "적합", info: "판단 보류" };
+  const buildReport = (o: Parameters<typeof complianceDocs>[1]) => {
+    const rs = merged?.results ?? [];
+    const laws = new Set<string>();
+    const items: CheckItem[] = rs.map((r) => {
+      const points: string[] = [];
+      for (const f of r.findings.filter((f) => f.severity !== "info")) {
+        const b = f.basis.map((x) => `「${lawName(x.lawId)}」 ${articleLabel(x.articleNo)}`);
+        f.basis.forEach((x) => laws.add(lawName(x.lawId)));
+        points.push(`${f.title}${b.length ? ` (근거: ${b.join(", ")})` : ""}`);
+      }
+      const a = ai.status === "done" || ai.status === "loading" ? ai.byNo.get(r.article.no) : undefined;
+      for (const it of a?.issues ?? []) {
+        const b = it.basis.map((k) => a!.upper.find((u) => u.key === k)).filter(Boolean).map((c) => `「${c!.lawName}」 ${articleLabel(c!.articleNo)}`);
+        a!.upper.forEach((c) => laws.add(c.lawName));
+        points.push(`${it.point}${it.suggestion ? ` → ${it.suggestion}` : ""}${b.length ? ` (근거: ${b.join(", ")})` : ""}`);
+      }
+      const am = amendedText(r);
+      return { label: regArticleLabel(r.article), verdict: VERDICT[r.status], points, current: r.article.text, amended: am || undefined };
+    });
+    return complianceDocs({ regName: merged?.regName ?? regName, orgType: merged?.orgType ?? orgType, items, laws: Array.from(laws), aiLabel: ai.status === "done" ? ai.label : undefined }, o);
+  };
+
   const shown = merged?.results.filter((r) => filter === "all" || r.status === filter) ?? [];
 
   return (
@@ -418,6 +444,7 @@ export function ComplianceView() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
+                    <RegReportPack build={buildReport} disabled={ai.status === "loading"} label={ai.status === "loading" ? "AI 확인 후 보고서" : "보고서 바로 만들기"} />
                     <Button size="sm" variant="outline" onClick={() => copy(reportText, "검토 보고서를 복사했어요.")}>
                       <ClipboardCopy /> 보고서 복사
                     </Button>

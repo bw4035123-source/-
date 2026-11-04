@@ -15,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
 import { downloadWord } from "@/lib/word-export";
+import { enactDocs } from "@/lib/reg-report";
+import { RegReportPack } from "./reg-report-pack";
 import { cn } from "@/lib/utils";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
@@ -268,6 +270,7 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFill, d.fullText]);
 
+  const buildReport = (o: Parameters<typeof enactDocs>[1]) => enactDocs({ name, kind, fullText: shownText, reason: d.reason, basis: basis.map((b) => b.label), effectiveDays: days, org: org || undefined }, o);
   const exportAll = () => downloadWord(`${name.trim() || "제정안"} 제정안`, [{ title: "제정안", body: shownText }, ...docs.map((x) => ({ title: x.label, body: x.body }))]);
   const lawGroups = laws.filter((l) => !l.parentId);
 
@@ -413,6 +416,7 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
                   <Button size="sm" variant="outline" onClick={runFill} disabled={fillBusy}>
                     {fillBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} 빈칸만 채우기
                   </Button>
+                  <RegReportPack build={buildReport} label="보고서" variant="outline" />
                   <Button size="sm" variant="outline" onClick={async () => toast((await copyText(shownText)) ? "제정안을 복사했습니다" : "복사 실패")}>
                     <ClipboardCopy /> 제정안 복사
                   </Button>
@@ -612,9 +616,12 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
             <div className="rounded-2xl border bg-card p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-extrabold">제정 문서 초안</h2>
-                <Button size="sm" variant="accent" onClick={exportAll}>
-                  <FileDown /> 제정안 포함 전체 Word 저장
-                </Button>
+                <div className="flex flex-wrap gap-1.5">
+                  <RegReportPack build={buildReport} label="제정 보고서 바로 만들기" />
+                  <Button size="sm" variant="outline" onClick={exportAll}>
+                    <FileDown /> 제정안 포함 전체 Word 저장
+                  </Button>
+                </div>
               </div>
               <Tabs defaultValue="reason">
                 <TabsList>

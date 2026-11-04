@@ -27,6 +27,8 @@ import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { fetchJson } from "@/lib/fetch-json";
 import { EnactPanel } from "./enact-panel";
+import { RegReportPack } from "./reg-report-pack";
+import { amendDocs } from "@/lib/reg-report";
 import { RenumberPanel } from "./renumber-panel";
 import { UpperPanel, type AmendHandoff } from "./upper-panel";
 
@@ -295,6 +297,8 @@ export function DraftingView() {
     { id: "notice", label: "입법예고문", body: noticeDraft(dmeta, reason) },
     { id: "steps", label: "절차 체크리스트", body: procedureChecklist(meta.kind).map((s, i) => `□ ${i + 1}. ${s}`).join("\n") },
   ];
+  const buildReport = (o: Parameters<typeof amendDocs>[1]) =>
+    amendDocs({ lawName: meta.lawName, kind: meta.kind, label: meta.label, current, amended, reason, addenda: addendaDraft(dmeta), checks, effectiveDays: days, upperBasis: fromUpper?.basis }, o);
   const exportAll = () =>
     downloadWord(`${meta.lawName} ${meta.label} 개정안`, [{ title: "신·구조문 대비표", html: diffTableHtml(meta.label, diff) }, ...docs.map((d) => ({ title: d.label, body: d.body }))]);
 
@@ -477,6 +481,10 @@ export function DraftingView() {
                   )}
                 </div>
               )}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3">
+                <p className="text-sm font-semibold">개정안이 만들어졌어요 — 결재용 보고서·기안문·신·구조문대비표를 바로 만들 수 있어요.</p>
+                <RegReportPack build={buildReport} label="개정 보고서 바로 만들기" />
+              </div>
               <ResultTabs label={meta.label} current={current} amended={amended} reason={reason} />
               <details className="rounded-2xl border bg-card px-5 py-3 shadow-sm">
                 <summary className="cursor-pointer text-sm font-semibold text-accent">개정안 직접 고치기</summary>
@@ -516,7 +524,7 @@ export function DraftingView() {
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="font-extrabold">부칙·입법예고문·절차</h2>
-                  <Button size="sm" variant="accent" onClick={exportAll}>
+                  <Button size="sm" variant="outline" onClick={exportAll}>
                     <FileDown /> 대비표 포함 전체 Word 저장
                   </Button>
                 </div>
