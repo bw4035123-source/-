@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
+import { OFFICER_REG_TEMPLATES } from "@/lib/suggestions";
 
 /** 메인 화면 큰 바로가기 — 국민: 법률 상황 분석실 / 공직자: 자체규정 점검 */
 export function ModeCta() {
@@ -10,16 +11,42 @@ export function ModeCta() {
   const cls = "group mt-6 flex w-full max-w-3xl items-center gap-4 rounded-2xl border-2 border-dashed border-accent/40 bg-card/80 p-4 text-left shadow-sm transition hover:border-accent hover:shadow-md";
   if (mode === "officer")
     return (
-      <Link href="/compliance" className={cls}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow" aria-hidden>
-          <ScanSearch className="h-5 w-5" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-extrabold">자체규정 점검</span>
-          <span className="block text-sm text-muted-foreground">우리 기관 규정 파일(한글·PDF·Word)을 넣으면 상위법령과 대조해 상충·검토 필요 조항, 근거 조문, 개정안을 보여 드려요.</span>
-        </span>
-        <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
-      </Link>
+      <div className="mt-6 w-full max-w-3xl space-y-3">
+        <div className="rounded-2xl border bg-card/80 p-4 text-left shadow-sm">
+          <p className="flex items-center gap-1.5 text-sm font-extrabold">
+            <FilePenLine className="h-4 w-4 text-accent" aria-hidden /> 규정 바로 만들기 <span className="text-xs font-semibold text-muted-foreground">— 누르면 상위법령을 찾아 AI가 제정안을 써요</span>
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5" aria-label="자주 만드는 내부 규정">
+            {OFFICER_REG_TEMPLATES.map((t) => (
+              <Link key={t.label} href={`/drafting?mode=enact&one=${encodeURIComponent(t.request)}`} className="rounded-full border bg-card px-3 py-1 text-[13px] font-semibold text-foreground/85 transition hover:-translate-y-0.5 hover:border-accent hover:text-accent">
+                # {t.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link href="/drafting" className={cls.replace("mt-6 ", "").replace("max-w-3xl", "")}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow" aria-hidden>
+              <FilePenLine className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-extrabold">규정 제·개정 지원</span>
+              <span className="block text-sm text-muted-foreground">한 줄 제정 · 조문 붙여 “개정해줘” · 상위법 개정 반영</span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
+          </Link>
+          <Link href="/compliance" className={cls.replace("mt-6 ", "").replace("max-w-3xl", "")}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow" aria-hidden>
+              <ScanSearch className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-extrabold">자체규정 점검</span>
+              <span className="block text-sm text-muted-foreground">규정 파일을 넣으면 AI가 상위법령과 조문별로 대조해요</span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
+          </Link>
+        </div>
+      </div>
     );
   return (
     <Link href="/analyze" className={cls}>
@@ -47,8 +74,8 @@ const CITIZEN = [
 const OFFICER = [
   { icon: Building2, title: "행정 검토 보고", desc: "검토 결론·근거 체계·쟁점·유의사항·체크리스트를 보고서 형식으로 정리해요." },
   { icon: FileStack, title: "보고서 한 번에 작성", desc: "검토 보고서·기안문·민원 회신문·붙임을 한 번에 만들고 Word로 저장해요." },
-  { icon: ScanSearch, title: "자체규정 점검", desc: "우리 기관 규정을 근로기준법·청탁금지법·공직선거법·지방공기업법·공유재산법과 조문 단위로 대조해요." },
-  { icon: FilePenLine, title: "규정 제·개정 지원", desc: "개정안·신구조문 대비표·정합성 점검·개정이유·부칙·입법예고문 초안." },
+  { icon: FilePenLine, title: "규정 제·개정 지원", desc: "한 줄로 제정안, 조문을 붙여 “개정해줘”면 개정 이유·전문·신구조문대비표까지." },
+  { icon: ScanSearch, title: "자체규정 점검", desc: "규정 파일을 AI가 국가법령정보 상위 조문과 조문별로 대조하고 법정 기준도 점검해요." },
   { icon: ShieldCheck, title: "근거 인용·환각 방지", desc: "근거 밖 인용 자동 제거, 원문 대조, 인용 표기 복사로 공문서에 바로 활용." },
 ];
 

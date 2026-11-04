@@ -27,6 +27,7 @@ import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { fetchJson } from "@/lib/fetch-json";
 import { EnactPanel } from "./enact-panel";
+import { QuickAmend } from "./quick-amend";
 import { RenumberPanel } from "./renumber-panel";
 import { UpperPanel, type AmendHandoff } from "./upper-panel";
 
@@ -59,7 +60,8 @@ export function DraftingView() {
   const params = useSearchParams();
   const toast = useToast();
   const qm = params.get("mode");
-  const [mode, setMode] = React.useState<"amend" | "enact" | "renumber" | "upper">(qm === "enact" || qm === "renumber" || qm === "upper" ? qm : "amend");
+  // 제정이 먼저(기본) — 법령 뷰어의 '개정안 작성'처럼 조문을 넘겨받으면 개정
+  const [mode, setMode] = React.useState<"amend" | "enact" | "renumber" | "upper">(qm === "amend" || qm === "renumber" || qm === "upper" || qm === "enact" ? qm : params.get("law") && params.get("no") ? "amend" : "enact");
   const [source, setSource] = React.useState<"law" | "custom">("law");
   const [laws, setLaws] = React.useState<LawSummary[]>([]);
   const [lawId, setLawId] = React.useState(params.get("law") ?? "");
@@ -220,7 +222,7 @@ export function DraftingView() {
                 : "조문을 새로 넣거나 삭제해 번호가 바뀔 때, 같은 규정 안에서 고쳐야 할 인용을 모두 찾고 정정한 전문을 만들어 드려요."}
         </p>
         <div className="mt-4 inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold" role="tablist" aria-label="제정·개정 선택">
-          {(["amend", "enact", "renumber", "upper"] as const).map((m) => (
+          {(["enact", "amend", "renumber", "upper"] as const).map((m) => (
             <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("rounded-md px-4 py-1.5", mode === m ? "bg-card shadow-sm" : "text-muted-foreground")}>
               {m === "amend" ? "개정(조문 고치기)" : m === "enact" ? "제정(새 규정 만들기)" : m === "renumber" ? "조 번호 정리(인용 정정)" : "상위법 개정 반영"}
             </button>
@@ -229,13 +231,15 @@ export function DraftingView() {
       </header>
 
       {mode === "enact" ? (
-        <EnactPanel laws={laws} />
+        <EnactPanel laws={laws} initialOne={params.get("one") ?? undefined} />
       ) : mode === "renumber" ? (
         <RenumberPanel />
       ) : mode === "upper" ? (
         <UpperPanel onAmend={handoff} initialLaw={params.get("law") ?? undefined} />
       ) : (
-
+      <>
+      <QuickAmend />
+      <p className="mb-3 text-sm font-bold text-muted-foreground">또는 법령을 골라 단계별로 개정안 만들기</p>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         {/* 왼쪽: 입력 */}
         <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm" aria-label="개정 대상과 방향">
@@ -456,6 +460,7 @@ export function DraftingView() {
           )}
         </section>
       </div>
+      </>
       )}
     </div>
   );

@@ -12,6 +12,10 @@ const Body = z.object({
   provider: z.string().max(20).optional(),
 });
 
+// 같은 질문(메인 해시태그 등)은 AI 답변이 검증을 통과한 경우만 6시간 재사용 — 대체·실패 답변은 저장하지 않음
+const CACHE = new Map<string, { at: number; value: Awaited<ReturnType<typeof ask>> }>();
+const TTL = 6 * 3600 * 1000;
+
 export async function POST(req: Request) {
   const rl = rateLimit(clientKey(req));
   if (!rl.ok) {
@@ -28,7 +32,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "입력값 오류" }, { status: 400 });
   }
   try {
-    return NextResponse.json(await ask(parsed.data));
+    const key = JSON.stringify([parsed.data.query, parsed.data.mode, parsed.data.provider ?? null]);
+    const hit = CACHE.get(key);
+    if (hit && Date.now() - hit.at < TTL) return NextResponse.json({ ...hit.value, cached: true });
+    const res = await ask(parsed.data);
+    if (res.provider.kind === "llm" && !res.guard.fallbackKind) {
+      CACHE.set(key, { at: Date.now(), value: res });
+      if (CACHE.size > 500) CACHE.delete(CACHE.keys().next().value as string);
+    }
+    return NextResponse.json(res);
   } catch (e) {
     console.error("[api/ask]", e);
     return NextResponse.json({ error: "답변 생성 중 오류가 발생했습니다." }, { status: 500 });

@@ -638,7 +638,7 @@ function ArticleCard({
                 <ClipboardCopy /> 복사
               </Button>
               <Button size="sm" variant="ghost" asChild>
-                <Link href="/drafting">
+                <Link href="/drafting?mode=amend">
                   <FilePenLine /> 제·개정 지원
                 </Link>
               </Button>

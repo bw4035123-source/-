@@ -991,3 +991,18 @@ class CaseRankTest(unittest.TestCase):
         self.assertEqual(live_case_query("택배가 분실됐는데 배상받을 수 있나요"), "택배 분실")
         self.assertEqual(live_case_query("주차장에서 문콕 당했어요"), "주차장 문콕")
         self.assertEqual(live_case_query("아르바이트 최저시급 못 받았어요"), "최저임금")
+
+
+class QuickAmendSplitTest(unittest.TestCase):
+    """한 번에 개정 요청 분리 — tests/amend-quick.test.ts 와 같은 사례"""
+
+    def test_split(self):
+        from law_for_all.amend_quick import split_quick
+        req, arts = split_quick("제5조(처리기간) ① 민원은 7일 안에 처리해야 한다.\n② 한번 연장할 수 있다.\n제 6 조 (결과 통지) 문서로 통지해야 한다.\n개정해줘")
+        self.assertEqual(req, "개정해줘")
+        self.assertEqual([a["label"] for a in arts], ["제5조(처리기간)", "제6조(결과 통지)"])
+        self.assertIn("\n② 한번", arts[0]["text"])
+        req, arts = split_quick("민원은 7일 안에 처리한다.\n7일을 5일로 수정해주세요.")
+        self.assertEqual(req, "7일을 5일로 수정해주세요.")
+        self.assertEqual(arts, [{"label": "(조문)", "text": "민원은 7일 안에 처리한다."}])
+        self.assertEqual(split_quick("제1조(목적) 이 규정은 목적을 정한다.")[0], "개정해줘")

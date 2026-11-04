@@ -32,13 +32,13 @@ export function SiteHeader() {
             <span className="hidden lg:inline">판례 보기</span>
           </Link>
           <OnlyMode mode="officer">
-            <Link href="/compliance" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
-              <ScanSearch className="h-4 w-4" aria-hidden />
-              자체규정 점검
-            </Link>
             <Link href="/drafting" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
               <FilePenLine className="h-4 w-4" aria-hidden />
               제·개정 지원
+            </Link>
+            <Link href="/compliance" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-accent hover:bg-secondary">
+              <ScanSearch className="h-4 w-4" aria-hidden />
+              자체규정 점검
             </Link>
           </OnlyMode>
           <Link href="/laws" className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
@@ -67,11 +67,11 @@ export function SiteHeader() {
           <Landmark className="h-3.5 w-3.5" aria-hidden /> 판례
         </Link>
         <OnlyMode mode="officer">
-          <Link href="/compliance" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
-            <ScanSearch className="h-3.5 w-3.5" aria-hidden /> 규정 점검
-          </Link>
           <Link href="/drafting" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
             <FilePenLine className="h-3.5 w-3.5" aria-hidden /> 제·개정
+          </Link>
+          <Link href="/compliance" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
+            <ScanSearch className="h-3.5 w-3.5" aria-hidden /> 규정 점검
           </Link>
         </OnlyMode>
         <ModelSelect className="2xl:hidden" />

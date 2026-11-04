@@ -23,6 +23,8 @@ from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
+from .amend_quick import QUICK_SYSTEM, build_quick_prompt, split_quick
+from .numbers import unverified_quantities
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
 from .enact_write import WRITE_SYSTEM, build_write_prompt, guard_write
 from .enact_plan import PLAN_SYSTEM, TOC_SKIP, build_plan_prompt, clean_request, guard_plan
@@ -183,6 +185,7 @@ def _validate_compliance_ai(body: dict) -> dict:
 
 
 _COMP_CACHE: dict[str, tuple[float, dict]] = {}
+_ASK_CACHE: dict[str, tuple[float, dict]] = {}
 _COMP_TTL = 6 * 3600
 
 
@@ -304,6 +307,75 @@ def enact_ai(body: dict) -> tuple[int, dict]:
     except LLMError as e:
         return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 잠시 후 다시 시도하세요.", "detail": str(e)}
     return 502, {"error": f"AI({p.label})가 규정 설계를 만들지 못했어요. 요청을 조금 더 구체적으로 적어 주세요."}
+
+
+def amend_quick(body: dict) -> tuple[int, dict]:
+    """한 번에 개정: 조문 + "개정해줘" → AI 개정(가드) → 요약·개정 조문·대비표용 자료(app/api/amend-quick/route.ts 와 같음)"""
+    text, prov = body.get("text"), body.get("provider")
+    if not isinstance(text, str) or not 5 <= len(text) <= 6000:
+        raise ApiError(400, "개정할 조문을 붙여 넣고 ‘개정해줘’라고 적어 주세요.")
+    request, articles = split_quick(mask_pii(text)[0])
+    if not articles:
+        raise ApiError(400, "개정할 조문을 찾지 못했어요. 조문을 붙여 넣어 주세요.")
+    if len(articles) > 10:
+        raise ApiError(400, "한 번에 10개 조문까지 개정할 수 있어요.")
+    p, _ = resolve_provider(config.llm, prov if isinstance(prov, str) and len(prov) <= 20 else None)
+    if p.kind == "rule":
+        return 503, {"error": "생성형 AI가 연결되어 있지 않아요. 아래 ‘개정 방향’에 ‘A에서 B로’처럼 적어 규칙으로 개정하세요."}
+    svc = LawService(config.law_access)
+    head = re.compile(r"^제\d+조")
+    q = re.sub(r"\s+", " ", " ".join(head.sub("", a["label"]) + " " + a["text"] for a in articles))[:300]
+    try:
+        context = gather_evidence(q, svc)[1]
+    except Exception:  # noqa: BLE001
+        context = []
+    upper = [{"label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in context[:4]]
+
+    def no_of(label: str) -> str:
+        s = re.sub(r"\s", "", label)
+        m = re.match(r"제\d+조(?:의\d+)?", s)
+        return m.group(0) if m else s
+
+    def law_refs(s: str) -> list[str]:
+        return [m.group(1).replace(" ", "") for m in re.finditer(r"「([^」]{2,60})」", s)]
+
+    messages = [{"role": "user", "content": build_quick_prompt(request, articles, upper)}]
+    model = p.model
+    try:
+        for attempt in range(2):
+            res = p.generate(system=QUICK_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=3000, timeout_ms=70000)
+            model = res.get("model") or model
+            try:
+                raw = parse_loose_json(res["text"])
+            except Exception:  # noqa: BLE001
+                messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
+                continue
+            raw = raw if isinstance(raw, dict) else {}
+            out, rejected = [], []
+            for it in raw.get("articles") if isinstance(raw.get("articles"), list) else []:
+                it = it if isinstance(it, dict) else {}
+                label = it.get("label") if isinstance(it.get("label"), str) else ""
+                src = next((a for a in articles if no_of(a["label"]) == no_of(label)), articles[0] if len(articles) == 1 else None)
+                if not src or any(o["label"] == src["label"] for o in out):
+                    continue
+                g = guard_amend({"amended": it.get("amended")}, {"lawName": "", "kind": "", "label": src["label"], "current": src["text"], "instruction": request, "upper": upper})
+                if g["ok"]:
+                    out.append({"label": src["label"], "current": src["text"], "amended": g["text"], "changes": g["changes"], "warnings": g["warnings"]})
+                elif g["reason"] != "현행과 바뀐 내용이 없음":
+                    rejected.append({"label": src["label"], "reason": g["reason"]})
+            if not out and rejected and attempt == 0:
+                why = "; ".join(f"{r['label']} {r['reason']}" for r in rejected)
+                messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": f"방금 개정안이 검증에 걸렸다: {why}\n절대 규칙을 지켜 같은 JSON 형식으로 다시 써라."}]
+                continue
+            summary = re.sub(r"\s+", " ", raw.get("summary")).strip()[:300] if isinstance(raw.get("summary"), str) else ""
+            sources = [request, *[a["text"] for a in articles], *[o["amended"] for o in out], *[f"{u['label']} {u['text']}" for u in upper]]
+            known = {n for s in sources for n in law_refs(s)}
+            if not summary or unverified_quantities([summary], sources) or any(n not in known for n in law_refs(summary)):
+                summary = (", ".join(f"{o['label']} {'·'.join(o['changes'])}" for o in out) + " — 공문서·법제 표준 문체에 맞게 정비함.") if out else ""
+            return 200, {"request": request, "summary": summary, "articles": out, "rejected": rejected, "unchanged": len(articles) - len(out) - len(rejected), "upper": [u["label"] for u in upper], "label": p.label, "model": model}
+    except LLMError as e:
+        return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 잠시 후 다시 시도하세요.", "detail": str(e)}
+    return 502, {"error": f"AI({p.label})가 쓴 개정안이 검증을 통과하지 못했어요. 개정 내용을 구체적으로 적어 다시 요청하세요."}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -455,6 +527,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/amend-quick":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 10)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            code, payload = amend_quick(self._body())
+            return self._json(code, payload)
         if method == "POST" and path == "/api/enact-write":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
             if not ok:
@@ -535,7 +613,17 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
             if path == "/api/ask":
                 a = _validate_ask(body)
-                return self._json(200, ask(a["query"], a["mode"], a["provider"]))
+                # 같은 질문(메인 해시태그 등)은 AI 답변이 검증을 통과한 경우만 6시간 재사용 — 대체·실패 답변은 저장하지 않음
+                ck = json.dumps([a["query"], a["mode"], a["provider"]], ensure_ascii=False)
+                hit = _ASK_CACHE.get(ck)
+                if hit and time.time() - hit[0] < _COMP_TTL:
+                    return self._json(200, {**hit[1], "cached": True})
+                res = ask(a["query"], a["mode"], a["provider"])
+                if (res.get("provider") or {}).get("kind") == "llm" and not (res.get("guard") or {}).get("fallbackKind"):
+                    _ASK_CACHE[ck] = (time.time(), res)
+                    if len(_ASK_CACHE) > 500:
+                        _ASK_CACHE.pop(next(iter(_ASK_CACHE)))
+                return self._json(200, res)
             if path == "/api/followup":
                 a = _validate_followup(body)
                 return self._json(200, followup(a["question"], a["prevQuery"], a["mode"], a["provider"]))

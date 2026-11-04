@@ -48,7 +48,7 @@ function markValues(text: string, values: string[]): React.ReactNode[] {
 }
 
 /** 규정 제정 지원: 제정 목적·상위법 위임 조항·담을 내용 → 조문 체계·표준 조문 초안·위임 사항 대조·제정이유·입법예고문 */
-export function EnactPanel({ laws }: { laws: LawSummary[] }) {
+export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOne?: string }) {
   const toast = useToast();
   const [name, setName] = React.useState("");
   const [kind, setKind] = React.useState<DraftKind>("행정규칙");
@@ -219,7 +219,7 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
     }
   };
   // 한 줄 제정: 요청 → 국가법령정보 상위 조문 → AI 설계 → (표준 초안) → AI 빈칸 채우기까지 한 번에
-  const [oneLine, setOneLine] = React.useState("");
+  const [oneLine, setOneLine] = React.useState(initialOne ?? "");
   const [planBusy, setPlanBusy] = React.useState(false);
   const [planInfo, setPlanInfo] = React.useState<{ notes: string[]; evidence: number; label: string } | null>(null);
   const [pendingFill, setPendingFill] = React.useState(false);
@@ -250,6 +250,15 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
       setPlanBusy(false);
     }
   };
+  // 메인 화면 '규정 바로 만들기'에서 넘어오면 바로 실행(한 번만)
+  const autoRan = React.useRef(false);
+  React.useEffect(() => {
+    if (initialOne && !autoRan.current) {
+      autoRan.current = true;
+      void runPlan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOne]);
   // 설계가 반영된 초안이 만들어지면 AI 빈칸 채우기까지 이어서
   React.useEffect(() => {
     if (pendingFill && d.articles.length) {

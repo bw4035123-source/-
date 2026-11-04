@@ -38,7 +38,7 @@ describe("검색 엔진", () => {
 
 describe("추천 해시태그 라우팅", async () => {
   const { CITIZEN_SUGGESTIONS, OFFICER_SUGGESTIONS } = await import("@/lib/suggestions");
-  it.each([...CITIZEN_SUGGESTIONS, ...OFFICER_SUGGESTIONS].map((s) => [s.label, s.query, s.topic]))("#%s → %s", (_l, q, topic) => {
+  it.each([...CITIZEN_SUGGESTIONS, ...OFFICER_SUGGESTIONS].filter((s) => s.topic).map((s) => [s.label, s.query, s.topic]))("#%s → %s", (_l, q, topic) => {
     expect(matchTopics(q)[0]?.topic.id).toBe(topic);
   });
 });
