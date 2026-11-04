@@ -203,7 +203,7 @@ export function DraftingView() {
     : (() => {
         // 붙여 넣은 원문 첫머리의 '제N조(제목)'을 조 머리로 떼어 씀(상위법 개정 반영에서 넘어온 조문은 label 이 따로 있음)
         const m = custom.text.match(HEAD);
-        return { kind: custom.kind, lawName: custom.name || "(규정명)", label: m ? normHead(m[1]) : custom.label, current: m ? custom.text.slice(m[0].length).trim() : custom.text.trim() };
+        return { kind: custom.kind, lawName: custom.name || "○○ 규정", label: m ? normHead(m[1]) : custom.label, current: m ? custom.text.slice(m[0].length).trim() : custom.text.trim() };
       })();
 
   const current = meta.current;

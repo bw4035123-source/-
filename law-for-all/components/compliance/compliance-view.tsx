@@ -281,8 +281,11 @@ export function ComplianceView() {
       for (const it of a?.issues ?? []) {
         const b = it.basis.map((k) => a!.upper.find((u) => u.key === k)).filter(Boolean).map((c) => `「${c!.lawName}」 ${articleLabel(c!.articleNo)}`);
         a!.upper.forEach((c) => laws.add(c.lawName));
-        points.push(`${it.point}${it.suggestion ? ` → ${it.suggestion}` : ""}${b.length ? ` (근거: ${b.join(", ")})` : ""}`);
+        // 보고서에는 첫 문장만(규칙 점검과 겹치는 긴 설명은 화면에서 확인)
+        const first = (t: string) => (t.match(/^.+?(?:함|임|됨|음|다)\.(?=\s|$)/)?.[0] ?? t).trim();
+        points.push(`${first(it.point)}${it.suggestion ? ` → ${first(it.suggestion)}` : ""}${b.length ? ` (근거: ${b.join(", ")})` : ""}`);
       }
+      points.splice(4);
       const am = amendedText(r);
       return { label: regArticleLabel(r.article), verdict: VERDICT[r.status], points, current: r.article.text, amended: am || undefined };
     });

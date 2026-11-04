@@ -155,7 +155,7 @@ export interface AmendInput {
 export function amendDocs(x: AmendInput, o: ReportProfile = {}): RegDocs {
   const name = x.lawName && x.lawName !== "(규정명)" ? x.lawName : "○○ 규정";
   const title = o.title || `「${name}」 일부개정(안) 보고`;
-  const r = splitReason(x.reason);
+  const r = splitReason(x.reason.replace(/「\(규정명\)」/g, `「${name}」`));
   const warns = x.checks.filter((c) => c.level === "warn");
   const steps = procedureChecklist(x.kind, "개정");
   const full = `${x.label ? `${x.label} ` : ""}${x.amended}`;
