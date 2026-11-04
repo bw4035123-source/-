@@ -117,18 +117,23 @@ export function ComplianceView() {
     let label = "";
     let model = "";
     try {
-      for (const b of batches) {
-        const j = await fetchJson<{ articles: AiResult[]; label: string; model: string }>("/api/compliance-ai", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ regName: name, orgType: org, articles: b }),
-          timeoutMs: 150000,
-        });
-        for (const r of j.articles) byNo.set(r.no, r);
-        label = j.label;
-        model = j.model;
-        setAi({ status: "loading", count: arts.length, byNo: new Map(byNo), first: batches[0].length });
-      }
+      // 묶음을 동시에 보내 먼저 끝나는 결과부터 붙임(차례로 보내면 시간이 더해짐)
+      const settled = await Promise.allSettled(
+        batches.map(async (b) => {
+          const j = await fetchJson<{ articles: AiResult[]; label: string; model: string }>("/api/compliance-ai", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ regName: name, orgType: org, articles: b }),
+            timeoutMs: 150000,
+          });
+          for (const r of j.articles) byNo.set(r.no, r);
+          label = j.label;
+          model = j.model;
+          setAi({ status: "loading", count: arts.length, byNo: new Map(byNo), first: batches[0].length });
+        }),
+      );
+      const fail = settled.find((x): x is PromiseRejectedResult => x.status === "rejected");
+      if (fail) throw fail.reason;
       const all = Array.from(byNo.values());
       setAi({ status: "done", byNo, label, model, elapsedMs: Date.now() - started, dropped: all.reduce((n, r) => n + r.dropped, 0), laws: new Set(all.flatMap((r) => r.upper.map((c) => c.lawId))).size });
     } catch (e) {

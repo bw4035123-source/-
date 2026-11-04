@@ -224,8 +224,9 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         keys = {h["key"] for h in hinted}
         return (hinted + [c for c in found if c["key"] not in keys])[:5]
 
-    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
         uppers = list(ex.map(find, arts))
+    retrieval_ms = int((time.time() - started) * 1000)
 
     def label(a):
         if a["no"] == "전문":
@@ -233,13 +234,24 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         return f"제{a['no'].replace('의', '조의')}{'' if '의' in a['no'] else '조'}" + (f"({a['title']})" if a["title"] else "")
 
     items = [{"no": a["no"], "label": label(a), "text": a["text"][:1500], "upper": [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in uppers[i]]} for i, a in enumerate(arts)]
-    chunks = [items[i:i + 3] for i in range(0, len(items), 3)]
+    # 2개 조문씩 나눠 동시에(응답이 짧을수록 빨라 — 3개씩 4개 동시보다 2개씩 6개 동시가 빠름)
+    chunks = [items[i:i + 2] for i in range(0, len(items), 2)]
     model = [p.model]
+    failed: set[int] = set()
 
-    def review(ch):
+    def review(ci_ch):
+        ci, ch = ci_ch
         messages = [{"role": "user", "content": build_compliance_prompt(inp["regName"], inp["orgType"], ch)}]
-        for _ in range(2):
-            res = p.generate(system=COMPLIANCE_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=3000, timeout_ms=70000)
+        for attempt in range(3):
+            try:
+                res = p.generate(system=COMPLIANCE_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=2000, timeout_ms=60000)
+            except LLMError:
+                # 일시 오류(요청 몰림 등)는 잠깐 쉬고 한 번 더 — 그래도 안 되면 이 묶음만 판단 보류
+                if attempt == 0:
+                    time.sleep(1.5)
+                    continue
+                failed.add(ci)
+                return [{**r, "note": "AI 응답 지연으로 이 조문은 판단 보류"} for r in guard_compliance(None, ch)]
             model[0] = res.get("model") or model[0]
             try:
                 return guard_compliance(parse_loose_json(res["text"]), ch)
@@ -247,18 +259,21 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
                 messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
         return guard_compliance(None, ch)
 
-    try:
-        with cf.ThreadPoolExecutor(max_workers=4) as ex:
-            flat = [r for rs in ex.map(review, chunks) for r in rs]
-    except LLMError as e:
-        return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 기준 규칙 점검 결과를 참고하거나 잠시 후 다시 시도하세요.", "detail": str(e)}
+    t_llm = time.time()
+    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+        flat = [r for rs in ex.map(review, enumerate(chunks)) for r in rs]
+    llm_ms = int((time.time() - t_llm) * 1000)
+    if len(failed) == len(chunks):
+        return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 기준 규칙 점검 결과를 참고하거나 잠시 후 다시 시도하세요."}
+    bad = {r["no"] for ci in failed for r in chunks[ci]}
     fresh = [{**r, "upper": uppers[j]} for j, r in enumerate(flat)]
     for j, r in enumerate(fresh):
-        _COMP_CACHE[keys[todo[j]]] = (now, r)
+        if r["no"] not in bad:  # 응답 지연으로 판단 보류한 조문은 저장하지 않음(다음에 다시 검토)
+            _COMP_CACHE[keys[todo[j]]] = (now, r)
     if len(_COMP_CACHE) > 2000:
         _COMP_CACHE.pop(next(iter(_COMP_CACHE)))
     out = [cached[i] if cached[i] is not None else fresh[todo.index(i)] for i in range(len(keys))]
-    return 200, {"articles": out, "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "cached": len(keys) - len(todo), "warnings": list(dict.fromkeys(warnings))[:3]}
+    return 200, {"articles": out, "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "cached": len(keys) - len(todo), "timing": {"retrievalMs": retrieval_ms, "llmMs": llm_ms, "chunks": len(chunks)}, "warnings": list(dict.fromkeys(warnings))[:3]}
 
 
 def enact_ai(body: dict) -> tuple[int, dict]:

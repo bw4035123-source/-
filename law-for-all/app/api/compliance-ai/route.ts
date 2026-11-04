@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { serverConfig } from "@/lib/config";
 import { resolveProvider } from "@/lib/llm/registry";
-import { LLMError } from "@/lib/llm/types";
+import { LLMError, type ProviderId } from "@/lib/llm/types";
 import { LawService } from "@/lib/law-api/client";
 import { articleLabel } from "@/lib/law-api/util";
 import type { Citation } from "@/lib/law-api/types";
@@ -26,8 +26,10 @@ const Body = z.object({
   provider: z.string().max(20).optional(),
 });
 
-const CHUNK = 3;
-const POOL = 6;
+/** 2개 조문씩 동시에 6묶음까지(응답이 짧을수록 빠름) · 근거 찾기는 8개씩 동시 */
+const CHUNK = 2;
+const LLM_POOL = 6;
+const POOL = 8;
 // 같은 조문(글·제목·힌트)은 결과를 재사용 — 같은 규정을 다시 점검하거나 시연할 때 바로(서버 메모리, 6시간)
 const CACHE = new Map<string, { at: number; value: unknown }>();
 const TTL = 6 * 3600 * 1000;
@@ -72,29 +74,56 @@ export async function POST(req: Request) {
     text: a.text.slice(0, 1500),
     upper: uppers[i].map((c) => ({ key: c.key, label: `「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title})`, text: c.text })),
   }));
+  const retrievalMs = Date.now() - started;
 
   // 2) AI 대조(조문 묶음별 병렬) → 가드
   let model = provider.model;
   const chunks: AiArticleInput[][] = [];
   for (let i = 0; i < input.length; i += CHUNK) chunks.push(input.slice(i, i + CHUNK));
-  try {
-    const results = await Promise.all(
-      chunks.map(async (ch) => {
-        const messages: { role: "user" | "assistant"; content: string }[] = [{ role: "user", content: buildCompliancePrompt(regName, orgType, ch) }];
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const res = await provider.generate({ system: COMPLIANCE_SYSTEM, messages, json: true, temperature: 0.1, maxTokens: 3000, timeoutMs: 70000 });
-          model = res.model || model;
-          try {
-            return guardCompliance(parseLooseJson(res.text), ch);
-          } catch {
-            messages.push({ role: "assistant", content: res.text }, { role: "user", content: "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라." });
-          }
+  const failed = new Set<number>();
+  const review = async (ch: AiArticleInput[], ci: number) => {
+    const messages: { role: "user" | "assistant"; content: string }[] = [{ role: "user", content: buildCompliancePrompt(regName, orgType, ch) }];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let res;
+      try {
+        res = await provider.generate({ system: COMPLIANCE_SYSTEM, messages, json: true, temperature: 0.1, maxTokens: 2000, timeoutMs: 60000 });
+      } catch (e) {
+        if (!(e instanceof LLMError)) throw e;
+        // 일시 오류(요청 몰림 등)는 잠깐 쉬고 한 번 더 — 그래도 안 되면 이 묶음만 판단 보류
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 1500));
+          continue;
         }
-        return guardCompliance(null, ch);
+        failed.add(ci);
+        return guardCompliance(null, ch).map((r) => ({ ...r, note: "AI 응답 지연으로 이 조문은 판단 보류" }));
+      }
+      model = res.model || model;
+      try {
+        return guardCompliance(parseLooseJson(res.text), ch);
+      } catch {
+        messages.push({ role: "assistant", content: res.text }, { role: "user", content: "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라." });
+      }
+    }
+    return guardCompliance(null, ch);
+  };
+  try {
+    const tLlm = Date.now();
+    const results: Awaited<ReturnType<typeof review>>[] = new Array(chunks.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(LLM_POOL, chunks.length) }, async () => {
+        while (next < chunks.length) {
+          const ci = next++;
+          results[ci] = await review(chunks[ci], ci);
+        }
       }),
     );
+    const llmMs = Date.now() - tLlm;
+    if (failed.size === chunks.length) throw new LLMError("모든 묶음 응답 실패", provider.id as ProviderId);
+    const bad = new Set(Array.from(failed).flatMap((ci) => chunks[ci].map((a) => a.no)));
     const flat = results.flat().map((r, j) => ({ ...r, upper: uppers[j] }));
-    flat.forEach((r, j) => CACHE.set(keys[todo[j]], { at: now, value: r }));
+    // 응답 지연으로 판단 보류한 조문은 저장하지 않음(다음에 다시 검토)
+    flat.forEach((r, j) => !bad.has(r.no) && CACHE.set(keys[todo[j]], { at: now, value: r }));
     if (CACHE.size > 2000) CACHE.delete(CACHE.keys().next().value as string);
     const out = articles.map((_, i) => cached[i] ?? flat[todo.indexOf(i)]);
     return NextResponse.json({
@@ -103,6 +132,7 @@ export async function POST(req: Request) {
       label: provider.label,
       model,
       elapsedMs: Date.now() - started,
+      timing: { retrievalMs, llmMs, chunks: chunks.length },
       warnings: Array.from(new Set(svc.warnings)).slice(0, 3),
     });
   } catch (e) {

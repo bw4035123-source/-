@@ -51,7 +51,7 @@ export const COMPLIANCE_SYSTEM = `너는 공공기관 자체규정(내부규정�
    - "판단 보류": 붙은 상위조문이 이 조문과 관련이 없거나 판단할 근거가 부족함
 3. 상충·검토 필요이면 문제점마다 {"point":"무엇이 왜 문제인지 한두 문장","basis":["근거 상위조문 키"],"suggestion":"고칠 방향 한 문장"}을 쓴다. basis 에는 그 조문의 <상위조문>에 있는 키만 쓴다.
 4. 기관이 자율로 정할 수 있는 사항(내부 절차·부서명·서식 등)은 상위조문에 기준이 없으면 문제 삼지 않는다.
-5. 공문서체(~함, ~임)로 간결하게 쓴다. 조문 키·내부 용어("상위조문 목록" 등)를 문장에 쓰지 않는다.
+5. 공문서체(~함, ~임)로 간결하게 쓴다. 문제점은 조문당 3개 이내, point 는 2문장 이내, suggestion 은 1문장으로 쓰고 같은 내용을 되풀이하지 않는다. 조문 키·내부 용어("상위조문 목록" 등)를 문장에 쓰지 않는다.
 6. 출력은 {"articles":[{"no":"3","verdict":"상충","issues":[...]}]} 형식의 JSON 객체 하나만 출력한다. 입력의 모든 조문에 대해 답한다.`;
 
 export function buildCompliancePrompt(regName: string, orgType: string, articles: AiArticleInput[]): string {
