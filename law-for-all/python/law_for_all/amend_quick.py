@@ -64,3 +64,16 @@ def quantity_warning(request: str, current: str, amended: str) -> str | None:
     q = lambda t: ", ".join(sorted({re.sub(r"\s", "", x) for x in _QTY.findall(t)}))  # noqa: E731
     a, b = q(current), q(amended)
     return None if a == b else f"요청에 없던 수치 변경({a or '없음'} → {b or '없음'}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요"
+
+
+_LIMIT = re.compile(r"한\s?번|한\s?차례|1회|두\s?번|두\s?차례|2회|이내|이상|이하|초과|미만|까지")
+
+
+def limit_warning(request: str, current: str, amended: str) -> str | None:
+    """구체 요청 없이 횟수·한도 표현이 빠지면 경고(lib/amend-quick.ts limitWarning 과 같음)"""
+    if not is_bare_request(request):
+        return None
+    norm = lambda x: re.sub(r"\s", "", x).replace("한번", "한차례", 1).replace("두번", "두차례", 1)  # noqa: E731
+    after = {norm(x) for x in _LIMIT.findall(amended)}
+    lost = [x for x in dict.fromkeys(norm(x) for x in _LIMIT.findall(current)) if x not in after and not (x == "까지" and "이내" in after)]
+    return f"제한 표현({', '.join(lost)})이 빠짐 — 기준을 완화하는 개정인지 확인 필요" if lost else None

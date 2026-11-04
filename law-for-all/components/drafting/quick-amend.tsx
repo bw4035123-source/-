@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { LawLoader } from "@/components/ui/law-loader";
 import { useToast } from "@/components/ui/toast";
 
-const EXAMPLE = `제5조(처리기간) ① 민원은 접수한날부터 7일안에 처리해야 한다.
-② 부득이한 경우에는 처리기간을 한번 연장할수 있으며 이경우 민원인에게 알려줘야 한다.
-제6조(결과 통지) 처리 결과는 문서로 통지해야 하나 민원인이 원하면 전화로 할 수 있다.
+const EXAMPLE = `제3조(근무시간) 직원의 근무시간은 휴게시간을 빼고 1주 40시간, 1일 8시간으로 한다.
+제7조(연차휴가) ① 1년간 80퍼센트 이상 출근한 직원에게는 15일의 유급휴가를 준다.
+② 계속근로기간이 1년 미만인 직원에게는 휴가를 주지 않는다.
 개정해줘`;
 
 type Result = {

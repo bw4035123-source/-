@@ -71,6 +71,16 @@ export function quantityWarning(request: string, current: string, amended: strin
   return a === b ? null : `요청에 없던 수치 변경(${a || "없음"} → ${b || "없음"}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요`;
 }
 
+const LIMIT = /한\s?번|한\s?차례|1회|두\s?번|두\s?차례|2회|이내|이상|이하|초과|미만|까지/g;
+/** 구체 요청 없이 횟수·한도 표현이 빠지면(기준 완화) 담당자 확인 경고 */
+export function limitWarning(request: string, current: string, amended: string): string | null {
+  if (!isBareRequest(request)) return null;
+  const norm = (x: string) => x.replace(/\s/g, "").replace("한번", "한차례").replace("두번", "두차례");
+  const after = new Set((amended.match(LIMIT) ?? []).map(norm));
+  const lost = Array.from(new Set((current.match(LIMIT) ?? []).map(norm))).filter((x) => !after.has(x) && !(x === "까지" && after.has("이내")));
+  return lost.length ? `제한 표현(${lost.join(", ")})이 빠짐 — 기준을 완화하는 개정인지 확인 필요` : null;
+}
+
 // ───────────── 3가지 양식(화면·복사용)
 const esc = (s: string) => s.replace(/\|/g, "\\|");
 /** 신·구 대비 한 칸: 바뀐 말만 **굵게**, 줄바꿈은 <br> */

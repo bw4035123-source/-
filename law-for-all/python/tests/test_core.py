@@ -1033,3 +1033,10 @@ class QuickAmendSplitTest(unittest.TestCase):
         self.assertIn("7일 → 14일", quantity_warning("개정해줘", "7일 안에 처리", "14일 이내에 처리"))
         self.assertIsNone(quantity_warning("개정해줘", "7일안에", "7일 이내에"))
         self.assertIsNone(quantity_warning("7일을 5일로 수정해줘", "7일", "5일"))
+
+    def test_limit_warning(self):
+        from law_for_all.amend_quick import limit_warning
+        self.assertIn("한차례", limit_warning("개정해줘", "한번 연장할 수 있다", "연장할 수 있다"))
+        self.assertIsNone(limit_warning("개정해줘", "한번 연장할수 있다", "한 차례 연장할 수 있다"))
+        self.assertIsNone(limit_warning("개정해줘", "7일까지 처리", "7일 이내에 처리"))
+        self.assertIsNone(limit_warning("연장 제한을 없애줘", "한번 연장", "연장"))

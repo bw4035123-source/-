@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffCells, isBareRequest, quantityWarning, quickMarkdown, splitQuick } from "@/lib/amend-quick";
+import { diffCells, isBareRequest, limitWarning, quantityWarning, quickMarkdown, splitQuick } from "@/lib/amend-quick";
 
 describe("한 번에 개정", () => {
   it("요청 문장과 조문을 나눔", () => {
@@ -43,5 +43,14 @@ describe("한 번에 개정 — 보완", () => {
     expect(quantityWarning("개정해줘", "7일 안에 처리", "14일 이내에 처리")).toContain("7일 → 14일");
     expect(quantityWarning("개정해줘", "7일안에", "7일 이내에")).toBeNull();
     expect(quantityWarning("7일을 5일로 수정해줘", "7일", "5일")).toBeNull();
+  });
+});
+
+describe("한 번에 개정 — 기준 완화 경고", () => {
+  it("한 번 연장 제한이 빠지면 경고, 표현만 바뀌면 통과", () => {
+    expect(limitWarning("개정해줘", "한번 연장할 수 있다", "연장할 수 있다")).toContain("한차례");
+    expect(limitWarning("개정해줘", "한번 연장할수 있다", "한 차례 연장할 수 있다")).toBeNull();
+    expect(limitWarning("개정해줘", "7일까지 처리", "7일 이내에 처리")).toBeNull();
+    expect(limitWarning("연장 제한을 없애줘", "한번 연장", "연장")).toBeNull();
   });
 });
