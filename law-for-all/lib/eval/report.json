@@ -1827,10 +1827,10 @@
    "regs": 3,
    "articles": 24,
    "ruleFlagged": 20,
-   "agree": 19,
-   "aiOnly": 1,
+   "agree": 20,
+   "aiOnly": 3,
    "dropped": 1,
-   "avgSec": 23
+   "avgSec": 14.2
   },
   "officer": {
    "correct": 24,
