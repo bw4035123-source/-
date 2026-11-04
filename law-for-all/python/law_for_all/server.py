@@ -24,6 +24,7 @@ from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
+from .enact_plan import PLAN_SYSTEM, build_plan_prompt, guard_plan
 from .upper_change import parse_old_and_new
 from .guard import parse_loose_json
 from .llm import list_providers, resolve_provider
@@ -238,6 +239,37 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
     return 200, {"articles": [{**r, "upper": uppers[i]} for i, r in enumerate(flat)], "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "warnings": list(dict.fromkeys(warnings))[:3]}
 
 
+def enact_ai(body: dict) -> tuple[int, dict]:
+    """한 줄 제정: 요청 → 국가법령정보에서 상위 조문 찾기 → AI가 규정 설계 → 가드(lib/enact-plan.ts 와 같음)"""
+    req, org, prov = body.get("request"), body.get("org") or "", body.get("provider")
+    if not isinstance(req, str) or not 4 <= len(req.strip()) <= 300 or not isinstance(org, str) or len(org) > 60:
+        raise ApiError(400, "만들 규정을 한 줄로 적어 주세요(4~300자).")
+    request = mask_pii(req.strip())[0]
+    p, _ = resolve_provider(config.llm, prov if isinstance(prov, str) and len(prov) <= 20 else None)
+    if p.kind == "rule":
+        return 503, {"error": "생성형 AI가 연결되어 있지 않아 한 줄 제정을 할 수 없어요. 아래 칸을 직접 채워 표준 초안을 만드세요."}
+    svc = LawService(config.law_access)
+    context = gather_evidence(request, svc)[1]
+    evidence = [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in context[:8]]
+    if not evidence:
+        return 404, {"error": "관련 상위 법령을 찾지 못했어요. 법령 이름이나 핵심어를 넣어 다시 적어 주세요(예: 산업안전보건법에 따른 안전보건 관리 지침).", "warnings": svc.warnings}
+    messages = [{"role": "user", "content": build_plan_prompt(request, org, evidence)}]
+    try:
+        for _ in range(2):
+            res = p.generate(system=PLAN_SYSTEM, messages=messages, json_mode=True, temperature=0.2, max_tokens=1200)
+            try:
+                plan = guard_plan(parse_loose_json(res["text"]), evidence, org)
+            except Exception:  # noqa: BLE001
+                messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
+                continue
+            if len(plan["items"]) >= 2:
+                return 200, {"plan": plan, "evidence": evidence, "label": p.label, "model": res.get("model") or p.model}
+            messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "items 에 조문 제목을 5~10개 넣어 같은 JSON 형식으로 다시 답하라."}]
+    except LLMError as e:
+        return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 잠시 후 다시 시도하세요.", "detail": str(e)}
+    return 502, {"error": f"AI({p.label})가 규정 설계를 만들지 못했어요. 요청을 조금 더 구체적으로 적어 주세요."}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"LawOn/{__version__}"
     protocol_version = "HTTP/1.1"
@@ -387,6 +419,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/enact-ai":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 10)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            code, payload = enact_ai(self._body())
+            return self._json(code, payload)
         if method == "POST" and path == "/api/compliance-ai":
             ok, retry = rate_limit(f"{path}:{self._client()}", 5)
             if not ok:

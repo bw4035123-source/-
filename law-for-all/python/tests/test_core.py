@@ -860,6 +860,24 @@ class ComplianceAiTest(unittest.TestCase):
         self.assertIn("(찾은 상위조문 없음)", p)
 
 
+class EnactPlanTest(unittest.TestCase):
+    """한 줄 제정 설계 가드 — tests/enact-plan.test.ts 와 같은 사례"""
+
+    def test_guard(self):
+        from law_for_all.enact_plan import build_plan_prompt, guard_plan
+
+        ev = [{"key": "mst-1:29", "label": "「산업안전보건법」 제29조(근로자에 대한 안전보건교육)", "text": "사업주는 소속 근로자에게 정기적으로 안전보건교육을 하여야 한다."}, {"key": "mst-1:36", "label": "「산업안전보건법」 제36조(위험성평가의 실시)", "text": "사업주는 유해·위험 요인을 찾아내어 위험성평가를 하여야 한다."}]
+        p = guard_plan({"name": "○○공단 산업안전보건 관리 지침", "kind": "행정규칙", "purpose": "안전보건 관리 기준을 정하기 위함", "items": ["1. 안전보건교육", "위험성평가", "목적", "위반 시 과태료", "위험성평가"], "terms": ["위험성평가"], "basis": ["[[mst-1:29]]", "mst-9:1"]}, ev)
+        self.assertEqual((p["items"], p["basis"]), (["안전보건교육", "위험성평가"], ["mst-1:29"]))
+        self.assertIn("과태료", " ".join(p["notes"]))
+        p = guard_plan({"name": "", "kind": "법률", "items": ["안전보건교육"], "basis": []}, ev, "도봉구시설관리공단")
+        self.assertEqual((p["name"], p["kind"], p["basis"]), ("도봉구시설관리공단 규정", "행정규칙", ["mst-1:29", "mst-1:36"]))
+        self.assertIn("확인하세요", " ".join(p["notes"]))
+        t = build_plan_prompt("산업안전보건 지침 만들어줘", "○○공단", ev)
+        self.assertIn("[[mst-1:29]] 「산업안전보건법」 제29조", t)
+        self.assertIn("<기관>○○공단</기관>", t)
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

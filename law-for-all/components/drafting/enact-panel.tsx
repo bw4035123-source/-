@@ -6,6 +6,7 @@ import { articleLabel } from "@/lib/law-api/util";
 import type { DraftKind } from "@/lib/drafting";
 import { compareStructure, enactDraft, similarQuery, type Basis } from "@/lib/enact";
 import type { FillResult } from "@/lib/enact-fill";
+import type { EnactPlan, PlanEvidence } from "@/lib/enact-plan";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -191,12 +192,78 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
       setFillBusy(false);
     }
   };
+  // 한 줄 제정: 요청 → 국가법령정보 상위 조문 → AI 설계 → (표준 초안) → AI 빈칸 채우기까지 한 번에
+  const [oneLine, setOneLine] = React.useState("");
+  const [planBusy, setPlanBusy] = React.useState(false);
+  const [planInfo, setPlanInfo] = React.useState<{ notes: string[]; evidence: number; label: string } | null>(null);
+  const [pendingFill, setPendingFill] = React.useState(false);
+  const runPlan = async () => {
+    if (oneLine.trim().length < 4) return;
+    setPlanBusy(true);
+    setPlanInfo(null);
+    try {
+      const r = await fetchJson<{ plan: EnactPlan; evidence: PlanEvidence[]; label: string; model: string }>("/api/enact-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ request: oneLine.trim(), org }),
+        timeoutMs: 90000,
+      });
+      const p = r.plan;
+      setName(p.name);
+      setKind(p.kind);
+      setPurpose(p.purpose);
+      setItems(p.items.join("\n"));
+      setTerms(p.terms.join(", "));
+      setBasis(r.evidence.filter((e) => p.basis.includes(e.key)).map((e) => ({ label: e.label, text: e.text })));
+      setPlanInfo({ notes: p.notes, evidence: r.evidence.length, label: r.label });
+      setPendingFill(true);
+      toast(`AI가 상위 조문 ${r.evidence.length}개를 보고 규정을 설계했어요 — 이어서 빈칸을 채워요`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setPlanBusy(false);
+    }
+  };
+  // 설계가 반영된 초안이 만들어지면 AI 빈칸 채우기까지 이어서
+  React.useEffect(() => {
+    if (pendingFill && d.articles.length) {
+      setPendingFill(false);
+      void runFill();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFill, d.fullText]);
+
   const exportAll = () => downloadWord(`${name.trim() || "제정안"} 제정안`, [{ title: "제정안", body: shownText }, ...docs.map((x) => ({ title: x.label, body: x.body }))]);
   const lawGroups = laws.filter((l) => !l.parentId);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
       <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-sm" aria-label="제정 정보 입력">
+        <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 dark:border-sky-800 dark:bg-sky-900/20">
+          <p className="flex items-center gap-1.5 text-sm font-bold">
+            <Sparkles className="h-4 w-4 text-accent" /> 한 줄로 만들기
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">만들 규정을 말하듯 적으면 국가법령정보에서 상위법령을 찾아 AI가 설계하고, 표준 초안과 빈칸 채우기까지 이어서 해요.</p>
+          <textarea value={oneLine} onChange={(e) => setOneLine(e.target.value)} rows={2} placeholder="예) 우리 공단 산업안전보건 관리 지침 만들어줘" className="mt-2 w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="만들 규정 한 줄" />
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {["우리 공단 산업안전보건 관리 지침 만들어줘", "직원 재택근무 운영 지침", "개인정보 처리 내부관리계획 규정"].map((x) => (
+              <button key={x} type="button" onClick={() => setOneLine(x)} className="rounded-full border bg-card px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
+                + {x}
+              </button>
+            ))}
+          </div>
+          <Button variant="accent" className="mt-2 w-full" onClick={runPlan} disabled={planBusy || fillBusy || oneLine.trim().length < 4}>
+            {planBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} {planBusy ? "상위법령을 찾고 AI가 설계하는 중…" : fillBusy && planInfo ? "AI가 빈칸을 채우는 중…" : "AI로 제정안 만들기"}
+          </Button>
+          {planInfo && (
+            <div className="mt-2 space-y-1 text-xs">
+              <p className="text-sky-900 dark:text-sky-100">✓ {planInfo.label}가 국가법령정보 상위 조문 {planInfo.evidence}개를 보고 규정명·목적·조문 구성·근거를 정했어요. 아래 칸은 그대로 고칠 수 있어요.</p>
+              {planInfo.notes.map((n, i) => (
+                <p key={i} className="text-amber-800 dark:text-amber-200">△ {n}</p>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-bold">① 제정할 규정</p>
           <button type="button" onClick={fillExample} className="rounded-full border bg-secondary/60 px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
