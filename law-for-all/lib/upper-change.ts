@@ -121,7 +121,9 @@ export function parseOldAndNew(data: unknown): UpperChange | null {
 // ───────────── 바뀐 용어(예: 근로감독관 → 노동감독관)
 const PARTICLE = /(?:으로서|으로써|에게서|에서는|으로|에게|에서|까지|부터|이나|이며|이고|와|과|의|이|가|을|를|은|는|에|로|도|만)$/;
 const stem = (w: string) => (w.length > 3 ? w.replace(PARTICLE, "") : w);
-const words = (s: string) => Array.from(s.matchAll(/[가-힣]{2,}/g), (m) => stem(m[0])).filter((w) => w.length >= 3);
+// 용어(명사)만 — 동사·형용사 활용형(수입하거나·제출한다·해당하는)은 제외
+const VERBISH = /(?:하거나|하고|하며|하여|하여야|한다|하는|하지|되거나|되는|된다|되어|하게|할|한|함|된|됨|있는|없는|이다|이며)$/;
+const words = (s: string) => Array.from(s.matchAll(/[가-힣]{2,}/g), (m) => m[0]).filter((w) => !VERBISH.test(w)).map(stem).filter((w) => w.length >= 3);
 const commonEnd = (a: string, b: string) => {
   let k = 0;
   while (k < a.length && k < b.length && a[a.length - 1 - k] === b[b.length - 1 - k]) k++;

@@ -14,6 +14,10 @@ export interface AmendHandoff {
   label: string;
   text: string;
   instruction: string;
+  /** 개정 방향으로 바로 반영되지 않는 확인 사항(삭제·개정된 상위 조문 인용 등) */
+  notes: string[];
+  /** 개정이유에 쓸 근거 — 「근로기준법」 일부개정(2026. 4. 7. 공포, 2026. 10. 8. 시행) */
+  basis: string;
 }
 
 // 가상 기관 규정(모의데이터) — 상위법 개정 전 용어·조문을 인용
@@ -151,7 +155,16 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
                           <Button
                             size="sm"
                             variant={h.instruction ? "accent" : "outline"}
-                            onClick={() => onAmend({ name: regName, label: h.article.label, text: h.article.text.replace(/^\s*제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^)]*\))?\s*/, ""), instruction: h.instruction })}
+                            onClick={() =>
+                              onAmend({
+                                name: regName,
+                                label: h.article.label,
+                                text: h.article.text.replace(/^\s*제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^)]*\))?\s*/, ""),
+                                instruction: h.instruction,
+                                notes: h.reasons.filter((r) => r.kind !== "용어").map((r) => r.detail),
+                                basis: `「${c.law}」 ${c.after.type}(${c.after.promulgated} 공포, ${c.after.effective} 시행)`,
+                              })
+                            }
                           >
                             {h.instruction ? "개정안 만들기" : "개정 화면에서 고치기"} <ArrowRight />
                           </Button>

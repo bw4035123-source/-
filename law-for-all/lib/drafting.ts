@@ -237,6 +237,8 @@ export interface DraftMeta {
   instruction: string;
   dept?: string;
   effectiveDays?: number;
+  /** 상위법 개정에 따른 정비일 때 — 「근로기준법」 일부개정(2026. 4. 7. 공포, 2026. 10. 8. 시행) */
+  upperBasis?: string;
 }
 
 const today = () => {
@@ -256,7 +258,7 @@ export function reasonDraft(meta: DraftMeta, applied: Edit[], extra: string[] = 
     .join(", ");
   return [
     "◇ 개정이유",
-    `  ${why ? `${why} 등` : "(개정 필요성을 적어 주세요)"} 「${meta.lawName}」 ${meta.articleLabel}의 내용을 정비하려는 것임.`,
+    `  ${meta.upperBasis ? `${meta.upperBasis}에 맞추어 ` : ""}${why ? `${why} 등` : "(개정 필요성을 적어 주세요)"} 「${meta.lawName}」 ${meta.articleLabel}의 내용을 정비하려는 것임.`,
     "",
     "◇ 주요내용",
     ...(items.length ? items.map((t, i) => `  ${"가나다라마바사"[i] ?? "-"}. ${meta.articleLabel} 중 ${t}함.`) : ["  가. (주요 개정 내용을 적어 주세요)"]),

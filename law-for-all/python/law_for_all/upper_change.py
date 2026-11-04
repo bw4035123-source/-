@@ -102,8 +102,12 @@ def _stem(w: str) -> str:
     return _PARTICLE.sub("", w) if len(w) > 3 else w
 
 
+# 용어(명사)만 — 동사·형용사 활용형(수입하거나·제출한다·해당하는)은 제외
+_VERBISH = re.compile(r"(?:하거나|하고|하며|하여|하여야|한다|하는|하지|되거나|되는|된다|되어|하게|할|한|함|된|됨|있는|없는|이다|이며)$")
+
+
 def _words(s: str) -> list[str]:
-    return [w for w in (_stem(m.group(0)) for m in re.finditer(r"[가-힣]{2,}", s)) if len(w) >= 3]
+    return [w for w in (_stem(m.group(0)) for m in re.finditer(r"[가-힣]{2,}", s) if not _VERBISH.search(m.group(0))) if len(w) >= 3]
 
 
 def _common_end(a: str, b: str) -> int:

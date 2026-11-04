@@ -45,3 +45,11 @@ describe("우리 규정 영향 점검", () => {
     expect(r.text.split("노동감독관").length - 1).toBe(2);
   });
 });
+
+describe("개정이유에 상위법 개정 근거", () => {
+  it("upperBasis가 있으면 ‘…에 맞추어’로 시작", async () => {
+    const { reasonDraft } = await import("@/lib/drafting");
+    const r = reasonDraft({ kind: "행정규칙", lawName: "○○공단 취업규칙", articleLabel: "제12조(근로감독 대응)", instruction: "‘근로감독관’을 ‘노동감독관’으로 변경", upperBasis: "「근로기준법」 일부개정(2026. 4. 7. 공포, 2026. 10. 8. 시행)" }, []);
+    expect(r).toContain("「근로기준법」 일부개정(2026. 4. 7. 공포, 2026. 10. 8. 시행)에 맞추어 ‘근로감독관’을 ‘노동감독관’으로 변경 등");
+  });
+});

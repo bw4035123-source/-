@@ -124,7 +124,9 @@ export function DraftingView() {
   }, [source, article, hier, lawId]);
 
   // 상위법 개정 반영 → 우리 규정 조문과 개정 방향을 채워 개정 화면으로
+  const [upperCtx, setUpperCtx] = React.useState<{ key: string; notes: string[]; basis: string } | null>(null);
   const handoff = (h: AmendHandoff) => {
+    setUpperCtx({ key: h.text, notes: h.notes, basis: h.basis });
     setSource("custom");
     setCustom({ name: h.name, kind: "행정규칙", label: h.label, text: h.text });
     setInstruction(h.instruction);
@@ -173,11 +175,17 @@ export function DraftingView() {
 
   const ready = !!current.trim();
   const diff = React.useMemo(() => diffWords(current, amended), [current, amended]);
-  const checks = React.useMemo(
-    () => (ready ? consistencyChecks({ current, amended, lawArticleNos: source === "law" ? law?.articles.map((a) => a.no) : undefined, upper }) : []),
-    [ready, current, amended, source, law, upper],
-  );
-  const dmeta = { kind: meta.kind, lawName: meta.lawName, articleLabel: meta.label, instruction, dept: dept || undefined, effectiveDays: days };
+  // 상위법 개정 반영에서 넘어온 조문이면(그 뒤 조문을 바꾸지 않았을 때만) 확인 사항·개정 근거를 이어 씀
+  const fromUpper = upperCtx && source === "custom" && upperCtx.key === current ? upperCtx : null;
+  const checks = React.useMemo(() => {
+    if (!ready) return [];
+    const base = consistencyChecks({ current, amended, lawArticleNos: source === "law" ? law?.articles.map((a) => a.no) : undefined, upper });
+    if (!fromUpper?.notes.length) return base;
+    const extra = fromUpper.notes.map((n) => ({ level: "warn" as const, title: "상위법 개정 — 확인 필요", detail: n }));
+    // 확인할 사항이 있으므로 '자동 점검 이상 없음'은 빼고
+    return [...extra, ...base.filter((c) => c.level !== "ok")];
+  }, [ready, current, amended, source, law, upper, fromUpper]);
+  const dmeta = { kind: meta.kind, lawName: meta.lawName, articleLabel: meta.label, instruction, dept: dept || undefined, effectiveDays: days, upperBasis: fromUpper?.basis };
   const reason = reasonDraft(dmeta, applied, ai?.text && ai.text === amended ? ai.changes ?? [] : []);
   const docs = [
     { id: "reason", label: "개정이유·주요내용", body: reason },
