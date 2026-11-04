@@ -32,8 +32,8 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, tU1: 11, tU2: 15, t10: 11, t11: 11, t12: 9, t13: 8 }
-  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 7, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, tU1: 11, tU2: 15, t10: 14, t11: 11, t12: 9, t13: 8 }
+  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -438,7 +438,7 @@ await scene("s13", async () => {
   await cap("");
   await page.keyboard.press("Escape");
   await page.goto(BASE + "/compliance");
-  await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일은 서버로 보내지 않고 브라우저 안에서만 읽습니다 · 끌어다 놓기 또는 모의데이터 버튼");
+  await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일 원본은 브라우저에서만 읽음 · AI 검토에는 조문 글만(개인정보 가림) · 끌어다 놓기 또는 모의데이터 버튼");
   await point(page.locator("[aria-label^='규정 파일 올리기']").first());
   await wait(1200);
   const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
@@ -453,7 +453,14 @@ await scene("s14", async () => {
   await wait(300);
   await scrollToEl("#compliance-result");
   await wait(700);
-  await cap("상위법령과 조문 단위 대조 — 상충 · 검토 필요 · 적합으로 분류", "근거 상위법이 최근 개정된 조항은 ‘상위법 개정 — 규정 정비 확인’ 알림 · 판정은 정해진 기준과 원문으로");
+  await cap("법정 기준 규칙 점검이 먼저 — 이어서 AI가 조문마다 상위법을 찾아 대조", "국가법령정보(법제처 Open API)에서 전체 현행 법령 검색 → 국산 AI Solar Pro 4가 원문과 대조");
+  const sec = await aiWait(() => page.getByText(/AI 검토 완료|AI 검토를 하지 못했어요/).first().waitFor({ timeout: 150000 }).catch(() => {}), "조문별 대조 의견");
+  await page.evaluate(() => {
+    const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
+    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 140, behavior: "smooth" });
+  });
+  await wait(600);
+  await cap("AI 검토 — 조문마다 상위 조문 원문과 대조해 판정 · 이유 · 고칠 방향", `실제 약 ${sec}초 · 근거 조문·수치는 가드가 검증 · 참고 의견, 최종 판단은 담당자`);
 });
 if (process.env.WITH_OFFICER_EXTRA) {
 await scene("s15", async () => {
@@ -658,7 +665,7 @@ await scene("s18", async () => {
   });
   await scene("t10", async () => {
     await page.goto(BASE + "/compliance");
-    await cap("⑥ 자체규정 점검 — 우리 기관 규정 파일 ↔ 상위법 조문 단위 대조", "한글·PDF·Word를 브라우저 안에서만 읽음(원본 수정·서버 전송 없음) · 모의데이터 버튼 한 번");
+    await cap("⑥ 자체규정 점검 — 우리 기관 규정 파일 ↔ 상위법 조문 단위 대조", "원본은 브라우저에서만 읽음 · AI가 조문마다 국가법령정보 상위 조문과 대조 · 모의데이터 버튼 한 번");
     const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
     await point(mock);
     await wait(1000);
@@ -667,7 +674,11 @@ await scene("s18", async () => {
     await wait(400);
     await scrollToEl("#compliance-result");
     await wait(600);
-    await cap("상충 7 · 검토 필요 1 · 적합 3 — 약 2초", "근거 상위법이 최근 개정된 조항 알림 → 현행↔개정안 대비 → 제·개정 지원으로 이어서");
+    await cap("법정 기준 규칙 점검 약 2초 → 이어서 AI가 조문마다 상위법을 찾아 대조", "국가법령정보(법제처 Open API) 전체 현행 법령 검색 → 국산 AI Solar Pro 4");
+    await aiWait(() => page.getByText(/AI 검토 완료|AI 검토를 하지 못했어요/).first().waitFor({ timeout: 150000 }).catch(() => {}), "조문별 대조 의견");
+    await scrollToEl("#compliance-result");
+    await wait(500);
+    await cap("AI 검토 완료 — 판정은 AI 의견과 법정 기준 규칙 중 더 엄격한 쪽", "근거 조문·수치가 확인되지 않은 AI 지적은 가드가 버림 · 상위법 개정 알림 → 개정안 → 제·개정 지원으로");
   });
   await scene("t11", async () => {
     await page.evaluate(() => {
@@ -675,11 +686,11 @@ await scene("s18", async () => {
       if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
     });
     await wait(700);
-    await cap("1주 45시간 → 법정 40시간 초과 · 근거 조문 원문 확인 · 개정안 자동 제안", "판정은 생성형 문장이 아니라 정해진 기준과 원문으로");
+    await cap("AI 검토 · 상충 — 1주 45시간은 법정 40시간 초과(「근로기준법」 제50조) · 고칠 방향", "근거 조문 버튼으로 원문 확인 · 수치 위반은 개정안 자동 제안");
   });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 194건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 198건</li></ul>`);
   });
   await scene("t13", async () => {
     await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 목적·위임 조항 → 조문 체계·표준 조문 · AI 빈칸 채우기(가드 검증)</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 전후 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안</li></ul>`);

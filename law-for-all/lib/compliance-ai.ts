@@ -81,8 +81,10 @@ export function guardCompliance(raw: unknown, input: AiArticleInput[]): AiArticl
     let dropped = 0;
     const issues: AiIssue[] = [];
     for (const it of Array.isArray(got.issues) ? (got.issues as Record<string, unknown>[]) : []) {
-      const point = str(it?.point);
-      const suggestion = str(it?.suggestion);
+      // 내부 용어가 문장에 섞이면 화면용 말로
+      const tidy = (t: string) => t.replace(/상위\s?조문\s?목록/g, "확인된 상위 조문").replace(/\[\[[^\]]+\]\]/g, "").trim();
+      const point = tidy(str(it?.point));
+      const suggestion = tidy(str(it?.suggestion));
       const basis = Array.from(new Set((Array.isArray(it?.basis) ? it.basis : []).map((k) => resolveKey(str(k).replace(/^\[\[|\]\]$/g, ""), allowed)).filter((k): k is string => !!k)));
       if (!point || !basis.length) {
         dropped++;

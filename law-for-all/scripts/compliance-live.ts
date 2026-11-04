@@ -1,13 +1,13 @@
 // 실서비스 자체규정 AI 검토 실측 — 모의 규정마다 /api/compliance-ai 를 불러 조문별 AI 판정·근거와 기준 규칙 판정을 나란히 기록
 //   npx tsx scripts/compliance-live.ts https://lawon.onrender.com  → lib/eval/compliance-live.json
 import fs from "node:fs";
-import { SAMPLE_REGULATIONS, crossCheck, parseRegulation, SEVERITY_LABEL } from "@/lib/compliance";
+import { SAMPLE_REGULATIONS, TARGET_LAWS, crossCheck, parseRegulation, SEVERITY_LABEL } from "@/lib/compliance";
 import { MOCK_LAWS } from "@/lib/law-api/mock";
 const base = process.argv[2] ?? "https://lawon.onrender.com";
 async function main() {
 const out: unknown[] = [];
 for (const s of SAMPLE_REGULATIONS) {
-  const rule = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws: MOCK_LAWS });
+  const rule = crossCheck({ text: s.text, orgType: s.orgType, regName: s.name, laws: MOCK_LAWS.filter((l) => TARGET_LAWS.some((t) => t.id === l.id)) });
   // 화면과 같게: 기준 규칙이 연결한 상위 조문을 힌트로
   const arts = parseRegulation(s.text).map((a, i) => ({ no: a.no, title: a.title, text: a.text, hints: Array.from(new Set([...rule.results[i].findings.flatMap((f) => f.basis), ...rule.results[i].related].map((b) => `${b.lawId}:${b.articleNo}`))).slice(0, 4) }));
   const t = Date.now();

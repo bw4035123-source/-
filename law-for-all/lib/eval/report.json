@@ -1822,6 +1822,16 @@
   }
  },
  "coverageLive": {
+  "compliance": {
+   "date": "2026-11-04",
+   "regs": 3,
+   "articles": 24,
+   "ruleFlagged": 20,
+   "agree": 19,
+   "aiOnly": 1,
+   "dropped": 1,
+   "avgSec": 23
+  },
   "officer": {
    "correct": 24,
    "total": 24,

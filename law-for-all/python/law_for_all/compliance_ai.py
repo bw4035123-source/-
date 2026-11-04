@@ -60,7 +60,9 @@ def guard_compliance(raw, articles: list[dict]) -> list[dict]:
         dropped, issues = 0, []
         for it in got.get("issues") if isinstance(got.get("issues"), list) else []:
             it = it if isinstance(it, dict) else {}
-            point, suggestion = _str(it.get("point")), _str(it.get("suggestion"))
+            # 내부 용어가 문장에 섞이면 화면용 말로
+            tidy = lambda t: re.sub(r"\[\[[^\]]+\]\]", "", re.sub(r"상위\s?조문\s?목록", "확인된 상위 조문", t)).strip()  # noqa: E731
+            point, suggestion = tidy(_str(it.get("point"))), tidy(_str(it.get("suggestion")))
             keys = [resolve_key(re.sub(r"^\[\[|\]\]$", "", _str(k)), allowed) for k in (it.get("basis") if isinstance(it.get("basis"), list) else [])]
             basis = list(dict.fromkeys(k for k in keys if k))
             if not point or not basis:
