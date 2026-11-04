@@ -573,12 +573,15 @@ await scene("s18", async () => {
     await wait(600);
     await click(page.getByRole("button", { name: /AI로 제정안 만들기/ }));
     const sec = await aiWait(() => page.getByText(/조문 [0-9]+개를 썼어요|AI 작성에 실패|연결하지 못했어요/).first().waitFor({ timeout: 220000 }).catch(() => {}), "제정안");
-    await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
-    await page.evaluate(() => window.scrollBy({ top: -80 }));
-    await wait(300);
+    // AI가 쓴 조문 본문이 보이게(작성안 상자를 화면 위쪽으로)
+    await page.evaluate(() => {
+      const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건"));
+      if (p) window.scrollTo({ top: p.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
+    });
+    await wait(500);
     await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `실제 약 ${sec}초 · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
-    await wait(2500);
-    await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건교육")); if (p) p.scrollTop = p.scrollHeight * 0.45; });
+    await wait(3500);
+    await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건")); if (p) p.scrollTo({ top: p.scrollHeight * 0.4, behavior: "smooth" }); });
   });
   await scene("t05", async () => {
     await page.getByLabel("규정명").fill("○○공단 재택근무 운영 지침");
