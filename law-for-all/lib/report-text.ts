@@ -28,7 +28,7 @@ export function officerReportText(r: AskResult): string {
 
 export const REPORT_STORAGE_KEY = "law-for-all:last-report";
 
-const ROLE_NAME = { lawyer: "변호사", prosecutor: "검사", judge: "판사" } as const;
+const ROLE_NAME = { lawyer: "AI 변호사", prosecutor: "AI 검사", judge: "AI 판사" } as const;
 const STATUS_TEXT = { met: "확인됨", unclear: "확인 필요", unmet: "불충족 가능" } as const;
 
 /** 상황 분석 결과 텍스트(공유·붙여넣기용) */

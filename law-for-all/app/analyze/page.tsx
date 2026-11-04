@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ModeGate } from "@/components/layout/mode-gate";
 import { AnalyzeView } from "@/components/case-analysis/analyze-view";
 
-export const metadata: Metadata = { title: "법률 상황 분석실", description: "상황을 이야기하면 관련 법령을 추천하고 변호사·검사·판사의 시각으로 분석합니다." };
+export const metadata: Metadata = { title: "법률 상황 분석실", description: "상황을 이야기하면 관련 법령을 추천하고 AI 변호사·검사·판사의 시각으로 분석합니다(참고용, 전문가 자문 권장)." };
 
 export default function AnalyzePage() {
   return (

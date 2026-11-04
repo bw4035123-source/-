@@ -89,7 +89,10 @@ export function AnalyzeView() {
         </div>
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">법률 상황 분석실</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-          겪고 있는 상황을 이야기하면 <strong className="text-foreground">관련 법령을 추천</strong>하고, <strong className="text-foreground">변호사·검사·판사</strong>의 시각으로 각각 검토해 드려요.
+          겪고 있는 상황을 이야기하면 <strong className="text-foreground">관련 법령을 추천</strong>하고, <strong className="text-foreground">AI 변호사·AI 검사·AI 판사</strong>의 시각으로 각각 검토해 드려요.
+        </p>
+        <p className="mx-auto mt-3 inline-flex max-w-2xl items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+          ⚠️ AI가 만든 참고용 검토예요. 결과를 맹신하지 말고, 중요한 결정 전에는 반드시 변호사 등 전문가의 자문을 받으세요(대한법률구조공단 ☎132).
         </p>
       </header>
 
@@ -166,6 +169,12 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           <Recommendations recs={r.recommendations} citations={r.citations} />
         </div>
 
+        <div className="flex items-start gap-2 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" role="note">
+          <span aria-hidden>⚠️</span>
+          <p>
+            <strong>아래는 AI 변호사·AI 검사·AI 판사의 역할 시뮬레이션입니다.</strong> 실제 변호사의 자문, 검사의 처분, 법원의 판결이 아니므로 결과를 맹신하지 마세요. 실제 결과는 증거와 구체적 사정에 따라 달라질 수 있으니, 중요한 결정 전에는 반드시 <strong>전문가(변호사·법률구조공단 등)의 자문</strong>을 받으세요.
+          </p>
+        </div>
         <RolePanels analyses={r.analyses} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -174,7 +183,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
         </div>
 
         <p className="rounded-xl border border-dashed p-4 text-center text-xs leading-5 text-muted-foreground">
-          ⚖️ 이 화면은 법률가의 사고방식을 보여 주는 <strong>AI 역할 시뮬레이션</strong>이며 실제 변호사의 법률 자문, 검사의 처분, 법원의 판결이 아닙니다. 실제 결과는 증거와 구체적 사정에 따라 달라질 수 있으니 중요한 결정 전에는 전문가와 상담하세요(대한법률구조공단 ☎132).
+          ⚖️ 이 화면은 법률가의 사고방식을 보여 주는 <strong>AI 역할 시뮬레이션</strong>이며 실제 변호사의 법률 자문, 검사의 처분, 법원의 판결이 아닙니다. AI 결과를 맹신하지 말고, 중요한 결정 전에는 반드시 전문가의 자문을 받으세요(대한법률구조공단 ☎132).
         </p>
       </div>
     </CitationProvider>

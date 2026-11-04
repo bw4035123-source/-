@@ -12,7 +12,7 @@ for (const c of set.cases) {
     // 서버의 요청 수 제한(429)에 걸리면 안내된 시간만큼 기다렸다가 다시(측정 잡음이 '찾지 못함'으로 섞이지 않게)
     let res;
     for (let k = 0; k < 10; k++) {
-      res = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: "citizen" }) }).catch(() => null);
+      res = await fetch(`${base}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: c.q, mode: process.env.MODE || "citizen" }) }).catch(() => null);
       if (res?.status !== 429) break;
       await new Promise((ok) => setTimeout(ok, (Number(res.headers.get("retry-after")) || 10) * 1000 + 500));
     }

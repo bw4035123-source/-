@@ -156,7 +156,7 @@ export function SearchResults({ q }: { q: string }) {
             {!officer && (
               <Button variant="outline" asChild>
                 <Link href={`/analyze?s=${encodeURIComponent(q)}`}>
-                  <Gavel /> 변호사·검사·판사 관점 분석
+                  <Gavel /> AI 변호사·검사·판사 관점 분석
                 </Link>
               </Button>
             )}

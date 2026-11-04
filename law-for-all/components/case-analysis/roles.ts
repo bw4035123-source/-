@@ -3,7 +3,7 @@ import type { RoleId } from "@/lib/answer/types";
 
 export const ROLES: Record<RoleId, { name: string; tagline: string; icon: LucideIcon; ring: string; chip: string; head: string }> = {
   lawyer: {
-    name: "변호사",
+    name: "AI 변호사",
     tagline: "내 편에서 · 권리와 전략",
     icon: Briefcase,
     ring: "border-sky-200 dark:border-sky-800",
@@ -11,7 +11,7 @@ export const ROLES: Record<RoleId, { name: string; tagline: string; icon: Lucide
     head: "from-sky-600 to-indigo-600",
   },
   prosecutor: {
-    name: "검사",
+    name: "AI 검사",
     tagline: "공익 관점 · 위법성과 처벌",
     icon: Shield,
     ring: "border-rose-200 dark:border-rose-900",
@@ -19,7 +19,7 @@ export const ROLES: Record<RoleId, { name: string; tagline: string; icon: Lucide
     head: "from-rose-600 to-red-700",
   },
   judge: {
-    name: "판사",
+    name: "AI 판사",
     tagline: "중립 · 쟁점과 요건 판단",
     icon: Gavel,
     ring: "border-amber-200 dark:border-amber-800",
