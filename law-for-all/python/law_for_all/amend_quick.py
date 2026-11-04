@@ -57,13 +57,21 @@ def is_bare_request(request: str) -> bool:
     return not re.search(r"\d", request) and len(re.sub(r"[\s.,!?~]", "", _REQUEST_LINE.sub("", request))) <= 6
 
 
-def quantity_warning(request: str, current: str, amended: str) -> str | None:
+def quantity_warning(request: str, current: str, amended: str, upper: list[dict] | None = None) -> str | None:
     """구체 요청 없이 수치가 바뀌면 담당자 확인 경고(lib/amend-quick.ts quantityWarning 과 같음)"""
     if not is_bare_request(request):
         return None
-    q = lambda t: ", ".join(sorted({re.sub(r"\s", "", x) for x in _QTY.findall(t)}))  # noqa: E731
+    q = lambda t: list(dict.fromkeys(re.sub(r"\s", "", x) for x in _QTY.findall(t)))  # noqa: E731
     a, b = q(current), q(amended)
-    return None if a == b else f"요청에 없던 수치 변경({a or '없음'} → {b or '없음'}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요"
+    added = [x for x in b if x not in a]
+    removed = [x for x in a if x not in b]
+    if not added and not removed:
+        return None
+    diff = " / ".join(x for x in (f"삭제 {', '.join(removed)}" if removed else "", f"추가 {', '.join(added)}" if added else "") if x)
+    src = next((u for u in upper or [] if all(x in re.sub(r"\s", "", u["text"]) for x in added)), None) if added and not removed else None
+    if src:
+        return f"수치 {diff}: {src['label']} 기준을 옮김 — 우리 규정의 적용 대상과 같은지 확인 필요"
+    return f"요청에 없던 수치 변경({diff}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요"
 
 
 _LIMIT = re.compile(r"한\s?번|한\s?차례|1회|두\s?번|두\s?차례|2회|이내|이상|이하|초과|미만|까지")

@@ -63,7 +63,7 @@ export async function POST(req: Request) {
         const src = articles.find((a) => noOf(a.label) === noOf(label)) ?? (articles.length === 1 ? articles[0] : undefined);
         if (!src || out.some((o) => o.label === src.label)) continue;
         const g = guardAmend({ amended: it?.amended }, { lawName: "", kind: "", label: src.label, current: src.text, instruction: request, upper });
-        const extra = g.ok ? [quantityWarning(request, src.text, g.text), limitWarning(request, src.text, g.text)].filter((w): w is string => !!w) : [];
+        const extra = g.ok ? [quantityWarning(request, src.text, g.text, upper), limitWarning(request, src.text, g.text)].filter((w): w is string => !!w) : [];
         if (g.ok) out.push({ label: src.label, current: src.text, amended: g.text, changes: g.changes, warnings: [...g.warnings, ...extra] });
         else if (g.reason !== "현행과 바뀐 내용이 없음") rejected.push({ label: src.label, reason: g.reason });
       }

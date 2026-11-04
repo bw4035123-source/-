@@ -62,13 +62,18 @@ export function isBareRequest(request: string): boolean {
   return !/\d/.test(request) && request.replace(REQUEST_LINE, "").replace(/[\s.,!?~]/g, "").length <= 6;
 }
 const QTY = /\d+(?:\.\d+)?\s*(?:퍼센트|개월|시간|만원|일|년|분|원|명|%|회)/g;
-/** 구체 요청 없이 수치(기간·금액·횟수)가 바뀌면 담당자 확인 경고 */
-export function quantityWarning(request: string, current: string, amended: string): string | null {
+/** 구체 요청 없이 수치(기간·금액·횟수)가 바뀌면 담당자 확인 경고 — 새 수치를 모두 담은 상위 조문이 있으면 그 조문을 밝힘 */
+export function quantityWarning(request: string, current: string, amended: string, upper: { label: string; text: string }[] = []): string | null {
   if (!isBareRequest(request)) return null;
-  const q = (t: string) => Array.from(new Set((t.match(QTY) ?? []).map((x) => x.replace(/\s/g, "")))).sort().join(", ");
+  const q = (t: string) => new Set((t.match(QTY) ?? []).map((x) => x.replace(/\s/g, "")));
   const a = q(current);
   const b = q(amended);
-  return a === b ? null : `요청에 없던 수치 변경(${a || "없음"} → ${b || "없음"}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요`;
+  const added = Array.from(b).filter((x) => !a.has(x));
+  const removed = Array.from(a).filter((x) => !b.has(x));
+  if (!added.length && !removed.length) return null;
+  const diff = [removed.length ? `삭제 ${removed.join(", ")}` : "", added.length ? `추가 ${added.join(", ")}` : ""].filter(Boolean).join(" / ");
+  const src = added.length && !removed.length ? upper.find((u) => added.every((x) => u.text.replace(/\s/g, "").includes(x))) : undefined;
+  return src ? `수치 ${diff}: ${src.label} 기준을 옮김 — 우리 규정의 적용 대상과 같은지 확인 필요` : `요청에 없던 수치 변경(${diff}) — 상위 기준이 이 조문에 그대로 적용되는지 확인 필요`;
 }
 
 const LIMIT = /한\s?번|한\s?차례|1회|두\s?번|두\s?차례|2회|이내|이상|이하|초과|미만|까지/g;

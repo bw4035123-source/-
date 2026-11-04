@@ -1030,13 +1030,16 @@ class QuickAmendSplitTest(unittest.TestCase):
         from law_for_all.amend_quick import is_bare_request, quantity_warning
         self.assertTrue(is_bare_request("개정해줘"))
         self.assertFalse(is_bare_request("7일을 5일로 수정해줘"))
-        self.assertIn("7일 → 14일", quantity_warning("개정해줘", "7일 안에 처리", "14일 이내에 처리"))
+        self.assertIn("삭제 7일 / 추가 14일", quantity_warning("개정해줘", "7일 안에 처리", "14일 이내에 처리"))
         self.assertIsNone(quantity_warning("개정해줘", "7일안에", "7일 이내에"))
         self.assertIsNone(quantity_warning("7일을 5일로 수정해줘", "7일", "5일"))
 
     def test_limit_warning(self):
-        from law_for_all.amend_quick import limit_warning
+        from law_for_all.amend_quick import limit_warning, quantity_warning
         self.assertIn("한차례", limit_warning("개정해줘", "한번 연장할 수 있다", "연장할 수 있다"))
         self.assertIsNone(limit_warning("개정해줘", "한번 연장할수 있다", "한 차례 연장할 수 있다"))
         self.assertIsNone(limit_warning("개정해줘", "7일까지 처리", "7일 이내에 처리"))
         self.assertIsNone(limit_warning("연장 제한을 없애줘", "한번 연장", "연장"))
+        w = quantity_warning("개정해줘", "1년 미만이면 주지 않는다", "1년 미만이면 1개월 개근 시 1일을 준다", [{"label": "「근로기준법」 제60조(연차 유급휴가)", "text": "1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 주어야 한다"}])
+        self.assertIn("「근로기준법」 제60조", w)
+        self.assertIn("추가 1개월, 1일", w)

@@ -371,7 +371,7 @@ def amend_quick(body: dict) -> tuple[int, dict]:
                     continue
                 g = guard_amend({"amended": it.get("amended")}, {"lawName": "", "kind": "", "label": src["label"], "current": src["text"], "instruction": request, "upper": upper})
                 if g["ok"]:
-                    extra = [w for w in (quantity_warning(request, src["text"], g["text"]), limit_warning(request, src["text"], g["text"])) if w]
+                    extra = [w for w in (quantity_warning(request, src["text"], g["text"], upper), limit_warning(request, src["text"], g["text"])) if w]
                     out.append({"label": src["label"], "current": src["text"], "amended": g["text"], "changes": g["changes"], "warnings": g["warnings"] + extra})
                 elif g["reason"] != "현행과 바뀐 내용이 없음":
                     rejected.append({"label": src["label"], "reason": g["reason"]})

@@ -40,7 +40,7 @@ describe("한 번에 개정 — 보완", () => {
   it("구체 요청 없이 수치가 바뀌면 경고", () => {
     expect(isBareRequest("개정해줘")).toBe(true);
     expect(isBareRequest("7일을 5일로 수정해줘")).toBe(false);
-    expect(quantityWarning("개정해줘", "7일 안에 처리", "14일 이내에 처리")).toContain("7일 → 14일");
+    expect(quantityWarning("개정해줘", "7일 안에 처리", "14일 이내에 처리")).toContain("삭제 7일 / 추가 14일");
     expect(quantityWarning("개정해줘", "7일안에", "7일 이내에")).toBeNull();
     expect(quantityWarning("7일을 5일로 수정해줘", "7일", "5일")).toBeNull();
   });
@@ -53,4 +53,10 @@ describe("한 번에 개정 — 기준 완화 경고", () => {
     expect(limitWarning("개정해줘", "7일까지 처리", "7일 이내에 처리")).toBeNull();
     expect(limitWarning("연장 제한을 없애줘", "한번 연장", "연장")).toBeNull();
   });
+});
+
+it("새 수치를 담은 상위 조문을 밝힘", () => {
+  const w = quantityWarning("개정해줘", "1년 미만이면 주지 않는다", "1년 미만이면 1개월 개근 시 1일을 준다", [{ label: "「근로기준법」 제60조(연차 유급휴가)", text: "1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 주어야 한다" }]);
+  expect(w).toContain("「근로기준법」 제60조");
+  expect(w).toContain("추가 1개월, 1일");
 });
