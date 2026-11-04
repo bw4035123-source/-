@@ -33,9 +33,15 @@ export async function POST(req: Request) {
   if (provider.kind === "rule") return NextResponse.json({ error: "생성형 AI가 연결되어 있지 않아요. 아래 ‘개정 방향’에 ‘A에서 B로’처럼 적어 규칙으로 개정하세요." }, { status: 503 });
 
   const svc = new LawService(serverConfig.lawAccess);
-  const q = articles.map((a) => `${a.label.replace(/^제\d+조/, "")} ${a.text}`).join(" ").replace(/\s+/g, " ").slice(0, 300);
-  const { context } = await gatherEvidence(q, svc).catch(() => ({ context: [] as Awaited<ReturnType<typeof gatherEvidence>>["context"] }));
-  const upper = context.slice(0, 4).map((c) => ({ label: `「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title})`, text: c.text }));
+  // 조문마다 따로 상위 조문을 찾아(한 덩어리로 찾으면 한 주제만 남음) 조문당 2개씩, 모두 6개까지
+  const qs = articles.slice(0, 4).map((a) => `${a.label.replace(/^제\d+조(?:의\d+)?/, "")} ${a.text}`.replace(/\s+/g, " ").slice(0, 300));
+  type Ctx = Awaited<ReturnType<typeof gatherEvidence>>["context"];
+  const found = await Promise.all(qs.map((q) => gatherEvidence(q, svc).then((r) => r.context, () => [] as Ctx)));
+  const upper: { label: string; text: string }[] = [];
+  for (const c of found.flatMap((ctx) => ctx.slice(0, articles.length > 1 ? 2 : 4))) {
+    const label = `「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title})`;
+    if (upper.length < 6 && !upper.some((u) => u.label === label)) upper.push({ label, text: c.text });
+  }
 
   try {
     const messages: { role: "user" | "assistant"; content: string }[] = [{ role: "user", content: buildQuickPrompt(request, articles, upper) }];

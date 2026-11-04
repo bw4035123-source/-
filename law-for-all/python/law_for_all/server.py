@@ -323,13 +323,22 @@ def amend_quick(body: dict) -> tuple[int, dict]:
     if p.kind == "rule":
         return 503, {"error": "생성형 AI가 연결되어 있지 않아요. 아래 ‘개정 방향’에 ‘A에서 B로’처럼 적어 규칙으로 개정하세요."}
     svc = LawService(config.law_access)
-    head = re.compile(r"^제\d+조")
-    q = re.sub(r"\s+", " ", " ".join(head.sub("", a["label"]) + " " + a["text"] for a in articles))[:300]
-    try:
-        context = gather_evidence(q, svc)[1]
-    except Exception:  # noqa: BLE001
-        context = []
-    upper = [{"label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in context[:4]]
+    head = re.compile(r"^제\d+조(?:의\d+)?")
+    qs = [re.sub(r"\s+", " ", head.sub("", a["label"]) + " " + a["text"])[:300] for a in articles[:4]]
+
+    def find(q: str) -> list:
+        try:
+            return gather_evidence(q, svc)[1]
+        except Exception:  # noqa: BLE001
+            return []
+
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
+        found = list(ex.map(find, qs))
+    upper: list[dict] = []
+    for c in (c for ctx in found for c in ctx[: 2 if len(articles) > 1 else 4]):
+        label = f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})"
+        if len(upper) < 6 and all(u["label"] != label for u in upper):
+            upper.append({"label": label, "text": c["text"]})
 
     def no_of(label: str) -> str:
         s = re.sub(r"\s", "", label)
