@@ -1822,6 +1822,11 @@
   }
  },
  "coverageLive": {
+  "officer": {
+   "correct": 24,
+   "total": 24,
+   "before": 14
+  },
   "dev": {
    "correct": 49,
    "total": 50,

@@ -1,0 +1,486 @@
+{
+ "before": {
+  "date": "2026-11-04",
+  "base": "https://lawon.onrender.com",
+  "total": 24,
+  "correct": 14,
+  "miss": 3,
+  "wrong": 7,
+  "external": {
+   "total": 0,
+   "correct": 0,
+   "miss": 0,
+   "wrong": 0
+  },
+  "rows": [
+   {
+    "q": "공무원이 퇴근 후 유튜브로 수익을 내도 되나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "법원공무원규칙"
+    ],
+    "topic": null
+   },
+   {
+    "q": "민원인이 같은 민원을 10번째 반복 제출하는데 종결 처리할 수 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민원 처리에 관한 법률 시행령",
+     "민원 처리에 관한 법률"
+    ],
+    "topic": "petition-deadline"
+   },
+   {
+    "q": "공단 직원 채용 시 가점 기준을 정하려는데 법적 제한이 있나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "정보공개청구가 들어왔는데 개인정보가 들어 있는 문서는 어떻게 공개하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공공기관의 정보공개에 관한 법률"
+    ],
+    "topic": "info-disclosure"
+   },
+   {
+    "q": "지자체가 수의계약을 할 수 있는 금액 기준이 얼마인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "지방자치단체를 당사자로 하는 계약에 관한 법률 시행령",
+     "국가를 당사자로 하는 계약에 관한 법률 시행령",
+     "공유재산 및 물품 관리법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "직무 관련자에게 5만원짜리 식사 대접을 받아도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "부정청탁 및 금품등 수수의 금지에 관한 법률",
+     "부정청탁 및 금품등 수수의 금지에 관한 법률 시행령"
+    ],
+    "topic": "anti-graft"
+   },
+   {
+    "q": "공무원이 선거 기간에 SNS에서 특정 후보 글에 좋아요를 눌러도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공직선거법"
+    ],
+    "topic": "election-neutrality"
+   },
+   {
+    "q": "공유재산 사용허가 기간은 최대 몇 년인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공유재산 및 물품 관리법"
+    ],
+    "topic": "public-property"
+   },
+   {
+    "q": "영업정지 처분 전에 사전통지는 언제까지 해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "행정절차법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "직원이 육아휴직을 신청했는데 업무가 바빠서 거부해도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률",
+     "고용보험법 시행령",
+     "고용보험법"
+    ],
+    "topic": "parental-leave"
+   },
+   {
+    "q": "공무원 징계 시효는 몇 년인가요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "민법",
+     "공무원 징계령"
+    ],
+    "topic": null
+   },
+   {
+    "q": "홈페이지 탈퇴 회원의 개인정보는 언제 파기해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "개인정보 보호법",
+     "개인정보 보호법 시행령"
+    ],
+    "topic": "privacy-access"
+   },
+   {
+    "q": "배우자가 운영하는 업체와 우리 기관이 계약해도 되나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "과태료 부과 전에 의견제출 기간을 얼마나 줘야 하나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "행정절차법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "퇴직한 공무원이 재직 중 알게 된 비밀을 말해도 되나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "경찰공무원법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "행정심판은 처분이 있음을 안 날부터 며칠 안에 청구해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "행정심판법"
+    ],
+    "topic": "admin-appeal"
+   },
+   {
+    "q": "민원 처리기간을 계산할 때 토요일도 포함하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민원 처리에 관한 법률",
+     "민원 처리에 관한 법률 시행령"
+    ],
+    "topic": "petition-deadline"
+   },
+   {
+    "q": "공직자가 외부강의를 하면 기관에 신고해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "부정청탁 및 금품등 수수의 금지에 관한 법률",
+     "부정청탁 및 금품등 수수의 금지에 관한 법률 시행령"
+    ],
+    "topic": "anti-graft"
+   },
+   {
+    "q": "직장 내 괴롭힘 신고가 들어오면 사용자는 조사를 꼭 해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "공무원 시간외근무수당은 하루 몇 시간까지 인정되나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "군인의 시간외근무수당 등에 관한 규정",
+     "공무원보수규정"
+    ],
+    "topic": null
+   },
+   {
+    "q": "회계 담당 직원의 실수로 손해가 생기면 변상책임이 있나요",
+    "external": false,
+    "result": "miss",
+    "got": [],
+    "topic": null
+   },
+   {
+    "q": "공공기관이 청사에 CCTV를 설치할 때 안내판을 달아야 하나요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "부정청탁 및 금품등 수수의 금지에 관한 법률",
+     "공공기관의 운영에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "공무원 연가는 1년에 며칠인가요",
+    "external": false,
+    "result": "wrong",
+    "got": [
+     "경찰공무원법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "지방공기업 임원의 임기는 몇 년인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "지방공기업법"
+    ],
+    "topic": "local-public-enterprise"
+   }
+  ]
+ },
+ "after": {
+  "date": "2026-11-04",
+  "base": "https://lawon.onrender.com",
+  "total": 24,
+  "correct": 24,
+  "miss": 0,
+  "wrong": 0,
+  "external": {
+   "total": 0,
+   "correct": 0,
+   "miss": 0,
+   "wrong": 0
+  },
+  "rows": [
+   {
+    "q": "공무원이 퇴근 후 유튜브로 수익을 내도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "국가공무원법",
+     "지방공무원법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "민원인이 같은 민원을 10번째 반복 제출하는데 종결 처리할 수 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민원 처리에 관한 법률",
+     "민원 처리에 관한 법률 시행령"
+    ],
+    "topic": "petition-deadline"
+   },
+   {
+    "q": "공단 직원 채용 시 가점 기준을 정하려는데 법적 제한이 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "국가유공자 등 예우 및 지원에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "정보공개청구가 들어왔는데 개인정보가 들어 있는 문서는 어떻게 공개하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공공기관의 정보공개에 관한 법률"
+    ],
+    "topic": "info-disclosure"
+   },
+   {
+    "q": "지자체가 수의계약을 할 수 있는 금액 기준이 얼마인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "지방자치단체를 당사자로 하는 계약에 관한 법률 시행령",
+     "국가를 당사자로 하는 계약에 관한 법률 시행령",
+     "공유재산 및 물품 관리법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "직무 관련자에게 5만원짜리 식사 대접을 받아도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "부정청탁 및 금품등 수수의 금지에 관한 법률",
+     "부정청탁 및 금품등 수수의 금지에 관한 법률 시행령"
+    ],
+    "topic": "anti-graft"
+   },
+   {
+    "q": "공무원이 선거 기간에 SNS에서 특정 후보 글에 좋아요를 눌러도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공직선거법"
+    ],
+    "topic": "election-neutrality"
+   },
+   {
+    "q": "공유재산 사용허가 기간은 최대 몇 년인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공유재산 및 물품 관리법"
+    ],
+    "topic": "public-property"
+   },
+   {
+    "q": "영업정지 처분 전에 사전통지는 언제까지 해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "행정절차법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "직원이 육아휴직을 신청했는데 업무가 바빠서 거부해도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률",
+     "고용보험법",
+     "고용보험법 시행령"
+    ],
+    "topic": "parental-leave"
+   },
+   {
+    "q": "공무원 징계 시효는 몇 년인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "국가공무원법",
+     "지방공무원법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "홈페이지 탈퇴 회원의 개인정보는 언제 파기해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "개인정보 보호법",
+     "개인정보 보호법 시행령"
+    ],
+    "topic": "privacy-access"
+   },
+   {
+    "q": "배우자가 운영하는 업체와 우리 기관이 계약해도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공직자의 이해충돌 방지법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "과태료 부과 전에 의견제출 기간을 얼마나 줘야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "질서위반행위규제법",
+     "행정절차법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "퇴직한 공무원이 재직 중 알게 된 비밀을 말해도 되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "국가공무원법",
+     "지방공무원법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "행정심판은 처분이 있음을 안 날부터 며칠 안에 청구해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "행정심판법"
+    ],
+    "topic": "admin-appeal"
+   },
+   {
+    "q": "민원 처리기간을 계산할 때 토요일도 포함하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "민원 처리에 관한 법률",
+     "민원 처리에 관한 법률 시행령"
+    ],
+    "topic": "petition-deadline"
+   },
+   {
+    "q": "공직자가 외부강의를 하면 기관에 신고해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "부정청탁 및 금품등 수수의 금지에 관한 법률",
+     "부정청탁 및 금품등 수수의 금지에 관한 법률 시행령"
+    ],
+    "topic": "anti-graft"
+   },
+   {
+    "q": "직장 내 괴롭힘 신고가 들어오면 사용자는 조사를 꼭 해야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "근로기준법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "공무원 시간외근무수당은 하루 몇 시간까지 인정되나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "공무원수당 등에 관한 규정"
+    ],
+    "topic": null
+   },
+   {
+    "q": "회계 담당 직원의 실수로 손해가 생기면 변상책임이 있나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "회계관계직원 등의 책임에 관한 법률"
+    ],
+    "topic": null
+   },
+   {
+    "q": "공공기관이 청사에 CCTV를 설치할 때 안내판을 달아야 하나요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "개인정보 보호법"
+    ],
+    "topic": null
+   },
+   {
+    "q": "공무원 연가는 1년에 며칠인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "국가공무원 복무규정",
+     "지방공무원 복무규정"
+    ],
+    "topic": null
+   },
+   {
+    "q": "지방공기업 임원의 임기는 몇 년인가요",
+    "external": false,
+    "result": "correct",
+    "got": [
+     "지방공기업법"
+    ],
+    "topic": "local-public-enterprise"
+   }
+  ]
+ }
+}
