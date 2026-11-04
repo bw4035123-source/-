@@ -722,10 +722,18 @@ if (!AUDIO) {
   // 화면 동작이 계획보다 길어져 목표를 넘으면 전체를 살짝 빠르게 재생해 마지막 장면까지 정확히 TARGET 초에 담는다.
   // 부하가 크면 녹화 파일이 실제 시간보다 길어질 수 있어 파일 길이도 함께 본다
   const webmSec = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", webm]).toString().trim()) || 0;
-  const span = Math.max(recorded, webmSec - introAt - cutTotal);
+  // 부하가 크면 녹화 파일의 시간이 실제 시간보다 느리게 흘러(예: 실제 287초 → 파일 326초) 뒤쪽 장면일수록 잘라 낼 위치가 어긋난다.
+  // 표지 이후 실제 경과 시간과 파일 길이의 비율로 잘라 낼 구간을 파일 시간에 맞춘다
+  const wallSpan = recorded + cutTotal;
+  const fileSpan = webmSec - introAt;
+  const drift = wallSpan > 0 && fileSpan / wallSpan > 1.01 ? fileSpan / wallSpan : 1;
+  const cutFile = cutList.map(([a, b]) => [a * drift, b * drift]);
+  const cutFileTotal = cutFile.reduce((n, [a, b]) => n + (b - Math.max(0, a)), 0);
+  if (drift > 1) console.log(`녹화 시간 보정 ×${drift.toFixed(3)}(파일이 실제보다 김)`);
+  const span = Math.max(recorded, fileSpan - cutFileTotal);
   const f = span > TARGET ? TARGET / span : 1;
   const vf = [];
-  if (cutList.length) vf.push("fps=25", `select='not(${cutList.map(([a, b]) => `between(t\\,${Math.max(0, a).toFixed(2)}\\,${b.toFixed(2)})`).join("+")})'`, "setpts=N/25/TB");
+  if (cutList.length) vf.push("fps=25", `select='not(${cutFile.map(([a, b]) => `between(t\\,${Math.max(0, a).toFixed(2)}\\,${b.toFixed(2)})`).join("+")})'`, "setpts=N/25/TB");
   if (f < 1) vf.push(`setpts=${f.toFixed(4)}*PTS`);
   if (vf.length) args.push("-vf", vf.join(","), "-r", "25");
   if (cutList.length) console.log(`AI 대기 ${cutList.length}구간 ${cutTotal.toFixed(1)}초 잘라 냄`);
