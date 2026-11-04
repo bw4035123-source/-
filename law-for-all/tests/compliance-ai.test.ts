@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCompliancePrompt, guardCompliance, type AiArticleInput } from "@/lib/compliance-ai";
+import { buildCompliancePrompt, guardCompliance, mergeVerdict, type AiArticleInput } from "@/lib/compliance-ai";
 
 const UP = { key: "labor-standards:50", label: "「근로기준법」 제50조(근로시간)", text: "① 1주 간의 근로시간은 휴게시간을 제외하고 40시간을 초과할 수 없다." };
 const A: AiArticleInput[] = [
@@ -32,5 +32,15 @@ describe("자체규정 AI 검토 가드", () => {
     expect(p).toContain("<<조문 no=8>> 제8조(근무시간)");
     expect(p).toContain("[[labor-standards:50]] 「근로기준법」 제50조(근로시간)");
     expect(p).toContain("(찾은 상위조문 없음)");
+  });
+});
+
+describe("규칙·AI 판정 합치기", () => {
+  it("더 엄격한 쪽, 규칙 상충 + AI 적합이면 검토 필요(판단 다름)", () => {
+    expect(mergeVerdict("ok", "상충")).toEqual({ status: "conflict", disagree: false });
+    expect(mergeVerdict("review", "판단 보류")).toEqual({ status: "review", disagree: false });
+    expect(mergeVerdict("conflict", "적합")).toEqual({ status: "review", disagree: true });
+    expect(mergeVerdict("conflict", "판단 보류")).toEqual({ status: "conflict", disagree: false });
+    expect(mergeVerdict("info")).toEqual({ status: "info", disagree: false });
   });
 });

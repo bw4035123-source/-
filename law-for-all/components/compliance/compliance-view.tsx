@@ -21,7 +21,7 @@ import {
   type Severity,
 } from "@/lib/compliance";
 import { diffWords } from "@/lib/drafting";
-import type { AiArticleResult, AiVerdict } from "@/lib/compliance-ai";
+import { mergeVerdict, type AiArticleResult, type AiVerdict } from "@/lib/compliance-ai";
 import { maskPII } from "@/lib/privacy-mask";
 import { ACCEPT, ExtractError, extractText, type Extracted } from "@/lib/doc-extract";
 import { MOCK_FILES } from "@/lib/mock-files";
@@ -48,11 +48,10 @@ type LawState = { status: "loading" | "ready" | "error"; docs: Map<string, LawDo
 type AiResult = AiArticleResult & { upper: Citation[] };
 type AiState =
   | { status: "idle" }
-  | { status: "loading"; count: number }
+  | { status: "loading"; count: number; byNo: Map<string, AiResult>; first: number }
   | { status: "error"; message: string }
   | { status: "done"; byNo: Map<string, AiResult>; label: string; model: string; elapsedMs: number; dropped: number; laws: number };
 const AI_SEV: Record<AiVerdict, Severity> = { 상충: "conflict", "검토 필요": "review", 적합: "ok", "판단 보류": "info" };
-const RANK_SEV: Record<Severity, number> = { conflict: 3, review: 2, ok: 1, info: 0 };
 
 /** 우리 기관 규정 ↔ 상위법령 교차 검증 */
 export function ComplianceView() {
@@ -107,19 +106,36 @@ export function ComplianceView() {
     };
     const arts = parseRegulation(src).slice(0, 40).map((a) => ({ no: a.no, title: a.title, text: maskPII(a.text).text.slice(0, 3000), hints: hintsOf(a.no) }));
     if (!arts.length) return;
-    setAi({ status: "loading", count: arts.length });
+    // 규칙이 상충·검토 필요로 본 조문을 먼저 검토해 결과를 먼저 붙이고, 나머지는 이어서
+    const flagged = new Set(rule.results.filter((r) => r.status === "conflict" || r.status === "review").map((r) => r.article.no));
+    const batches = [arts.filter((a) => flagged.has(a.no)), arts.filter((a) => !flagged.has(a.no))].filter((b) => b.length);
+    const byNo = new Map<string, AiResult>();
+    setAi({ status: "loading", count: arts.length, byNo: new Map(), first: batches[0].length });
+    const started = Date.now();
+    let label = "";
+    let model = "";
     try {
-      const j = await fetchJson<{ articles: AiResult[]; label: string; model: string; elapsedMs: number }>("/api/compliance-ai", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ regName: name, orgType: org, articles: arts }),
-        timeoutMs: 150000,
-      });
-      const byNo = new Map(j.articles.map((r) => [r.no, r]));
-      const laws = new Set(j.articles.flatMap((r) => r.upper.map((c) => c.lawId))).size;
-      setAi({ status: "done", byNo, label: j.label, model: j.model, elapsedMs: j.elapsedMs, dropped: j.articles.reduce((n, r) => n + r.dropped, 0), laws });
+      for (const b of batches) {
+        const j = await fetchJson<{ articles: AiResult[]; label: string; model: string }>("/api/compliance-ai", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ regName: name, orgType: org, articles: b }),
+          timeoutMs: 150000,
+        });
+        for (const r of j.articles) byNo.set(r.no, r);
+        label = j.label;
+        model = j.model;
+        setAi({ status: "loading", count: arts.length, byNo: new Map(byNo), first: batches[0].length });
+      }
+      const all = Array.from(byNo.values());
+      setAi({ status: "done", byNo, label, model, elapsedMs: Date.now() - started, dropped: all.reduce((n, r) => n + r.dropped, 0), laws: new Set(all.flatMap((r) => r.upper.map((c) => c.lawId))).size });
     } catch (e) {
-      setAi({ status: "error", message: (e as Error).message });
+      // 먼저 받은 결과는 살림
+      if (byNo.size) {
+        const all = Array.from(byNo.values());
+        setAi({ status: "done", byNo, label, model, elapsedMs: Date.now() - started, dropped: all.reduce((n, r) => n + r.dropped, 0), laws: new Set(all.flatMap((r) => r.upper.map((c) => c.lawId))).size });
+        toast(`나머지 조문 AI 검토는 하지 못했어요(${(e as Error).message})`);
+      } else setAi({ status: "error", message: (e as Error).message });
     }
   };
 
@@ -204,14 +220,14 @@ export function ComplianceView() {
     },
   };
 
-  // 판정: AI 검토와 기준 규칙 중 더 엄격한 쪽(AI 판단 보류는 규칙 판정을 그대로)
+  // 판정: AI 검토와 기준 규칙 중 더 엄격한 쪽(AI 판단 보류는 규칙 판정을 그대로).
+  // 다만 규칙은 상충인데 AI가 같은 조문을 보고 적합으로 판단하면 어느 한쪽으로 단정하지 않고 '검토 필요(판단 다름)'로
   const merged = React.useMemo(() => {
     if (!report) return null;
-    if (ai.status !== "done") return report;
-    const results = report.results.map((r) => {
-      const a = ai.byNo.get(r.article.no);
-      const s = a ? AI_SEV[a.verdict] : "info";
-      return RANK_SEV[s] > RANK_SEV[r.status] ? { ...r, status: s } : r;
+    if (ai.status !== "done" && ai.status !== "loading") return report;
+    const results: (ArticleResult & { disagree?: boolean })[] = report.results.map((r) => {
+      const m = mergeVerdict(r.status, ai.byNo.get(r.article.no)?.verdict);
+      return m.status === r.status && !m.disagree ? r : { ...r, status: m.status, disagree: m.disagree };
     });
     const counts: Record<Severity, number> = { conflict: 0, review: 0, ok: 0, info: 0 };
     for (const r of results) counts[r.status]++;
@@ -426,7 +442,10 @@ export function ComplianceView() {
                 <div className={cn("mt-3 rounded-xl border px-3 py-2 text-xs leading-5", ai.status === "error" ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" : "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100")}>
                   {ai.status === "loading" ? (
                     <p className="flex items-center gap-1.5 font-semibold">
-                      <Loader2 className="h-4 w-4 animate-spin" /> AI(국산 Solar)가 조문 {ai.count}개마다 국가법령정보에서 상위 조문을 찾아 대조하는 중… (30~60초) — 아래는 먼저 나온 기준 규칙 점검 결과예요
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {ai.byNo.size
+                        ? `AI 검토 ${ai.byNo.size}/${ai.count}개 조문 완료 — 상충·검토 필요 조문을 먼저 확인했어요. 나머지 조문을 이어서 대조하는 중…`
+                        : `AI(국산 Solar)가 상충·검토 필요 조문 ${ai.first}개부터 국가법령정보 상위 조문과 대조하는 중… — 아래는 먼저 나온 1차 자동 점검(기준 규칙) 결과예요`}
                     </p>
                   ) : ai.status === "done" ? (
                     <p className="flex items-start gap-1.5">
@@ -453,7 +472,7 @@ export function ComplianceView() {
               </div>
 
               {shown.map((r) => (
-                <ArticleCard key={r.article.no + r.article.title} r={r} ai={ai.status === "done" ? ai.byNo.get(r.article.no) : undefined} aiLabel={ai.status === "done" ? ai.label : ""} lawName={lawName} citationOf={citationOf} onOpen={setViewing} onCopy={copy} />
+                <ArticleCard key={r.article.no + r.article.title} r={r} ai={ai.status === "done" || ai.status === "loading" ? ai.byNo.get(r.article.no) : undefined} aiPending={ai.status === "loading" && !ai.byNo.has(r.article.no)} aiLabel={ai.status === "done" ? ai.label : "업스테이지 Solar"} lawName={lawName} citationOf={citationOf} onOpen={setViewing} onCopy={copy} />
               ))}
               {!shown.length && <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">해당 판정의 조문이 없어요.</p>}
             </>
@@ -468,6 +487,7 @@ export function ComplianceView() {
 function ArticleCard({
   r,
   ai,
+  aiPending,
   aiLabel,
   lawName,
   citationOf,
@@ -476,6 +496,7 @@ function ArticleCard({
 }: {
   r: ArticleResult;
   ai?: AiResult;
+  aiPending?: boolean;
   aiLabel: string;
   lawName: (id: string) => string;
   citationOf: (b: BasisRef) => Citation | null;
@@ -502,11 +523,26 @@ function ArticleCard({
     <article className={cn("rounded-2xl border bg-card p-5 shadow-sm", r.status === "conflict" && "border-l-4 border-l-rose-500", r.status === "review" && "border-l-4 border-l-amber-500")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-extrabold">{regArticleLabel(r.article)}</h3>
-        <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold", TONE[r.status])}>
-          <I className="h-3.5 w-3.5" /> {SEVERITY_LABEL[r.status]}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {aiPending && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-900 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-100">
+              <Loader2 className="h-3 w-3 animate-spin" /> 1차 자동 점검 · AI 확인 중
+            </span>
+          )}
+          <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold", TONE[r.status])}>
+            <I className="h-3.5 w-3.5" /> {SEVERITY_LABEL[r.status]}
+          </span>
         </span>
       </div>
       <p className="law-text mt-2 whitespace-pre-wrap rounded-lg bg-secondary/40 p-3 text-sm leading-7">{r.article.text}</p>
+      {(r as ArticleResult & { disagree?: boolean }).disagree && (
+        <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>규칙과 AI 판단이 달라요</b> — 기준 규칙은 상충으로, AI는 같은 상위 조문을 보고 적합으로 판단했어요. 한쪽으로 단정하지 않고 <b>검토 필요</b>로 두었으니 아래 두 근거를 비교해 확인하세요.
+          </span>
+        </p>
+      )}
 
       {ai && (
         <div className={cn("mt-3 rounded-xl border p-3", TONE[AI_SEV[ai.verdict]])}>

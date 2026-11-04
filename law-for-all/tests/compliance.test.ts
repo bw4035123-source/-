@@ -108,3 +108,26 @@ describe("예시 자체규정·보고서", () => {
     expect(rep.results.find((r) => r.article.no === "30")?.findings.map((f) => f.rule)).toContain("change-procedure");
   });
 });
+
+describe("연차 규칙: 같은 구절의 조건으로 제60조 어느 항인지 가려 비교", () => {
+  const check = (t: string) => crossCheck({ text: `제15조(연차휴가) ${t}`, orgType: "지방공기업", laws }).results[0].findings.filter((f) => f.rule.startsWith("annual"));
+  it("1년 미만·신규 직원의 월 1일은 적법(제60조 제2항)", () => {
+    expect(check("계속하여 근로한 기간이 1년 미만인 직원에게는 1개월 개근 시 1일의 유급휴가를 준다.")).toEqual([]);
+    expect(check("신규 입사자는 매월 1일의 연차휴가를 사용할 수 있다.")).toEqual([]);
+    expect(check("① 1년간 80퍼센트 이상 출근한 직원에게 15일의 유급휴가를 준다.\n② 1년 미만 직원에게는 1개월 개근 시 1일을 준다.")).toEqual([]);
+  });
+  it("항별 기준 미달은 상충", () => {
+    expect(check("1년간 80퍼센트 이상 출근한 직원에게 12일의 유급휴가를 준다.")[0]).toMatchObject({ severity: "conflict", title: expect.stringContaining("15일") });
+    expect(check("입사 1년 미만 직원은 2개월 개근 시 1일의 연차를 준다.")[0]).toMatchObject({ severity: "conflict", rule: "annual-leave-new" });
+    expect(check("3년 이상 근속한 직원에게는 3년마다 1일을 가산한다.")[0]).toMatchObject({ severity: "conflict", rule: "annual-leave-add" });
+    expect(check("가산휴가를 포함한 연차는 최대 20일로 한다.")[0]).toMatchObject({ severity: "conflict", title: expect.stringContaining("25일") });
+    expect(check("3년 이상 근속한 직원에게는 2년마다 1일을 가산하되 총 25일을 한도로 한다.")).toEqual([]);
+  });
+  it("적용 대상을 가리지 못하면 단정하지 않고 검토 필요", () => {
+    expect(check("직원의 연차휴가는 10일로 한다.")[0]).toMatchObject({ severity: "review" });
+  });
+  it("해고예고 적용 제외(3개월 미만) 구절은 상충 아님", () => {
+    const r = crossCheck({ text: "제25조(해고의 예고) 계속 근로한 기간이 3개월 미만인 직원은 예고 없이 해고할 수 있다.", orgType: "지방공기업", laws }).results[0];
+    expect(r.findings.filter((f) => f.rule === "dismissal-notice")).toEqual([]);
+  });
+});

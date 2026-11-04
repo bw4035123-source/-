@@ -221,16 +221,37 @@ const RULES: Rule[] = [
         if (m8 && Number(m8[1]) < 60) out.push({ rule: "rest-8h", severity: "conflict", title: `8시간 근로 시 휴게 ${m8[1]}분 — 법정 1시간 미달`, detail: "근로시간이 8시간인 경우 1시간 이상의 휴게시간을 주어야 합니다.", basis: [{ lawId: L, articleNo: "54" }], fix: { before: m8[0], after: m8[0].replace(`${m8[1]}분`, "1시간") } });
         return out;
       }),
-  // 연차 유급휴가 15일
+  // 연차 유급휴가(근로기준법 제60조) — 수치만 보지 않고 같은 구절의 조건으로 어느 항의 기준인지 가려 비교
+  //  ① 1년간 80% 이상 출근 → 15일 · ② 1년 미만(또는 80% 미만) → 1개월 개근 시 1일 · ④ 3년 이상 → 2년마다 1일 가산, 총 25일 한도
+  //  조건을 가리지 못한 구절은 단정하지 않고 '검토 필요'
   ({ a }) =>
     sentences(a.text)
-      .filter((s) => /연차|연가|유급휴가/.test(s) && /1년|80|출근/.test(s) && !/1개월\s*개근/.test(s))
-      .flatMap((s) =>
-        nums(s, /(\d+)\s*일(?:의|간)?\s*(?:유급휴가|연차|연가|휴가)?/g)
-          .filter((n) => n.value > 0 && n.value < 15)
-          .slice(0, 1)
-          .map<Finding>((n) => ({ rule: "annual-leave", severity: "conflict", title: `연차휴가 ${n.value}일 — 법정 15일 미달`, detail: "1년간 80퍼센트 이상 출근한 근로자에게는 15일의 유급휴가를 주어야 합니다. 법보다 적게 정한 부분은 무효가 되고 법 기준이 적용됩니다.", basis: [{ lawId: L, articleNo: "60" }, { lawId: L, articleNo: "15" }], fix: { before: n.raw, after: replaceNum(n.raw, n.value, 15) } })),
-      ),
+      .filter((s) => /연차|연가|유급휴가/.test(s) || /연차|연가|유급휴가/.test(a.title))
+      .flatMap((s) => s.split(/[,，;]|다만/).map((x) => x.trim()).filter(Boolean))
+      .flatMap((c): Finding[] => {
+        const basis = [{ lawId: L, articleNo: "60" }, { lawId: L, articleNo: "15" }];
+        const p2 = /1년\s*미만|80\s*(?:퍼센트|%|프로)\s*미만|신규|신입|입사\s*(?:첫|1)\s*년|개근|매월|매달|1개월마다|월\s*\d+\s*일/.test(c);
+        const p4 = /3년\s*이상|가산|\d+\s*년마다|근속\s*\d+\s*년|25일/.test(c);
+        const p1 = /1년\s*(?:간|동안)?[^.]{0,20}(?:80\s*(?:퍼센트|%|프로)\s*이상|출근)|1년\s*이상\s*(?:근무|근속|재직)/.test(c);
+        if (p2) {
+          // 1개월 개근마다 1일 — '2개월 개근 시 1일'처럼 개근 기간을 늘리면 미달
+          const m = c.match(/(\d+)\s*개월\s*(?:간\s*)?개근/);
+          if (m && Number(m[1]) > 1) return [{ rule: "annual-leave-new", severity: "conflict", title: `${m[1]}개월 개근 시 연차 — 법정 1개월 개근 시 1일 미달`, detail: "계속하여 근로한 기간이 1년 미만인 근로자(또는 1년간 80% 미만 출근자)에게는 1개월 개근 시 1일의 유급휴가를 주어야 합니다.", basis, fix: { before: m[0], after: m[0].replace(m[1], "1") } }];
+          return [];
+        }
+        if (p4) {
+          const every = c.match(/(\d+)\s*년마다/);
+          if (every && Number(every[1]) > 2) return [{ rule: "annual-leave-add", severity: "conflict", title: `${every[1]}년마다 가산 — 법정 2년마다 1일 미달`, detail: "3년 이상 계속 근로한 근로자에게는 최초 1년을 초과하는 계속 근로 연수 매 2년에 대하여 1일을 가산한 유급휴가를 주어야 합니다(총 25일 한도).", basis, fix: { before: every[0], after: every[0].replace(every[1], "2") } }];
+          const cap = c.match(/(?:최대|한도|상한|까지)[^0-9]{0,6}(\d+)\s*일|(\d+)\s*일\s*(?:을|를)?\s*(?:한도|상한|초과할\s*수\s*없)/);
+          const v = cap ? Number(cap[1] ?? cap[2]) : 0;
+          if (v && v < 25) return [{ rule: "annual-leave-add", severity: "conflict", title: `가산 포함 연차 한도 ${v}일 — 법정 25일 미달`, detail: "가산휴가를 포함한 연차유급휴가의 한도는 25일입니다. 이보다 적게 정한 부분은 무효가 되고 법 기준이 적용됩니다.", basis }];
+          return [];
+        }
+        const n = nums(c, /(\d+)\s*일(?:의|간)?\s*(?:유급휴가|연차|연가|휴가)?/g).find((x) => x.value > 0 && x.value < 15);
+        if (!n) return [];
+        if (p1) return [{ rule: "annual-leave", severity: "conflict", title: `연차휴가 ${n.value}일 — 법정 15일 미달`, detail: "1년간 80퍼센트 이상 출근한 근로자에게는 15일의 유급휴가를 주어야 합니다. 법보다 적게 정한 부분은 무효가 되고 법 기준이 적용됩니다.", basis, fix: { before: n.raw, after: replaceNum(n.raw, n.value, 15) } }];
+        return [{ rule: "annual-leave", severity: "review", title: `연차휴가 ${n.value}일 — 적용 대상 확인`, detail: "어느 근로자에게 적용되는지 문장에서 확인하지 못했어요. 1년간 80% 이상 출근자는 15일, 1년 미만 근로자는 1개월 개근 시 1일, 3년 이상 근로자는 2년마다 1일 가산(총 25일)이 법정 기준입니다.", basis }];
+      }),
   // 연장·야간·휴일 가산
   ({ a }) =>
     sentences(a.text)
@@ -246,7 +267,8 @@ const RULES: Rule[] = [
   // 해고 예고 30일
   ({ a }) =>
     sentences(a.text)
-      .filter((s) => /해고/.test(s) && /예고|통지|통보/.test(s))
+      // 계속 근로 3개월 미만 근로자 등은 해고예고 적용 제외(제26조 단서) — 그 예외를 정한 구절은 대상이 아님
+      .filter((s) => /해고/.test(s) && /예고|통지|통보/.test(s) && !/3개월\s*미만|천재|사변|부득이한\s*사유로\s*사업을\s*계속/.test(s))
       .flatMap((s) => nums(s, /(\d+)\s*일\s*전/g).filter((n) => n.value < 30).map<Finding>((n) => ({ rule: "dismissal-notice", severity: "conflict", title: `해고 예고 ${n.value}일 전 — 법정 30일 미달`, detail: "해고하려면 적어도 30일 전에 예고하고, 예고하지 않으면 30일분 이상의 통상임금을 지급해야 합니다.", basis: [{ lawId: L, articleNo: "26" }], fix: { before: n.raw, after: replaceNum(n.raw, n.value, 30) } }))),
   // 출산전후휴가 90일
   ({ a }) =>

@@ -108,3 +108,14 @@ export function guardCompliance(raw: unknown, input: AiArticleInput[]): AiArticl
     return { no: a.no, verdict, issues, dropped, note };
   });
 }
+
+/** 판정 합치기 — 규칙 판정과 AI 판정 중 더 엄격한 쪽. 단, 규칙은 상충인데 AI가 적합이면 단정하지 않고 '검토 필요(판단 다름)' */
+type Sev = "conflict" | "review" | "ok" | "info";
+const SEV_OF: Record<AiVerdict, Sev> = { 상충: "conflict", "검토 필요": "review", 적합: "ok", "판단 보류": "info" };
+const RANK: Record<Sev, number> = { conflict: 3, review: 2, ok: 1, info: 0 };
+export function mergeVerdict(rule: Sev, ai?: AiVerdict): { status: Sev; disagree: boolean } {
+  if (!ai) return { status: rule, disagree: false };
+  if (rule === "conflict" && ai === "적합") return { status: "review", disagree: true };
+  const s = SEV_OF[ai];
+  return { status: RANK[s] > RANK[rule] ? s : rule, disagree: false };
+}

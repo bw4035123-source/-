@@ -182,6 +182,10 @@ def _validate_compliance_ai(body: dict) -> dict:
     return {"regName": s("regName", 100), "orgType": s("orgType", 30), "articles": out, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
 
 
+_COMP_CACHE: dict[str, tuple[float, dict]] = {}
+_COMP_TTL = 6 * 3600
+
+
 def compliance_ai(inp: dict) -> tuple[int, dict]:
     """조문마다 국가법령정보(실시간)에서 상위 조문을 찾아 붙이고 AI가 대조 → 가드 검증(lib/compliance-ai.ts)"""
     import concurrent.futures as cf
@@ -190,7 +194,15 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
     p, _ = resolve_provider(config.llm, inp["provider"])
     if p.kind == "rule":
         return 503, {"error": "생성형 AI가 연결되어 있지 않아 AI 검토를 할 수 없어요. 기준 규칙 점검 결과를 참고하세요."}
-    arts = [{**a, "text": mask_pii(a["text"])[0]} for a in inp["articles"]]
+    # 같은 조문(글·제목·힌트)은 결과 재사용(서버 메모리, 6시간) — app/api/compliance-ai/route.ts 와 같음
+    keys = [json.dumps([inp["orgType"], a["no"], a["title"], a["text"], a["hints"]], ensure_ascii=False) for a in inp["articles"]]
+    now = time.time()
+    cached = [(_COMP_CACHE.get(k) or (0, None)) for k in keys]
+    cached = [v if v is not None and now - at < _COMP_TTL else None for at, v in cached]
+    todo = [i for i, c in enumerate(cached) if c is None]
+    if not todo:
+        return 200, {"articles": cached, "label": p.label, "model": p.model, "elapsedMs": int((time.time() - started) * 1000), "cached": len(keys), "warnings": []}
+    arts = [{**inp["articles"][i], "text": mask_pii(inp["articles"][i]["text"])[0]} for i in todo]
     warnings: list[str] = []
 
     def find(a):
@@ -218,7 +230,7 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         return f"제{a['no'].replace('의', '조의')}{'' if '의' in a['no'] else '조'}" + (f"({a['title']})" if a["title"] else "")
 
     items = [{"no": a["no"], "label": label(a), "text": a["text"][:1500], "upper": [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in uppers[i]]} for i, a in enumerate(arts)]
-    chunks = [items[i:i + 5] for i in range(0, len(items), 5)]
+    chunks = [items[i:i + 3] for i in range(0, len(items), 3)]
     model = [p.model]
 
     def review(ch):
@@ -237,7 +249,13 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
             flat = [r for rs in ex.map(review, chunks) for r in rs]
     except LLMError as e:
         return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 기준 규칙 점검 결과를 참고하거나 잠시 후 다시 시도하세요.", "detail": str(e)}
-    return 200, {"articles": [{**r, "upper": uppers[i]} for i, r in enumerate(flat)], "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "warnings": list(dict.fromkeys(warnings))[:3]}
+    fresh = [{**r, "upper": uppers[j]} for j, r in enumerate(flat)]
+    for j, r in enumerate(fresh):
+        _COMP_CACHE[keys[todo[j]]] = (now, r)
+    if len(_COMP_CACHE) > 2000:
+        _COMP_CACHE.pop(next(iter(_COMP_CACHE)))
+    out = [cached[i] if cached[i] is not None else fresh[todo.index(i)] for i in range(len(keys))]
+    return 200, {"articles": out, "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "cached": len(keys) - len(todo), "warnings": list(dict.fromkeys(warnings))[:3]}
 
 
 def enact_ai(body: dict) -> tuple[int, dict]:

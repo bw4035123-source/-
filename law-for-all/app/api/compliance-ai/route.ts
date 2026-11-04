@@ -26,8 +26,12 @@ const Body = z.object({
   provider: z.string().max(20).optional(),
 });
 
-const CHUNK = 5;
+const CHUNK = 3;
 const POOL = 6;
+// 같은 조문(글·제목·힌트)은 결과를 재사용 — 같은 규정을 다시 점검하거나 시연할 때 바로(서버 메모리, 6시간)
+const CACHE = new Map<string, { at: number; value: unknown }>();
+const TTL = 6 * 3600 * 1000;
+const cacheKey = (a: { no: string; title: string; text: string; hints: string[] }, orgType: string) => JSON.stringify([orgType, a.no, a.title, a.text, a.hints]);
 
 /** 자체규정 AI 검토: 조문마다 국가법령정보(실시간)에서 상위 조문을 찾아 붙이고 AI가 대조 → 가드 검증(lib/compliance-ai.ts) */
 export async function POST(req: Request) {
@@ -41,8 +45,16 @@ export async function POST(req: Request) {
   if (provider.kind === "rule") return NextResponse.json({ error: "생성형 AI가 연결되어 있지 않아 AI 검토를 할 수 없어요. 기준 규칙 점검 결과를 참고하세요." }, { status: 503 });
 
   const svc = new LawService(serverConfig.lawAccess);
+  const keys = articles.map((a) => cacheKey(a, orgType));
+  const now = Date.now();
+  const cached = keys.map((k) => {
+    const c = CACHE.get(k);
+    return c && now - c.at < TTL ? c.value : null;
+  });
+  const todo = articles.map((_, i) => i).filter((i) => !cached[i]);
+  if (!todo.length) return NextResponse.json({ articles: cached, label: provider.label, model: provider.model, elapsedMs: Date.now() - started, cached: articles.length, warnings: [] });
   // 1) 조문마다 근거 상위 조문 찾기(질문 답변과 같은 방식: 내장 토픽·생활 용어 사전·국가법령정보 실시간 전체 법령 검색)
-  const masked = articles.map((a) => ({ ...a, text: maskPII(a.text).text }));
+  const masked = todo.map((i) => ({ ...articles[i], text: maskPII(articles[i].text).text }));
   const uppers: Citation[][] = new Array(masked.length);
   for (let i = 0; i < masked.length; i += POOL)
     await Promise.all(
@@ -81,9 +93,13 @@ export async function POST(req: Request) {
         return guardCompliance(null, ch);
       }),
     );
-    const flat = results.flat();
+    const flat = results.flat().map((r, j) => ({ ...r, upper: uppers[j] }));
+    flat.forEach((r, j) => CACHE.set(keys[todo[j]], { at: now, value: r }));
+    if (CACHE.size > 2000) CACHE.delete(CACHE.keys().next().value as string);
+    const out = articles.map((_, i) => cached[i] ?? flat[todo.indexOf(i)]);
     return NextResponse.json({
-      articles: flat.map((r, i) => ({ ...r, upper: uppers[i] })),
+      articles: out,
+      cached: articles.length - todo.length,
       label: provider.label,
       model,
       elapsedMs: Date.now() - started,
