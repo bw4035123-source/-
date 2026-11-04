@@ -1025,3 +1025,11 @@ class QuickAmendSplitTest(unittest.TestCase):
             s.resolve_provider = orig
         self.assertEqual(code, 200)
         self.assertEqual(body["articles"][0]["amended"], "민원은 접수한 날부터 7일 이내에 처리하여야 한다.")
+
+    def test_quantity_warning(self):
+        from law_for_all.amend_quick import is_bare_request, quantity_warning
+        self.assertTrue(is_bare_request("개정해줘"))
+        self.assertFalse(is_bare_request("7일을 5일로 수정해줘"))
+        self.assertIn("7일 → 14일", quantity_warning("개정해줘", "7일 안에 처리", "14일 이내에 처리"))
+        self.assertIsNone(quantity_warning("개정해줘", "7일안에", "7일 이내에"))
+        self.assertIsNone(quantity_warning("7일을 5일로 수정해줘", "7일", "5일"))

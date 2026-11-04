@@ -10,7 +10,7 @@ import { gatherEvidence } from "@/lib/answer/ask";
 import { unverifiedQuantities } from "@/lib/answer/numbers";
 import { maskPII } from "@/lib/privacy-mask";
 import { guardAmend } from "@/lib/amend-ai";
-import { QUICK_SYSTEM, buildQuickPrompt, splitQuick } from "@/lib/amend-quick";
+import { QUICK_SYSTEM, buildQuickPrompt, quantityWarning, splitQuick } from "@/lib/amend-quick";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -63,7 +63,8 @@ export async function POST(req: Request) {
         const src = articles.find((a) => noOf(a.label) === noOf(label)) ?? (articles.length === 1 ? articles[0] : undefined);
         if (!src || out.some((o) => o.label === src.label)) continue;
         const g = guardAmend({ amended: it?.amended }, { lawName: "", kind: "", label: src.label, current: src.text, instruction: request, upper });
-        if (g.ok) out.push({ label: src.label, current: src.text, amended: g.text, changes: g.changes, warnings: g.warnings });
+        const qw = g.ok ? quantityWarning(request, src.text, g.text) : null;
+        if (g.ok) out.push({ label: src.label, current: src.text, amended: g.text, changes: g.changes, warnings: qw ? [...g.warnings, qw] : g.warnings });
         else if (g.reason !== "현행과 바뀐 내용이 없음") rejected.push({ label: src.label, reason: g.reason });
       }
       if (!out.length && rejected.length && attempt === 0) {

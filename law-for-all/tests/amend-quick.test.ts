@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffCells, quickMarkdown, splitQuick } from "@/lib/amend-quick";
+import { diffCells, isBareRequest, quantityWarning, quickMarkdown, splitQuick } from "@/lib/amend-quick";
 
 describe("한 번에 개정", () => {
   it("요청 문장과 조문을 나눔", () => {
@@ -28,5 +28,20 @@ describe("한 번에 개정", () => {
     expect(md).toMatch(/\*\*1\. \[개정 이유 및 핵심 요약\]\*\*[\s\S]*\*\*2\. \[개정 조문 전문\]\*\*[\s\S]*\*\*3\. \[신·구조문대비표\]\*\*/);
     expect(md).toContain("| 현행 | 개정안 |");
     expect(md).toContain("a\\|b");
+  });
+});
+
+describe("한 번에 개정 — 보완", () => {
+  it("굵게 이어 붙일 때 띄어쓰기 유지", () => {
+    const c = diffCells("민원은 접수한날부터 7일안에 처리해야 한다.", "민원은 접수한 날부터 7일 이내에 처리하여야 한다.");
+    expect(c.old.replace(/\*\*/g, "")).toBe("민원은 접수한날부터 7일안에 처리해야 한다.");
+    expect(c.new.replace(/\*\*/g, "")).toBe("민원은 접수한 날부터 7일 이내에 처리하여야 한다.");
+  });
+  it("구체 요청 없이 수치가 바뀌면 경고", () => {
+    expect(isBareRequest("개정해줘")).toBe(true);
+    expect(isBareRequest("7일을 5일로 수정해줘")).toBe(false);
+    expect(quantityWarning("개정해줘", "7일 안에 처리", "14일 이내에 처리")).toContain("7일 → 14일");
+    expect(quantityWarning("개정해줘", "7일안에", "7일 이내에")).toBeNull();
+    expect(quantityWarning("7일을 5일로 수정해줘", "7일", "5일")).toBeNull();
   });
 });

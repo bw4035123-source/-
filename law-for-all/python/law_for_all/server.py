@@ -23,7 +23,7 @@ from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
-from .amend_quick import QUICK_SYSTEM, build_quick_prompt, split_quick
+from .amend_quick import QUICK_SYSTEM, build_quick_prompt, quantity_warning, split_quick
 from .numbers import unverified_quantities
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
 from .enact_write import WRITE_SYSTEM, build_write_prompt, guard_write
@@ -371,7 +371,8 @@ def amend_quick(body: dict) -> tuple[int, dict]:
                     continue
                 g = guard_amend({"amended": it.get("amended")}, {"lawName": "", "kind": "", "label": src["label"], "current": src["text"], "instruction": request, "upper": upper})
                 if g["ok"]:
-                    out.append({"label": src["label"], "current": src["text"], "amended": g["text"], "changes": g["changes"], "warnings": g["warnings"]})
+                    qw = quantity_warning(request, src["text"], g["text"])
+                    out.append({"label": src["label"], "current": src["text"], "amended": g["text"], "changes": g["changes"], "warnings": g["warnings"] + ([qw] if qw else [])})
                 elif g["reason"] != "현행과 바뀐 내용이 없음":
                     rejected.append({"label": src["label"], "reason": g["reason"]})
             if not out and rejected and attempt == 0:
