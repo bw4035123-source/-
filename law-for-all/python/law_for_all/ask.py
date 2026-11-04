@@ -66,12 +66,9 @@ def _mock_article(key: str) -> dict | None:
     return next((a for a in law["articles"] if a["no"] == p[1]), None) if law else None
 
 
-def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
-    started = time.time()
-    # 질문 속 개인정보(주민등록번호·전화번호 등)는 검색·AI로 넘기기 전에 가린다
-    query, masked = mask_pii(query)
-    notices: list[str] = [mask_notice(masked)] if masked else []
-    svc = LawService(config.law_access)
+def gather_evidence(query: str, svc: "LawService"):
+    """근거 조문 모으기 — 내장 토픽·생활 용어 사전·국가법령정보 실시간 전체 법령 검색(lib/answer/ask.ts gatherEvidence 와 같음).
+    질문 답변과 자체규정 AI 검토가 같은 방식으로 근거를 찾도록 공용으로 쓴다"""
     topic, local_keys = retrieve(query)
     # 사람이 검수한 사전이 토픽보다 구체적인 법령을 가리키면(예: '사전통지'→행정절차법) 실시간 검색으로
     if svc.mode == "live" and any(a.get("override") for a in match_law_aliases(query)):
@@ -89,6 +86,16 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
     # (사전에 없는 질문에서 실시간 검색이 엉뚱한 법을 앞세우지 않게)
     keys = live_keys + [k for k in local_keys if k not in live_keys] if match_law_aliases(query) else local_keys + [k for k in live_keys if k not in local_keys]
     context = svc.get_citations(keys)
+    return topic, context, live_keys
+
+
+def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
+    started = time.time()
+    # 질문 속 개인정보(주민등록번호·전화번호 등)는 검색·AI로 넘기기 전에 가린다
+    query, masked = mask_pii(query)
+    notices: list[str] = [mask_notice(masked)] if masked else []
+    svc = LawService(config.law_access)
+    topic, context, live_keys = gather_evidence(query, svc)
     allowed = {c["key"] for c in context}
 
     p, notice = resolve_provider(config.llm, provider)

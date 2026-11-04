@@ -36,13 +36,11 @@ export interface AskInput {
  *   근거 검색(retrieve) → 원문 확보(LawService: 실시간/내장) → 공급자 선택(Adapter)
  *   → 생성(LLM) 또는 조립(규칙엔진) → 환각 가드 → 응답
  */
-export async function ask({ query: rawQuery, mode, provider: requested }: AskInput): Promise<AskResult> {
-  const started = Date.now();
-  // 질문 속 개인정보(주민등록번호·전화번호 등)는 검색·AI로 넘기기 전에 가린다
-  const { text: query, found: masked } = maskPII(rawQuery);
-  const notices: string[] = masked.length ? [maskNotice(masked)] : [];
-  const svc = new LawService(serverConfig.lawAccess);
-
+/**
+ * 근거 조문 모으기 — 내장 토픽·생활 용어 사전·국가법령정보 실시간 전체 법령 검색으로 질문(또는 규정 조문)에 맞는 조문 원문을 찾는다.
+ * 질문 답변과 자체규정 AI 검토가 같은 방식으로 근거를 찾도록 공용으로 쓴다.
+ */
+export async function gatherEvidence(query: string, svc: LawService) {
   // 사람이 검수한 사전이 토픽보다 구체적인 법령을 가리키면(예: '사전통지'→행정절차법) 실시간 검색으로
   const precise = svc.mode === "live" && matchLawAliases(query).some((a) => a.override);
   const r = retrieve(query);
@@ -60,6 +58,17 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
   // (사전에 없는 질문에서 실시간 검색이 엉뚱한 법을 앞세우지 않게)
   const keys = matchLawAliases(query).length ? [...liveKeys, ...local.filter((k) => !liveKeys.includes(k))] : [...local, ...liveKeys.filter((k) => !local.includes(k))];
   const context = await svc.getCitations(keys);
+  return { topic, context, liveKeys };
+}
+
+export async function ask({ query: rawQuery, mode, provider: requested }: AskInput): Promise<AskResult> {
+  const started = Date.now();
+  // 질문 속 개인정보(주민등록번호·전화번호 등)는 검색·AI로 넘기기 전에 가린다
+  const { text: query, found: masked } = maskPII(rawQuery);
+  const notices: string[] = masked.length ? [maskNotice(masked)] : [];
+  const svc = new LawService(serverConfig.lawAccess);
+
+  const { topic, context, liveKeys } = await gatherEvidence(query, svc);
 
   const { provider, notice } = resolveProvider(serverConfig.llm, requested);
   if (notice) notices.push(notice);

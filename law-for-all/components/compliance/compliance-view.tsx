@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, Sparkles, X } from "lucide-react";
 import type { Citation, LawDoc } from "@/lib/law-api/types";
 import { articleLabel, toCitation } from "@/lib/law-api/util";
 import {
@@ -12,6 +12,7 @@ import {
   amendedText,
   complianceReport,
   crossCheck,
+  parseRegulation,
   regArticleLabel,
   type ArticleResult,
   type BasisRef,
@@ -20,6 +21,8 @@ import {
   type Severity,
 } from "@/lib/compliance";
 import { diffWords } from "@/lib/drafting";
+import type { AiArticleResult, AiVerdict } from "@/lib/compliance-ai";
+import { maskPII } from "@/lib/privacy-mask";
 import { ACCEPT, ExtractError, extractText, type Extracted } from "@/lib/doc-extract";
 import { MOCK_FILES } from "@/lib/mock-files";
 import { fetchJson } from "@/lib/fetch-json";
@@ -41,6 +44,16 @@ const ICON: Record<Severity, React.ElementType> = { conflict: AlertTriangle, rev
 
 type LawState = { status: "loading" | "ready" | "error"; docs: Map<string, LawDoc> };
 
+/** AI 검토 결과(조문별) — 근거 상위 조문은 국가법령정보에서 찾은 원문 */
+type AiResult = AiArticleResult & { upper: Citation[] };
+type AiState =
+  | { status: "idle" }
+  | { status: "loading"; count: number }
+  | { status: "error"; message: string }
+  | { status: "done"; byNo: Map<string, AiResult>; label: string; model: string; elapsedMs: number; dropped: number; laws: number };
+const AI_SEV: Record<AiVerdict, Severity> = { 상충: "conflict", "검토 필요": "review", 적합: "ok", "판단 보류": "info" };
+const RANK_SEV: Record<Severity, number> = { conflict: 3, review: 2, ok: 1, info: 0 };
+
 /** 우리 기관 규정 ↔ 상위법령 교차 검증 */
 export function ComplianceView() {
   const toast = useToast();
@@ -57,6 +70,7 @@ export function ComplianceView() {
   const [loaded, setLoaded] = React.useState<{ name: string; info: Extracted; articles: number } | null>(null);
   const [fileError, setFileError] = React.useState("");
   const [autoRun, setAutoRun] = React.useState(false);
+  const [ai, setAi] = React.useState<AiState>({ status: "idle" });
 
   // 대조할 상위법령 원문(실시간 연결 시 전체 조문, 아니면 공식 원문 스냅샷)
   React.useEffect(() => {
@@ -84,10 +98,31 @@ export function ComplianceView() {
     return law && art ? toCitation(law, art) : null;
   };
 
+  // AI 검토: 조문마다 국가법령정보에서 상위 조문을 찾아 생성형 AI가 대조(서버) — 조문 텍스트만 보냄(개인정보는 먼저 가림)
+  const runAi = async (src: string, name: string, org: OrgType) => {
+    const arts = parseRegulation(src).slice(0, 40).map((a) => ({ no: a.no, title: a.title, text: maskPII(a.text).text.slice(0, 3000) }));
+    if (!arts.length) return;
+    setAi({ status: "loading", count: arts.length });
+    try {
+      const j = await fetchJson<{ articles: AiResult[]; label: string; model: string; elapsedMs: number }>("/api/compliance-ai", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ regName: name, orgType: org, articles: arts }),
+        timeoutMs: 150000,
+      });
+      const byNo = new Map(j.articles.map((r) => [r.no, r]));
+      const laws = new Set(j.articles.flatMap((r) => r.upper.map((c) => c.lawId))).size;
+      setAi({ status: "done", byNo, label: j.label, model: j.model, elapsedMs: j.elapsedMs, dropped: j.articles.reduce((n, r) => n + r.dropped, 0), laws });
+    } catch (e) {
+      setAi({ status: "error", message: (e as Error).message });
+    }
+  };
+
   const run = () => {
     if (!text.trim()) return;
     setReport(crossCheck({ text, orgType, regName, laws: Array.from(laws.docs.values()) }));
     setFilter("all");
+    void runAi(text, regName, orgType);
     requestAnimationFrame(() => document.getElementById("compliance-result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
@@ -163,7 +198,32 @@ export function ComplianceView() {
     },
   };
 
-  const reportText = report ? complianceReport(report, lawName) : "";
+  // 판정: AI 검토와 기준 규칙 중 더 엄격한 쪽(AI 판단 보류는 규칙 판정을 그대로)
+  const merged = React.useMemo(() => {
+    if (!report) return null;
+    if (ai.status !== "done") return report;
+    const results = report.results.map((r) => {
+      const a = ai.byNo.get(r.article.no);
+      const s = a ? AI_SEV[a.verdict] : "info";
+      return RANK_SEV[s] > RANK_SEV[r.status] ? { ...r, status: s } : r;
+    });
+    const counts: Record<Severity, number> = { conflict: 0, review: 0, ok: 0, info: 0 };
+    for (const r of results) counts[r.status]++;
+    return { ...report, results, counts };
+  }, [report, ai]);
+  const aiText =
+    ai.status === "done" && report
+      ? [
+          "",
+          `■ AI 검토(${ai.label}) — 조문마다 국가법령정보에서 찾은 상위 조문 원문과 대조, 근거·수치는 가드가 검증(참고 의견)`,
+          ...report.results.flatMap((r) => {
+            const a = ai.byNo.get(r.article.no);
+            if (!a || !a.issues.length) return [];
+            return [`  ○ ${regArticleLabel(r.article)} — ${a.verdict}`, ...a.issues.map((it) => `    - ${it.point}${it.suggestion ? ` → ${it.suggestion}` : ""} (근거: ${it.basis.map((k) => { const c = a.upper.find((u) => u.key === k); return c ? `「${c.lawName}」 ${articleLabel(c.articleNo)}` : k; }).join(", ")})`)];
+          }),
+        ].join("\n")
+      : "";
+  const reportText = merged ? complianceReport(merged, lawName) + aiText : "";
   const copy = async (t: string, msg: string) => toast((await copyText(t)) ? msg : "복사하지 못했습니다. 직접 선택해 복사해 주세요.");
   const saveWord = () => {
     if (!report) return;
@@ -181,7 +241,7 @@ export function ComplianceView() {
     ]);
   };
 
-  const shown = report?.results.filter((r) => filter === "all" || r.status === filter) ?? [];
+  const shown = merged?.results.filter((r) => filter === "all" || r.status === filter) ?? [];
 
   return (
     <div className="container max-w-6xl py-8">
@@ -250,7 +310,7 @@ export function ComplianceView() {
                   <p className="text-sm font-semibold">{dragging ? "여기에 놓으세요" : "파일을 끌어다 놓거나 눌러서 선택"}</p>
                   <p className="text-[11px] leading-5 text-muted-foreground">
                     <span className="block font-semibold">한글(HWP·HWPX) · PDF · Word(DOCX)</span>
-                    <span className="block">파일은 서버로 보내지 않고 이 브라우저에서만 읽어요</span>
+                    <span className="block">파일 원본은 서버로 보내지 않고 이 브라우저에서 읽어요(AI 검토에는 조문 글만, 개인정보는 가려서 보냄)</span>
                   </p>
                 </>
               )}
@@ -311,7 +371,7 @@ export function ComplianceView() {
                 </p>
               );
             })}
-            <p className="pt-1">판정은 정해진 기준과 조문 원문으로만 하며 AI 생성 문장으로 위반을 단정하지 않습니다. 최종 판단은 소관 부처 해석을 확인하세요.</p>
+            <p className="pt-1"><b className="text-foreground">AI 검토:</b> 국산 AI(Solar)가 조문마다 국가법령정보(법제처 Open API)에서 전체 현행 법령을 검색해 찾은 상위 조문 원문과 대조합니다. 근거 조문·수치는 가드가 검증하고, 위 법령의 법정 기준 수치는 정해진 규칙으로도 함께 점검합니다. 최종 판단은 소관 부처 해석을 확인하세요.</p>
           </div>
         </section>
 
@@ -321,7 +381,7 @@ export function ComplianceView() {
               <div>
                 <ScanSearch className="mx-auto h-10 w-10 text-accent/60" />
                 <p className="mt-3 font-semibold text-foreground">왼쪽 ‘모의데이터로 바로 체험’에서 검증 ▶을 누르거나, 규정 파일을 넣고 교차 검증을 눌러 주세요.</p>
-                <p className="mt-1">근로시간·연차·가산수당, 금품 수수 한도, 선거운동, 임원 임기, 사용허가·대부기간, 인용 조문의 현행 여부를 점검합니다.</p>
+                <p className="mt-1">AI가 조문마다 국가법령정보에서 상위 조문을 찾아 대조하고, 근로시간·연차·금품 한도·임원 임기·사용허가기간 같은 법정 기준과 인용 조문의 현행 여부는 규칙으로도 점검합니다.</p>
               </div>
             </div>
           ) : (
@@ -352,10 +412,29 @@ export function ComplianceView() {
                         <span className="flex items-center gap-1.5 text-xs font-bold">
                           <I className="h-4 w-4" /> {SEVERITY_LABEL[s]}
                         </span>
-                        <span className="text-xl font-black">{report.counts[s]}</span>
+                        <span className="text-xl font-black">{merged!.counts[s]}</span>
                       </button>
                     );
                   })}
+                </div>
+                <div className={cn("mt-3 rounded-xl border px-3 py-2 text-xs leading-5", ai.status === "error" ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" : "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100")}>
+                  {ai.status === "loading" ? (
+                    <p className="flex items-center gap-1.5 font-semibold">
+                      <Loader2 className="h-4 w-4 animate-spin" /> AI(국산 Solar)가 조문 {ai.count}개마다 국가법령정보에서 상위 조문을 찾아 대조하는 중… (30~60초) — 아래는 먼저 나온 기준 규칙 점검 결과예요
+                    </p>
+                  ) : ai.status === "done" ? (
+                    <p className="flex items-start gap-1.5">
+                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        <b>AI 검토 완료({ai.label} · {(ai.elapsedMs / 1000).toFixed(0)}초)</b> — 조문마다 국가법령정보에서 찾은 {ai.laws}개 법령의 상위 조문 원문과 대조했어요. 판정은 AI 의견과 기준 규칙 중 더 엄격한 쪽이에요.
+                        {ai.dropped > 0 && ` 근거 조문·수치가 확인되지 않은 AI 지적 ${ai.dropped}건은 가드가 버렸어요.`} AI 검토는 참고 의견이니 최종 판단은 담당자와 소관 부처 해석으로 확인하세요.
+                      </span>
+                    </p>
+                  ) : ai.status === "error" ? (
+                    <p className="flex items-start gap-1.5">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> AI 검토를 하지 못했어요({ai.message}). 아래 기준 규칙 점검 결과를 참고하세요.
+                    </p>
+                  ) : null}
                 </div>
                 {report.amendedArticles > 0 && (
                   <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -368,7 +447,7 @@ export function ComplianceView() {
               </div>
 
               {shown.map((r) => (
-                <ArticleCard key={r.article.no + r.article.title} r={r} lawName={lawName} citationOf={citationOf} onOpen={setViewing} onCopy={copy} />
+                <ArticleCard key={r.article.no + r.article.title} r={r} ai={ai.status === "done" ? ai.byNo.get(r.article.no) : undefined} aiLabel={ai.status === "done" ? ai.label : ""} lawName={lawName} citationOf={citationOf} onOpen={setViewing} onCopy={copy} />
               ))}
               {!shown.length && <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">해당 판정의 조문이 없어요.</p>}
             </>
@@ -382,12 +461,16 @@ export function ComplianceView() {
 
 function ArticleCard({
   r,
+  ai,
+  aiLabel,
   lawName,
   citationOf,
   onOpen,
   onCopy,
 }: {
   r: ArticleResult;
+  ai?: AiResult;
+  aiLabel: string;
   lawName: (id: string) => string;
   citationOf: (b: BasisRef) => Citation | null;
   onOpen: (c: Citation) => void;
@@ -418,6 +501,49 @@ function ArticleCard({
         </span>
       </div>
       <p className="law-text mt-2 whitespace-pre-wrap rounded-lg bg-secondary/40 p-3 text-sm leading-7">{r.article.text}</p>
+
+      {ai && (
+        <div className={cn("mt-3 rounded-xl border p-3", TONE[AI_SEV[ai.verdict]])}>
+          <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold">
+            <Sparkles className="h-4 w-4" /> AI 검토 · {ai.verdict}
+            <span className="text-[11px] font-semibold opacity-75">({aiLabel} · 국가법령정보 상위 조문 대조 · 참고 의견)</span>
+          </p>
+          {ai.issues.length > 0 ? (
+            <ul className="mt-2 space-y-2">
+              {ai.issues.map((it, i) => (
+                <li key={i} className="text-[13px] leading-6">
+                  <p>• {it.point}</p>
+                  {it.suggestion && <p className="pl-3 opacity-90">→ {it.suggestion}</p>}
+                  <div className="mt-1 flex flex-wrap gap-1.5 pl-3">
+                    {it.basis.map((k) => {
+                      const c = ai.upper.find((u) => u.key === k);
+                      return c ? (
+                        <button key={k} type="button" onClick={() => onOpen(c)} className="rounded-md border bg-card px-2 py-0.5 text-[11px] font-semibold text-accent hover:border-accent hover:underline">
+                          「{c.lawName}」 {articleLabel(c.articleNo)}({c.title})
+                        </button>
+                      ) : null;
+                    })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-[13px] leading-6 opacity-90">
+              {ai.verdict === "적합" ? "찾은 상위 조문의 기준과 어긋나는 점을 찾지 못했어요." : ai.note ?? "관련 상위 조문을 찾지 못했거나 판단할 근거가 부족해요(기관 자율 사항일 수 있음)."}
+            </p>
+          )}
+          {ai.verdict === "적합" && ai.upper.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="font-semibold opacity-80">대조한 상위 조문</span>
+              {ai.upper.slice(0, 3).map((c) => (
+                <button key={c.key} type="button" onClick={() => onOpen(c)} className="rounded-md border bg-card px-2 py-0.5 font-semibold text-accent hover:border-accent hover:underline">
+                  「{c.lawName}」 {articleLabel(c.articleNo)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {r.findings.length > 0 && (
         <ul className="mt-3 space-y-2">
@@ -457,7 +583,7 @@ function ArticleCard({
           </Link>
         </div>
       )}
-      {!r.findings.length && !r.related.length && <p className="mt-3 text-xs text-muted-foreground">대조 법령에서 직접 관련된 기준을 찾지 못했어요(기관 자율 사항일 수 있음).</p>}
+      {!r.findings.length && !r.related.length && !ai && <p className="mt-3 text-xs text-muted-foreground">대조 법령에서 직접 관련된 기준을 찾지 못했어요(기관 자율 사항일 수 있음).</p>}
 
       {diff && amended && (
         <div className="mt-4 rounded-xl border p-3">

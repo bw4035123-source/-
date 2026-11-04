@@ -14,7 +14,11 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from . import __version__
 from .analyze import analyze
-from .ask import ask
+from .ask import ask, gather_evidence
+from .compliance_ai import COMPLIANCE_SYSTEM, build_compliance_prompt, guard_compliance
+from .data import article_label
+from .privacy import mask_pii
+from .llm import LLMError
 from .config import config
 from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
@@ -154,6 +158,75 @@ def _validate_amend_ai(body: dict) -> dict:
         raise bad
     prov = body.get("provider")
     return {"lawName": s("lawName", 100), "kind": s("kind", 20) or "행정규칙", "label": s("label", 120), "current": cur, "original": orig, "instruction": ins, "upper": upper, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def _validate_compliance_ai(body: dict) -> dict:
+    """자체규정 AI 검토 입력(크기 제한) — app/api/compliance-ai/route.ts 와 같은 한도"""
+    bad = ApiError(400, "요청 형식이 올바르지 않습니다.")
+    arts = body.get("articles")
+    if not isinstance(arts, list) or not 1 <= len(arts) <= 40:
+        raise bad
+    out = []
+    for a in arts:
+        if not isinstance(a, dict) or not isinstance(a.get("no"), str) or not isinstance(a.get("text"), str) or not a["text"].strip() or len(a["no"]) > 12 or len(a["text"]) > 3000:
+            raise bad
+        t = a.get("title") if isinstance(a.get("title"), str) else ""
+        out.append({"no": a["no"], "title": t[:80], "text": a["text"]})
+    s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
+    prov = body.get("provider")
+    return {"regName": s("regName", 100), "orgType": s("orgType", 30), "articles": out, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def compliance_ai(inp: dict) -> tuple[int, dict]:
+    """조문마다 국가법령정보(실시간)에서 상위 조문을 찾아 붙이고 AI가 대조 → 가드 검증(lib/compliance-ai.ts)"""
+    import concurrent.futures as cf
+
+    started = time.time()
+    p, _ = resolve_provider(config.llm, inp["provider"])
+    if p.kind == "rule":
+        return 503, {"error": "생성형 AI가 연결되어 있지 않아 AI 검토를 할 수 없어요. 기준 규칙 점검 결과를 참고하세요."}
+    arts = [{**a, "text": mask_pii(a["text"])[0]} for a in inp["articles"]]
+    warnings: list[str] = []
+
+    def find(a):
+        svc = LawService(config.law_access)
+        q = re.sub(r"\s+", " ", f"{a['title']} {a['text']}")[:300]
+        try:
+            return gather_evidence(q, svc)[1][:4]
+        except Exception:  # noqa: BLE001 — 근거 검색 실패는 '상위조문 없음'으로
+            return []
+        finally:
+            warnings.extend(svc.warnings)
+
+    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+        uppers = list(ex.map(find, arts))
+
+    def label(a):
+        if a["no"] == "전문":
+            return "(조문 구분 없음)"
+        return f"제{a['no'].replace('의', '조의')}{'' if '의' in a['no'] else '조'}" + (f"({a['title']})" if a["title"] else "")
+
+    items = [{"no": a["no"], "label": label(a), "text": a["text"][:1500], "upper": [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in uppers[i]]} for i, a in enumerate(arts)]
+    chunks = [items[i:i + 5] for i in range(0, len(items), 5)]
+    model = [p.model]
+
+    def review(ch):
+        messages = [{"role": "user", "content": build_compliance_prompt(inp["regName"], inp["orgType"], ch)}]
+        for _ in range(2):
+            res = p.generate(system=COMPLIANCE_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=3000, timeout_ms=70000)
+            model[0] = res.get("model") or model[0]
+            try:
+                return guard_compliance(parse_loose_json(res["text"]), ch)
+            except Exception:  # noqa: BLE001 — 형식이 깨지면 한 번 다시
+                messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
+        return guard_compliance(None, ch)
+
+    try:
+        with cf.ThreadPoolExecutor(max_workers=4) as ex:
+            flat = [r for rs in ex.map(review, chunks) for r in rs]
+    except LLMError as e:
+        return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 기준 규칙 점검 결과를 참고하거나 잠시 후 다시 시도하세요.", "detail": str(e)}
+    return 200, {"articles": [{**r, "upper": uppers[i]} for i, r in enumerate(flat)], "label": p.label, "model": model[0], "elapsedMs": int((time.time() - started) * 1000), "warnings": list(dict.fromkeys(warnings))[:3]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -305,6 +378,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/compliance-ai":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 5)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            code, payload = compliance_ai(_validate_compliance_ai(self._body()))
+            return self._json(code, payload)
         if method == "POST" and path == "/api/amend-ai":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
             if not ok:

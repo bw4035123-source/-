@@ -838,6 +838,28 @@ class UpperChangeTest(unittest.TestCase):
         self.assertEqual(parts("가 <P>나</P> 다"), [{"t": "가 ", "m": False}, {"t": "나", "m": True}, {"t": " 다", "m": False}])
 
 
+class ComplianceAiTest(unittest.TestCase):
+    """자체규정 AI 검토 가드 — tests/compliance-ai.test.ts 와 같은 사례"""
+
+    def test_guard(self):
+        from law_for_all.compliance_ai import build_compliance_prompt, guard_compliance
+
+        up = {"key": "labor-standards:50", "label": "「근로기준법」 제50조(근로시간)", "text": "① 1주 간의 근로시간은 휴게시간을 제외하고 40시간을 초과할 수 없다."}
+        a = [{"no": "8", "label": "제8조(근무시간)", "text": "직원의 근무시간은 1주 45시간으로 한다.", "upper": [up]}, {"no": "9", "label": "제9조(서식)", "text": "신청서 서식은 별지와 같다.", "upper": []}]
+        r = guard_compliance({"articles": [{"no": "제8조", "verdict": "상충", "issues": [{"point": "1주 45시간은 법정 40시간을 초과함", "basis": ["[[labor-standards:50]]"], "suggestion": "1주 40시간 이내로 고침"}]}, {"no": "9", "verdict": "적합", "issues": []}]}, a)
+        self.assertEqual((r[0]["verdict"], r[0]["dropped"], r[0]["issues"][0]["basis"]), ("상충", 0, ["labor-standards:50"]))
+        self.assertEqual(r[1]["verdict"], "판단 보류")
+        r = guard_compliance({"articles": [{"no": "8", "verdict": "상충", "issues": [{"point": "주 52시간 초과", "basis": ["labor-standards:50"], "suggestion": ""}, {"point": "연장근로 제한 위반", "basis": ["labor-standards:53"], "suggestion": ""}]}]}, a)
+        self.assertEqual((r[0]["verdict"], r[0]["issues"], r[0]["dropped"]), ("판단 보류", [], 2))
+        self.assertIn("2건", r[0]["note"])
+        self.assertEqual([x["verdict"] for x in guard_compliance(None, a)], ["판단 보류", "판단 보류"])
+        self.assertEqual(guard_compliance({"articles": [{"no": "8", "verdict": "위반임", "issues": []}]}, a)[0]["verdict"], "판단 보류")
+        p = build_compliance_prompt("복무 규정", "지방공기업", a)
+        self.assertIn("<<조문 no=8>> 제8조(근무시간)", p)
+        self.assertIn("[[labor-standards:50]] 「근로기준법」 제50조(근로시간)", p)
+        self.assertIn("(찾은 상위조문 없음)", p)
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 
