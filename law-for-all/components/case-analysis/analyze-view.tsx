@@ -21,6 +21,7 @@ import { FactsCard } from "./facts-card";
 import { Recommendations } from "./recommendations";
 import { RolePanels } from "./role-panels";
 import { ROLES } from "./roles";
+import { LawLoader } from "@/components/ui/law-loader";
 import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
 
 type State = { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; result: AnalyzeResult };
@@ -102,10 +103,8 @@ export function AnalyzeView() {
 
       <div id="analysis-result" className="scroll-mt-40">
         {state.status === "loading" && (
-          <div className="mt-8 space-y-4" role="status" aria-live="polite">
-            <p className="flex items-center justify-center gap-2 font-semibold text-accent">
-              <Gavel className="h-5 w-5 animate-bounce" /> 사실관계를 정리하고 관련 법령을 찾고 있어요…
-            </p>
+          <div className="mt-8 space-y-4">
+            <LawLoader message="사실관계를 정리하고 관련 법령을 찾고 있어요" sub="AI 변호사·검사·판사 3관점 분석은 보통 15~35초 걸려요" />
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               <Skeleton className="h-56 rounded-2xl" />
               <Skeleton className="h-56 rounded-2xl" />
