@@ -24,7 +24,7 @@ _lock = threading.Lock()
 
 # 중계(/api/raw)로 대신 조회해 주는 범위 — 이 앱이 쓰는 요청만
 RELAY_PATHS = {"lawSearch.do", "lawService.do"}
-RELAY_TARGETS = {"law", "prec", "admrul", "ordin", "expc", "detc"}
+RELAY_TARGETS = {"law", "prec", "admrul", "ordin", "expc", "detc", "oldAndNew", "lsHistory", "lsJoHstInf", "eflaw"}
 
 
 def relay_raw(path: str, params: dict, oc: str, timeout: float = 20) -> bytes:

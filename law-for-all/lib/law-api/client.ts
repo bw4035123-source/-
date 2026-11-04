@@ -5,6 +5,7 @@ import { bigramOverlap, lawNameHas, lawNameLooksLike, matchLawAliases, normalize
 import { parseArticleKey, toCitation } from "./util";
 import { rankCases } from "./case-rank";
 import { MOCK_DATASET_DATE } from "./mock/dataset-date";
+import OLD_AND_NEW from "./mock/old-and-new.json";
 
 const CASE_TIMEOUT = 25000;
 /** 판례 검색 전체 대기 한도 */
@@ -61,6 +62,26 @@ export class LawService {
    * 법령 목록 검색. kind: law(법률·시행령·시행규칙) | admrul(행정규칙: 훈령·예규·고시) | ordin(자치법규: 조례·규칙)
    * 실시간 모드에서는 국가법령정보 전체 법령을 검색한다(내장 데이터는 법령 검색에만 함께 표시).
    */
+  /**
+   * 상위법 개정 전후(신구법 비교) 원자료 — 실시간이면 국가법령정보 신구법 비교(target=oldAndNew)의 현행 개정분,
+   * 실패하거나 키가 없으면 내장 스냅샷(있는 법령만). source 로 어디서 왔는지 표시
+   */
+  async getOldAndNew(name: string): Promise<{ data: unknown; source: "live" | "snapshot" } | null> {
+    const key = name.replace(/\s/g, "");
+    const snap = (OLD_AND_NEW as Record<string, unknown>)[key];
+    if (this.oc) {
+      try {
+        const list = findAll(await drfGet("lawSearch.do", { target: "oldAndNew", query: name, display: "20" }, this.oc, 15000, 1), "oldAndNew").flatMap((x) => (Array.isArray(x) ? x : [x])) as Record<string, unknown>[];
+        const pick = list.find((x) => txt(x["신구법명"]).replace(/\s/g, "") === key && txt(x["현행연혁코드"]) === "현행") ?? list.find((x) => txt(x["신구법명"]).replace(/\s/g, "") === key);
+        if (pick) return { data: await drfGet("lawService.do", { target: "oldAndNew", MST: txt(pick["신구법일련번호"]) }, this.oc, 15000, 1), source: "live" };
+        this.warnings.push(`국가법령정보 신구법 비교에서 「${name}」을(를) 찾지 못했습니다.`);
+      } catch (e) {
+        this.warnings.push(`신구법 비교 실시간 조회 실패: ${(e as Error).message}`);
+      }
+    }
+    return snap ? { data: snap, source: "snapshot" } : null;
+  }
+
   async listLaws(query = "", kind: LawListKind = "law"): Promise<LawSummary[]> {
     const local = kind === "law" ? searchLawNames(query).map((l) => this.summarize(l)) : [];
     if (!this.oc || !query.trim()) return local;

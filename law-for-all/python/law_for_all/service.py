@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import concurrent.futures as cf
 import math
+import re
 import time
 
 from .data import DATASET_DATE, LAWS, get_law, parse_key, to_citation
@@ -61,6 +62,25 @@ class LawService:
     @property
     def mode(self) -> str:
         return "live" if self.oc else "mock"
+
+    def get_old_and_new(self, name: str):
+        """상위법 개정 전후(신구법 비교) 원자료 — 실시간 현행 개정분, 안 되면 내장 스냅샷(lib/law-api/client.ts getOldAndNew 와 같음)"""
+        from .upper_change import snapshot
+
+        key = re.sub(r"\s", "", name)
+        if self.oc:
+            try:
+                found = find_all(drf_get("lawSearch.do", {"target": "oldAndNew", "query": name, "display": "20"}, self.oc, 15, 1), "oldAndNew")
+                items = [y for x in found for y in (x if isinstance(x, list) else [x]) if isinstance(y, dict)]
+                same = [x for x in items if re.sub(r"\s", "", txt(x.get("신구법명"))) == key]
+                pick = next((x for x in same if txt(x.get("현행연혁코드")) == "현행"), same[0] if same else None)
+                if pick:
+                    return {"data": drf_get("lawService.do", {"target": "oldAndNew", "MST": txt(pick.get("신구법일련번호"))}, self.oc, 15, 1), "source": "live"}
+                self.warnings.append(f"국가법령정보 신구법 비교에서 「{name}」을(를) 찾지 못했습니다.")
+            except LawApiError as e:
+                self.warnings.append(f"신구법 비교 실시간 조회 실패: {e}")
+        snap = snapshot(name)
+        return {"data": snap, "source": "snapshot"} if snap else None
 
     def list_laws(self, query: str = "", kind: str = "law") -> list[dict]:
         """kind: law(법률·시행령·시행규칙) | admrul(행정규칙) | ordin(자치법규). 실시간 모드면 전체 법령 검색"""

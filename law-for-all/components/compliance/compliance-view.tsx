@@ -452,6 +452,9 @@ function ArticleCard({
               <span className="font-semibold">{b.date} 개정</span>
             </span>
           ))}
+          <Link href={`/drafting?mode=upper&law=${encodeURIComponent(lawName(r.upstreamAmended[0].lawId))}`} className="ml-auto font-semibold text-accent hover:underline">
+            개정 전후 비교 →
+          </Link>
         </div>
       )}
       {!r.findings.length && !r.related.length && <p className="mt-3 text-xs text-muted-foreground">대조 법령에서 직접 관련된 기준을 찾지 못했어요(기관 자율 사항일 수 있음).</p>}

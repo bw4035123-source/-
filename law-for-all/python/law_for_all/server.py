@@ -20,6 +20,7 @@ from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
+from .upper_change import parse_old_and_new
 from .guard import parse_loose_json
 from .llm import list_providers, resolve_provider
 from .service import LawService
@@ -280,6 +281,16 @@ class Handler(BaseHTTPRequestHandler):
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")
             return self._json(200, {"detail": detail})
+        if method == "GET" and path == "/api/law-changes":
+            name = (qs.get("name") or [""])[0].strip()[:60]
+            if not name:
+                raise ApiError(400, "법령명을 입력하세요.")
+            svc = LawService(config.law_access)
+            got = svc.get_old_and_new(name)
+            change = parse_old_and_new(got["data"]) if got else None
+            if not change:
+                return self._json(404, {"error": f"「{name}」의 개정 전후 비교 자료를 찾지 못했어요. 법령명을 정확히 적었는지 확인하세요.", "warnings": svc.warnings})
+            return self._json(200, {"change": change, "source": got["source"], "warnings": svc.warnings})
         m = re.fullmatch(r"/api/raw/([A-Za-z]+\.do)", path)
         if method in ("GET", "HEAD") and m:  # 법령 API 중계: 인증키·등록 IP가 있는 이 서버가 대신 조회(실행판·다른 PC용)
             ok, retry = rate_limit(f"raw:{self._client()}", 120)

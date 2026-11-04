@@ -822,6 +822,22 @@ class AmendAiTest(unittest.TestCase):
         self.assertIn("③ 삭제 <2026. 11. 3.>", r["text"])
 
 
+class UpperChangeTest(unittest.TestCase):
+    """상위법 개정 전후 비교 — tests/upper-change.test.ts 와 같은 사례"""
+
+    def test_labor_act(self):
+        from law_for_all.upper_change import parse_old_and_new, parts, snapshot
+
+        c = parse_old_and_new(snapshot("근로기준법"))
+        self.assertEqual(c["law"], "근로기준법")
+        self.assertEqual((c["after"]["type"], c["after"]["promulgated"], c["after"]["effective"]), ("일부개정", "2026. 4. 7.", "2026. 10. 8."))
+        self.assertEqual(c["added"], ["제44조의4"])
+        self.assertEqual(c["deleted"], ["제102조", "제102조의2", "제103조", "제105조"])
+        self.assertIn("제13조", c["amended"])
+        self.assertEqual(c["terms"], [{"from": "근로감독관", "to": "노동감독관", "count": 18, "articles": ["제13조", "제101조", "제104조", "제108조", "제116조"]}])
+        self.assertEqual(parts("가 <P>나</P> 다"), [{"t": "가 ", "m": False}, {"t": "나", "m": True}, {"t": " 다", "m": False}])
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

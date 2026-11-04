@@ -12,6 +12,7 @@ fs.mkdirSync(out, { recursive: true });
 const write = (name: string, data: unknown) => fs.writeFileSync(path.join(out, name), JSON.stringify(data, null, 1), "utf8");
 write("laws.json", { datasetDate: MOCK_DATASET_DATE, laws: MOCK_LAWS });
 write("topics.json", TOPICS);
+fs.copyFileSync(path.resolve("lib/law-api/mock/old-and-new.json"), path.join(out, "old_and_new.json"));
 write("law_aliases.json", LAW_ALIASES);
 write("perspectives.json", PERSPECTIVES);
 write("prompts.json", { citizen: buildSystemPrompt("citizen"), officer: buildSystemPrompt("officer"), analysis: ANALYSIS_SYSTEM, schemas: { citizen: CITIZEN_SCHEMA, officer: OFFICER_SCHEMA, analysis: ANALYSIS_SCHEMA } });
