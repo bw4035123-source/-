@@ -515,15 +515,31 @@ class Handler(BaseHTTPRequestHandler):
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")
             return self._json(200, {"detail": detail})
+        if method == "GET" and path == "/api/law-changes/search":
+            ok, retry = rate_limit(f"law-changes-search:{self._client()}", 60)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            q = (qs.get("q") or [""])[0].strip()[:60]
+            if not q:
+                return self._json(200, {"laws": []})
+            svc = LawService(config.law_access)
+            return self._json(200, {"laws": svc.search_change_laws(q), "warnings": svc.warnings})
         if method == "GET" and path == "/api/law-changes":
-            name = (qs.get("name") or [""])[0].strip()[:60]
+            name = (qs.get("name") or [""])[0].strip()[:80]
+            mst = (qs.get("mst") or [""])[0].strip()[:12]
+            revision = (qs.get("revision") or [""])[0].strip()
             if not name:
                 raise ApiError(400, "법령명을 입력하세요.")
+            if revision == "제정":
+                return self._json(404, {"error": f"「{name}」은(는) 최근 제정된 법령이라 개정 전 조문이 없어요.", "code": "no-history"})
             svc = LawService(config.law_access)
-            got = svc.get_old_and_new(name)
+            got = svc.get_old_and_new(name, mst or None)
             change = parse_old_and_new(got["data"]) if got else None
             if not change:
-                return self._json(404, {"error": f"「{name}」의 개정 전후 비교 자료를 찾지 못했어요. 법령명을 정확히 적었는지 확인하세요.", "warnings": svc.warnings})
+                live = any("실패" in w for w in svc.warnings)
+                msg = (f"국가법령정보에서 「{name}」의 신구법 비교 자료를 가져오지 못했어요. 잠시 후 다시 시도하세요." if live
+                       else f"「{name}」의 최근 개정 내역(신구법 비교 자료)이 없어요. 제정 이후 개정되지 않았거나 다른 법률 개정에 따른 자구 수정만 있었을 수 있어요.")
+                return self._json(404, {"error": msg, "code": "unavailable" if live else "no-history", "warnings": svc.warnings})
             return self._json(200, {"change": change, "source": got["source"], "warnings": svc.warnings})
         m = re.fullmatch(r"/api/raw/([A-Za-z]+\.do)", path)
         if method in ("GET", "HEAD") and m:  # 법령 API 중계: 인증키·등록 IP가 있는 이 서버가 대신 조회(실행판·다른 PC용)

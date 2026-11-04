@@ -9,6 +9,20 @@ import OLD_AND_NEW from "./mock/old-and-new.json";
 
 const CASE_TIMEOUT = 25000;
 /** 판례 검색 전체 대기 한도 */
+/** 상위법 개정 반영 — 법령 검색 결과 한 건 */
+export interface ChangeLawHit {
+  name: string;
+  mst: string;
+  kind: string;
+  ministry: string;
+  /** 최근 공포일(YYYYMMDD) */
+  promulgated: string;
+  effective: string;
+  /** 제정·일부개정·전부개정·타법개정 */
+  revision: string;
+  /** 인증키 없이 내장 스냅샷으로 비교할 수 있는지 */
+  snapshot?: boolean;
+}
 export const CASE_BUDGET_MS = 12000;
 const CASE_FAST = { timeoutMs: 8000, retries: 1 };
 /** 답변(질의응답·상황분석)이 실시간 원문을 기다리는 최대 시간 — 넘으면 공식 원문 스냅샷으로 즉시 답변 */
@@ -66,11 +80,58 @@ export class LawService {
    * 상위법 개정 전후(신구법 비교) 원자료 — 실시간이면 국가법령정보 신구법 비교(target=oldAndNew)의 현행 개정분,
    * 실패하거나 키가 없으면 내장 스냅샷(있는 법령만). source 로 어디서 왔는지 표시
    */
-  async getOldAndNew(name: string): Promise<{ data: unknown; source: "live" | "snapshot" } | null> {
+  /**
+   * 상위법 개정 반영 — 법령 검색(국가법령정보 '법령 목록 조회', 현행만): 법령명·약칭 → 법령일련번호(MST)·최근 공포일·제개정 구분.
+   * 인증키가 없으면 내장 법령 목록에서 찾음(MST 없음 → 이름으로 내장 스냅샷 비교)
+   */
+  async searchChangeLaws(q: string): Promise<ChangeLawHit[]> {
+    const query = q.trim();
+    if (!query) return [];
+    const local = (): ChangeLawHit[] =>
+      searchLawNames(query).slice(0, 10).map((l) => ({ name: l.name, mst: "", kind: l.kind, ministry: l.ministry ?? "", promulgated: "", effective: "", revision: "", snapshot: !!(OLD_AND_NEW as Record<string, unknown>)[l.name.replace(/\s/g, "")] }));
+    if (!this.oc) return local();
+    try {
+      const search = async (x: string) =>
+        findAll(await drfGet("lawSearch.do", { target: "law", query: x, display: "30" }, this.oc, 12000, 1), "law")
+          .flatMap((v) => (Array.isArray(v) ? v : [v]))
+          .map((v) => v as Record<string, unknown>)
+          .filter((v) => txt(v["현행연혁코드"]) === "현행" && txt(v["법령일련번호"]))
+          .map<ChangeLawHit>((v) => ({
+            name: txt(v["법령명한글"]),
+            mst: txt(v["법령일련번호"]),
+            kind: txt(v["법령구분명"]),
+            ministry: txt(v["소관부처명"]),
+            promulgated: txt(v["공포일자"]),
+            effective: txt(v["시행일자"]),
+            revision: txt(v["제개정구분명"]),
+          }));
+      let list = await search(query);
+      // 약칭(청탁금지법·이해충돌방지법 등)은 정식 법령명으로 다시
+      const official = searchLawNames(query)[0]?.name;
+      if (!list.length && official && official !== query) list = await search(official);
+      // 이름이 정확히 같은 법령 → 짧은 이름(본법이 시행령보다 먼저) 순
+      const k = query.replace(/\s/g, "");
+      return list.sort((a, b) => Number(b.name.replace(/\s/g, "") === k) - Number(a.name.replace(/\s/g, "") === k) || a.name.length - b.name.length).slice(0, 20);
+    } catch (e) {
+      this.warnings.push(`법령 목록 실시간 조회 실패: ${(e as Error).message}`);
+      return local();
+    }
+  }
+
+  async getOldAndNew(name: string, mst?: string): Promise<{ data: unknown; source: "live" | "snapshot" } | null> {
     // 약칭(청탁금지법 → 부정청탁 및 금품등 수수의 금지에 관한 법률)은 정식 법령명으로
     const official = searchLawNames(name)[0]?.name;
     const key = name.replace(/\s/g, "");
     const snap = (OLD_AND_NEW as Record<string, unknown>)[key] ?? (OLD_AND_NEW as Record<string, unknown>)[(official ?? "").replace(/\s/g, "")];
+    // 법령 검색에서 고른 법령: 그 법령일련번호(MST)로 신구법 비교를 바로 조회
+    if (this.oc && mst && /^\d{1,12}$/.test(mst)) {
+      try {
+        return { data: await drfGet("lawService.do", { target: "oldAndNew", MST: mst }, this.oc, 15000, 1), source: "live" };
+      } catch (e) {
+        this.warnings.push(`신구법 비교 실시간 조회 실패: ${(e as Error).message}`);
+        return snap ? { data: snap, source: "snapshot" } : null;
+      }
+    }
     if (this.oc) {
       try {
         const search = async (q: string) => findAll(await drfGet("lawSearch.do", { target: "oldAndNew", query: q, display: "20" }, this.oc, 15000, 1), "oldAndNew").flatMap((x) => (Array.isArray(x) ? x : [x])) as Record<string, unknown>[];

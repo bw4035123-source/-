@@ -63,7 +63,40 @@ class LawService:
     def mode(self) -> str:
         return "live" if self.oc else "mock"
 
-    def get_old_and_new(self, name: str):
+    def search_change_laws(self, q: str) -> list[dict]:
+        """상위법 개정 반영 — 법령 검색(법령 목록 조회, 현행만): 법령명·약칭 → 법령일련번호(MST)·최근 공포일·제개정 구분(client.ts searchChangeLaws 와 같음)"""
+        from .upper_change import snapshot
+
+        query = q.strip()
+        if not query:
+            return []
+
+        def local() -> list[dict]:
+            return [{"name": l["name"], "mst": "", "kind": l.get("kind", ""), "ministry": l.get("ministry") or "", "promulgated": "", "effective": "", "revision": "", "snapshot": bool(snapshot(l["name"]))} for l in search_law_names(query)[:10]]
+
+        if not self.oc:
+            return local()
+        try:
+            def search(x: str) -> list[dict]:
+                found = find_all(drf_get("lawSearch.do", {"target": "law", "query": x, "display": "30"}, self.oc, 12, 1), "law")
+                items = [y for v in found for y in (v if isinstance(v, list) else [v]) if isinstance(y, dict)]
+                return [{"name": txt(v.get("법령명한글")), "mst": txt(v.get("법령일련번호")), "kind": txt(v.get("법령구분명")), "ministry": txt(v.get("소관부처명")),
+                         "promulgated": txt(v.get("공포일자")), "effective": txt(v.get("시행일자")), "revision": txt(v.get("제개정구분명"))}
+                        for v in items if txt(v.get("현행연혁코드")) == "현행" and txt(v.get("법령일련번호"))]
+
+            lst = search(query)
+            hits = search_law_names(query)
+            official = hits[0]["name"] if hits else None
+            if not lst and official and official != query:
+                lst = search(official)
+            k = re.sub(r"\s", "", query)
+            lst.sort(key=lambda a: (-(re.sub(r"\s", "", a["name"]) == k), len(a["name"])))
+            return lst[:20]
+        except LawApiError as e:
+            self.warnings.append(f"법령 목록 실시간 조회 실패: {e}")
+            return local()
+
+    def get_old_and_new(self, name: str, mst: str | None = None):
         """상위법 개정 전후(신구법 비교) 원자료 — 실시간 현행 개정분, 안 되면 내장 스냅샷(lib/law-api/client.ts getOldAndNew 와 같음)"""
         from .upper_change import snapshot
 
@@ -71,6 +104,14 @@ class LawService:
         hits = search_law_names(name)
         official = hits[0]["name"] if hits else None
         key = re.sub(r"\s", "", name)
+        # 법령 검색에서 고른 법령: 그 법령일련번호(MST)로 신구법 비교를 바로 조회
+        if self.oc and mst and re.fullmatch(r"\d{1,12}", mst):
+            try:
+                return {"data": drf_get("lawService.do", {"target": "oldAndNew", "MST": mst}, self.oc, 15, 1), "source": "live"}
+            except LawApiError as e:
+                self.warnings.append(f"신구법 비교 실시간 조회 실패: {e}")
+                snap = snapshot(name) or (snapshot(official) if official else None)
+                return {"data": snap, "source": "snapshot"} if snap else None
         if self.oc:
             try:
                 def search(q: str) -> list[dict]:

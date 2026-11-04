@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
-import { AlertTriangle, ArrowRight, FileSearch, History, Loader2, Replace } from "lucide-react";
+import { AlertTriangle, ArrowRight, FileSearch, History, Info, Loader2, Replace, SearchX } from "lucide-react";
+import { LawCombobox, type LawPick } from "./law-combobox";
 import { impactOn, type ImpactHit, type Part, type UpperChange } from "@/lib/upper-change";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
@@ -59,27 +60,37 @@ function Highlight({ text, terms }: { text: string; terms: string[] }) {
 
 export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff) => void; initialLaw?: string }) {
   const toast = useToast();
-  const [name, setName] = React.useState(initialLaw || "근로기준법");
+  const [pickd, setPickd] = React.useState<LawPick | null>(initialLaw ? { name: initialLaw } : null);
+  const name = pickd?.name ?? "";
+  // 오른쪽 안내: 검색 결과 없음 / 최근 개정 내역 없음 / 조회 실패
+  const [notice, setNotice] = React.useState<{ kind: "empty" | "no-history" | "error"; text: string } | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [data, setData] = React.useState<{ change: UpperChange; source: "live" | "snapshot"; warnings: string[] } | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const [reg, setReg] = React.useState("");
   const [hits, setHits] = React.useState<ImpactHit[] | null>(null);
 
-  const load = async () => {
-    if (!name.trim()) return;
+  const load = async (p: LawPick | null = pickd) => {
+    if (!p?.name.trim()) return;
     setLoading(true);
     setHits(null);
+    setNotice(null);
+    setData(null);
     try {
-      const j = await fetchJson<{ change: UpperChange; source: "live" | "snapshot"; warnings: string[] }>(`/api/law-changes?name=${encodeURIComponent(name.trim())}`, { timeoutMs: 40000 });
+      const qs = new URLSearchParams({ name: p.name.trim(), ...(p.mst ? { mst: p.mst } : {}), ...(p.revision ? { revision: p.revision } : {}) });
+      const j = await fetchJson<{ change: UpperChange; source: "live" | "snapshot"; warnings: string[] }>(`/api/law-changes?${qs}`, { timeoutMs: 40000 });
       setData(j);
       setShowAll(false);
     } catch (e) {
-      setData(null);
-      toast((e as Error).message);
+      const msg = (e as Error).message;
+      setNotice({ kind: /가져오지 못했|연결|시간/.test(msg) ? "error" : "no-history", text: msg });
     } finally {
       setLoading(false);
     }
+  };
+  const onPick = (p: LawPick) => {
+    setPickd(p);
+    void load(p);
   };
   React.useEffect(() => {
     if (initialLaw) void load();
@@ -103,18 +114,20 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
         <div>
           <p className="mb-2 text-sm font-bold">① 개정된 상위법</p>
           <div className="flex gap-2">
-            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()} placeholder="법령명 (예: 근로기준법)" className="h-10 min-w-0 flex-1 rounded-md border bg-card px-2.5 text-sm" aria-label="상위법 이름" />
-            <Button onClick={load} disabled={loading || !name.trim()}>
+            <div className="min-w-0 flex-1">
+              <LawCombobox value={name} onPick={onPick} onNoResult={(q) => { setData(null); setNotice({ kind: "empty", text: `‘${q}’(으)로 찾은 현행 법령이 없어요. 법령명이나 약칭을 다시 확인해 주세요(예: 청탁금지법 → 부정청탁 및 금품등 수수의 금지에 관한 법률).` }); }} />
+            </div>
+            <Button onClick={() => load()} disabled={loading || !name}>
               {loading ? <Loader2 className="animate-spin" /> : <History />} 개정 전후 보기
             </Button>
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">국가법령정보 ‘신구법 비교’에서 가장 최근 개정분의 개정 전·후 조문을 가져와요.</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">대한민국 모든 현행 법령을 국가법령정보 ‘법령 목록’에서 찾아, 고른 법령의 가장 최근 개정분 개정 전·후 조문(신구법 비교)을 가져와요.</p>
         </div>
 
         <div className={cn(!c && "pointer-events-none opacity-50")}>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-bold">② 우리 기관 규정 전문</p>
-            <button type="button" onClick={() => setReg(EXAMPLE)} className="rounded-full border bg-secondary/60 px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
+            <button type="button" onClick={() => { setReg(EXAMPLE); if (!pickd) onPick({ name: "근로기준법" }); }} className="rounded-full border bg-secondary/60 px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
               예시 채우기
             </button>
           </div>
@@ -132,10 +145,21 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
           <div className="grid min-h-[300px] place-items-center rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             {loading ? (
               <span className="inline-flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> 국가법령정보에서 개정 전후 조문을 가져오는 중…
+                <Loader2 className="h-4 w-4 animate-spin" /> 국가법령정보에서 「{name}」 개정 전후 조문을 가져오는 중…
               </span>
+            ) : notice ? (
+              <div className="max-w-md space-y-2" role="status">
+                {notice.kind === "empty" ? <SearchX className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden /> : notice.kind === "error" ? <AlertTriangle className="mx-auto h-8 w-8 text-amber-500" aria-hidden /> : <Info className="mx-auto h-8 w-8 text-accent" aria-hidden />}
+                <p className="font-bold text-foreground">{notice.kind === "empty" ? "검색 결과가 없어요" : notice.kind === "error" ? "개정 전후 자료를 가져오지 못했어요" : "최근 개정 내역이 없어요"}</p>
+                <p className="leading-6">{notice.text}</p>
+                {notice.kind !== "empty" && name && (
+                  <a href={`https://www.law.go.kr/lsSc.do?query=${encodeURIComponent(name)}`} target="_blank" rel="noreferrer" className="inline-block text-xs font-semibold text-accent underline">
+                    국가법령정보센터에서 「{name}」 연혁 확인
+                  </a>
+                )}
+              </div>
             ) : (
-              "왼쪽에서 상위법을 고르고 ‘개정 전후 보기’를 누르세요."
+              "왼쪽 검색창에서 개정된 상위법을 찾아 고르세요. 고르면 바로 개정 전후 조문을 보여 드려요."
             )}
           </div>
         ) : (
