@@ -32,7 +32,7 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, tU1: 11, tU2: 15, t10: 14, t11: 11, t12: 9, t13: 8 }
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 16, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, tU1: 11, tU2: 15, t10: 14, t11: 11, t12: 9, t13: 8 }
   : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
@@ -562,6 +562,24 @@ await scene("s18", async () => {
     await scrollBy(380, 14);
     await cap("채운 값이 기관 실정에 맞는지는 담당자가 확인 — ‘표준 초안’과 바로 비교", "AI 채운 안 ↔ 표준 초안 전환 · 복사·Word 저장은 보고 있는 쪽으로");
   });
+  await scene("tL", async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    await wait(400);
+    const box = page.getByLabel("만들 규정 한 줄");
+    await click(box);
+    await cap("한 줄로 만들기 — 만들 규정을 말하듯 적으면", "국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 작성");
+    await box.type("우리 공단 산업안전보건 관리 지침 만들어줘", { delay: 22 });
+    await page.getByLabel("기관명").fill("○○시설관리공단");
+    await wait(600);
+    await click(page.getByRole("button", { name: /AI로 제정안 만들기/ }));
+    const sec = await aiWait(() => page.getByText(/조문 [0-9]+개를 썼어요|AI 작성에 실패|연결하지 못했어요/).first().waitFor({ timeout: 220000 }).catch(() => {}), "제정안");
+    await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
+    await page.evaluate(() => window.scrollBy({ top: -80 }));
+    await wait(300);
+    await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `실제 약 ${sec}초 · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
+    await wait(2500);
+    await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건교육")); if (p) p.scrollTop = p.scrollHeight * 0.45; });
+  });
   await scene("t05", async () => {
     await page.getByLabel("규정명").fill("○○공단 재택근무 운영 지침");
     await page.getByLabel("제정 목적").fill("직원의 재택근무 신청·승인과 복무 관리 기준을 정하기 위함");
@@ -690,10 +708,10 @@ await scene("s18", async () => {
   });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 198건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 205건</li></ul>`);
   });
   await scene("t13", async () => {
-    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 목적·위임 조항 → 조문 체계·표준 조문 · AI 빈칸 채우기(가드 검증)</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 전후 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안</li></ul>`);
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 전후 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안</li></ul>`);
   });
 }
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
