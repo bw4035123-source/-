@@ -171,7 +171,10 @@ def _validate_compliance_ai(body: dict) -> dict:
         if not isinstance(a, dict) or not isinstance(a.get("no"), str) or not isinstance(a.get("text"), str) or not a["text"].strip() or len(a["no"]) > 12 or len(a["text"]) > 3000:
             raise bad
         t = a.get("title") if isinstance(a.get("title"), str) else ""
-        out.append({"no": a["no"], "title": t[:80], "text": a["text"]})
+        hints = a.get("hints") or []
+        if not isinstance(hints, list) or len(hints) > 6 or not all(isinstance(h, str) and re.fullmatch(r"[\w.-]{1,40}:[0-9]{1,4}(?:의[0-9]{1,3})?", h) for h in hints):
+            raise bad
+        out.append({"no": a["no"], "title": t[:80], "text": a["text"], "hints": hints})
     s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
     prov = body.get("provider")
     return {"regName": s("regName", 100), "orgType": s("orgType", 30), "articles": out, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
@@ -191,12 +194,18 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
     def find(a):
         svc = LawService(config.law_access)
         q = re.sub(r"\s+", " ", f"{a['title']} {a['text']}")[:300]
+        # 기준 규칙이 연결한 상위 조문을 앞에, 국가법령정보 검색으로 찾은 조문을 뒤에
         try:
-            return gather_evidence(q, svc)[1][:4]
+            hinted = svc.get_citations(a["hints"]) if a["hints"] else []
+        except Exception:  # noqa: BLE001
+            hinted = []
+        try:
+            found = gather_evidence(q, svc)[1]
         except Exception:  # noqa: BLE001 — 근거 검색 실패는 '상위조문 없음'으로
-            return []
-        finally:
-            warnings.extend(svc.warnings)
+            found = []
+        warnings.extend(svc.warnings)
+        keys = {h["key"] for h in hinted}
+        return (hinted + [c for c in found if c["key"] not in keys])[:5]
 
     with cf.ThreadPoolExecutor(max_workers=6) as ex:
         uppers = list(ex.map(find, arts))

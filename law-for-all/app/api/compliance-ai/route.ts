@@ -19,7 +19,10 @@ export const maxDuration = 120;
 const Body = z.object({
   regName: z.string().max(100).default(""),
   orgType: z.string().max(30).default(""),
-  articles: z.array(z.object({ no: z.string().max(12), title: z.string().max(80).default(""), text: z.string().min(1).max(3000) })).min(1).max(40),
+  articles: z
+    .array(z.object({ no: z.string().max(12), title: z.string().max(80).default(""), text: z.string().min(1).max(3000), hints: z.array(z.string().regex(/^[\w.-]{1,40}:[0-9]{1,4}(?:의[0-9]{1,3})?$/)).max(6).default([]) }))
+    .min(1)
+    .max(40),
   provider: z.string().max(20).optional(),
 });
 
@@ -45,7 +48,10 @@ export async function POST(req: Request) {
     await Promise.all(
       masked.slice(i, i + POOL).map(async (a, j) => {
         const q = `${a.title} ${a.text}`.replace(/\s+/g, " ").slice(0, 300);
-        uppers[i + j] = (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context.slice(0, 4);
+        // 기준 규칙이 연결한 상위 조문을 앞에, 국가법령정보 검색으로 찾은 조문을 뒤에
+        const hinted = a.hints.length ? await svc.getCitations(a.hints).catch(() => [] as Citation[]) : [];
+        const found = (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context;
+        uppers[i + j] = [...hinted, ...found.filter((c) => !hinted.some((h) => h.key === c.key))].slice(0, 5);
       }),
     );
   const input: AiArticleInput[] = masked.map((a, i) => ({

@@ -99,8 +99,13 @@ export function ComplianceView() {
   };
 
   // AI 검토: 조문마다 국가법령정보에서 상위 조문을 찾아 생성형 AI가 대조(서버) — 조문 텍스트만 보냄(개인정보는 먼저 가림)
-  const runAi = async (src: string, name: string, org: OrgType) => {
-    const arts = parseRegulation(src).slice(0, 40).map((a) => ({ no: a.no, title: a.title, text: maskPII(a.text).text.slice(0, 3000) }));
+  const runAi = async (src: string, name: string, org: OrgType, rule: CheckReport) => {
+    // 기준 규칙이 이미 연결한 상위 조문(근거·관련)을 AI에게 먼저 넘김 — 조문 글 검색만으로는 엉뚱한 조문이 붙을 수 있어
+    const hintsOf = (no: string) => {
+      const r = rule.results.find((x) => x.article.no === no);
+      return r ? Array.from(new Set([...r.findings.flatMap((f) => f.basis), ...r.related].map((b) => `${b.lawId}:${b.articleNo}`))).slice(0, 4) : [];
+    };
+    const arts = parseRegulation(src).slice(0, 40).map((a) => ({ no: a.no, title: a.title, text: maskPII(a.text).text.slice(0, 3000), hints: hintsOf(a.no) }));
     if (!arts.length) return;
     setAi({ status: "loading", count: arts.length });
     try {
@@ -120,9 +125,10 @@ export function ComplianceView() {
 
   const run = () => {
     if (!text.trim()) return;
-    setReport(crossCheck({ text, orgType, regName, laws: Array.from(laws.docs.values()) }));
+    const rule = crossCheck({ text, orgType, regName, laws: Array.from(laws.docs.values()) });
+    setReport(rule);
     setFilter("all");
-    void runAi(text, regName, orgType);
+    void runAi(text, regName, orgType, rule);
     requestAnimationFrame(() => document.getElementById("compliance-result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
