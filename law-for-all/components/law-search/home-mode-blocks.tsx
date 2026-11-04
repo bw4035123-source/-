@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, FileText, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 import { OFFICER_REG_TEMPLATES } from "@/lib/suggestions";
 
@@ -11,42 +11,31 @@ export function ModeCta() {
   const cls = "group mt-6 flex w-full max-w-3xl items-center gap-4 rounded-2xl border-2 border-dashed border-accent/40 bg-card/80 p-4 text-left shadow-sm transition hover:border-accent hover:shadow-md";
   if (mode === "officer")
     return (
-      <div className="mt-6 w-full max-w-3xl space-y-3">
-        <div className="rounded-2xl border bg-card/80 p-4 text-left shadow-sm">
-          <p className="flex items-center gap-1.5 text-sm font-extrabold">
-            <FilePenLine className="h-4 w-4 text-accent" aria-hidden /> 규정 바로 만들기 <span className="text-xs font-semibold text-muted-foreground">— 누르면 상위법령을 찾아 AI가 제정안을 써요</span>
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-1.5" aria-label="자주 만드는 내부 규정">
-            {OFFICER_REG_TEMPLATES.map((t) => (
-              <Link key={t.label} href={`/drafting?mode=enact&one=${encodeURIComponent(t.request)}`} className="rounded-full border bg-card px-3 py-1 text-[13px] font-semibold text-foreground/85 transition hover:-translate-y-0.5 hover:border-accent hover:text-accent">
-                # {t.label}
-              </Link>
-            ))}
+      <section className="mt-8 w-full max-w-3xl rounded-2xl border bg-card/90 p-5 text-left shadow-sm" aria-label="규정 바로 만들기">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-1.5 font-extrabold">
+              <FilePenLine className="h-4 w-4 text-accent" aria-hidden /> 규정 바로 만들기
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">고르면 국가법령정보에서 상위법령을 찾아 AI가 제정안을 써요</p>
           </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Link href="/drafting" className={cls.replace("mt-6 ", "").replace("max-w-3xl", "")}>
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow" aria-hidden>
-              <FilePenLine className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-extrabold">규정 제·개정 지원</span>
-              <span className="block text-sm text-muted-foreground">한 줄 제정 · 조문 붙여 “개정해줘” · 상위법 개정 반영</span>
-            </span>
-            <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
-          </Link>
-          <Link href="/compliance" className={cls.replace("mt-6 ", "").replace("max-w-3xl", "")}>
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-navy-700 to-sage-600 text-white shadow" aria-hidden>
-              <ScanSearch className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-extrabold">자체규정 점검</span>
-              <span className="block text-sm text-muted-foreground">규정 파일을 넣으면 AI가 상위법령과 조문별로 대조해요</span>
-            </span>
-            <ArrowRight className="h-5 w-5 shrink-0 text-accent transition group-hover:translate-x-1" aria-hidden />
+          <Link href="/drafting" className="inline-flex items-center gap-1 text-xs font-bold text-accent hover:underline">
+            직접 작성·개정하기 <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
-      </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="자주 만드는 내부 규정">
+          {OFFICER_REG_TEMPLATES.map((t) => (
+            <Link
+              key={t.label}
+              href={`/drafting?mode=enact&one=${encodeURIComponent(t.request)}`}
+              className="group/t flex min-w-0 items-center gap-2 rounded-lg border border-transparent bg-secondary/60 px-3 py-2.5 text-[13px] font-semibold text-foreground/85 transition hover:border-accent/40 hover:bg-accent/5 hover:text-accent"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover/t:text-accent" aria-hidden />
+              <span className="truncate">{t.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
     );
   return (
     <Link href="/analyze" className={cls}>
