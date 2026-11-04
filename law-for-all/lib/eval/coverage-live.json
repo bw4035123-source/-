@@ -901,8 +901,8 @@
   "date": "2026-11-04",
   "base": "https://lawon.onrender.com",
   "total": 50,
-  "correct": 46,
-  "miss": 3,
+  "correct": 49,
+  "miss": 0,
   "wrong": 1,
   "external": {
    "total": 7,
@@ -999,8 +999,10 @@
    {
     "q": "아버지가 돌아가셨는데 빚이 더 많으면 어떡하죠",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "민법"
+    ],
     "topic": null
    },
    {
@@ -1261,15 +1263,21 @@
    {
     "q": "내 사진을 허락 없이 블로그에 올렸어요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+     "개인정보 보호법"
+    ],
     "topic": null
    },
    {
     "q": "식당에서 음식 먹고 탈이 났어요 보상받을 수 있나요",
     "external": false,
-    "result": "miss",
-    "got": [],
+    "result": "correct",
+    "got": [
+     "제조물 책임법",
+     "민법"
+    ],
     "topic": null
    },
    {
