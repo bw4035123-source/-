@@ -885,6 +885,29 @@ class EnactPlanTest(unittest.TestCase):
         self.assertIn("기관 자율 규정", " ".join(guard_plan({"items": ["재택근무 신청"]}, [])["notes"]))
 
 
+class EnactWriteTest(unittest.TestCase):
+    """제정안 AI 작성 가드 — tests/enact-write.test.ts 와 같은 사례"""
+
+    def test_guard(self):
+        from law_for_all.enact_write import guard_write
+
+        inp = {"name": "○○공단 산업안전보건 관리 지침", "kind": "행정규칙", "org": "○○공단", "purpose": "안전보건 관리 기준을 정하기 위함",
+               "articles": [{"label": "제5조(안전보건관리책임자 지정)", "text": "○○공단의 장은 ○○의 운영 실태를 연 1회 이상 점검하여야 한다."}, {"label": "제6조(안전보건교육)", "text": "○○공단의 장은 ○○에 관한 교육을 연 1회 이상 실시하여야 한다."}, {"label": "제7조(위원회)", "text": "○○위원회를 둔다."}, {"label": "제8조(점검)", "text": "○○을 점검한다."}],
+               "basis": [{"label": "「산업안전보건법」 제29조(근로자에 대한 안전보건교육)", "text": "사업주는 근로자에게 매분기 3시간 이상 안전보건교육을 하여야 한다."}]}
+        r = guard_write({"articles": [
+            {"label": "제5조(안전보건관리책임자 지정)", "text": "제5조(안전보건관리책임자 지정) ① ○○공단의 장은 안전보건관리책임자를 지정하여야 한다.\n② 안전보건관리책임자는 「산업안전보건법」 제29조에 따른 교육을 총괄한다."},
+            {"label": "제6조(안전보건교육)", "text": "○○공단의 장은 「중대재해 처벌 등에 관한 법률」에 따라 교육한다."},
+            {"label": "제7조(위원회)", "text": "위원회 결정을 어긴 자에게는 과태료를 부과한다."},
+            {"label": "제8조(점검)", "text": "① 점검한다.\n③ 결과를 보고한다."}]}, inp)
+        self.assertTrue(r["articles"][0]["written"] and r["articles"][0]["text"].startswith("①"))
+        self.assertTrue(all(not a["written"] for a in r["articles"][1:]))
+        reasons = [x["reason"] for x in r["rejected"]]
+        self.assertIn("중대재해", reasons[0]); self.assertIn("제재", reasons[1]); self.assertIn("항 번호", reasons[2])
+        r = guard_write({"articles": [{"label": "제6조(안전보건교육)", "text": "○○공단의 장은 근로자에게 매분기 3시간 이상, 신규 채용 시 8시간 이상 교육을 하여야 한다."}]}, inp)
+        self.assertTrue(r["articles"][1]["written"])
+        self.assertEqual(r["checks"], [{"label": "제6조(안전보건교육)", "values": ["8시간"]}])
+
+
 class FallbackNoticeTest(unittest.TestCase):
     """생성형 AI 대체 안내 — tests/fallback.test.ts 와 같은 사례"""
 

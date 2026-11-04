@@ -7,6 +7,7 @@ import type { DraftKind } from "@/lib/drafting";
 import { compareStructure, enactDraft, similarQuery, type Basis } from "@/lib/enact";
 import type { FillResult } from "@/lib/enact-fill";
 import type { EnactPlan, PlanEvidence } from "@/lib/enact-plan";
+import type { WriteResult } from "@/lib/enact-write";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -172,7 +173,32 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
   const [useFill, setUseFill] = React.useState(true);
   const fillFresh = fill && fill.key === d.fullText ? fill : null;
   const filledText = fillFresh ? [name.trim() || `(${d.unit} 이름)`, "", ...fillFresh.articles.map((a) => `${a.label} ${a.text}`), "", d.addenda].join("\n") : null;
-  const shownText = filledText && useFill ? filledText : d.fullText;
+  // AI 조문 작성(본문을 상위 조문 원문에 맞게 구체적으로) — 초안이 바뀌면 다시 써야 함
+  const [written, setWritten] = React.useState<(WriteResult & { key: string; label: string; model: string }) | null>(null);
+  const [writeBusy, setWriteBusy] = React.useState(false);
+  const [useWritten, setUseWritten] = React.useState(true);
+  const writtenFresh = written && written.key === d.fullText ? written : null;
+  const writtenText = writtenFresh ? [name.trim() || `(${d.unit} 이름)`, "", ...writtenFresh.articles.map((a) => `${a.label} ${a.text}`), "", d.addenda].join("\n") : null;
+  const shownText = writtenText && useWritten ? writtenText : filledText && useFill ? filledText : d.fullText;
+  const runWrite = async () => {
+    setWriteBusy(true);
+    try {
+      const r = await fetchJson<WriteResult & { model: string; label: string }>("/api/enact-write", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, kind, org: org || undefined, purpose, articles: d.articles, basis }),
+        timeoutMs: 120000,
+      });
+      setWritten({ ...r, key: d.fullText });
+      setUseWritten(true);
+      const n = r.articles.filter((a) => a.written).length;
+      toast(`AI가 조문 ${n}개를 썼어요${r.rejected.length ? ` · 검증에 걸린 조문 ${r.rejected.length}개는 표준 초안 유지` : ""}`);
+    } catch (e) {
+      toast((e as Error).message || "AI 작성에 실패했어요. 표준 초안을 쓰세요");
+    } finally {
+      setWriteBusy(false);
+    }
+  };
   const runFill = async () => {
     setFillBusy(true);
     try {
@@ -217,7 +243,7 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
       setBasis(r.evidence.filter((e) => p.basis.includes(e.key)).map((e) => ({ label: e.label, text: e.text })));
       setPlanInfo({ notes: p.notes, evidence: r.evidence.length, label: r.label });
       setPendingFill(true);
-      toast(`AI가 상위 조문 ${r.evidence.length}개를 보고 규정을 설계했어요 — 이어서 빈칸을 채워요`);
+      toast(`AI가 상위 조문 ${r.evidence.length}개를 보고 규정을 설계했어요 — 이어서 조문을 써요`);
     } catch (e) {
       toast((e as Error).message);
     } finally {
@@ -228,7 +254,7 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
   React.useEffect(() => {
     if (pendingFill && d.articles.length) {
       setPendingFill(false);
-      void runFill();
+      void runWrite();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFill, d.fullText]);
@@ -243,7 +269,7 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
           <p className="flex items-center gap-1.5 text-sm font-bold">
             <Sparkles className="h-4 w-4 text-accent" /> 한 줄로 만들기
           </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">만들 규정을 말하듯 적으면 국가법령정보에서 상위법령을 찾아 AI가 설계하고, 표준 초안과 빈칸 채우기까지 이어서 해요.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">만들 규정을 말하듯 적으면 국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 써요(가드 검증).</p>
           <textarea value={oneLine} onChange={(e) => setOneLine(e.target.value)} rows={2} placeholder="예) 우리 공단 산업안전보건 관리 지침 만들어줘" className="mt-2 w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="만들 규정 한 줄" />
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {["우리 공단 산업안전보건 관리 지침 만들어줘", "직원 재택근무 운영 지침", "개인정보 처리 내부관리계획 규정"].map((x) => (
@@ -252,8 +278,8 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
               </button>
             ))}
           </div>
-          <Button variant="accent" className="mt-2 w-full" onClick={runPlan} disabled={planBusy || fillBusy || oneLine.trim().length < 4}>
-            {planBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} {planBusy ? "상위법령을 찾고 AI가 설계하는 중…" : fillBusy && planInfo ? "AI가 빈칸을 채우는 중…" : "AI로 제정안 만들기"}
+          <Button variant="accent" className="mt-2 w-full" onClick={runPlan} disabled={planBusy || writeBusy || oneLine.trim().length < 4}>
+            {planBusy || writeBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} {planBusy ? "상위법령을 찾고 AI가 설계하는 중…" : writeBusy && planInfo ? "AI가 상위 조문을 보고 조문을 쓰는 중…" : "AI로 제정안 만들기"}
           </Button>
           {planInfo && (
             <div className="mt-2 space-y-1 text-xs">
@@ -372,14 +398,41 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-extrabold">조문 체계 · 제정안 초안</h2>
                 <div className="flex flex-wrap gap-1.5">
-                  <Button size="sm" variant="accent" onClick={runFill} disabled={fillBusy}>
-                    {fillBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} AI로 빈칸 채우기
+                  <Button size="sm" variant="accent" onClick={runWrite} disabled={writeBusy}>
+                    {writeBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} AI로 조문 쓰기
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={runFill} disabled={fillBusy}>
+                    {fillBusy ? <Loader2 className="animate-spin" /> : <Sparkles />} 빈칸만 채우기
                   </Button>
                   <Button size="sm" variant="outline" onClick={async () => toast((await copyText(shownText)) ? "제정안을 복사했습니다" : "복사 실패")}>
                     <ClipboardCopy /> 제정안 복사
                   </Button>
                 </div>
               </div>
+              {writtenFresh && (
+                <div className="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p>
+                      <strong>AI({writtenFresh.label} · {writtenFresh.model})</strong>가 상위 조문 원문을 보고 조문 <strong>{writtenFresh.articles.filter((a) => a.written).length}개</strong>를 썼어요
+                      {writtenFresh.rejected.length > 0 && <> · 검증에 걸린 조문 {writtenFresh.rejected.length}개는 표준 초안 유지</>}
+                    </p>
+                    <div className="inline-flex gap-1 rounded-lg bg-secondary p-0.5 text-xs font-semibold">
+                      {[true, false].map((v) => (
+                        <button key={String(v)} type="button" onClick={() => setUseWritten(v)} className={cn("rounded-md px-2.5 py-1", useWritten === v ? "bg-card shadow-sm" : "text-muted-foreground")} aria-pressed={useWritten === v}>
+                          {v ? "AI 작성안" : "표준 초안"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">근거 목록 밖 법령 인용, 새 벌칙·과태료, 항 번호가 깨진 조문은 가드가 버리고 표준 초안을 유지했어요. AI 작성안은 담당자가 확인·수정하는 초안이에요.</p>
+                  {writtenFresh.rejected.map((r) => (
+                    <p key={r.label} className="mt-1 text-xs text-amber-800 dark:text-amber-300">△ {r.label}: {r.reason}</p>
+                  ))}
+                  {writtenFresh.checks.map((c) => (
+                    <p key={c.label} className="mt-1 text-xs text-amber-800 dark:text-amber-300">! {c.label}: 상위 조문에 없는 값 {c.values.join(", ")} — 기관 실정에 맞는지 확인하세요</p>
+                  ))}
+                </div>
+              )}
               {fill && !fillFresh && <p className="mb-3 rounded-lg bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">초안이 바뀌어 AI가 채운 내용은 지웠어요. 다시 채우려면 ‘AI로 빈칸 채우기’를 누르세요.</p>}
               {fillFresh && (
                 <div className="mb-3 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
@@ -413,7 +466,9 @@ export function EnactPanel({ laws }: { laws: LawSummary[] }) {
                 ))}
                 <Badge variant="secondary">부칙</Badge>
               </div>
-              {fillFresh && useFill ? (
+              {writtenFresh && useWritten ? (
+                <pre className="law-text max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">{writtenText}</pre>
+              ) : fillFresh && useFill ? (
                 <pre className="law-text max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-secondary/50 p-4 font-serif text-sm leading-7">
                   {`${name.trim() || `(${d.unit} 이름)`}\n\n`}
                   {fillFresh.articles.map((a) => (

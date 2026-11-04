@@ -24,6 +24,7 @@ from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
+from .enact_write import WRITE_SYSTEM, build_write_prompt, guard_write
 from .enact_plan import PLAN_SYSTEM, TOC_SKIP, build_plan_prompt, clean_request, guard_plan
 from .upper_change import parse_old_and_new
 from .guard import parse_loose_json
@@ -436,6 +437,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, relay_raw(m.group(1), params, config.law_api_oc), "application/json; charset=utf-8", None, method == "HEAD")
             except LawApiError as e:
                 return self._json(502, {"ok": False, "error": str(e)})
+        if method == "POST" and path == "/api/enact-write":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 10)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            inp = _validate_enact_fill(self._body())
+            p, _ = resolve_provider(config.llm, inp["provider"])
+            if p.kind == "rule":
+                return self._json(503, {"error": "생성형 AI가 연결되어 있지 않아 AI 작성을 할 수 없어요. 표준 초안을 쓰세요."})
+            messages = [{"role": "user", "content": build_write_prompt(inp)}]
+            try:
+                for _ in range(2):
+                    res = p.generate(system=WRITE_SYSTEM, messages=messages, json_mode=True, temperature=0.2, max_tokens=4000, timeout_ms=80000)
+                    try:
+                        return self._json(200, {**guard_write(parse_loose_json(res["text"]), inp), "model": res.get("model") or p.model, "label": p.label})
+                    except Exception:  # noqa: BLE001 — 형식이 깨지면 한 번 다시
+                        messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
+            except LLMError as e:
+                return self._json(502, {"error": f"AI({p.label})에 연결하지 못했어요. 표준 초안을 쓰거나 잠시 후 다시 시도하세요.", "detail": str(e)})
+            return self._json(502, {"error": f"AI({p.label}) 응답 형식이 올바르지 않아 쓰지 않았어요. 표준 초안을 쓰세요."})
         if method == "POST" and path == "/api/enact-ai":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
             if not ok:
