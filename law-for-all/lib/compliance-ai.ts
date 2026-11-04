@@ -12,6 +12,9 @@ import { resolveKey } from "./answer/guard";
 export type AiVerdict = "상충" | "검토 필요" | "적합" | "판단 보류";
 export const AI_VERDICTS: AiVerdict[] = ["상충", "검토 필요", "적합", "판단 보류"];
 
+/** 목적·정의·시행일 같은 일반 조문은 상위 조문 검색을 건너뜀(낱말만 겹친 엉뚱한 법령이 붙지 않게 — 규칙이 연결한 조문만 사용) */
+export const GENERIC_ARTICLE = /^(?:목적|정의|용어의 정의|시행일|적용 ?범위|위임|시행세칙|세부 ?사항|재검토기한)$/;
+
 export interface UpperRef {
   key: string;
   label: string; // 「근로기준법」 제50조(근로시간)

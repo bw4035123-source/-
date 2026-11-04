@@ -9,7 +9,7 @@ import type { Citation } from "@/lib/law-api/types";
 import { parseLooseJson } from "@/lib/answer/guard";
 import { gatherEvidence } from "@/lib/answer/ask";
 import { maskPII } from "@/lib/privacy-mask";
-import { COMPLIANCE_SYSTEM, buildCompliancePrompt, guardCompliance, type AiArticleInput } from "@/lib/compliance-ai";
+import { COMPLIANCE_SYSTEM, GENERIC_ARTICLE, buildCompliancePrompt, guardCompliance, type AiArticleInput } from "@/lib/compliance-ai";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         const q = `${a.title} ${a.text}`.replace(/\s+/g, " ").slice(0, 300);
         // 기준 규칙이 연결한 상위 조문을 앞에, 국가법령정보 검색으로 찾은 조문을 뒤에
         const hinted = a.hints.length ? await svc.getCitations(a.hints).catch(() => [] as Citation[]) : [];
-        const found = (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context;
+        const found = GENERIC_ARTICLE.test(a.title.trim()) ? [] : (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context;
         uppers[i + j] = [...hinted, ...found.filter((c) => !hinted.some((h) => h.key === c.key))].slice(0, 5);
       }),
     );

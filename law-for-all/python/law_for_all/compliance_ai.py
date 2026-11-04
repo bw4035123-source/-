@@ -12,6 +12,9 @@ from .numbers import unverified_quantities
 
 AI_VERDICTS = ["상충", "검토 필요", "적합", "판단 보류"]
 
+# 목적·정의·시행일 같은 일반 조문은 상위 조문 검색을 건너뜀(규칙이 연결한 조문만 사용) — lib/compliance-ai.ts GENERIC_ARTICLE 과 같음
+GENERIC_ARTICLE = re.compile(r"^(?:목적|정의|용어의 정의|시행일|적용 ?범위|위임|시행세칙|세부 ?사항|재검토기한)$")
+
 COMPLIANCE_SYSTEM = """너는 공공기관 자체규정(내부규정·조례·지침)을 상위법령과 대조하는 법제 검토 AI다.
 [절대 규칙]
 1. 각 조문은 그 조문에 붙은 <상위조문>에만 비추어 검토한다. 상위조문에 없는 법령·조문·금액·기간·비율을 만들어내지 않는다.

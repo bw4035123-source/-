@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from . import __version__
 from .analyze import analyze
 from .ask import ask, gather_evidence
-from .compliance_ai import COMPLIANCE_SYSTEM, build_compliance_prompt, guard_compliance
+from .compliance_ai import COMPLIANCE_SYSTEM, GENERIC_ARTICLE, build_compliance_prompt, guard_compliance
 from .data import article_label
 from .privacy import mask_pii
 from .llm import LLMError
@@ -200,7 +200,7 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         except Exception:  # noqa: BLE001
             hinted = []
         try:
-            found = gather_evidence(q, svc)[1]
+            found = [] if GENERIC_ARTICLE.match(a["title"].strip()) else gather_evidence(q, svc)[1]
         except Exception:  # noqa: BLE001 — 근거 검색 실패는 '상위조문 없음'으로
             found = []
         warnings.extend(svc.warnings)
