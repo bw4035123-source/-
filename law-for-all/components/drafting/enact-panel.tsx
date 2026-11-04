@@ -279,9 +279,9 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
             <Sparkles className="h-4 w-4 text-accent" /> 한 줄로 만들기
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">만들 규정을 말하듯 적으면 국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 써요(가드 검증).</p>
-          <textarea value={oneLine} onChange={(e) => setOneLine(e.target.value)} rows={2} placeholder="예) 우리 공단 산업안전보건 관리 지침 만들어줘" className="mt-2 w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="만들 규정 한 줄" />
+          <textarea value={oneLine} onChange={(e) => setOneLine(e.target.value)} rows={2} placeholder="예) 직장 내 괴롭힘·성희롱 예방 지침 만들어줘" className="mt-2 w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="만들 규정 한 줄" />
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {["우리 공단 산업안전보건 관리 지침 만들어줘", "직원 재택근무 운영 지침", "개인정보 처리 내부관리계획 규정"].map((x) => (
+            {["직장 내 괴롭힘·성희롱 예방 지침 만들어줘", "갑질 근절 가이드라인", "중대재해 예방 업무 지침", "이해충돌방지 임직원 행동강령", "공익신고자 보호 규정"].map((x) => (
               <button key={x} type="button" onClick={() => setOneLine(x)} className="rounded-full border bg-card px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
                 + {x}
               </button>
