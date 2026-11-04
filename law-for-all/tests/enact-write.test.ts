@@ -38,4 +38,8 @@ describe("제정안 AI 작성 가드", () => {
     expect(r.articles[1].written).toBe(true);
     expect(r.checks).toEqual([{ label: "제6조(안전보건교육)", values: ["8시간"] }]);
   });
+  it("조 제목이 초안에서 줄어 있어도(…) 조 번호로 맞춤", () => {
+    const r = guardWrite({ articles: [{ label: "제5조(안전보건관리책임자 지정 및 총괄 관리)", text: "○○공단의 장은 안전보건관리책임자를 지정한다." }] }, { ...IN, articles: [{ label: "제5조(안전보건관리책임자 지정 및 총괄 관리…)", text: "○○을 점검한다." }] });
+    expect(r.articles[0].written).toBe(true);
+  });
 });

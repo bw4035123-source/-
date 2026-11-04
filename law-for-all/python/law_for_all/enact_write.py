@@ -41,16 +41,23 @@ def _norm(s: str) -> str:
 
 def guard_write(raw, inp: dict) -> dict:
     got: dict[str, str] = {}
+
+    # 조 번호로 맞춤(긴 조 제목은 초안에서 '…'로 줄어 있음)
+    def no_of(label: str) -> str:
+        s = re.sub(r"\s", "", label)
+        m = re.match(r"제\d+조(?:의\d+)?", s)
+        return m.group(0) if m else s
+
     lst = raw.get("articles") if isinstance(raw, dict) and isinstance(raw.get("articles"), list) else []
     for a in lst:
         if isinstance(a, dict) and isinstance(a.get("label"), str) and isinstance(a.get("text"), str):
-            got[re.sub(r"\s", "", a["label"])] = re.sub(r"^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*", "", a["text"]).strip()
+            got[no_of(a["label"])] = re.sub(r"^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*", "", a["text"]).strip()
     allowed = {n for b in inp["basis"] for n in _law_refs(b["label"])} | {n for a in inp["articles"] for n in _law_refs(a["text"])}
     known = {q for s in [inp.get("purpose") or "", *[f"{b['label']} {b['text']}" for b in inp["basis"]]] for q in extract_quantities(s)}
     rejected, checks, articles = [], [], []
     for a in inp["articles"]:
         keep = {"label": a["label"], "text": a["text"], "written": False}
-        t = got.get(re.sub(r"\s", "", a["label"]))
+        t = got.get(no_of(a["label"]))
         if not t or _norm(t) == _norm(a["text"]):
             articles.append(keep)
             continue

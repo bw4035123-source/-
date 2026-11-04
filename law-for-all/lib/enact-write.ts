@@ -54,7 +54,9 @@ const norm = (s: string) => s.replace(/\s+/g, " ").trim();
 export function guardWrite(raw: unknown, input: WriteInput): WriteResult {
   const got = new Map<string, string>();
   const list = raw && typeof raw === "object" && Array.isArray((raw as { articles?: unknown }).articles) ? ((raw as { articles: unknown[] }).articles as { label?: unknown; text?: unknown }[]) : [];
-  for (const a of list) if (typeof a?.label === "string" && typeof a?.text === "string") got.set(a.label.replace(/\s/g, ""), a.text.replace(/^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*/, "").trim());
+  // 조 번호로 맞춤(긴 조 제목은 초안에서 '…'로 줄어 있어 AI가 제목을 온전히 쓰면 글자가 다름)
+  const noOf = (label: string) => label.replace(/\s/g, "").match(/^제\d+조(?:의\d+)?/)?.[0] ?? label.replace(/\s/g, "");
+  for (const a of list) if (typeof a?.label === "string" && typeof a?.text === "string") got.set(noOf(a.label), a.text.replace(/^\s*제\s*\d+\s*조(?:의\s*\d+)?\s*\([^)]*\)\s*/, "").trim());
   const allowedLaws = new Set(input.basis.flatMap((b) => lawRefs(b.label)));
   // 조문 초안에 이미 있던 법령(목적 조문 등)도 인정
   for (const a of input.articles) for (const n of lawRefs(a.text)) allowedLaws.add(n);
@@ -64,7 +66,7 @@ export function guardWrite(raw: unknown, input: WriteInput): WriteResult {
   const checks: WriteResult["checks"] = [];
   const articles = input.articles.map((a) => {
     const keep = { label: a.label, text: a.text, written: false };
-    const t = got.get(a.label.replace(/\s/g, ""));
+    const t = got.get(noOf(a.label));
     if (!t || norm(t) === norm(a.text)) return keep;
     const outside = lawRefs(t).filter((n) => !allowedLaws.has(n));
     if (outside.length) {

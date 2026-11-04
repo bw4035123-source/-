@@ -906,6 +906,8 @@ class EnactWriteTest(unittest.TestCase):
         r = guard_write({"articles": [{"label": "제6조(안전보건교육)", "text": "○○공단의 장은 근로자에게 매분기 3시간 이상, 신규 채용 시 8시간 이상 교육을 하여야 한다."}]}, inp)
         self.assertTrue(r["articles"][1]["written"])
         self.assertEqual(r["checks"], [{"label": "제6조(안전보건교육)", "values": ["8시간"]}])
+        r = guard_write({"articles": [{"label": "제5조(안전보건관리책임자 지정 및 총괄 관리)", "text": "○○공단의 장은 안전보건관리책임자를 지정한다."}]}, {**inp, "articles": [{"label": "제5조(안전보건관리책임자 지정 및 총괄 관리…)", "text": "○○을 점검한다."}]})
+        self.assertTrue(r["articles"][0]["written"])
 
 
 class FallbackNoticeTest(unittest.TestCase):
