@@ -171,7 +171,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
         <div className="flex items-start gap-2 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" role="note">
           <span aria-hidden>⚠️</span>
           <p>
-            <strong>아래는 AI 변호사·AI 검사·AI 판사의 역할 시뮬레이션입니다.</strong> 실제 변호사의 자문, 검사의 처분, 법원의 판결이 아니므로 결과를 맹신하지 마세요. 실제 결과는 증거와 구체적 사정에 따라 달라질 수 있으니, 중요한 결정 전에는 반드시 <strong>전문가(변호사·법률구조공단 등)의 자문</strong>을 받으세요.
+            <strong>아래는 AI 변호사·AI 검사·AI 판사의 역할 시뮬레이션입니다.</strong> 실제 변호사의 자문, 검사의 처분, 법원의 판결이 아니므로 결과를 맹신하지 마세요.<br />실제 결과는 증거와 구체적 사정에 따라 달라질 수 있으니, 중요한 결정 전에는 반드시 <strong>전문가(변호사·법률구조공단 등)의 자문</strong>을 받으세요.
           </p>
         </div>
         <RolePanels analyses={r.analyses} />
