@@ -349,7 +349,7 @@ await scene("s08", async () => {
     if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
   });
   await wait(700);
-  await cap("변호사 · 검사 · 판사 3관점 검토 — 판사 관점은 요건 충족표", "모든 관점 문장도 같은 인용 검증을 거칩니다");
+  await cap("AI 변호사 · AI 검사 · AI 판사 3관점 검토 — 판사 관점은 요건 충족표", "참고용 역할 시뮬레이션 — 맹신하지 말고 전문가 자문을 받도록 화면에 안내 · 모든 문장도 같은 인용 검증");
   await wait(2500);
   await scrollBy(450, 14);
 });
