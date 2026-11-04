@@ -86,7 +86,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
       </form>
       <VoiceAutoNotice pending={voice.pending} onCancel={voice.cancel} />
       {hero && (
-        <div className="mt-4 flex flex-wrap justify-center gap-2" aria-label={mode === "officer" ? "자주 찾는 법령" : "추천 검색어"}>
+        <div className={mode === "officer" ? "mt-4 flex flex-wrap justify-center gap-2" : "mx-auto mt-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"} aria-label={mode === "officer" ? "자주 찾는 법령" : "추천 검색어"}>
           {mode === "officer" && <span className="w-full text-center text-xs font-bold text-muted-foreground">자주 찾는 법령 — 누르면 실무 쟁점으로 바로 검토</span>}
           {chips.map((c, i) => (
             <motion.button
@@ -96,7 +96,7 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 + i * 0.04 }}
               onClick={() => go(c.query)}
-              className="rounded-full border bg-card/80 px-3.5 py-1.5 text-sm font-semibold text-foreground/85 shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:text-accent"
+              className="whitespace-nowrap rounded-full border bg-card/80 px-3 py-1.5 text-sm font-semibold text-foreground/85 shadow-sm transition hover:-translate-y-0.5 hover:border-accent hover:text-accent"
             >
               # {c.label}
             </motion.button>

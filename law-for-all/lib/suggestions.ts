@@ -17,6 +17,10 @@ export const CITIZEN_SUGGESTIONS: Suggestion[] = [
   { label: "임금체불", query: "퇴사했는데 마지막 월급을 안 줘요", topic: "unpaid-wages" },
   { label: "음주운전 처벌", query: "음주운전 처벌 기준이 궁금해요", topic: "drunk-driving" },
   { label: "정보공개 청구", query: "정보공개 청구하면 언제까지 결정해야 하나요?", topic: "info-disclosure" },
+  { label: "보이스피싱 대처", query: "보이스피싱으로 돈을 보냈어요. 어떻게 돌려받을 수 있나요?", law: "전기통신금융사기 피해 방지 및 피해자산 환급에 관한 특별법" },
+  { label: "중고거래 사기", query: "중고거래로 돈을 보냈는데 물건을 안 보내요. 사기로 신고할 수 있나요?", law: "형법" },
+  { label: "퇴직금 정산", query: "퇴사했는데 퇴직금은 언제까지, 얼마나 받을 수 있나요?", law: "근로자퇴직급여 보장법" },
+  { label: "직장 내 괴롭힘", query: "직장 상사의 괴롭힘을 신고하면 회사는 어떻게 해야 하나요?", law: "근로기준법" },
 ];
 
 export const OFFICER_SUGGESTIONS: Suggestion[] = [

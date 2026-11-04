@@ -136,6 +136,7 @@ export const LAW_ALIASES: LawAlias[] = [
   { when: ["유연근무", "시차출퇴근", "탄력근무", "재택근무"], law: "근로기준법", keywords: ["탄력적 근로시간제", "선택적 근로시간제", "근로시간"], override: true },
   { when: ["당직", "비상근무"], law: "근로기준법", keywords: ["연장 근로의 제한", "휴일 근로", "휴게", "근로시간"], override: true },
   { when: ["포상+징계", "징계 규정", "징계위원회", "상벌"], law: "근로기준법", keywords: ["해고 등의 제한", "제재 규정의 제한", "취업규칙의 작성"], override: true },
+  { when: ["퇴직금"], law: "근로자퇴직급여 보장법", keywords: ["퇴직금제도의 설정 등", "퇴직금의 지급 등"], override: true },
   { when: ["갑질"], law: "근로기준법", keywords: ["직장 내 괴롭힘의 금지", "직장 내 괴롭힘 발생 시 조치"], override: true },
   { when: ["공용차량", "관용차", "공무용 차량"], law: "공무용 차량 관리 규정", keywords: ["관리", "운행", "배정"], override: true },
   { when: ["국외출장", "국외 출장", "공무국외"], law: "공무원 여비 규정", keywords: ["국외여비", "국외 출장"], override: true },
