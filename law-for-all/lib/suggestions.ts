@@ -41,8 +41,6 @@ export const OFFICER_SUGGESTIONS: Suggestion[] = [
   // 노무·복무·기관 운영(자체규정 점검 대조 법령)
   { label: "근로기준법", query: "취업규칙(사규)의 근로시간·연장근로·연차휴가 기준이 근로기준법에 맞는지 검토", topic: "work-rules", law: "근로기준법" },
   { label: "지방공기업법", query: "지방공기업법상 지방공사 사장·이사·감사 임기와 임원추천위원회 절차", topic: "local-public-enterprise", law: "지방공기업법" },
-  { label: "공직선거법", query: "공직선거법상 선거기간 중 공무원·공사 상근 임원의 행사·출장·홍보 제한", topic: "election-neutrality", law: "공직선거법" },
-  { label: "공유재산법", query: "공유재산법상 행정재산 사용허가기간과 일반재산 대부기간 상한", topic: "public-property", law: "공유재산 및 물품 관리법" },
 ];
 
 /** 공직자 메인 '규정 바로 만들기' — 누르면 제·개정 지원의 한 줄 제정으로 바로 */

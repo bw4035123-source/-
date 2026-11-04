@@ -86,8 +86,8 @@ export function SearchBox({ defaultValue = "", variant = "hero", autoFocus }: Pr
       </form>
       <VoiceAutoNotice pending={voice.pending} onCancel={voice.cancel} />
       {hero && (
-        <div className={mode === "officer" ? "mt-4 flex flex-wrap justify-center gap-2" : "mx-auto mt-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"} aria-label={mode === "officer" ? "자주 찾는 법령" : "추천 검색어"}>
-          {mode === "officer" && <span className="w-full text-center text-xs font-bold text-muted-foreground">자주 찾는 법령 — 누르면 실무 쟁점으로 바로 검토</span>}
+        <div className="mx-auto mt-4 grid max-w-3xl grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label={mode === "officer" ? "자주 찾는 법령" : "추천 검색어"}>
+          {mode === "officer" && <span className="col-span-full text-center text-xs font-bold text-muted-foreground">자주 찾는 법령 — 누르면 실무 쟁점으로 바로 검토</span>}
           {chips.map((c, i) => (
             <motion.button
               key={c.label}
