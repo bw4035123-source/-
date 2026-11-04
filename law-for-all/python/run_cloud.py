@@ -19,6 +19,8 @@ except Exception as e:
 
 # 클라우드 서버는 스스로 중계 서버이므로 law.go.kr 을 직접 호출(자기 자신을 중계로 부르지 않게)
 os.environ.setdefault("LAW_PROXY_URL", "off")
+# 모의데이터 AI 검토 미리 데우기(심사·시연 첫 클릭부터 바로 결과)
+os.environ.setdefault("LAW_WARMUP", "1")
 
 port = os.environ.get("PORT", "8000")
 try:

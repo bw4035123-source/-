@@ -185,6 +185,11 @@ def main():
             # print(f"  [국가법령정보] {'✓' if ok else '✗'} {msg}")
 
         threading.Thread(target=report, daemon=True).start()
+    if os.environ.get("LAW_WARMUP") == "1":
+        # 클라우드 시연 서버: 모의데이터 AI 검토를 미리 해 둠(첫 클릭부터 바로 결과)
+        from law_for_all.server import warm_compliance
+
+        threading.Timer(3.0, warm_compliance).start()
     if not a.no_browser:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     try:

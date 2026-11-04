@@ -189,6 +189,29 @@ _ASK_CACHE: dict[str, tuple[float, dict]] = {}
 _COMP_TTL = 6 * 3600
 
 
+def warm_compliance() -> None:
+    """서버가 뜬 직후 모의데이터 3종(한글·Word·PDF) 규정의 AI 검토를 미리 해 캐시에 넣어 둠 — 심사·시연에서 모의데이터 버튼은 바로 결과.
+    요청 본문은 화면이 실제로 보내는 것과 같음(scripts/capture-warmup.cjs 로 만든 data/compliance_warmup.json)"""
+    p = Path(__file__).parent / "data" / "compliance_warmup.json"
+    if not p.exists():
+        return
+    try:
+        bodies = json.loads(p.read_text("utf-8"))
+    except ValueError:
+        return
+    if resolve_provider(config.llm, None)[0].kind == "rule":
+        return
+    t = time.time()
+    done = 0
+    for b in bodies:
+        try:
+            code, _ = compliance_ai(_validate_compliance_ai(b))
+            done += code == 200
+        except Exception:  # noqa: BLE001 — 미리 데우기 실패는 무시(첫 사용자가 기다릴 뿐)
+            pass
+    print(f"  [AI 검토 미리 데우기] 모의데이터 {done}/{len(bodies)}묶음 · {time.time() - t:.0f}초", flush=True)
+
+
 def compliance_ai(inp: dict) -> tuple[int, dict]:
     """조문마다 국가법령정보(실시간)에서 상위 조문을 찾아 붙이고 AI가 대조 → 가드 검증(lib/compliance-ai.ts)"""
     import concurrent.futures as cf
