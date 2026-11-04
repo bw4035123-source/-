@@ -23,6 +23,10 @@ DEFAULT_CONTACTS = [
 ]
 
 
+# 상황 분석은 긴 답(3관점)을 쓰므로 일반 질문(기본 45초)보다 길게 — 화면은 90초까지 기다림
+ANALYSIS_TIMEOUT_MS = 70000
+
+
 def is_penal(title: str) -> bool:
     return title in ("벌칙", "사기", "경범죄의 종류")
 
@@ -204,7 +208,7 @@ def analyze(situation: str, provider: str | None = None) -> dict:
             fallback = NO_EVIDENCE
         else:
             try:
-                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500, schema=ANALYSIS_SCHEMA)
+                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500, schema=ANALYSIS_SCHEMA, timeout_ms=ANALYSIS_TIMEOUT_MS)
                 g = guard_analysis_output(parse_loose_json(res["text"]), citations, [situation])
                 used["model"] = res["model"] or p.model
                 label = f"종합 분석({'·'.join(i['topic']['label'] for i in issues)})" if issues else "종합 분석"

@@ -29,7 +29,7 @@ export class AnthropicProvider implements LLMProvider {
         messages: o.messages,
       },
       { "x-api-key": this.cfg.apiKey, "anthropic-version": "2023-06-01" },
-      this.cfg.timeoutMs,
+      o.timeoutMs ?? this.cfg.timeoutMs,
       o.signal,
     );
     return {

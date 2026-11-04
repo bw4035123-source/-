@@ -44,7 +44,7 @@ export class OllamaProvider implements LLMProvider {
         messages: [{ role: "system", content: o.system }, ...o.messages],
       },
       {},
-      this.cfg.timeoutMs,
+      o.timeoutMs ?? this.cfg.timeoutMs,
       o.signal,
     );
     return { text: res.message?.content ?? "", model: res.model ?? this.cfg.model, usage: { inputTokens: res.prompt_eval_count, outputTokens: res.eval_count } };

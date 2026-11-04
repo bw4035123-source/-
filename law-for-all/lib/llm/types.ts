@@ -20,6 +20,8 @@ export interface GenerateOptions {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** 이 호출만 다른 제한시간(ms) — 긴 답을 쓰는 상황 분석 등 */
+  timeoutMs?: number;
 }
 
 export interface GenerateResult {

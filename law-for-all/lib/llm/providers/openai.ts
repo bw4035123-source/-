@@ -34,7 +34,7 @@ export class OpenAIProvider implements LLMProvider {
         messages: [{ role: "system", content: o.system }, ...o.messages],
       },
       this.cfg.apiKey ? { authorization: `Bearer ${this.cfg.apiKey}` } : {},
-      this.cfg.timeoutMs,
+      o.timeoutMs ?? this.cfg.timeoutMs,
       o.signal,
     );
     return {
