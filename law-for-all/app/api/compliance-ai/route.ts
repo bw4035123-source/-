@@ -26,9 +26,8 @@ const Body = z.object({
   provider: z.string().max(20).optional(),
 });
 
-/** 2개 조문씩 동시에 6묶음까지(응답이 짧을수록 빠름) · 근거 찾기는 8개씩 동시 */
-const CHUNK = 2;
-const LLM_POOL = 6;
+/** AI 대조는 8묶음까지 동시 · 근거 찾기는 8개씩 동시 */
+const LLM_POOL = 8;
 const POOL = 8;
 // 같은 조문(글·제목·힌트)은 결과를 재사용 — 같은 규정을 다시 점검하거나 시연할 때 바로(서버 메모리, 6시간)
 const CACHE = new Map<string, { at: number; value: unknown }>();
@@ -64,7 +63,8 @@ export async function POST(req: Request) {
         const q = `${a.title} ${a.text}`.replace(/\s+/g, " ").slice(0, 300);
         // 기준 규칙이 연결한 상위 조문을 앞에, 국가법령정보 검색으로 찾은 조문을 뒤에
         const hinted = a.hints.length ? await svc.getCitations(a.hints).catch(() => [] as Citation[]) : [];
-        const found = GENERIC_ARTICLE.test(a.title.trim()) ? [] : (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context;
+        // 기준 규칙이 상위 조문을 2개 이상 이미 연결했으면 느린 전체 법령 검색은 건너뜀(시간 단축)
+        const found = GENERIC_ARTICLE.test(a.title.trim()) || hinted.length >= 2 ? [] : (await gatherEvidence(q, svc).catch(() => ({ context: [] as Citation[] }))).context;
         uppers[i + j] = [...hinted, ...found.filter((c) => !hinted.some((h) => h.key === c.key))].slice(0, 5);
       }),
     );
@@ -79,6 +79,8 @@ export async function POST(req: Request) {
   // 2) AI 대조(조문 묶음별 병렬) → 가드
   let model = provider.model;
   const chunks: AiArticleInput[][] = [];
+  // 조문이 적으면 1개씩(답이 짧아 가장 빠름), 많으면 2개씩
+  const CHUNK = input.length <= 12 ? 1 : 2;
   for (let i = 0; i < input.length; i += CHUNK) chunks.push(input.slice(i, i + CHUNK));
   const failed = new Set<number>();
   const review = async (ch: AiArticleInput[], ci: number) => {

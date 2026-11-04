@@ -217,7 +217,8 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         except Exception:  # noqa: BLE001
             hinted = []
         try:
-            found = [] if GENERIC_ARTICLE.match(a["title"].strip()) else gather_evidence(q, svc)[1]
+            # 기준 규칙이 상위 조문을 2개 이상 이미 연결했으면 느린 전체 법령 검색은 건너뜀(시간 단축)
+            found = [] if GENERIC_ARTICLE.match(a["title"].strip()) or len(hinted) >= 2 else gather_evidence(q, svc)[1]
         except Exception:  # noqa: BLE001 — 근거 검색 실패는 '상위조문 없음'으로
             found = []
         warnings.extend(svc.warnings)
@@ -235,7 +236,8 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
 
     items = [{"no": a["no"], "label": label(a), "text": a["text"][:1500], "upper": [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in uppers[i]]} for i, a in enumerate(arts)]
     # 2개 조문씩 나눠 동시에(응답이 짧을수록 빨라 — 3개씩 4개 동시보다 2개씩 6개 동시가 빠름)
-    chunks = [items[i:i + 2] for i in range(0, len(items), 2)]
+    size = 1 if len(items) <= 12 else 2  # 조문이 적으면 1개씩(답이 짧아 가장 빠름)
+    chunks = [items[i:i + size] for i in range(0, len(items), size)]
     model = [p.model]
     failed: set[int] = set()
 
@@ -260,7 +262,7 @@ def compliance_ai(inp: dict) -> tuple[int, dict]:
         return guard_compliance(None, ch)
 
     t_llm = time.time()
-    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
         flat = [r for rs in ex.map(review, enumerate(chunks)) for r in rs]
     llm_ms = int((time.time() - t_llm) * 1000)
     if len(failed) == len(chunks):
