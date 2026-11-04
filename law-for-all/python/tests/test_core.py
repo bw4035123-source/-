@@ -1006,3 +1006,22 @@ class QuickAmendSplitTest(unittest.TestCase):
         self.assertEqual(req, "7일을 5일로 수정해주세요.")
         self.assertEqual(arts, [{"label": "(조문)", "text": "민원은 7일 안에 처리한다."}])
         self.assertEqual(split_quick("제1조(목적) 이 규정은 목적을 정한다.")[0], "개정해줘")
+
+    def test_amend_quick_route(self):
+        """서버 경로가 끝까지 도는지(가짜 AI) — 배포 전 500 방지"""
+        import law_for_all.server as s
+
+        class P:
+            kind, label, model = "llm", "t", "m"
+
+            def generate(self, **_):
+                return {"text": '{"summary":"문구를 정비함.","articles":[{"label":"제5조(처리기간)","amended":"민원은 접수한 날부터 7일 이내에 처리하여야 한다."}]}', "model": "m"}
+
+        orig = s.resolve_provider
+        s.resolve_provider = lambda *a, **k: (P(), None)
+        try:
+            code, body = s.amend_quick({"text": "제5조(처리기간) 민원은 접수한날부터 7일안에 처리해야 한다.\n개정해줘"})
+        finally:
+            s.resolve_provider = orig
+        self.assertEqual(code, 200)
+        self.assertEqual(body["articles"][0]["amended"], "민원은 접수한 날부터 7일 이내에 처리하여야 한다.")

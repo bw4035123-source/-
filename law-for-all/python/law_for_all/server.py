@@ -322,6 +322,8 @@ def amend_quick(body: dict) -> tuple[int, dict]:
     p, _ = resolve_provider(config.llm, prov if isinstance(prov, str) and len(prov) <= 20 else None)
     if p.kind == "rule":
         return 503, {"error": "생성형 AI가 연결되어 있지 않아요. 아래 ‘개정 방향’에 ‘A에서 B로’처럼 적어 규칙으로 개정하세요."}
+    import concurrent.futures as cf
+
     svc = LawService(config.law_access)
     head = re.compile(r"^제\d+조(?:의\d+)?")
     qs = [re.sub(r"\s+", " ", head.sub("", a["label"]) + " " + a["text"])[:300] for a in articles[:4]]
