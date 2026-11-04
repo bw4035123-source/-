@@ -547,7 +547,7 @@ await scene("s18", async () => {
   await scene("t03", async () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     await wait(500);
-    const btn = page.getByRole("button", { name: /AI로 빈칸 채우기/ });
+    const btn = page.getByRole("button", { name: /빈칸만 채우기/ });
     await btn.scrollIntoViewIfNeeded();
     await point(btn);
     await cap("기관마다 다른 빈칸(○○)은 AI로 채우기", "국산 AI Solar Pro 4가 근거 조문에 맞춰 ○○ 자리만 채웁니다");
