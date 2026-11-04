@@ -24,7 +24,7 @@ from .drf import RELAY_PATHS, RELAY_TARGETS, LawApiError, relay_raw
 from .followup import followup
 from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
-from .enact_plan import PLAN_SYSTEM, build_plan_prompt, guard_plan
+from .enact_plan import PLAN_SYSTEM, TOC_SKIP, build_plan_prompt, clean_request, guard_plan
 from .upper_change import parse_old_and_new
 from .guard import parse_loose_json
 from .llm import list_providers, resolve_provider
@@ -249,21 +249,38 @@ def enact_ai(body: dict) -> tuple[int, dict]:
     if p.kind == "rule":
         return 503, {"error": "생성형 AI가 연결되어 있지 않아 한 줄 제정을 할 수 없어요. 아래 칸을 직접 채워 표준 초안을 만드세요."}
     svc = LawService(config.law_access)
-    context = gather_evidence(request, svc)[1]
-    evidence = [{"key": c["key"], "label": f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})", "text": c["text"]} for c in context[:8]]
-    if not evidence:
-        return 404, {"error": "관련 상위 법령을 찾지 못했어요. 법령 이름이나 핵심어를 넣어 다시 적어 주세요(예: 산업안전보건법에 따른 안전보건 관리 지침).", "warnings": svc.warnings}
-    messages = [{"role": "user", "content": build_plan_prompt(request, org, evidence)}]
+    # 요청 말투·기관 지칭을 뺀 말로 검색 → 주된 법령의 목차(벌칙·부칙 제외)도 AI에 넘겨 필요한 조문을 고르게 함
+    context = gather_evidence(clean_request(request) or request, svc)[1]
+    lab = lambda c: f"「{c['lawName']}」 {article_label(c['articleNo'])}({c['title']})"  # noqa: E731
+    evidence = [{"key": c["key"], "label": lab(c), "text": c["text"]} for c in context[:6]]
+    freq: dict[str, int] = {}
+    for c in context[:6]:
+        freq[c["lawId"]] = freq.get(c["lawId"], 0) + 1
+    main = sorted(freq.items(), key=lambda x: -x[1])[0][0] if freq else None
+    try:
+        doc = svc.get_law(main, True) if main else None
+    except Exception:  # noqa: BLE001
+        doc = None
+    toc = [{"key": f"{doc['id']}:{a['no']}", "label": f"「{doc['name']}」 {article_label(a['no'])}({a['title']})"} for a in doc["articles"] if a.get("title") and not TOC_SKIP.search(a["title"])][:160] if doc else []
+    messages = [{"role": "user", "content": build_plan_prompt(request, org, evidence, toc)}]
     try:
         for _ in range(2):
             res = p.generate(system=PLAN_SYSTEM, messages=messages, json_mode=True, temperature=0.2, max_tokens=1200)
             try:
-                plan = guard_plan(parse_loose_json(res["text"]), evidence, org)
+                plan = guard_plan(parse_loose_json(res["text"]), evidence, org, toc)
             except Exception:  # noqa: BLE001
                 messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
                 continue
             if len(plan["items"]) >= 2:
-                return 200, {"plan": plan, "evidence": evidence, "label": p.label, "model": res.get("model") or p.model}
+                # 목차에서 고른 근거 조문은 원문을 가져와 함께 돌려줌
+                need = [k for k in plan["basis"] if not any(e["key"] == k for e in evidence)]
+                try:
+                    extra = svc.get_citations(need) if need else []
+                except Exception:  # noqa: BLE001
+                    extra = []
+                allv = evidence + [{"key": c["key"], "label": lab(c), "text": c["text"]} for c in extra]
+                plan["basis"] = [k for k in plan["basis"] if any(e["key"] == k for e in allv)]
+                return 200, {"plan": plan, "evidence": allv, "tocLaw": doc["name"] if doc else None, "label": p.label, "model": res.get("model") or p.model}
             messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "items 에 조문 제목을 5~10개 넣어 같은 JSON 형식으로 다시 답하라."}]
     except LLMError as e:
         return 502, {"error": f"AI({p.label})에 연결하지 못했어요. 잠시 후 다시 시도하세요.", "detail": str(e)}

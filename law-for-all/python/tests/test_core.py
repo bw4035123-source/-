@@ -876,6 +876,13 @@ class EnactPlanTest(unittest.TestCase):
         t = build_plan_prompt("산업안전보건 지침 만들어줘", "○○공단", ev)
         self.assertIn("[[mst-1:29]] 「산업안전보건법」 제29조", t)
         self.assertIn("<기관>○○공단</기관>", t)
+        from law_for_all.enact_plan import clean_request
+
+        self.assertEqual(clean_request("우리 공단 산업안전보건 관리 지침 만들어줘"), "산업안전보건 관리")
+        self.assertEqual(clean_request("개인정보 처리 내부관리계획 규정 작성해 주세요"), "개인정보 처리 내부관리계획")
+        p = guard_plan({"items": ["안전보건교육", "위험성평가"], "basis": ["mst-1:15"]}, ev, "", [{"key": "mst-1:15", "label": "「산업안전보건법」 제15조(안전보건관리책임자)"}])
+        self.assertEqual(p["basis"], ["mst-1:15"])
+        self.assertIn("기관 자율 규정", " ".join(guard_plan({"items": ["재택근무 신청"]}, [])["notes"]))
 
 
 class FallbackNoticeTest(unittest.TestCase):

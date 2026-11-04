@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlanPrompt, guardPlan } from "@/lib/enact-plan";
+import { buildPlanPrompt, cleanRequest, guardPlan } from "@/lib/enact-plan";
 
 const EV = [
   { key: "mst-1:29", label: "「산업안전보건법」 제29조(근로자에 대한 안전보건교육)", text: "사업주는 소속 근로자에게 정기적으로 안전보건교육을 하여야 한다." },
@@ -22,5 +22,12 @@ describe("한 줄 제정 설계 가드", () => {
     const t = buildPlanPrompt("산업안전보건 지침 만들어줘", "○○공단", EV);
     expect(t).toContain("[[mst-1:29]] 「산업안전보건법」 제29조");
     expect(t).toContain("<기관>○○공단</기관>");
+  });
+  it("검색어 정리: 요청 말투·기관 지칭·규범 종류 말을 뺌, 목차 키도 근거로 인정", () => {
+    expect(cleanRequest("우리 공단 산업안전보건 관리 지침 만들어줘")).toBe("산업안전보건 관리");
+    expect(cleanRequest("개인정보 처리 내부관리계획 규정 작성해 주세요")).toBe("개인정보 처리 내부관리계획");
+    const p = guardPlan({ items: ["안전보건교육", "위험성평가"], basis: ["mst-1:15"] }, EV, "", [{ key: "mst-1:15", label: "「산업안전보건법」 제15조(안전보건관리책임자)" }]);
+    expect(p.basis).toEqual(["mst-1:15"]);
+    expect(guardPlan({ items: ["재택근무 신청"] }, []).notes.join()).toContain("기관 자율 규정");
   });
 });
