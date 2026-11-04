@@ -67,12 +67,21 @@ export class LawService {
    * 실패하거나 키가 없으면 내장 스냅샷(있는 법령만). source 로 어디서 왔는지 표시
    */
   async getOldAndNew(name: string): Promise<{ data: unknown; source: "live" | "snapshot" } | null> {
+    // 약칭(청탁금지법 → 부정청탁 및 금품등 수수의 금지에 관한 법률)은 정식 법령명으로
+    const official = searchLawNames(name)[0]?.name;
     const key = name.replace(/\s/g, "");
-    const snap = (OLD_AND_NEW as Record<string, unknown>)[key];
+    const snap = (OLD_AND_NEW as Record<string, unknown>)[key] ?? (OLD_AND_NEW as Record<string, unknown>)[(official ?? "").replace(/\s/g, "")];
     if (this.oc) {
       try {
-        const list = findAll(await drfGet("lawSearch.do", { target: "oldAndNew", query: name, display: "20" }, this.oc, 15000, 1), "oldAndNew").flatMap((x) => (Array.isArray(x) ? x : [x])) as Record<string, unknown>[];
-        const pick = list.find((x) => txt(x["신구법명"]).replace(/\s/g, "") === key && txt(x["현행연혁코드"]) === "현행") ?? list.find((x) => txt(x["신구법명"]).replace(/\s/g, "") === key);
+        const search = async (q: string) => findAll(await drfGet("lawSearch.do", { target: "oldAndNew", query: q, display: "20" }, this.oc, 15000, 1), "oldAndNew").flatMap((x) => (Array.isArray(x) ? x : [x])) as Record<string, unknown>[];
+        let list = await search(name);
+        let k = key;
+        const same = (x: Record<string, unknown>) => txt(x["신구법명"]).replace(/\s/g, "") === k;
+        if (!list.some(same) && official && official.replace(/\s/g, "") !== k) {
+          k = official.replace(/\s/g, "");
+          list = await search(official);
+        }
+        const pick = list.find((x) => same(x) && txt(x["현행연혁코드"]) === "현행") ?? list.find(same);
         if (pick) return { data: await drfGet("lawService.do", { target: "oldAndNew", MST: txt(pick["신구법일련번호"]) }, this.oc, 15000, 1), source: "live" };
         this.warnings.push(`국가법령정보 신구법 비교에서 「${name}」을(를) 찾지 못했습니다.`);
       } catch (e) {

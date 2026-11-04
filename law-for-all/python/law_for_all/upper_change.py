@@ -65,9 +65,9 @@ def parse_old_and_new(data) -> dict | None:
     root = (data or {}).get("OldAndNewService", data) if isinstance(data, dict) else {}
     olds = _as_list((root.get("구조문목록") or {}).get("조문"))
     news = _as_list((root.get("신조문목록") or {}).get("조문"))
-    if not olds and not news:
-        return None
     before, after = _info(root.get("구조문_기본정보")), _info(root.get("신조문_기본정보"))
+    if not olds and not news:
+        return {"law": after["name"], "before": before, "after": after, "rows": [], "terms": [], "numbers": [], "added": [], "deleted": [], "amended": [], "noTable": True} if after["name"] else None
     rows, article, title = [], "", ""
     for i in range(max(len(olds), len(news))):
         o = _s(olds[i].get("content")) if i < len(olds) else ""

@@ -115,7 +115,7 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
             </button>
           </div>
           <textarea value={reg} onChange={(e) => setReg(e.target.value)} rows={9} placeholder={"규정 전문을 붙여 넣으세요(첫 줄은 규정명).\n제1조(목적) …\n제2조(…) …"} className="w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="우리 기관 규정 전문" />
-          <Button variant="accent" size="lg" className="mt-2 w-full" onClick={check} disabled={!c || !reg.trim()}>
+          <Button variant="accent" size="lg" className="mt-2 w-full" onClick={check} disabled={!c || c.noTable || !reg.trim()}>
             <FileSearch /> 개정 영향 점검
           </Button>
           <p className="mt-1.5 text-xs text-muted-foreground">바뀌기 전 용어를 쓰거나, 개정·삭제된 상위법 조문을 인용한 조문을 찾아요. 규정은 서버로 보내지 않고 이 화면에서만 대조해요.</p>
@@ -200,9 +200,18 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
                   ))}
                 </div>
               )}
+              {c.noTable && (
+                <p className="mt-3 rounded-lg bg-secondary/60 p-3 text-sm">
+                  이번 개정은 국가법령정보에 신·구조문 대비가 제공되지 않아요(별표·서식만 바뀐 경우 등).{" "}
+                  <a href={`https://www.law.go.kr/lsSc.do?query=${encodeURIComponent(c.law)}`} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">
+                    국가법령정보센터에서 원문 확인
+                  </a>
+                </p>
+              )}
               {data!.warnings.length > 0 && <p className="mt-2 text-xs text-muted-foreground">※ {data!.warnings[0]}</p>}
             </div>
 
+            {!c.noTable && (
             <div className="rounded-2xl border bg-card p-5 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-extrabold">신·구조문 대비 ({c.rows.length}곳)</h2>
@@ -238,6 +247,7 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
               )}
               <p className="mt-3 text-xs text-muted-foreground">출처: 국가법령정보 신구법 비교 · 개정 표시는 원문 그대로이며, 바뀐 용어·수치·신설·삭제는 규칙으로 뽑았어요(생성형 AI 사용 안 함).</p>
             </div>
+            )}
           </>
         )}
       </section>

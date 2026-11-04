@@ -49,6 +49,8 @@ export interface UpperChange {
   added: string[];
   deleted: string[];
   amended: string[];
+  /** 이번 개정에 신·구조문 대비가 제공되지 않음(별표·서식만 개정 등) */
+  noTable?: boolean;
 }
 
 type Json = Record<string, unknown>;
@@ -83,9 +85,10 @@ export function parseOldAndNew(data: unknown): UpperChange | null {
   const root = ((data as Json)?.["OldAndNewService"] ?? data) as Json;
   const olds = asList((root?.["구조문목록"] as Json)?.["조문"]);
   const news = asList((root?.["신조문목록"] as Json)?.["조문"]);
-  if (!olds.length && !news.length) return null;
-  const before = info(root["구조문_기본정보"]);
-  const after = info(root["신조문_기본정보"]);
+  const before = info(root?.["구조문_기본정보"]);
+  const after = info(root?.["신조문_기본정보"]);
+  if (!olds.length && !news.length)
+    return after.name ? { law: after.name, before, after, rows: [], terms: [], numbers: [], added: [], deleted: [], amended: [], noTable: true } : null;
   const rows: ChangeRow[] = [];
   let article = "";
   let title = "";
