@@ -21,10 +21,11 @@ def extract_markers(text: str) -> list[str]:
 
 
 def resolve_key(key: str, allowed: set[str]) -> str | None:
-    """근거 키 확인 — AI가 항 번호까지 붙인 키(예: labor-standards:74:1 = 제74조 제1항)는 그 조문 키로 인정(lib/answer/guard.ts 와 같음)"""
+    """근거 키 확인 — AI가 항·호 번호까지 붙인 키(예: labor-standards:74:1 = 제74조 제1항, jeonse-fraud:3:1:2 = 제3조 제1항 제2호)는
+    그 조문 키로 인정(lib/answer/guard.ts 와 같음)"""
     if key in allowed:
         return key
-    m = re.match(r"^(.+?:[^:]+):\d+$", key)
+    m = re.match(r"^(.+?:[^:]+)(?::\d+){1,2}$", key)
     return m.group(1) if m and m.group(1) in allowed else None
 
 

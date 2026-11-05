@@ -722,6 +722,8 @@ class ResolveKeyTest(unittest.TestCase):
         self.assertEqual(resolve_key("labor-standards:74:1", allowed), "labor-standards:74")
         self.assertEqual(resolve_key("housing-lease:3의3:2", allowed), "housing-lease:3의3")
         self.assertIsNone(resolve_key("labor-standards:75:1", allowed))
+        self.assertEqual(resolve_key("jeonse-fraud:3:1:2", {"jeonse-fraud:3"}), "jeonse-fraud:3")
+        self.assertIsNone(resolve_key("jeonse-fraud:3:1:2:4", {"jeonse-fraud:3"}))
         text, removed, _ = sanitize_markers("출산전후휴가는 90일이에요 [[labor-standards:74:1]] [[labor-standards:99:1]]", allowed)
         self.assertEqual(text, "출산전후휴가는 90일이에요 [[labor-standards:74]]")
         self.assertEqual(removed, ["labor-standards:99:1"])

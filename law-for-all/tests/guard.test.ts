@@ -81,6 +81,8 @@ describe("항 번호까지 붙인 근거 키", async () => {
     expect(resolveKey("labor-standards:74:1", allowed)).toBe("labor-standards:74");
     expect(resolveKey("housing-lease:3의3:2", allowed)).toBe("housing-lease:3의3");
     expect(resolveKey("labor-standards:75:1", allowed)).toBeNull();
+    expect(resolveKey("jeonse-fraud:3:1:2", new Set(["jeonse-fraud:3"]))).toBe("jeonse-fraud:3");
+    expect(resolveKey("jeonse-fraud:3:1:2:4", new Set(["jeonse-fraud:3"]))).toBeNull();
     const r = sanitizeMarkers("출산전후휴가는 90일이에요 [[labor-standards:74:1]] [[labor-standards:99:1]]", allowed);
     expect(r.text).toBe("출산전후휴가는 90일이에요 [[labor-standards:74]]");
     expect(r.removed).toEqual(["labor-standards:99:1"]);

@@ -19,7 +19,8 @@ export function extractMarkers(text: string): string[] {
 /** 근거 키 확인 — AI가 항 번호까지 붙인 키(예: labor-standards:74:1 = 제74조 제1항)는 그 조문 키로 인정 */
 export function resolveKey(key: string, allowed: Set<string>): string | null {
   if (allowed.has(key)) return key;
-  const base = key.match(/^(.+?:[^:]+):\d+$/)?.[1];
+  // 항·호 번호까지 붙인 키(제3조 제1항 제2호 = jeonse-fraud:3:1:2)는 그 조문 키로
+  const base = key.match(/^(.+?:[^:]+)(?::\d+){1,2}$/)?.[1];
   return base && allowed.has(base) ? base : null;
 }
 
