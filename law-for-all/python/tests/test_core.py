@@ -1147,3 +1147,41 @@ class EnactWriteChunkTest(unittest.TestCase):
             self.assertEqual(code, 502)
         finally:
             s.time.sleep = sleep
+
+
+class LlmTotalTimeoutTest(unittest.TestCase):
+    """AI 응답 제한시간은 전체 응답 기준 — 조금씩 흘러오는 느린 응답도 제한시간에 끊고 LLMError"""
+
+    def test_slow_trickle(self):
+        import http.server
+        import threading
+        import time as _t
+
+        from law_for_all.llm import LLMError, post_json
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers["content-length"]))
+                self.send_response(200)
+                self.send_header("content-length", "20")
+                self.end_headers()
+                for _ in range(20):
+                    try:
+                        self.wfile.write(b" ")
+                        self.wfile.flush()
+                    except OSError:
+                        return
+                    _t.sleep(0.3)
+
+            def log_message(self, *a):
+                pass
+
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            t = _t.time()
+            with self.assertRaises(LLMError):
+                post_json("t", f"http://127.0.0.1:{srv.server_address[1]}/", {}, {}, 1000)
+            self.assertLess(_t.time() - t, 2.5)
+        finally:
+            srv.shutdown()

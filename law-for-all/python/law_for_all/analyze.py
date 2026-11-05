@@ -24,7 +24,7 @@ DEFAULT_CONTACTS = [
 
 
 # 상황 분석은 긴 답(3관점)을 쓰므로 일반 질문(기본 45초)보다 길게 — 화면은 90초까지 기다림
-ANALYSIS_TIMEOUT_MS = 70000
+ANALYSIS_TIMEOUT_MS = 65000  # 전체 응답 기준(근거 찾기 포함 화면 제한 90초 안)
 
 
 def is_penal(title: str) -> bool:

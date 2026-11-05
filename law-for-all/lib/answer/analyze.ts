@@ -64,7 +64,7 @@ export async function analyze({ situation: raw, provider: requested }: { situati
           temperature: 0.1,
           maxTokens: 2500,
           // 긴 답(3관점) — 일반 질문(기본 45초)보다 길게, 화면은 90초까지 기다림
-          timeoutMs: 70000,
+          timeoutMs: 65000,
         });
         const g = guardAnalysisOutput(parseLooseJson(res.text), citations, [situation]);
         usedProvider = { ...usedProvider, model: res.model || provider.model };

@@ -24,6 +24,29 @@ class LLMError(Exception):
 
 
 def post_json(provider: str, url: str, body: dict, headers: dict, timeout_ms: int) -> dict:
+    """제한시간은 '전체 응답' 기준 — urllib 의 timeout 은 읽기 한 번마다라 느리게 흘러오는 응답은 한없이 길어질 수 있어
+    별도 스레드에서 받고 제한시간이 지나면 LLMError(호출한 쪽은 규칙기반 대체·재시도)"""
+    import threading
+
+    box: dict = {}
+
+    def run() -> None:
+        try:
+            box["ok"] = _post_json(provider, url, body, headers, timeout_ms)
+        except BaseException as e:  # noqa: BLE001 — 스레드 밖으로 그대로 전달
+            box["err"] = e
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout_ms / 1000)
+    if t.is_alive():
+        raise LLMError(f"{provider} 연결 실패: 응답 제한시간({round(timeout_ms / 1000)}초) 초과", provider)
+    if "err" in box:
+        raise box["err"]
+    return box["ok"]
+
+
+def _post_json(provider: str, url: str, body: dict, headers: dict, timeout_ms: int) -> dict:
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST", headers={"content-type": "application/json", **headers})
     try:
