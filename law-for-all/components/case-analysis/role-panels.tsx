@@ -156,7 +156,7 @@ export function RolePanels({ analyses }: { analyses: IssueAnalysis[] }) {
           <h2 id="roles-h" className="text-lg font-extrabold">
             AI 모의 법정 · 3가지 시각
           </h2>
-          <p className="text-xs text-muted-foreground">같은 사실관계를 AI 변호사·AI 검사·AI 판사의 입장에서 각각 검토했어요(참고용 — 전문가 자문을 받으세요).</p>
+          <p className="text-xs text-muted-foreground">같은 사실관계를 AI 변호사·검사·판사의 입장에서 각각 검토했어요(참고용 — 전문가 자문을 받으세요).</p>
         </div>
         {analyses.length > 1 && (
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="쟁점 선택">

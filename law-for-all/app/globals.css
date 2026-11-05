@@ -97,7 +97,7 @@
   /* 한국어 줄바꿈 가독성: 제목·가운데 정렬 글은 줄 길이를 고르게, 본문은 마지막 줄에 한 낱말만 남지 않게 */
   h1, h2, h3, h4, .text-center, [class*="text-center"] p { text-wrap: balance; }
   p, li, dd, td, th, figcaption, blockquote, label, summary { text-wrap: pretty; }
-  /* 끊기면 어색한 짧은 구(예: 'AI 변호사·AI 검사·AI 판사', '☎132') */
+  /* 끊기면 어색한 짧은 구(예: 'AI 변호사·검사·판사', '☎132') */
   .keep-phrase { white-space: nowrap; }
   @media (max-width: 380px) { .keep-phrase { white-space: normal; } }
   :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
