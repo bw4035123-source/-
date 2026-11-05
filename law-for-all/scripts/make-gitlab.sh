@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 공공 GitLab 제출용 저장소 만들기 — 개발 이력 없이 현재 소스 한 커밋 + release/ 실행물
 #   node scripts/build-python.mjs   # 먼저: dist/law-on-python.zip · dist/law-on-공유판.html
-#   bash scripts/make-gitlab.sh     # → dist/gitlab/law-on (git 저장소, main 브랜치)
+#   SESSION=2 bash scripts/make-gitlab.sh   # → dist/gitlab/law-on (git 저장소, main 브랜치) · SESSION: 커밋 메시지의 세션 번호(기본 1)
 # GitLab 에 올리기: cd dist/gitlab/law-on && git remote add origin https://gitlab.aigov.go.kr/<아이디>/<프로젝트>.git && git push -u origin main
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,5 +33,5 @@ find "$OUT" -name ".env.local" -print -delete
 cd "$OUT"
 git init -q -b main
 git add -A
-git -c user.name="${GIT_AUTHOR_NAME:-법이음 개발팀}" -c user.email="${GIT_AUTHOR_EMAIL:-law-on@example.go.kr}" commit -q -m "법이음(LAW:ON) — 2026 공공 AI 대전환 챌린지 세션1 제출"
+git -c user.name="${GIT_AUTHOR_NAME:-법이음 개발팀}" -c user.email="${GIT_AUTHOR_EMAIL:-law-on@example.go.kr}" commit -q -m "법이음(LAW:ON) — 2026 공공 AI 대전환 챌린지 세션${SESSION:-1} 제출"
 echo "✔ $OUT ($(git ls-files | wc -l)개 파일, 커밋 1개)"
