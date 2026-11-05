@@ -43,20 +43,20 @@ export function LawsCatalog() {
 
   return (
     <div className="container py-10">
-      <h1 className="text-2xl font-extrabold">법령 둘러보기</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <h1 className="text-center text-2xl font-extrabold sm:text-left">법령 둘러보기</h1>
+      <p className="mt-1 text-center text-sm text-muted-foreground sm:text-left">
         {data?.mode === "live"
           ? "법제처 국가법령정보 Open API로 현행 법령·행정규칙·자치법규 전체를 실시간 검색합니다."
           : `인증키(LAW_API_OC)가 없어 내장 핵심 법령(국가법령정보센터 원문 ${MOCK_DATASET_DATE} 수집)만 표시합니다.`}
       </p>
-      <div className="mt-5 flex flex-wrap gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold sm:inline-flex" role="tablist" aria-label="법령 종류">
+      <div className="mt-5 grid grid-cols-3 gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold sm:inline-flex sm:flex-wrap" role="tablist" aria-label="법령 종류">
         {KINDS.map((k) => (
           <Link
             key={k.id}
             role="tab"
             aria-selected={kind === k.id}
             href={`/laws?kind=${k.id}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            className={`rounded-md px-3 py-1.5 ${kind === k.id ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-md px-3 py-1.5 text-center ${kind === k.id ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
           >
             {k.label} <span className="hidden text-xs font-normal text-muted-foreground sm:inline">{k.hint}</span>
           </Link>

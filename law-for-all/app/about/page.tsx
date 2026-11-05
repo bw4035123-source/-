@@ -54,8 +54,8 @@ export default function AboutPage() {
   const articleCount = MOCK_LAWS.reduce((n, l) => n + l.articles.length, 0);
   return (
     <div className="container max-w-5xl py-10">
-      <h1 className="text-2xl font-extrabold">서비스 구조 · AI 검증 방식</h1>
-      <p className="mt-2 text-muted-foreground">법이음은 “근거 없는 답변을 하지 않는 법률 AI”를 목표로 설계되었습니다.</p>
+      <h1 className="text-center text-2xl font-extrabold sm:text-left">서비스 구조 · AI 검증 방식</h1>
+      <p className="mt-2 text-center text-muted-foreground sm:text-left">법이음은 “근거 없는 답변을 하지 않는 법률 AI”를 목표로 설계되었습니다.</p>
 
       <section className="mt-8" aria-labelledby="pipe-h">
         <h2 id="pipe-h" className="mb-4 font-extrabold">

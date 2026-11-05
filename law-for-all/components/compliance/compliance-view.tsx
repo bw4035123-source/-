@@ -319,9 +319,9 @@ export function ComplianceView() {
 
   return (
     <div className="container max-w-6xl py-8">
-      <header className="mb-6">
+      <header className="mb-6 text-center sm:text-left">
         <p className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-bold text-accent">공직자 실무</p>
-        <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
+        <h1 className="mt-2 flex items-center justify-center gap-2 text-2xl font-black tracking-tight sm:justify-start sm:text-3xl">
           <ScanSearch className="h-7 w-7 text-accent" /> 자체규정 점검
         </h1>
         <p className="mt-2 text-sm leading-7 text-muted-foreground sm:text-base">

@@ -21,7 +21,7 @@ export function SiteFooter() {
   const share = useShareFile();
   return (
     <footer className="no-print mt-20 border-t bg-navy-700 text-navy-100 dark:bg-navy-900">
-      <div className="container grid gap-6 py-10 text-sm md:grid-cols-3">
+      <div className="container grid gap-6 py-10 text-center text-sm md:grid-cols-3 md:text-left">
         <div>
           <p className="text-base font-extrabold text-white">법이음 · LAW:ON</p>
           <p className="mt-2 leading-6 text-navy-200">법은 가깝게, 권리는 든든하게. 어려운 법률을 일상의 언어로 연결합니다.</p>

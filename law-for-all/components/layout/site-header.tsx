@@ -57,7 +57,8 @@ export function SiteHeader() {
         </div>
       </div>
       {/* 작은 화면: 보조 도구를 둘째 줄로 */}
-      <div className="container relative flex items-center justify-between gap-2 overflow-x-auto pb-2 2xl:hidden">
+      {/* 휴대폰: 바로가기는 가운데 한 줄, 모델 선택·글자 크기는 아랫줄 가운데 / 태블릿: 양 끝 */}
+      <div className="container relative flex flex-wrap items-center justify-center gap-2 pb-2 md:flex-nowrap md:justify-between md:overflow-x-auto 2xl:hidden">
         <OnlyMode mode="citizen">
           <Link href="/analyze" className="flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent md:hidden">
             <Gavel className="h-3.5 w-3.5" aria-hidden /> 상황 분석
@@ -78,7 +79,7 @@ export function SiteHeader() {
           <BookOpenText className="h-3.5 w-3.5" aria-hidden /> 법령
         </Link>
         <ModelSelect className="2xl:hidden" />
-        <A11yControls className="ml-auto" />
+        <A11yControls className="md:ml-auto" />
       </div>
     </header>
   );

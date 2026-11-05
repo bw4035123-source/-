@@ -306,9 +306,9 @@ export function DraftingView() {
 
   return (
     <div className="container max-w-6xl py-8">
-      <header className="mb-6">
+      <header className="mb-6 text-center sm:text-left">
         <p className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs font-bold text-accent">공직자 실무</p>
-        <h1 className="mt-2 flex items-center gap-2 text-2xl font-black tracking-tight sm:text-3xl">
+        <h1 className="mt-2 flex items-center justify-center gap-2 text-2xl font-black tracking-tight sm:justify-start sm:text-3xl">
           <FilePenLine className="h-7 w-7 text-accent" /> 규정 제·개정 지원
         </h1>
         <p className="mt-1 text-sm text-muted-foreground sm:text-base">
@@ -320,9 +320,9 @@ export function DraftingView() {
                 ? "상위법이 개정되면 개정 전·후 조문을 나란히 보여 주고, 우리 규정에서 바뀌기 전 용어나 개정·삭제된 조문을 인용한 곳을 찾아 개정안으로 이어 드려요."
                 : "조문을 새로 넣거나 삭제해 번호가 바뀔 때, 같은 규정 안에서 고쳐야 할 인용을 모두 찾고 정정한 전문을 만들어 드려요."}
         </p>
-        <div className="mt-4 inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-secondary p-1 text-sm font-semibold" role="tablist" aria-label="제정·개정 선택">
+        <div className="mt-4 grid w-full grid-cols-2 gap-1 rounded-lg bg-secondary p-1 text-[13px] font-semibold sm:inline-flex sm:w-auto sm:max-w-full sm:flex-wrap sm:text-sm" role="tablist" aria-label="제정·개정 선택">
           {(["enact", "amend", "renumber", "upper"] as const).map((m) => (
-            <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("rounded-md px-4 py-1.5", mode === m ? "bg-card shadow-sm" : "text-muted-foreground")}>
+            <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)} className={cn("rounded-md px-2 py-1.5 sm:px-4", mode === m ? "bg-card shadow-sm" : "text-muted-foreground")}>
               {m === "amend" ? "개정(조문 고치기)" : m === "enact" ? "제정(새 규정 만들기)" : m === "renumber" ? "조 번호 정리(인용 정정)" : "상위법 개정 반영"}
             </button>
           ))}
