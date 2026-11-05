@@ -91,7 +91,7 @@ export function FormDraft({ result }: { result: AskResult }) {
                 <Button size="sm" variant="accent" onClick={async () => toast((await copyText(text)) ? "초안을 복사했습니다" : "복사하지 못했습니다")}>
                   <ClipboardCopy /> 복사
                 </Button>
-                <DocSaveButtons name={form.title} sections={() => [{ body: text }]} label="저장 " />
+                <DocSaveButtons name={form.title} sections={() => [{ body: text }]} label="내려받기" />
                 <Button size="sm" variant="outline" onClick={print}>
                   <Printer /> 인쇄
                 </Button>

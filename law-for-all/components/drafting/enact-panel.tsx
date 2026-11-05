@@ -619,7 +619,7 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
                 <h2 className="font-extrabold">제정 문서 초안</h2>
                 <div className="flex flex-wrap gap-1.5">
                   <RegReportPack build={buildReport} label="제정 보고서 바로 만들기" />
-                  <DocSaveButtons name={`${name.trim() || "제정안"} 제정안`} sections={exportSections} label="전체 저장 " />
+                  <DocSaveButtons name={`${name.trim() || "제정안"} 제정안`} sections={exportSections} label="제정안 전체" />
                 </div>
               </div>
               <Tabs defaultValue="reason">

@@ -524,7 +524,7 @@ export function DraftingView() {
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="font-extrabold">부칙·입법예고문·절차</h2>
-                  <DocSaveButtons name={`${meta.lawName} ${meta.label} 개정안`} sections={exportSections} label="대비표 포함 저장 " />
+                  <DocSaveButtons name={`${meta.lawName} ${meta.label} 개정안`} sections={exportSections} label="대비표 포함 전체" />
                 </div>
                 <Tabs defaultValue="addenda">
                   <TabsList>

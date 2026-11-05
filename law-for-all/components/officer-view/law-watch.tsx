@@ -31,7 +31,7 @@ const today = () => toDateInput(ymd(new Date()));
  * 개정 알림 받기 — 법령(들)을 '지켜볼 법령'으로 등록. 기준일(우리 규정 최종 정비일) 이후 개정되면 공직자 첫 화면에서 알림.
  * 자체규정 점검(규정이 인용·근거로 삼은 법령), 상위법 개정 반영(보고 있는 법령)에서 씀
  */
-export function WatchButton({ names, source, label = "개정 알림 받기", className }: { names: string[]; source?: string; label?: string; className?: string }) {
+export function WatchButton({ names, source, label = "개정 알림 받기", className, full }: { names: string[]; source?: string; label?: string; className?: string; full?: boolean }) {
   const toast = useToast();
   const [items, setItems] = useWatch();
   const [open, setOpen] = React.useState(false);
@@ -46,12 +46,15 @@ export function WatchButton({ names, source, label = "개정 알림 받기", cla
     toast(`「${list[0]}」${list.length > 1 ? ` 등 ${list.length}개 법령` : ""}의 개정 알림을 등록했어요 — ${fmtYmd(base)} 이후 개정되면 공직자 첫 화면에서 알려 드려요`);
   };
   return (
-    <span className={cn("relative inline-flex", className)}>
-      <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+    <span className={cn("relative inline-flex", full && "w-full sm:w-auto", className)}>
+      <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)} aria-expanded={open} className={cn(full && "w-full sm:w-auto")}>
         {already ? <BellRing className="text-accent" /> : <BellPlus />} {already ? "알림 등록됨" : label}
       </Button>
       {open && (
-        <span className="absolute right-0 top-full z-30 mt-1 block w-72 rounded-xl border bg-card p-3 text-left text-xs shadow-lg" role="dialog" aria-label="개정 알림 등록">
+        <>
+        {/* 휴대폰: 화면 가운데 창(뒤는 어둡게) / 넓은 화면: 단추 아래 */}
+        <span className="fixed inset-0 z-40 bg-black/30 sm:hidden" onClick={() => setOpen(false)} aria-hidden />
+        <span className="fixed inset-x-4 top-1/3 z-50 block rounded-xl border bg-card p-4 text-left text-xs shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:z-30 sm:mt-1 sm:w-72 sm:p-3 sm:shadow-lg" role="dialog" aria-label="개정 알림 등록">
           <span className="block font-bold text-foreground">상위법 개정 알림 등록</span>
           <span className="mt-1 block text-muted-foreground">
             {list.slice(0, 4).map((n) => `「${n}」`).join(" ")}
@@ -71,6 +74,7 @@ export function WatchButton({ names, source, label = "개정 알림 받기", cla
           </span>
           <span className="mt-1.5 block text-[11px] text-muted-foreground">목록은 이 브라우저에만 저장돼요(서버로 보내는 것은 법령 이름뿐).</span>
         </span>
+        </>
       )}
     </span>
   );

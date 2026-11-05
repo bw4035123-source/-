@@ -154,18 +154,17 @@ export function DocumentPack({ result }: { result: AskResult }) {
                       spellCheck={false}
                       className="h-[52vh] w-full resize-y rounded-xl border bg-card p-4 font-mono text-[0.85rem] leading-6 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="accent" onClick={() => copy(texts[d.id], `${d.label}을(를) 복사했습니다`)}>
-                        <ClipboardCopy /> 복사
-                      </Button>
-                      <DocSaveButtons name={`${title}_${d.label}`} sections={() => [{ body: texts[d.id] }]} label="저장 " />
-                      <Button size="sm" variant="outline" onClick={() => print(texts[d.id])}>
-                        <Printer /> 인쇄
-                      </Button>
-                      <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                        <FileStack className="h-4 w-4" /> 4종 한 파일
-                        <DocSaveButtons name={title} sections={() => DOCS.map((x) => ({ title: x.label, body: texts[x.id] }))} />
-                      </span>
+                    <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                      <DocSaveButtons name={`${title}_${d.label}`} sections={() => [{ body: texts[d.id] }]} label={d.label} />
+                      <DocSaveButtons name={title} sections={() => DOCS.map((x) => ({ title: x.label, body: texts[x.id] }))} label="4종 한 파일" />
+                      <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
+                        <Button size="sm" variant="accent" onClick={() => copy(texts[d.id], `${d.label}을(를) 복사했습니다`)}>
+                          <ClipboardCopy /> 복사
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => print(texts[d.id])}>
+                          <Printer /> 인쇄
+                        </Button>
+                      </div>
                     </div>
                   </TabsContent>
                 ))}

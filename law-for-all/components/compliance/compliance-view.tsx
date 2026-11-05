@@ -1,5 +1,4 @@
 "use client";
-import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, ClipboardCopy, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, Sparkles, X } from "lucide-react";
@@ -11,7 +10,6 @@ import {
   SEVERITY_LABEL,
   TARGET_LAWS,
   amendedText,
-  complianceReport,
   crossCheck,
   parseRegulation,
   regArticleLabel,
@@ -32,7 +30,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { LawViewerSheet } from "@/components/law-search/law-viewer-sheet";
 import { copyText } from "@/lib/clipboard";
-import { escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { complianceDocs, type CheckItem, type Verdict } from "@/lib/reg-report";
 import { RegReportPack } from "@/components/drafting/reg-report-pack";
@@ -244,35 +241,8 @@ export function ComplianceView() {
     for (const r of results) counts[r.status]++;
     return { ...report, results, counts };
   }, [report, ai]);
-  const aiText =
-    ai.status === "done" && report
-      ? [
-          "",
-          `■ AI 검토(${ai.label}) — 조문마다 국가법령정보에서 찾은 상위 조문 원문과 대조, 근거·수치는 가드가 검증(참고 의견)`,
-          ...report.results.flatMap((r) => {
-            const a = ai.byNo.get(r.article.no);
-            if (!a || !a.issues.length) return [];
-            return [`  ○ ${regArticleLabel(r.article)} — ${a.verdict}`, ...a.issues.map((it) => `    - ${it.point}${it.suggestion ? ` → ${it.suggestion}` : ""} (근거: ${it.basis.map((k) => { const c = a.upper.find((u) => u.key === k); return c ? `「${c.lawName}」 ${articleLabel(c.articleNo)}` : k; }).join(", ")})`)];
-          }),
-        ].join("\n")
-      : "";
-  const reportText = merged ? complianceReport(merged, lawName) + aiText : "";
+
   const copy = async (t: string, msg: string) => toast((await copyText(t)) ? msg : "복사하지 못했습니다. 직접 선택해 복사해 주세요.");
-  const wordSections = () => {
-    if (!report) return [];
-    const rows = report.results
-      .map((r) => {
-        const fs = r.findings.filter((f) => f.severity !== "info");
-        const items = fs.length ? fs.map((f) => `<b>[${SEVERITY_LABEL[f.severity]}]</b> ${escapeHtml(f.title)}<br/><small>근거: ${escapeHtml(f.basis.map((b) => `「${lawName(b.lawId)}」 ${articleLabel(b.articleNo)}`).join(", ") || "일반 원칙")}</small>`).join("<br/>") : "위반 신호 없음";
-        const am = amendedText(r);
-        return `<tr><td>${escapeHtml(regArticleLabel(r.article))}</td><td>${SEVERITY_LABEL[r.status]}</td><td>${items}</td><td>${am ? escapeHtml(am) : ""}</td></tr>`;
-      })
-      .join("");
-    return [
-      { title: "교차 검증 결과 보고", body: reportText },
-      { title: "조문별 대조표", html: `<table border="1" cellspacing="0" cellpadding="4"><tr><th>규정 조문</th><th>판정</th><th>검토 내용·근거</th><th>개정안</th></tr>${rows}</table>` },
-    ];
-  };
 
   // 보고서 바로 만들기: 화면의 판정(규칙+AI 합친 것)·지적·근거·자동 개정안을 그대로 보고서 서식에
   const VERDICT: Record<Severity, Verdict> = { conflict: "상충", review: "검토 필요", ok: "적합", info: "판단 보류" };
@@ -511,13 +481,10 @@ export function ComplianceView() {
                       {report.results.length}개 조문 · 인용 조문 검증 {report.refsChecked}건 · {report.liveLaws.length ? `실시간 원문 ${report.liveLaws.length}개 법령` : "공식 원문 스냅샷 기준"}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <WatchButton names={watchNames} source={`「${report.regName}」`} label="상위법 개정 알림 받기" />
-                    <RegReportPack build={buildReport} disabled={ai.status === "loading"} label={ai.status === "loading" ? "AI 확인 후 보고서" : "보고서 바로 만들기"} />
-                    <Button size="sm" variant="outline" onClick={() => copy(reportText, "검토 보고서를 복사했어요.")}>
-                      <ClipboardCopy /> 보고서 복사
-                    </Button>
-                    <DocSaveButtons name={`${report.regName}_교차검증`} sections={wordSections} />
+                  {/* 보고서(복사·한글·Word·인쇄는 보고서 창 안에서) · 개정 알림 — 휴대폰은 반반 */}
+                  <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-1.5">
+                    <RegReportPack build={buildReport} disabled={ai.status === "loading"} label={ai.status === "loading" ? "AI 확인 후 보고서" : "보고서 바로 만들기"} className="w-full sm:w-auto" />
+                    <WatchButton names={watchNames} source={`「${report.regName}」`} label="개정 알림 받기" full />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="판정별 보기">

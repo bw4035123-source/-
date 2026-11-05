@@ -86,7 +86,7 @@ export function RegReportPack({ build, label = "보고서 바로 만들기", dis
             <SheetTitle className="flex items-center gap-2">
               <FileStack className="h-5 w-5 text-accent" /> 보고서 바로 만들기
             </SheetTitle>
-            <SheetDescription>화면의 검토 결과로 결재용 보고서·기안문·붙임(표)을 만들었어요. 고쳐 쓴 뒤 복사하거나 Word(한글 호환)로 내려받으세요.</SheetDescription>
+            <SheetDescription>화면의 검토 결과로 결재용 보고서·기안문·붙임(표)을 만들었어요. 고쳐 쓴 뒤 복사하거나 한글·Word 파일로 내려받으세요.</SheetDescription>
           </SheetHeader>
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
             <div className="grid gap-3 rounded-xl border bg-secondary/40 p-3 sm:grid-cols-4">
@@ -134,15 +134,18 @@ export function RegReportPack({ build, label = "보고서 바로 만들기", dis
               </Tabs>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 border-t p-4">
-            <DocSaveButtons name={title} sections={reportSections} label="보고서+붙임 " size="default" accent="hwpx" />
-            <DocSaveButtons name={`${title} (기안문)`} sections={() => [{ body: text.draft }]} label="기안문 " size="default" />
-            <Button variant="outline" onClick={() => copy(tab === "draft" ? text.draft : text.report, tab === "draft" ? "기안문을 복사했어요" : "보고서를 복사했어요")}>
-              <ClipboardCopy /> {tab === "draft" ? "기안문" : "보고서"} 복사
-            </Button>
-            <Button variant="outline" onClick={print}>
-              <Printer /> 인쇄
-            </Button>
+          {/* 저장은 [이름 | 한글 | Word] 한 덩어리 — 휴대폰은 한 줄씩, 복사·인쇄는 반반 */}
+          <div className="grid gap-2 border-t p-4 sm:flex sm:flex-wrap sm:items-center">
+            <DocSaveButtons name={title} sections={reportSections} label="보고서+붙임" size="default" />
+            <DocSaveButtons name={`${title} (기안문)`} sections={() => [{ body: text.draft }]} label="기안문" size="default" />
+            <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex">
+              <Button variant="outline" onClick={() => copy(tab === "draft" ? text.draft : text.report, tab === "draft" ? "기안문을 복사했어요" : "보고서를 복사했어요")}>
+                <ClipboardCopy /> {tab === "draft" ? "기안문" : "보고서"} 복사
+              </Button>
+              <Button variant="outline" onClick={print}>
+                <Printer /> 인쇄
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

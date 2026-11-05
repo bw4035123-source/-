@@ -763,7 +763,7 @@ await scene("s18", async () => {
     // 상위법 개정 알림: 점검한 규정의 상위법을 등록(기준일 = 우리 규정 최종 정비일) → 공직자 첫 화면에서 알림
     await scrollToEl("#compliance-result");
     await wait(300);
-    await click(page.getByRole("button", { name: /상위법 개정 알림 받기/ }));
+    await click(page.getByRole("button", { name: /개정 알림 받기/ }));
     const dlg = page.getByRole("dialog", { name: "개정 알림 등록" });
     await dlg.getByLabel("기준일").fill("2025-12-31");
     await cap("🔔 상위법 개정 알림 받기 — 이 규정이 따르는 법령을 ‘지켜볼 법령’으로", "기준일 = 우리 규정 최종 정비일 · 목록은 이 브라우저에만(서버로는 법령 이름만)");

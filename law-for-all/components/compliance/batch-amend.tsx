@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, Loader2, PencilLine, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, Loader2, PencilLine, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { diffWords, type DraftKind } from "@/lib/drafting";
 import { batchAmendDocs, changeSummary, oldNewTableHtml, type Verdict } from "@/lib/reg-report";
 import { fetchJson } from "@/lib/fetch-json";
@@ -149,20 +149,20 @@ export function BatchAmendPanel({ sources, regName, kind }: { sources: BatchSour
               </div>
             );
           })}
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-              시행
-              <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="h-8 rounded-md border bg-card px-2 text-xs text-foreground">
+          <div className="grid gap-2 border-t pt-3 sm:flex sm:flex-wrap sm:items-center">
+            <label className="flex items-center justify-between gap-1.5 text-xs font-semibold text-muted-foreground sm:justify-start">
+              시행일
+              <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="h-9 flex-1 rounded-md border bg-card px-2 text-sm text-foreground sm:h-8 sm:flex-none sm:text-xs">
                 <option value={0}>공포한 날부터</option>
                 <option value={30}>공포 후 30일</option>
                 <option value={90}>공포 후 3개월</option>
                 <option value={180}>공포 후 6개월</option>
               </select>
             </label>
-            <RegReportPack build={(o) => batchAmendDocs({ regName, kind, items, effectiveDays: days }, o)} label={`일부개정(안) 보고서 바로 만들기(${chosen.length}개 조문)`} disabled={!chosen.length} size="default" />
-            <DocSaveButtons name={`${regName} 신·구조문대비표`} sections={() => [{ title: "신·구조문대비표", html: oldNewTableHtml(items) }]} label="대비표 " />
-            <Button size="sm" variant="ghost" onClick={() => setRows(null)}>
-              <CheckCircle2 /> 다시 쓰기
+            <RegReportPack build={(o) => batchAmendDocs({ regName, kind, items, effectiveDays: days }, o)} label={`일부개정(안) 보고서 바로 만들기(${chosen.length}개 조문)`} disabled={!chosen.length} size="default" className="w-full sm:w-auto" />
+            <DocSaveButtons name={`${regName} 신·구조문대비표`} sections={() => [{ title: "신·구조문대비표", html: oldNewTableHtml(items) }]} label="신·구조문대비표" />
+            <Button size="sm" variant="ghost" className="justify-self-center sm:ml-auto" onClick={() => setRows(null)}>
+              <RotateCcw /> 다시 쓰기
             </Button>
           </div>
         </div>
