@@ -26,7 +26,7 @@ from .amend_ai import AMEND_SYSTEM, amend_retry, build_amend_prompt, guard_amend
 from .amend_quick import QUICK_SYSTEM, build_quick_prompt, limit_warning, quantity_warning, split_quick
 from .numbers import unverified_quantities
 from .enact_fill import FILL_SYSTEM, build_fill_prompt, guard_fill
-from .enact_write import WRITE_SYSTEM, build_write_prompt, guard_write
+from .enact_write import WRITE_CHUNK, WRITE_SYSTEM, build_write_prompt, guard_write
 from .enact_plan import PLAN_SYSTEM, TOC_SKIP, build_plan_prompt, clean_request, guard_plan
 from .upper_change import parse_old_and_new
 from .guard import parse_loose_json
@@ -179,6 +179,45 @@ def _validate_amend_batch(body: dict) -> dict:
     prov = body.get("provider")
     s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
     return {"lawName": s("lawName", 100), "kind": s("kind", 20) or "행정규칙", "items": out, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def enact_write(p, inp: dict) -> tuple[int, dict]:
+    """제정안 AI 작성(app/api/enact-write/route.ts 와 같음) — 조문을 몇 개씩 나눠 동시에 쓰게 해 응답 지연을 줄이고,
+    늦거나 형식이 깨진 묶음만 표준 초안을 유지(나머지는 그대로 반영)"""
+    import concurrent.futures as cf
+
+    arts = inp["articles"]
+    chunks = [arts[i : i + WRITE_CHUNK] for i in range(0, len(arts), WRITE_CHUNK)]
+    model = [p.model]
+
+    def one(ch: list) -> list | None:
+        messages = [{"role": "user", "content": build_write_prompt({**inp, "articles": ch})}]
+        for attempt in range(2):
+            try:
+                res = p.generate(system=WRITE_SYSTEM, messages=messages, json_mode=True, temperature=0.2, max_tokens=2500, timeout_ms=60000)
+            except LLMError:
+                if attempt == 0:
+                    time.sleep(1.5)
+                    continue
+                return None
+            model[0] = res.get("model") or model[0]
+            try:
+                raw = parse_loose_json(res["text"])
+                if isinstance(raw, dict) and isinstance(raw.get("articles"), list):
+                    return raw["articles"]
+            except Exception:  # noqa: BLE001 — 형식이 깨지면 한 번 다시
+                pass
+            messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
+        return None
+
+    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+        outs = list(ex.map(one, chunks))
+    if all(o is None for o in outs):
+        return 502, {"error": f"AI({p.label})가 응답하지 않았어요. 표준 초안을 쓰거나 잠시 후 다시 시도하세요."}
+    result = guard_write({"articles": [a for o in outs if o for a in o]}, inp)
+    missed = [a["label"] for ch, o in zip(chunks, outs) if o is None for a in ch]
+    result["rejected"] = [{"label": l, "reason": "AI 응답 지연 — 표준 초안 유지"} for l in missed] + result["rejected"]
+    return 200, {**result, "model": model[0], "label": p.label}
 
 
 def amend_batch(inp: dict) -> tuple[int, dict]:
@@ -709,17 +748,8 @@ class Handler(BaseHTTPRequestHandler):
             p, _ = resolve_provider(config.llm, inp["provider"])
             if p.kind == "rule":
                 return self._json(503, {"error": "생성형 AI가 연결되어 있지 않아 AI 작성을 할 수 없어요. 표준 초안을 쓰세요."})
-            messages = [{"role": "user", "content": build_write_prompt(inp)}]
-            try:
-                for _ in range(2):
-                    res = p.generate(system=WRITE_SYSTEM, messages=messages, json_mode=True, temperature=0.2, max_tokens=4000, timeout_ms=80000)
-                    try:
-                        return self._json(200, {**guard_write(parse_loose_json(res["text"]), inp), "model": res.get("model") or p.model, "label": p.label})
-                    except Exception:  # noqa: BLE001 — 형식이 깨지면 한 번 다시
-                        messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": "JSON 형식이 올바르지 않다. 지정한 형식의 JSON 객체 하나만 다시 출력하라."}]
-            except LLMError as e:
-                return self._json(502, {"error": f"AI({p.label})에 연결하지 못했어요. 표준 초안을 쓰거나 잠시 후 다시 시도하세요.", "detail": str(e)})
-            return self._json(502, {"error": f"AI({p.label}) 응답 형식이 올바르지 않아 쓰지 않았어요. 표준 초안을 쓰세요."})
+            code, payload = enact_write(p, inp)
+            return self._json(code, payload)
         if method == "POST" and path == "/api/enact-ai":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
             if not ok:

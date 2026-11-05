@@ -27,6 +27,9 @@ def build_write_prompt(inp: dict) -> str:
     )
 
 
+# 한 번에 쓰게 할 조문 수 — 묶음마다 동시에 요청(14조 → 4묶음)
+WRITE_CHUNK = 4
+
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 _PENALTY = re.compile(r"(과태료|벌금|벌칙|징역|구류|과징금)")
 

@@ -98,7 +98,7 @@ describe("규정 제정 — 조문 체계·표준 조문·위임 사항", async 
   it("목적·적용 범위·실체 조문·세부 사항·부칙 순 조문 체계", () => {
     const d = enactDraft({ kind: "행정규칙", name: "○○공단 재택근무 운영 지침", purpose: "직원의 재택근무 신청·승인과 복무 관리 기준을 정하기 위함", items: ["신청 절차", "정보 보안"], terms: ["재택근무"], basis: [], org: "○○공단" });
     expect(d.articles.map((a) => a.label)).toEqual(["제1조(목적)", "제2조(정의)", "제3조(적용 범위)", "제4조(신청 절차)", "제5조(정보 보안)", "제6조(세부 사항)"]);
-    expect(d.articles[0].text).toBe("이 지침은 직원의 재택근무 신청·승인과 복무 관리에 관한 사항을 정함을 목적으로 한다.");
+    expect(d.articles[0].text).toBe("이 지침은 직원의 재택근무 신청·승인과 복무 관리 기준을 정함을 목적으로 한다.");
     expect(d.articles[1].text).toContain("“재택근무”란");
     expect(d.articles[3].text).toContain("○○공단의 장에게 신청하여야 한다");
     expect(d.addenda).toContain("이 지침은 발령한 날부터 시행한다.");

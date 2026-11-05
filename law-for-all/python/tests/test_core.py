@@ -1104,3 +1104,46 @@ class AmendBatchTest(unittest.TestCase):
         self.assertTrue(r["8"]["ok"])
         self.assertIn("응답 지연", r["9"]["reason"])
         self.assertFalse(r["10"]["ok"])
+
+
+class EnactWriteChunkTest(unittest.TestCase):
+    """제정안 AI 작성: 조문을 묶음으로 나눠 동시에 — 늦은 묶음만 표준 초안 유지, 모두 늦으면 502"""
+
+    def test_chunks(self):
+        import json as _j
+        import law_for_all.server as s
+        from law_for_all.llm import LLMError
+
+        calls = []
+
+        class P:
+            kind, label, model, id = "llm", "t", "m", "openai"
+
+            def __init__(self, fail_all=False):
+                self.fail_all = fail_all
+
+            def generate(self, messages, **_):
+                u = messages[0]["content"]
+                calls.append(u)
+                if self.fail_all or "제5조" in u:
+                    raise LLMError("busy", "openai")
+                labels = re.findall(r"^(제\d+조\([^)]*\))", u.split("<조문초안>")[1], re.M)
+                return {"text": _j.dumps({"articles": [{"label": l, "text": f"{l} 본문을 구체적으로 다시 씀."} for l in labels]}), "model": "m"}
+
+        import re
+
+        arts = [{"label": f"제{i}조(항목{i})", "text": f"표준 본문 {i}"} for i in range(1, 11)]
+        inp = {"name": "지침", "kind": "행정규칙", "purpose": "", "articles": arts, "basis": [], "provider": None}
+        sleep = s.time.sleep
+        s.time.sleep = lambda *_: None
+        try:
+            code, body = s.enact_write(P(), inp)
+            self.assertEqual(code, 200)
+            self.assertEqual(len(calls), 3 + 1)  # 4·4·2개 묶음 + 늦은 묶음 다시 한 번
+            written = [a["label"] for a in body["articles"] if a["written"]]
+            self.assertEqual(len(written), 6)  # 제5조가 든 묶음(제5~8조)만 표준 초안
+            self.assertEqual([r["label"] for r in body["rejected"]], [f"제{i}조(항목{i})" for i in range(5, 9)])
+            code, body = s.enact_write(P(fail_all=True), inp)
+            self.assertEqual(code, 502)
+        finally:
+            s.time.sleep = sleep

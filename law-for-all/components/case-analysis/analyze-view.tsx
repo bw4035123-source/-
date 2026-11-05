@@ -13,6 +13,7 @@ import { ContactsCard } from "@/components/citizen-view/contacts-card";
 import { RelatedCases } from "@/components/cases/related-cases";
 import { copyText } from "@/lib/clipboard";
 import { analysisText } from "@/lib/report-text";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import { fetchJson } from "@/lib/fetch-json";
 import { maskPII } from "@/lib/privacy-mask";
 import { PrivacyNotice } from "@/components/ui/privacy-notice";
@@ -160,9 +161,12 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           </Badge>
           <Badge variant={r.guard.passed ? "success" : "warning"}>{!r.guard.passed ? `확인 필요 표현 ${r.guard.unverifiedMentions.length}건` : r.provider.kind === "llm" ? "근거 검증 통과" : r.guard.fallbackKind === "connection" || r.guard.fallbackKind === "guard" ? "검수된 분석으로 대체(규칙기반)" : "검수된 분석(규칙기반)"}</Badge>
           <span className="text-muted-foreground">{(r.elapsedMs / 1000).toFixed(1)}초</span>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={onCopy}>
-            <ClipboardCopy /> 분석 결과 복사
-          </Button>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+            <DocSaveButtons name="법률 상황 분석 결과" sections={() => [{ body: analysisText(r) }]} label="분석 결과" className="sm:w-auto" />
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={onCopy}>
+              <ClipboardCopy /> 복사
+            </Button>
+          </div>
         </div>
         {r.notices.length > 0 && (
           <ul className="space-y-1 rounded-lg bg-secondary/70 px-4 py-2.5 text-xs text-muted-foreground">

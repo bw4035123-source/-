@@ -129,15 +129,31 @@ function articleBody(item: string, head: string, basis: Basis[]): string {
 }
 
 /** 제정 목적 문장 → '○○에 관한' 앞에 들어갈 명사구 */
-function purposeCore(purpose: string): string {
-  return purpose
-    .trim()
-    .replace(/[.。]$/, "")
-    .replace(/(을|를)?\s*(정하기|정하려고|정하고자|규정하기)\s*(위함|위하여|위해|함)?$/, "")
-    .replace(/\s*(하기\s?위함|하기\s?위하여|하려는\s?것임|하고자\s?함|위함|함)$/, "")
-    .replace(/\s*(기준|사항|방법|절차)$/, "")
-    .trim();
+/**
+ * 제정 목적 → 목적 조문에서 '…을(를) 정함'의 목적어. 끝말을 보고 자연스럽게 잇는다
+ *  - "재택근무 신청·승인과 복무 관리 기준을 정하기 위함" → "재택근무 신청·승인과 복무 관리 기준"
+ *  - "체계적 관리를 위하여 필요한 사항을 정함" → "체계적 관리를 위하여 필요한 사항"
+ *  - "직원의 재택근무 운영" → "직원의 재택근무 운영에 관한 사항"
+ */
+export function purposeObject(purpose: string): string {
+  let s = purpose.trim().replace(/[.。]+$/, "").trim();
+  // '…을 신속하게 처리하기 위함'처럼 정하는 대상이 아닌 목적이면 '…하기 위하여 필요한 사항'
+  const aim = s.match(/^(.*[^정규마]\S*?)하(?:기\s*위함|기\s*위하여|기\s*위해|려는\s*것임|고자\s*함)$/);
+  if (aim && !/(?:정|규정|마련)$/.test(aim[1])) return `${aim[1]}하기 위하여 필요한 사항`;
+  for (let i = 0; i < 3; i++)
+    s = s
+      .replace(/\s*(?:을|를)?\s*(?:정하|규정하|마련하)(?:기\s*위함|기\s*위하여|기\s*위해|려는\s*것임|려고\s*함|고자\s*함|기)$/, "")
+      .replace(/\s*(?:을|를)?\s*(?:정함|규정함|마련함|규정|정립)$/, "")
+      .replace(/\s*(?:하기\s*위함|하기\s*위하여|하려는\s*것임|하고자\s*함|위함)$/, "")
+      .trim();
+  if (!s) return "";
+  // 이미 '사항·기준·방법·절차·내용' 같은 말로 끝나면 그대로 목적어
+  if (/(사항|기준|방법|절차|내용|요건|범위|체계|원칙|조건)$/.test(s)) return s;
+  // '필요한·관한·대한'처럼 꾸미는 말로 끝나면 '사항'을 붙임
+  if (/(한|는|할|된|인|의)$/.test(s)) return `${s} 사항`;
+  return `${s}에 관한 사항`;
 }
+const eul = (w: string) => w + josa(w, "을", "를");
 
 const lawNameOf = (label: string) => label.match(/「([^」]+)」/)?.[1] ?? "";
 
@@ -148,7 +164,7 @@ export function enactDraft(input: EnactInput): EnactDraft {
   const basis = input.basis.filter((b) => b.label.trim());
   const refs = basis.map((b) => b.label.replace(/\(.*\)$/, "").trim());
   const lawNames = Array.from(new Set(basis.map((b) => lawNameOf(b.label)).filter(Boolean)));
-  const core = purposeCore(input.purpose) || "○○";
+  const obj = purposeObject(input.purpose);
 
   // 위임 사항: 상위 조문에서 이 규범 종류로 위임한 것
   const delegatedRaw = basis.flatMap((b) => delegatedMatters(b.text, input.kind).map((matter) => ({ basis: b.label.replace(/\(.*\)$/, ""), matter })));
@@ -157,7 +173,7 @@ export function enactDraft(input: EnactInput): EnactDraft {
   const bodyItems = items.length ? items : delegatedRaw.map((d) => d.matter.replace(/…$/, ""));
 
   const arts: { title: string; text: string }[] = [];
-  arts.push({ title: "목적", text: `${eun(self)} ${refs.length ? `${refs.join("·")}에 따라 ` : ""}${core}에 관한 사항을 정함을 목적으로 한다.` });
+  arts.push({ title: "목적", text: `${eun(self)} ${refs.length ? `${refs.join("·")}에 따라 ` : ""}${eul(obj || "○○에 관한 사항")} 정함을 목적으로 한다.` });
   const terms = input.terms.map((t) => t.trim()).filter(Boolean);
   if (terms.length)
     arts.push({ title: "정의", text: `${self}에서 사용하는 용어의 뜻은 다음과 같다.\n${terms.map((t, i) => `  ${i + 1}. “${t}”${josa(t, "이란", "란")} ○○을(를) 말한다.`).join("\n")}` });
@@ -202,7 +218,7 @@ export function enactDraft(input: EnactInput): EnactDraft {
 
   const reason = [
     "◇ 제정이유",
-    `  ${core !== "○○" ? `${core}에 관한 기준을 마련하고, ` : ""}${refs.length ? `${refs.join("·")}에서 정한 사항과 ` : ""}그 시행에 필요한 사항을 정하려는 것임.`,
+    `  ${obj ? `${eul(obj)} 정하고, ` : ""}${refs.length ? `${refs.join("·")}에서 정한 사항과 ` : ""}그 시행에 필요한 사항을 정하려는 것임.`,
     "",
     "◇ 주요내용",
     ...articles

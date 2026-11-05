@@ -29,6 +29,9 @@ export interface WriteResult {
   checks: { label: string; values: string[] }[];
 }
 
+/** 한 번에 쓰게 할 조문 수 — 묶음마다 동시에 요청(14조 → 4묶음) */
+export const WRITE_CHUNK = 4;
+
 export const WRITE_SYSTEM = `너는 공공기관 내부 규정(행정규칙·자치법규) 제정안을 쓰는 법제 보조 AI다.
 [절대 규칙]
 1. <조문초안>의 조문 순서·조 번호·조 제목은 그대로 두고, 각 조문의 본문만 구체적으로 다시 쓴다.
