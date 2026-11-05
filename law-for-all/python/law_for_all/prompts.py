@@ -32,3 +32,20 @@ def user_prompt(query: str, citations: list[dict]) -> str:
 
 def analysis_prompt(situation: str, citations: list[dict]) -> str:
     return f"<근거조문>\n{context_block(citations)}\n</근거조문>\n\n<상황>\n{situation}\n</상황>\n\n위 근거조문만 사용하여 세 관점의 분석을 JSON으로 작성하라."
+
+
+# 3관점을 관점마다 따로·동시에 쓰게 함(lib/answer/prompts.ts buildRolePrompt·roleSchema 와 같음)
+ANALYSIS_ROLES = ("lawyer", "prosecutor", "judge")
+ROLE_LABEL = {"lawyer": "변호사", "prosecutor": "검사", "judge": "판사"}
+
+
+def role_schema(role: str) -> dict:
+    return {"type": "object", "properties": {role: ANALYSIS_SCHEMA["properties"][role], "citations": {"type": "array", "items": {"type": "string"}}}, "required": [role, "citations"]}
+
+
+def role_prompt(situation: str, citations: list[dict], role: str) -> str:
+    return (
+        f"<근거조문>\n{context_block(citations)}\n</근거조문>\n\n<상황>\n{situation}\n</상황>\n\n"
+        f"위 근거조문만 사용하여 이번에는 {ROLE_LABEL[role]}({role}) 관점 하나만 분석하라. 다른 관점은 쓰지 않는다. "
+        f'형식: {{"{role}": {{...}}, "citations": ["사용한 근거 키"]}} JSON 객체 하나.'
+    )

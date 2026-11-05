@@ -117,9 +117,12 @@ describe("analyze 파이프라인(LLM 모킹)", () => {
       judge: { stance: "요건 대조", issues: ["종료 여부"], requirements: [{ label: "확정일자", ref: "housing-lease:3의2", status: "met", basis: "서술" }, { label: "가짜", ref: "fake:1", status: "maybe", basis: "" }], outlook: "인용 가능성" },
       citations: ["housing-lease:3", "ghost:1"],
     });
-    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(new Response(JSON.stringify({ model: "gpt-test", choices: [{ message: { content } }] }), { status: 200 }));
+    // 관점마다 따로 부르므로 응답을 매번 새로 만듦
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async () => new Response(JSON.stringify({ model: "gpt-test", choices: [{ message: { content } }] }), { status: 200 }));
     const r = await analyze({ situation: JEONSE });
     expect(r.provider.id).toBe("openai");
+    const prompts = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String((c[1] as RequestInit).body)).filter((b) => b.includes("관점 하나만"));
+    expect(prompts).toHaveLength(3);
     expect(r.analyses).toHaveLength(1);
     expect(r.analyses[0].issue.label).toContain("종합 분석");
     expect(r.guard.removedCitations).toEqual(expect.arrayContaining(["civil-act:999", "fake:1", "ghost:1"]));
@@ -127,6 +130,24 @@ describe("analyze 파이프라인(LLM 모킹)", () => {
     expect(req[1].ref).toBeUndefined();
     expect(req[1].status).toBe("unclear");
     expect(JSON.stringify(r.analyses)).not.toContain("civil-act");
+  });
+
+  it("관점 하나가 실패하면 그 관점만 규칙기반으로 채우고 알림", async () => {
+    const analyze = await load({ OPENAI_API_KEY: "sk-test", LLM_PROVIDER: "openai" });
+    const content = JSON.stringify({
+      lawyer: { stance: "임차권등기명령으로 권리 보전 [[housing-lease:3의3]]", arguments: ["대항력 주장 [[housing-lease:3]]"], evidence: ["계약서"], strategy: [] },
+      prosecutor: { stance: "사기죄 검토 [[criminal-act:347]]", violations: [], sanctions: [], proofPoints: [] },
+      judge: { stance: "요건 대조 [[housing-lease:3의2]]", issues: ["종료 여부"], requirements: [], outlook: "인용 가능성" },
+      citations: ["housing-lease:3"],
+    });
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (_u: unknown, init?: RequestInit) =>
+      String(init?.body).includes("prosecutor) 관점") ? new Response("busy", { status: 503 }) : new Response(JSON.stringify({ model: "gpt-test", choices: [{ message: { content } }] }), { status: 200 }),
+    );
+    const r = await analyze({ situation: JEONSE });
+    expect(r.provider.id).toBe("openai");
+    expect(r.notices.join(" ")).toContain("검사 관점은 AI 응답이 늦어");
+    expect(r.analyses[0].perspectives.lawyer.stance).toContain("임차권등기명령");
+    expect(r.analyses[0].perspectives.prosecutor.stance.startsWith("사기죄 검토")).toBe(false);
   });
 });
 

@@ -10,9 +10,9 @@ from .config import config
 from .data import PERSPECTIVES, article_key, article_label, get_law, get_topic, parse_key
 from .facts import extract_facts
 from .guard import find_unverified_mentions, guard_analysis_output, parse_loose_json
-from .llm import resolve_provider
+from .llm import LLMError, resolve_provider
 from .privacy import mask_notice, mask_pii
-from .prompts import ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, analysis_prompt
+from .prompts import ANALYSIS_ROLES, ANALYSIS_SYSTEM, ROLE_LABEL, role_prompt, role_schema
 from .search import match_topics, normalize, search_articles
 from .service import LawService
 
@@ -24,7 +24,8 @@ DEFAULT_CONTACTS = [
 
 
 # 상황 분석은 긴 답(3관점)을 쓰므로 일반 질문(기본 45초)보다 길게 — 화면은 90초까지 기다림
-ANALYSIS_TIMEOUT_MS = 65000  # 전체 응답 기준(근거 찾기 포함 화면 제한 90초 안)
+ANALYSIS_TIMEOUT_MS = 45000  # 관점 하나의 응답 제한(전체 응답 기준)
+ANALYSIS_DEADLINE_S = 60  # 세 관점 전체 — 근거 찾기 포함 화면 제한 90초 안
 
 
 def is_penal(title: str) -> bool:
@@ -178,6 +179,46 @@ def build_rule_analyses(text: str, issues: list[dict], citations: list[dict]) ->
     return out
 
 
+def _write_roles(p, situation: str, citations: list[dict], analyses: list[dict]) -> tuple[dict, list[str], str]:
+    """변호사·검사·판사를 동시에 따로 씀(한 번에 쓰면 20~65초) — 늦은 관점만 규칙기반 분석으로 채움. 셋 다 실패면 LLMError"""
+    import concurrent.futures as cf
+
+    deadline = time.time() + ANALYSIS_DEADLINE_S
+    model = [p.model]
+
+    def one(role: str):
+        for _ in range(2):
+            left = deadline - time.time()
+            if left < 8:
+                return None
+            try:
+                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": role_prompt(situation, citations, role)}], json_mode=True, temperature=0.1, max_tokens=1400, schema=role_schema(role), timeout_ms=int(min(ANALYSIS_TIMEOUT_MS / 1000, left) * 1000))
+                model[0] = res.get("model") or model[0]
+                raw = parse_loose_json(res["text"])
+                part = raw.get(role) if isinstance(raw, dict) and isinstance(raw.get(role), dict) else (raw if isinstance(raw, dict) and "stance" in raw else None)
+                if part:
+                    return {"part": part, "cites": raw.get("citations") if isinstance(raw.get("citations"), list) else []}
+            except Exception:  # noqa: BLE001 — 연결 지연·형식 오류 → 한 번 다시
+                pass
+        return None
+
+    with cf.ThreadPoolExecutor(max_workers=3) as ex:
+        outs = list(ex.map(one, ANALYSIS_ROLES))
+    if not any(outs):
+        raise LLMError("세 관점 모두 응답 없음", p.id)
+    rule = analyses[0]["perspectives"] if analyses else None
+    merged: dict = {"citations": [c for o in outs if o for c in o["cites"]]}
+    missed: list[str] = []
+    for r, o in zip(ANALYSIS_ROLES, outs):
+        if o:
+            merged[r] = o["part"]
+        else:
+            missed.append(r)
+            if rule:
+                merged[r] = rule[r]
+    return merged, missed, model[0]
+
+
 def analyze(situation: str, provider: str | None = None) -> dict:
     # 상황 설명 속 개인정보(주민등록번호·전화번호 등)는 분석·AI로 넘기기 전에 가린다
     situation, masked = mask_pii(situation)
@@ -208,12 +249,14 @@ def analyze(situation: str, provider: str | None = None) -> dict:
             fallback = NO_EVIDENCE
         else:
             try:
-                res = p.generate(system=ANALYSIS_SYSTEM, messages=[{"role": "user", "content": analysis_prompt(situation, citations)}], json_mode=True, temperature=0.1, max_tokens=2500, schema=ANALYSIS_SCHEMA, timeout_ms=ANALYSIS_TIMEOUT_MS)
-                g = guard_analysis_output(parse_loose_json(res["text"]), citations, [situation])
-                used["model"] = res["model"] or p.model
+                merged, missed, model = _write_roles(p, situation, citations, analyses)
+                g = guard_analysis_output(merged, citations, [situation])
+                used["model"] = model
                 label = f"종합 분석({'·'.join(i['topic']['label'] for i in issues)})" if issues else "종합 분석"
                 analyses = [{"issue": {"id": "ai", "label": label}, "perspectives": g["perspectives"]}]
                 removed, unverified = g["removed"], g["unverified"]
+                if missed:
+                    notices.append(f"{'·'.join(ROLE_LABEL[r] for r in missed)} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.")
             except Exception as e:  # noqa: BLE001
                 fallback = llm_fallback(p.label, e, "분석")
                 used = {"id": "mock", "label": "규칙기반 엔진(AI 답변 대체)", "model": "law-rule-engine-v1", "kind": "rule"}

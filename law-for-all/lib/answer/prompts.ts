@@ -87,6 +87,16 @@ export const ANALYSIS_SYSTEM = `${COMMON}
   "citations": ["사용한 근거 키"]
 }`;
 
+/** 3관점을 관점마다 따로·동시에 쓰게 함(한 번에 쓰면 응답이 길어 느림) — 시스템 프롬프트·스키마는 위와 같고 한 관점만 */
+export type AnalysisRole = "lawyer" | "prosecutor" | "judge";
+export const ANALYSIS_ROLES: AnalysisRole[] = ["lawyer", "prosecutor", "judge"];
+export const ROLE_LABEL: Record<AnalysisRole, string> = { lawyer: "변호사", prosecutor: "검사", judge: "판사" };
+export const roleSchema = (role: AnalysisRole) => obj({ [role]: ANALYSIS_SCHEMA.properties[role], citations: arr(S) });
+
+export function buildRolePrompt(situation: string, citations: Citation[], role: AnalysisRole): string {
+  return `<근거조문>\n${contextBlock(citations)}\n</근거조문>\n\n<상황>\n${situation}\n</상황>\n\n위 근거조문만 사용하여 이번에는 ${ROLE_LABEL[role]}(${role}) 관점 하나만 분석하라. 다른 관점은 쓰지 않는다. 형식: {"${role}": {...}, "citations": ["사용한 근거 키"]} JSON 객체 하나.`;
+}
+
 export function buildAnalysisPrompt(situation: string, citations: Citation[]): string {
   return `<근거조문>\n${contextBlock(citations)}\n</근거조문>\n\n<상황>\n${situation}\n</상황>\n\n위 근거조문만 사용하여 세 관점의 분석을 JSON으로 작성하라.`;
 }

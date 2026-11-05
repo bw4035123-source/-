@@ -6,7 +6,8 @@ import { resolveProvider } from "../llm/registry";
 import { buildRuleAnalyses, collectKeys, rankRecommendations, spotIssues } from "./analyze-core";
 import { extractFacts } from "./facts";
 import { findUnverifiedMentions, guardAnalysisOutput, parseLooseJson } from "./guard";
-import { ANALYSIS_SCHEMA, ANALYSIS_SYSTEM, buildAnalysisPrompt } from "./prompts";
+import { ANALYSIS_ROLES, ANALYSIS_SYSTEM, ROLE_LABEL, buildRolePrompt, roleSchema, type AnalysisRole } from "./prompts";
+import { LLMError } from "../llm/types";
 import type { AnalyzeResult, IssueAnalysis } from "./types";
 import { maskNotice, maskPII } from "../privacy-mask";
 import { llmFallback, NO_EVIDENCE_REASON, type FallbackKind } from "./fallback";
@@ -56,21 +57,51 @@ export async function analyze({ situation: raw, provider: requested }: { situati
       fallbackKind = "no-evidence";
     } else {
       try {
-        const res = await provider.generate({
-          system: ANALYSIS_SYSTEM,
-          messages: [{ role: "user", content: buildAnalysisPrompt(situation, citations) }],
-          json: true,
-          schema: ANALYSIS_SCHEMA,
-          temperature: 0.1,
-          maxTokens: 2500,
-          // 긴 답(3관점) — 일반 질문(기본 45초)보다 길게, 화면은 90초까지 기다림
-          timeoutMs: 65000,
+        // 변호사·검사·판사를 동시에 따로 씀(한 번에 쓰면 20~65초) — 늦은 관점만 규칙기반 분석으로 채움
+        const deadline = Date.now() + 60000;
+        let model = provider.model;
+        const one = async (role: AnalysisRole): Promise<{ part: unknown; cites: unknown } | null> => {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            const left = deadline - Date.now();
+            if (left < 8000) return null;
+            try {
+              const res = await provider.generate({
+                system: ANALYSIS_SYSTEM,
+                messages: [{ role: "user", content: buildRolePrompt(situation, citations, role) }],
+                json: true,
+                schema: roleSchema(role),
+                temperature: 0.1,
+                maxTokens: 1400,
+                timeoutMs: Math.min(45000, left),
+              });
+              model = res.model || model;
+              const raw = parseLooseJson(res.text) as Record<string, unknown> | null;
+              const part = raw && typeof raw[role] === "object" ? raw[role] : raw && "stance" in raw ? raw : null;
+              if (part) return { part, cites: raw?.citations };
+            } catch {
+              /* 연결 지연·형식 오류 → 한 번 다시 */
+            }
+          }
+          return null;
+        };
+        const outs = await Promise.all(ANALYSIS_ROLES.map(one));
+        if (outs.every((o) => !o)) throw new LLMError("세 관점 모두 응답 없음", provider.id);
+        const rule = analyses[0]?.perspectives as Record<AnalysisRole, unknown> | undefined;
+        const merged: Record<string, unknown> = { citations: outs.flatMap((o) => (Array.isArray(o?.cites) ? o.cites : [])) };
+        const missed: AnalysisRole[] = [];
+        ANALYSIS_ROLES.forEach((r, i) => {
+          if (outs[i]) merged[r] = outs[i]!.part;
+          else {
+            missed.push(r);
+            if (rule) merged[r] = rule[r];
+          }
         });
-        const g = guardAnalysisOutput(parseLooseJson(res.text), citations, [situation]);
-        usedProvider = { ...usedProvider, model: res.model || provider.model };
+        const g = guardAnalysisOutput(merged, citations, [situation]);
+        usedProvider = { ...usedProvider, model };
         analyses = [{ issue: { id: "ai", label: issues.length ? `종합 분석(${issues.map((i) => i.topic.label).join("·")})` : "종합 분석" }, perspectives: g.perspectives }];
         removed = g.removed;
         unverified = g.unverified;
+        if (missed.length) notices.push(`${missed.map((r) => ROLE_LABEL[r]).join("·")} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.`);
       } catch (e) {
         ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e, "분석"));
         usedProvider = { id: "mock", label: "규칙기반 엔진(AI 답변 대체)", model: "law-rule-engine-v1", kind: "rule" };

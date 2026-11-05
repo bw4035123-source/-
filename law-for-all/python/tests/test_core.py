@@ -1185,3 +1185,55 @@ class LlmTotalTimeoutTest(unittest.TestCase):
             self.assertLess(_t.time() - t, 2.5)
         finally:
             srv.shutdown()
+
+
+class AnalyzeRolesTest(unittest.TestCase):
+    """3관점 동시 작성: 관점마다 따로 부르고, 늦은 관점만 규칙기반으로 채움 · 셋 다 실패면 규칙기반 대체"""
+
+    def _run(self, fail_roles):
+        import json as _j
+        import law_for_all.analyze as an
+        from law_for_all.llm import LLMError
+
+        calls = []
+        body = {
+            "lawyer": {"stance": "임차권등기명령으로 권리 보전 [[housing-lease:3의3]]", "arguments": ["대항력 주장 [[housing-lease:3]]"], "evidence": ["계약서"], "strategy": []},
+            "prosecutor": {"stance": "사기죄 검토 [[criminal-act:347]]", "violations": [], "sanctions": [], "proofPoints": []},
+            "judge": {"stance": "요건 대조 [[housing-lease:3의2]]", "issues": ["종료 여부"], "requirements": [], "outlook": "인용 가능성"},
+        }
+
+        class P:
+            kind, label, model, id = "llm", "t", "m", "openai"
+
+            def generate(self, messages, **_):
+                u = messages[0]["content"]
+                role = next(r for r in ("lawyer", "prosecutor", "judge") if f"({r}) 관점" in u)
+                calls.append(role)
+                if role in fail_roles:
+                    raise LLMError("busy", "openai")
+                return {"text": _j.dumps({role: body[role], "citations": ["housing-lease:3"]}), "model": "m"}
+
+        orig = an.resolve_provider
+        an.resolve_provider = lambda *a, **k: (P(), None)
+        try:
+            r = an.analyze("전세 계약이 끝났는데 집주인이 보증금을 안 돌려주고 연락 두절이에요. 전입신고와 확정일자는 받았어요.")
+        finally:
+            an.resolve_provider = orig
+        return r, calls
+
+    def test_all_ok(self):
+        r, calls = self._run(set())
+        self.assertEqual(sorted(calls), ["judge", "lawyer", "prosecutor"])
+        self.assertEqual(r["provider"]["kind"], "llm")
+        self.assertIn("임차권등기명령", r["analyses"][0]["perspectives"]["lawyer"]["stance"])
+
+    def test_one_slow(self):
+        r, calls = self._run({"prosecutor"})
+        self.assertEqual(calls.count("prosecutor"), 2)  # 한 번 다시
+        self.assertEqual(r["provider"]["kind"], "llm")
+        self.assertTrue(any("검사 관점은 AI 응답이 늦어" in n for n in r["notices"]))
+        self.assertFalse(r["analyses"][0]["perspectives"]["prosecutor"]["stance"].startswith("사기죄 검토"))
+
+    def test_all_slow(self):
+        r, _ = self._run({"lawyer", "prosecutor", "judge"})
+        self.assertEqual(r["provider"]["kind"], "rule")
