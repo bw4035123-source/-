@@ -174,6 +174,8 @@ let sceneEnd = 0;
 // 생성형 AI가 답을 쓰는 동안: 앞부분(1.2초)만 보여 주고 나머지 대기 구간은 영상에서 잘라 낸다(자막으로 알림).
 // 잘라 낸 만큼 그 장면의 자막 시간은 늘려, 결과 화면을 읽을 시간이 줄지 않게 한다
 const cuts = [];
+// 걸린 시간 자막 — 1.5초 안이면 서버에 저장해 둔 검증 결과(같은 질문·규정)라 그대로 밝힘
+const took = (sec) => (Number(sec) < 1.5 ? "같은 질문·규정은 저장해 둔 검증 결과로 바로(처음은 십수 초)" : `실제 약 ${sec}초`);
 async function aiWait(waitFn, what = "답변") {
   const s = Date.now();
   await cap(`AI(국산 업스테이지 Solar Pro 4)가 근거 조문만 보고 ${what}을 쓰는 중…`, "기다리는 구간은 영상에서 줄였습니다");
@@ -219,7 +221,7 @@ await scene("s01", async () => {
 await scene("s02", async () => {
   await page.waitForURL(/search/);
   const sec = await aiWait(() => page.locator("[aria-label^='근거 1:']").first().waitFor({ timeout: 60000 }).catch(() => {}));
-  await cap("국산 AI Solar Pro 4가 쓴 쉬운 답 — 문장마다 근거 조문 번호", `실제 약 ${sec}초 · 근거 목록 밖 인용은 자동 제거, 금액·기간은 원문과 대조(환각 방지)`);
+  await cap("국산 AI Solar Pro 4가 쓴 쉬운 답 — 문장마다 근거 조문 번호", `${took(sec)} · 근거 목록 밖 인용은 자동 제거, 금액·기간은 원문과 대조(환각 방지)`);
   await wait(1200);
   await point(page.locator("[aria-label^='근거 1:']").first());
 });
@@ -460,7 +462,7 @@ await scene("s14", async () => {
     if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 140, behavior: "smooth" });
   });
   await wait(600);
-  await cap("AI 검토 — 조문마다 상위 조문 원문과 대조해 판정 · 이유 · 고칠 방향", `실제 약 ${sec}초 · 근거 조문·수치는 가드가 검증 · 참고 의견, 최종 판단은 담당자`);
+  await cap("AI 검토 — 조문마다 상위 조문 원문과 대조해 판정 · 이유 · 고칠 방향", `${took(sec)} · 근거 조문·수치는 가드가 검증 · 참고 의견, 최종 판단은 담당자`);
 });
 if (process.env.WITH_OFFICER_EXTRA) {
 await scene("s15", async () => {
@@ -556,7 +558,7 @@ await scene("s18", async () => {
     const sec = await aiWait(() => page.getByText(/가 빈칸 .*곳을 채웠어요|연결하지 못했어요|형식이 올바르지/).first().waitFor({ timeout: 95000 }).catch(() => {}), "빈칸");
     await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
     await wait(300);
-    await cap("노란 표시가 AI가 채운 자리 — 빈칸 밖 문구를 바꾼 조문은 가드가 버리고 표준 초안 유지", `실제 약 ${sec}초 · 근거 목록 밖 법령 인용·새 벌칙도 차단, 상위 기준 초과는 경고`);
+    await cap("노란 표시가 AI가 채운 자리 — 빈칸 밖 문구를 바꾼 조문은 가드가 버리고 표준 초안 유지", `${took(sec)} · 근거 목록 밖 법령 인용·새 벌칙도 차단, 상위 기준 초과는 경고`);
   });
   await scene("t04", async () => {
     await scrollBy(380, 14);
@@ -580,7 +582,7 @@ await scene("s18", async () => {
       if (p) window.scrollTo({ top: p.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
     });
     await wait(500);
-    await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `실제 약 ${sec}초 · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
+    await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `${took(sec)} · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
     await wait(3500);
     await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건")); if (p) p.scrollTo({ top: p.scrollHeight * 0.4, behavior: "smooth" }); });
   });
@@ -643,7 +645,7 @@ await scene("s18", async () => {
     const sec = await aiWait(() => page.getByText(/담당자 확인 필요|검증을 통과하지 못해|바꿀 내용을 정하지|연결하지 못했어요/).first().waitFor({ timeout: 80000 }).catch(() => {}), "개정 조문");
     await scrollToEl("section[aria-label='개정안과 검토 결과']", 110);
     await wait(500);
-    await cap("AI 작성 개정안 — 검증 통과분만 신·구조문 대비표로(삭제 취소선·개정 밑줄)", `실제 약 ${sec}초 · 지시에 없는 항 삭제·근거 밖 수치·법령·새 벌칙·의무↔재량 표현 변경은 가드가 차단 · 표 복사 → 한글·Word에 표로`);
+    await cap("AI 작성 개정안 — 검증 통과분만 신·구조문 대비표로(삭제 취소선·개정 밑줄)", `${took(sec)} · 지시에 없는 항 삭제·근거 밖 수치·법령·새 벌칙·의무↔재량 표현 변경은 가드가 차단 · 표 복사 → 한글·Word에 표로`);
   });
   await scene("t08b", async () => {
     await click(page.getByRole("tab", { name: "개정이유" }));
