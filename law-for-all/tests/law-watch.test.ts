@@ -29,3 +29,18 @@ describe("상위법 개정 알림", () => {
     expect(toDateInput("20260407")).toBe("2026-04-07");
   });
 });
+
+describe("개정 알리미(최근 90일)", () => {
+  it("90일 안의 공포만, 최신순, 시행 전이면 표시", async () => {
+    const { recentAmendments } = await import("@/lib/law-watch");
+    const today = new Date(2026, 10, 5);
+    const ls = [
+      { query: "a", name: "산업안전보건법", mst: "1", promulgated: "20261027", effective: "20270428", revision: "일부개정" },
+      { query: "b", name: "근로기준법", mst: "2", promulgated: "20260407", effective: "20261008", revision: "일부개정" },
+      { query: "c", name: "도로교통법", mst: "3", promulgated: "20260807", effective: "20260807", revision: "일부개정" },
+      { query: "d", name: "도로교통법", mst: "3", promulgated: "20260807", effective: "20260807", revision: "일부개정" },
+    ];
+    const r = recentAmendments(ls, 90, today);
+    expect(r.map((x) => [x.name, x.daysAgo, x.upcoming])).toEqual([["산업안전보건법", 9, true], ["도로교통법", 90, false]]);
+  });
+});

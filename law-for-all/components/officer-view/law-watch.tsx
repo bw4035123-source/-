@@ -3,7 +3,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Bell, BellPlus, BellRing, Check, Loader2, Settings2, Trash2, X } from "lucide-react";
 import { fetchJson } from "@/lib/fetch-json";
-import { WATCH_EVENT, fmtYmd, fromDateInput, loadWatch, mergeWatch, pendingUpdates, saveWatch, toDateInput, ymd, type WatchItem, type WatchLaw } from "@/lib/law-watch";
+import { WATCH_EVENT, fmtYmd, fromDateInput, loadWatch, mergeWatch, pendingUpdates, recentAmendments, saveWatch, toDateInput, ymd, type WatchItem, type WatchLaw } from "@/lib/law-watch";
 import { LawCombobox } from "@/components/drafting/law-combobox";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
@@ -206,6 +206,87 @@ export function LawWatchPanel() {
             </button>
           </p>
         </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * 법령 둘러보기 — 개정 알리미: 핵심 법령 + 지켜보는 법령 중 최근 90일 안에 공포된 개정을 계속 보여 줌(확인해도 기간 동안 유지).
+ * 법령 카드에 '최근 개정' 표시를 붙이도록 결과를 onLoaded 로 넘김
+ */
+export function RecentAmendmentsBoard({ catalog, officer, onLoaded }: { catalog: { id: string; name: string }[]; officer: boolean; onLoaded?: (recent: Map<string, string>) => void }) {
+  const [items] = useWatch();
+  const [laws, setLaws] = React.useState<WatchLaw[] | null>(null);
+  const [failed, setFailed] = React.useState(false);
+  const names = Array.from(new Set([...items.map((x) => x.name), ...catalog.map((c) => c.name)])).slice(0, 40);
+  const key = names.join("|");
+  React.useEffect(() => {
+    if (!key) return;
+    let live = true;
+    setFailed(false);
+    fetchJson<{ laws: WatchLaw[] }>(`/api/law-watch?names=${encodeURIComponent(key)}`, { timeoutMs: 45000 })
+      .then((j) => live && setLaws(j.laws))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  const recent = laws ? recentAmendments(laws) : [];
+  React.useEffect(() => {
+    if (laws) onLoaded?.(new Map(recent.map((r) => [r.name.replace(/\s/g, ""), r.promulgated])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [laws]);
+  const watched = (n: string) => items.some((x) => x.name.replace(/\s/g, "") === n.replace(/\s/g, ""));
+  const idOf = (n: string) => catalog.find((c) => c.name.replace(/\s/g, "") === n.replace(/\s/g, ""))?.id;
+  if (!key) return null;
+  return (
+    <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-800 dark:bg-amber-950/25" aria-label="개정 알리미" aria-live="polite">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1.5 font-extrabold">
+          <BellRing className="h-4 w-4 text-amber-600" aria-hidden /> 개정 알리미 <span className="text-xs font-semibold text-muted-foreground">— 최근 90일 안에 공포된 개정</span>
+        </p>
+        <span className="text-[11px] text-muted-foreground">핵심 법령 {catalog.length}개{items.length ? ` + 지켜보는 법령 ${items.length}개` : ""} · 국가법령정보 법령 목록 기준 · 공포 후 90일 동안 계속 표시</span>
+      </div>
+      {!laws && !failed && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> 국가법령정보에서 최근 개정을 확인하는 중…
+        </p>
+      )}
+      {failed && <p className="mt-2 text-xs text-muted-foreground">지금은 국가법령정보에 연결하지 못했어요. 잠시 후 다시 열어 주세요.</p>}
+      {laws && !recent.length && <p className="mt-2 text-sm text-muted-foreground">최근 90일 안에 개정된 법령이 없어요.</p>}
+      {recent.length > 0 && (
+        <ul className="mt-3 grid gap-2 md:grid-cols-2">
+          {recent.map((r) => {
+            const id = idOf(r.name);
+            return (
+              <li key={r.name} className="flex flex-col gap-2 rounded-xl border bg-card px-3 py-2.5">
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <b className="text-sm">「{r.name}」</b>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">{r.revision || "개정"}</span>
+                    {r.upcoming && <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-900 dark:bg-sky-900/50 dark:text-sky-100">시행 예정</span>}
+                    {watched(r.name) && <span className="rounded-full border border-accent/40 px-2 py-0.5 text-[11px] font-bold text-accent">지켜보는 법령</span>}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {fmtYmd(r.promulgated)} 공포({r.daysAgo === 0 ? "오늘" : `${r.daysAgo}일 전`}){r.effective ? ` · ${fmtYmd(r.effective)} 시행` : ""}
+                    {r.revision === "타법개정" ? " · 다른 법률 개정에 따른 자구 수정일 수 있음" : ""}
+                  </span>
+                </span>
+                <span className="flex flex-wrap gap-1.5">
+                  {officer && (
+                    <Link href={`/drafting?mode=upper&law=${encodeURIComponent(r.name)}`} className="inline-flex h-7 items-center rounded-md bg-accent px-2.5 text-xs font-bold text-accent-foreground hover:bg-accent/90">
+                      개정 전후 비교
+                    </Link>
+                  )}
+                  <Link href={id ? `/laws/${id}` : `https://www.law.go.kr/lsSc.do?query=${encodeURIComponent(r.name)}`} target={id ? undefined : "_blank"} className="inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-semibold hover:border-accent hover:text-accent">
+                    현행 원문
+                  </Link>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </section>
   );

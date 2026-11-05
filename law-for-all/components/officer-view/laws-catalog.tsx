@@ -6,6 +6,9 @@ import { ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
 import type { LawSummary } from "@/lib/law-api/types";
 import { Badge } from "@/components/ui/badge";
 import { MOCK_DATASET_DATE } from "@/lib/law-api/mock/dataset-date";
+import { useSettings } from "@/components/providers/settings-provider";
+import { RecentAmendmentsBoard } from "./law-watch";
+import { fmtYmd } from "@/lib/law-watch";
 
 /** 법령 목록(체계별) — /api/laws 조회(Node·Python 서버 공통) */
 const KINDS = [
@@ -16,6 +19,9 @@ const KINDS = [
 type KindId = (typeof KINDS)[number]["id"];
 
 export function LawsCatalog() {
+  const { mode } = useSettings();
+  // 개정 알리미 결과(정규화한 법령명 → 공포일) — 법령 카드에 '최근 개정' 표시
+  const [recent, setRecent] = React.useState<Map<string, string>>(new Map());
   const sp = useSearchParams();
   const q = (sp.get("q") ?? "").slice(0, 100);
   const kindParam = sp.get("kind");
@@ -65,6 +71,7 @@ export function LawsCatalog() {
         <button className="h-10 shrink-0 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground">검색</button>
       </form>
       {data?.warnings?.length ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">△ {data.warnings[0]}</p> : null}
+      {kind === "law" && !q && data && roots.length > 0 && <RecentAmendmentsBoard catalog={roots.filter((l) => !l.id.startsWith("mst-")).map((l) => ({ id: l.id, name: l.name }))} officer={mode === "officer"} onLoaded={setRecent} />}
       {!data ? (
         <p className="flex items-center gap-2 py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" /> 불러오는 중…
@@ -78,6 +85,7 @@ export function LawsCatalog() {
                   <span className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary">{l.subKind || l.kind}</Badge>
                     {l.source === "live" && <Badge variant="success">실시간</Badge>}
+                    {recent.has(l.name.replace(/\s/g, "")) && <Badge variant="warning">최근 개정 {fmtYmd(recent.get(l.name.replace(/\s/g, ""))!)}</Badge>}
                   </span>
                   <span className="mt-1.5 block text-lg font-bold group-hover:text-accent">{l.name}</span>
                   <span className="text-xs text-muted-foreground">

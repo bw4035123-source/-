@@ -80,3 +80,15 @@ export const fmtYmd = (s: string) => (/^\d{8}$/.test(s) ? `${s.slice(0, 4)}. ${N
 /** <input type=date> 값 ↔ YYYYMMDD */
 export const fromDateInput = (v: string) => v.replace(/-/g, "");
 export const toDateInput = (s: string) => (/^\d{8}$/.test(s) ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}` : "");
+
+/** 개정 알리미 — 최근 N일(기본 90일) 안에 공포된 개정만, 최신순. 확인 여부와 관계없이 기간 동안 계속 보임 */
+export function recentAmendments(laws: WatchLaw[], days = 90, today = new Date()): (WatchLaw & { daysAgo: number; upcoming: boolean })[] {
+  const t = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const at = (s: string) => Date.UTC(Number(s.slice(0, 4)), Number(s.slice(4, 6)) - 1, Number(s.slice(6, 8)));
+  const seen = new Set<string>();
+  return laws
+    .filter((l) => /^\d{8}$/.test(l.promulgated) && !seen.has(l.name) && (seen.add(l.name), true))
+    .map((l) => ({ ...l, daysAgo: Math.round((t - at(l.promulgated)) / 86400000), upcoming: /^\d{8}$/.test(l.effective) && at(l.effective) > t }))
+    .filter((l) => l.daysAgo >= 0 && l.daysAgo <= days)
+    .sort((a, b) => a.daysAgo - b.daysAgo);
+}

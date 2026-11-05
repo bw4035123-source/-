@@ -598,7 +598,7 @@ class Handler(BaseHTTPRequestHandler):
             ok, retry = rate_limit(f"law-watch:{self._client()}", 30)
             if not ok:
                 raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
-            names = list(dict.fromkeys(x.strip()[:60] for x in (qs.get("names") or [""])[0].split("|") if x.strip()))[:20]
+            names = list(dict.fromkeys(x.strip()[:60] for x in (qs.get("names") or [""])[0].split("|") if x.strip()))[:40]
             return self._json(200, law_watch(names))
         if method == "GET" and path == "/api/law-changes/search":
             ok, retry = rate_limit(f"law-changes-search:{self._client()}", 60)

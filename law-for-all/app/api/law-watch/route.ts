@@ -14,13 +14,13 @@ const norm = (s: string) => s.replace(/\s/g, "");
 
 /**
  * 상위법 개정 알림 — 지켜보는 법령마다 현행 최근 공포일·제개정 구분(국가법령정보 법령 목록 조회)
- *   GET /api/law-watch?names=근로기준법|산업안전보건법   (최대 20개)
+ *   GET /api/law-watch?names=근로기준법|산업안전보건법   (최대 40개)
  * 비교(우리 규정 기준일 이후 개정됐는지)는 화면에서 함 — 지켜보는 목록은 서버에 저장하지 않음
  */
 export async function GET(req: Request) {
   const rl = rateLimit(`law-watch:${clientKey(req)}`, 30);
   if (!rl.ok) return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, { status: 429, headers: { "Retry-After": String(rl.retryAfter) } });
-  const names = Array.from(new Set((new URL(req.url).searchParams.get("names") ?? "").split("|").map((x) => x.trim().slice(0, 60)).filter(Boolean))).slice(0, 20);
+  const names = Array.from(new Set((new URL(req.url).searchParams.get("names") ?? "").split("|").map((x) => x.trim().slice(0, 60)).filter(Boolean))).slice(0, 40);
   if (!names.length) return NextResponse.json({ laws: [], missing: [] });
   const svc = new LawService(serverConfig.lawAccess);
   const now = Date.now();
