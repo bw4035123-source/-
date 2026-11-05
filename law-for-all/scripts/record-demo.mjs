@@ -32,7 +32,7 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 14, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11b: 10, tW: 13, t12: 9, t13: 8 }
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 14, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
   : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
@@ -732,17 +732,30 @@ await scene("s18", async () => {
     await wait(700);
     await cap("AI 검토 · 상충 — 1주 45시간은 법정 40시간 초과(「근로기준법」 제50조) · 고칠 방향", "근거 조문 버튼으로 원문 확인 · 수치 위반은 개정안 자동 제안");
   });
-  await scene("t11b", async () => {
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-    await scrollToEl("#compliance-result");
+  await scene("t11c", async () => {
+    // 점검 → 상충·검토 필요 조문 한 번에 개정 → 일부개정(안) 보고
+    const panel = page.locator("#batch-amend");
+    await scrollToEl("#batch-amend", 120);
     await wait(400);
-    await click(page.getByRole("button", { name: "보고서 바로 만들기" }));
+    const btn = panel.getByRole("button", { name: /개정안 쓰기/ });
+    await point(btn);
+    await cap("상충·검토 필요 조문 한 번에 개정 — 근거 상위 조문 기준으로", "수치 위반은 법정 기준 규칙, 절차 누락 등은 국산 AI가 조문마다 동시에 쓰고 가드가 검증(개정 화면과 같은 AI·가드)");
+    await wait(1400);
+    await btn.click();
+    const report = panel.getByRole("button", { name: /일부개정\(안\) 보고서 바로 만들기/ });
+    const sec = await aiWait(() => report.waitFor({ timeout: 200000 }).catch(() => {}), "개정 조문");
+    await scrollToEl("#batch-amend", 110);
+    await wait(300);
+    await cap("조문마다 현행 ↔ 개정안 — 반영할 조문을 고르고 직접 고칠 수 있음", `${took(sec)} · 근거 밖 수치·법령, 새 벌칙, 의무↔재량 변경은 가드가 막고 그 조문은 현행 유지(이유 표시)`);
+    await wait(2600);
+    await report.scrollIntoViewIfNeeded().catch(() => {});
+    await wait(400);
+    await click(report);
     await wait(600);
-    await cap("점검 결과도 보고서 바로 만들기 — 상위법령 정합성 점검 결과 보고 · 기안문", "점검 개요 → 결과 요약(상충·검토 필요·적합) → 주요 지적·근거 → 개선 계획 → 행정사항");
-    await wait(3200);
+    await cap("일부개정(안) 보고 — 개정 사유 · 조문별 바뀐 수치 · 근거 상위법령 · 시행 · 추진 절차 + 기안문", "붙임: 신·구조문대비표 · 개정문 · 부칙 — 한글(HWPX)·Word로 저장");
+    await wait(2800);
     await click(page.getByRole("tab", { name: /붙임/ }));
-    await cap("붙임 — 조문별 점검표 · 신·구조문대비표(자동 개정안)", "표 복사 → 한글·Word에 표로 · 보고서+붙임 Word 저장");
-    await wait(2400);
+    await wait(2200);
     await page.keyboard.press("Escape");
   });
   await scene("tW", async () => {
@@ -768,10 +781,10 @@ await scene("s18", async () => {
   });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 286건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 293건</li></ul>`);
   });
   await scene("t13", async () => {
-    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 알림 · 모든 현행 법령 신구법 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안 · 결재 보고서·기안문 바로 만들기</li></ul>`);
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 알림 · 모든 현행 법령 신구법 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상충 조문 한 번에 개정 → 일부개정(안) 보고·기안문(한글·Word)</li></ul>`);
   });
 }
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
