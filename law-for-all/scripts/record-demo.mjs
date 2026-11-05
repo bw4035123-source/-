@@ -174,6 +174,7 @@ let sceneEnd = 0;
 // 생성형 AI가 답을 쓰는 동안: 앞부분(1.2초)만 보여 주고 나머지 대기 구간은 영상에서 잘라 낸다(자막으로 알림).
 // 잘라 낸 만큼 그 장면의 자막 시간은 늘려, 결과 화면을 읽을 시간이 줄지 않게 한다
 const cuts = [];
+// 화면은 가운뎃점 앞뒤에 보이지 않는 줄바꿈 문자(U+2060·U+200B)를 넣으므로(components/layout/korean-wrap.tsx) 글자로 찾을 때는 /가\u2060?·\u200B?나/ 처럼
 // 걸린 시간 자막 — 1.5초 안이면 서버에 저장해 둔 검증 결과(같은 질문·규정)라 그대로 밝힘
 const took = (sec) => (Number(sec) < 1.5 ? "같은 질문·규정은 저장해 둔 검증 결과로 바로(처음은 십수 초)" : `실제 약 ${sec}초`);
 async function aiWait(waitFn, what = "답변") {
@@ -411,7 +412,7 @@ if (casesLive && process.env.WITH_OFFICER_EXTRA) {
   await scene("sC", async () => {
     await page.keyboard.press("Escape").catch(() => {});
     await page.goto(BASE + "/cases");
-    await page.getByText("판례·법령해석례 검토").first().waitFor().catch(() => {});
+    await page.getByText(/판례\u2060?·\u200B?법령해석례 검토/).first().waitFor().catch(() => {});
     await cap("공직자 판례 보기 — 판례·법령해석례 검토, 업무 분야별 쟁점으로 바로 찾기", "인사·복무 · 청렴·선거 · 재산·계약 · 행정·민원");
     await wait(1800);
     await click(page.locator("main button", { hasText: /^\s*#\s*부정청탁\s*$/ }).first());
@@ -590,7 +591,7 @@ await scene("s18", async () => {
     await page.getByLabel("규정명").fill("○○공단 재택근무 운영 지침");
     await page.getByLabel("제정 목적").fill("직원의 재택근무 신청·승인과 복무 관리 기준을 정하기 위함");
     await page.getByLabel("담을 내용").fill("신청 절차\n정보 보안");
-    const sim = page.getByRole("heading", { name: "유사 규정 찾기·조문 구성 비교" });
+    const sim = page.getByRole("heading", { name: /유사 규정 찾기\u2060?·\u200B?조문 구성 비교/ });
     await sim.scrollIntoViewIfNeeded().catch(() => {});
     await cap("② 유사 규정 찾기 — 다른 기관이 이미 만든 규정과 비교", "규정명에서 검색어를 뽑아 국가법령정보 행정규칙·자치법규를 실시간 검색");
     await wait(1000);
@@ -632,7 +633,7 @@ await scene("s18", async () => {
     const src = page.getByRole("textbox", { name: "현행 조문 원문" });
     await click(src);
     await src.fill("제5조(처리기간) ① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
-    await page.getByText(/규정명·규범 종류/).click();
+    await page.getByText(/규정명\u2060?·\u200B?규범 종류/).click();
     await page.getByRole("textbox", { name: "규정명" }).fill("○○공단 민원 처리 규정");
     const ins = page.getByRole("textbox", { name: "개정 방향" });
     await point(page.getByRole("button", { name: "단어·기한 변경" }));
@@ -684,7 +685,7 @@ await scene("s18", async () => {
     await opt.waitFor({ timeout: 20000 }).catch(() => {});
     await wait(900);
     await click(opt);
-    await page.getByText(/신·구조문 대비 \(/).waitFor({ timeout: 40000 }).catch(() => {});
+    await page.getByText(/신\u2060?·\u200B?구조문 대비 \(/).waitFor({ timeout: 40000 }).catch(() => {});
     await page.getByRole("heading", { name: /일부개정|타법개정/ }).first().scrollIntoViewIfNeeded().catch(() => {});
     await page.evaluate(() => window.scrollBy({ top: -120 }));
     await wait(300);
