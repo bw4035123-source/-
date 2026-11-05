@@ -269,23 +269,23 @@ export function enactDocs(x: EnactInput, o: ReportProfile = {}): RegDocs {
 }
 
 // ─────────────────────────────── 4) 자체규정 점검 → 한 번에 개정: 일부개정(안) 보고(여러 조문)
-/** 바뀐 말 요약: ‘9시간’ → ‘8시간’, ‘…’ 신설, ‘…’ 삭제 (길면 '문구 정비') */
+/** 바뀐 내용 요약 — 수치(기간·금액·횟수·비율)는 ‘9시간’ → ‘8시간’처럼, 그 밖에는 단서·항 신설·문구 정비로 */
+const QTY_RE = /\d+분의\s*\d+|\d+(?:\.\d+)?\s*(?:퍼센트|개월|시간|만원|천원|일|년|분|원|명|%|회|배)/g;
 export function changeSummary(current: string, amended: string): string {
-  const d = diffWords(current, amended);
-  const clean = (t: string) => t.trim().replace(/[,.·]+$/, "");
-  const del = d.old.filter((p) => p.op === "del").map((p) => clean(p.text)).filter(Boolean);
-  const ins = d.new.filter((p) => p.op === "ins").map((p) => clean(p.text)).filter(Boolean);
-  const short = (s: string) => s.length <= 24;
+  const q = (t: string) => (t.match(QTY_RE) ?? []).map((x) => x.replace(/\s+/g, " "));
+  const a = q(current);
+  const b = q(amended);
+  const removed = a.filter((x) => !b.includes(x));
+  const added = b.filter((x) => !a.includes(x));
   const out: string[] = [];
-  const n = Math.max(del.length, ins.length);
-  for (let i = 0; i < n && out.length < 4; i++) {
-    const a = del[i];
-    const b = ins[i];
-    if (a && b && short(a) && short(b)) out.push(`‘${a}’ → ‘${b}’`);
-    else if (b && !a && short(b)) out.push(`‘${b}’ 신설`);
-    else if (a && !b && short(a)) out.push(`‘${a}’ 삭제`);
-  }
-  if (n > out.length) out.push("문구 정비");
+  const n = Math.min(removed.length, added.length, 4);
+  for (let i = 0; i < n; i++) out.push(`‘${removed[i]}’ → ‘${added[i]}’`);
+  if (added.length > n) out.push(`${added.slice(n, n + 3).map((x) => `‘${x}’`).join("·")} 기준 추가`);
+  if (removed.length > n) out.push(`${removed.slice(n, n + 3).map((x) => `‘${x}’`).join("·")} 삭제`);
+  if (/다만[,，]/.test(amended) && !/다만[,，]/.test(current)) out.push("단서 신설");
+  const paras = (t: string) => (t.match(/^[①-⑳]/gm) ?? []).length;
+  if (paras(amended) > paras(current)) out.push("항 신설");
+  if (current.replace(/\s/g, "") !== amended.replace(/\s/g, "") && (!out.length || diffWords(current, amended).new.filter((p) => p.op === "ins").length > n + 1)) out.push("문구 정비");
   return out.join(", ") || "문구 정비";
 }
 

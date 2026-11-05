@@ -54,7 +54,10 @@ describe("보고서 바로 만들기", () => {
 describe("점검 → 한 번에 개정 보고", () => {
   it("바뀐 말 요약", async () => {
     const { changeSummary } = await import("@/lib/reg-report");
-    expect(changeSummary("1일 9시간, 1주 45시간으로 한다.", "1일 8시간, 1주 40시간으로 한다.")).toBe("‘9시간’ → ‘8시간’, ‘45시간으로’ → ‘40시간으로’");
+    expect(changeSummary("1일 9시간, 1주 45시간으로 한다.", "1일 8시간, 1주 40시간으로 한다.")).toBe("‘9시간’ → ‘8시간’, ‘45시간’ → ‘40시간’");
+    expect(changeSummary("통상임금의 100분의 40을 가산", "통상임금의 100분의 50 이상을 가산")).toBe("‘100분의 40’ → ‘100분의 50’");
+    expect(changeSummary("이사장이 정한다.", "이사장이 정한다. 다만, 근로자 과반수의 의견을 들어야 한다.")).toBe("단서 신설");
+    expect(changeSummary("모든 직원에게", "직원에게")).toBe("문구 정비");
   });
   it("일부개정(안) 보고: 여러 조문·근거·부칙", async () => {
     const { batchAmendDocs } = await import("@/lib/reg-report");
@@ -66,6 +69,7 @@ describe("점검 → 한 번에 개정 보고", () => {
     expect(d.report).toContain("2개 조문(제8조, 제35조)");
     expect(d.report).toContain("상충 1건·검토 필요 1건");
     expect(d.report).toContain("가. 제8조(근무시간): ‘45시간’ → ‘40시간’ (근거: 「근로기준법」 제50조)");
+    expect(d.report).toContain("나. 제35조(규정의 개정): 문구 정비");
     expect(d.attachments[1].html).toContain("공포(발령)한 날부터 시행한다.");
     expect(d.attachments[0].html.match(/<tr>/g)).toHaveLength(3);
   });
