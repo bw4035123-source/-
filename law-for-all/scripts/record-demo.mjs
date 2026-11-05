@@ -32,7 +32,7 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 16, t05: 13, t06: 8.5, t07: 10, t08: 14, t08b: 7, t09: 11, tU1: 11, tU2: 15, t10: 14, t11: 11, t12: 9, t13: 8 }
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 14, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11b: 10, t12: 9, t13: 8 }
   : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
 const W = 1280;
 const H = 720;
@@ -363,7 +363,7 @@ await scene("s09", async () => {
 await scene("s10", async () => {
   await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
   await wait(300);
-  await cap("③ 공직자 모드 — 같은 엔진, 실무용 화면", "핵심 법령 해시태그: 근로기준법 · 지방공기업법 · 공직선거법 · 부정청탁금지법 · 공유재산법");
+  await cap("③ 공직자 모드 — 같은 엔진, 실무용 화면", "자주 찾는 법령 12개(계약·재정·청렴·정보공개·안전·노무) · 규정 바로 만들기 15종");
   await wait(2500);
   await point(page.locator("button", { hasText: "부정청탁금지법" }).first());
 });
@@ -563,15 +563,16 @@ await scene("s18", async () => {
     await cap("채운 값이 기관 실정에 맞는지는 담당자가 확인 — ‘표준 초안’과 바로 비교", "AI 채운 안 ↔ 표준 초안 전환 · 복사·Word 저장은 보고 있는 쪽으로");
   });
   await scene("tL", async () => {
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-    await wait(400);
-    const box = page.getByLabel("만들 규정 한 줄");
-    await click(box);
-    await cap("한 줄로 만들기 — 만들 규정을 말하듯 적으면", "국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 작성");
-    await box.type("우리 공단 산업안전보건 관리 지침 만들어줘", { delay: 22 });
-    await page.getByLabel("기관명").fill("○○시설관리공단");
-    await wait(600);
-    await click(page.getByRole("button", { name: /AI로 제정안 만들기/ }));
+    // 공직자 첫 화면의 '규정 바로 만들기' 15종 → 누르면 제정 화면에서 한 줄 제정이 바로 시작
+    await page.goto(BASE + "/");
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const tiles = page.locator("section[aria-label='규정 바로 만들기']");
+    await tiles.scrollIntoViewIfNeeded().catch(() => {});
+    await page.evaluate(() => window.scrollBy({ top: 120 }));
+    await cap("한 줄로 만들기 — 공직자 첫 화면 ‘규정 바로 만들기’ 15종, 누르면 바로 시작", "국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 작성");
+    await wait(1600);
+    await click(tiles.getByRole("link", { name: /산업안전보건 관리 규정/ }));
+    await page.waitForURL(/drafting/).catch(() => {});
     const sec = await aiWait(() => page.getByText(/조문 [0-9]+개를 썼어요|AI 작성에 실패|연결하지 못했어요/).first().waitFor({ timeout: 220000 }).catch(() => {}), "제정안");
     // AI가 쓴 조문 본문이 보이게(작성안 상자를 화면 위쪽으로)
     await page.evaluate(() => {
@@ -612,36 +613,48 @@ await scene("s18", async () => {
     await page.getByRole("heading", { name: "제정 문서 초안", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
     await wait(500);
     await cap("제정이유·주요내용 · 입법예고문 · 절차 체크리스트", "규범 종류(훈령·예규 / 조례·규칙 / 법령)에 맞춘 절차 · 제정안 포함 전체 Word 저장");
-    for (const t of ["입법예고문", "절차 체크리스트"]) {
-      await wait(1700);
-      await click(page.getByRole("tab", { name: t }));
-    }
+    await wait(1600);
+    await click(page.getByRole("tab", { name: "입법예고문" }));
+    await wait(1300);
+    await click(page.getByRole("button", { name: "제정 보고서 바로 만들기" }));
+    await wait(600);
+    await cap("보고서 바로 만들기 — 결재용 제정(안) 보고 · 기안문 · 붙임(제정안 전문)", "화면 결과만 공문서 서식에 옮김 · 부서·담당자 입력 · Word(한글 호환)·복사·인쇄");
+    await wait(2600);
+    await page.keyboard.press("Escape");
   });
   await scene("t08", async () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     await wait(400);
     await click(page.getByRole("tab", { name: /개정\(조문/ }));
-    await cap("③ 개정 — 개정 의도를 말하듯 적으면", "법령에서 고르거나 자체 규정·조례 조문을 붙여 넣기");
-    await click(page.getByRole("button", { name: /직접 입력/ }));
-    await page.getByPlaceholder("규정명 (예: ○○시 민원 처리 규정)").fill("○○공단 민원 처리 규정");
-    await page.getByPlaceholder("제5조(처리기간)").fill("제5조(처리기간)");
-    await page.getByPlaceholder("현행 조문을 붙여 넣으세요").fill("① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
-    const ins = page.getByPlaceholder(/처리기간을 7일에서 5일로/);
+    await cap("③ 개정 — 기존 조문을 붙여 넣고 바꿀 내용을 말하듯 적으면", "왼쪽 입력 · 오른쪽 결과(생성 전에는 결과물 예시) · 법령에서 고를 수도 있음");
+    const src = page.getByRole("textbox", { name: "현행 조문 원문" });
+    await click(src);
+    await src.fill("제5조(처리기간) ① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
+    await page.getByText(/규정명·규범 종류/).click();
+    await page.getByRole("textbox", { name: "규정명" }).fill("○○공단 민원 처리 규정");
+    const ins = page.getByRole("textbox", { name: "개정 방향" });
+    await point(page.getByRole("button", { name: "단어·기한 변경" }));
+    await wait(500);
     await click(ins);
     await ins.type("7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경\n처리 결과는 전자우편으로도 알릴 수 있도록", { delay: 14 });
-    await cap("정해진 문형(‘A에서 B로’)은 규칙으로 정확히 · 말하듯 쓴 의도는 AI가 조문으로", "‘처리 결과는 전자우편으로도 알릴 수 있도록’ → 국산 AI Solar Pro 4가 개정 조문을 쓰고 가드가 검증");
-    await wait(1500);
-    await click(page.getByRole("button", { name: /개정안 작성/ }));
+    await cap("정해진 문형(‘A에서 B로’)은 규칙으로 정확히 · 말하듯 쓴 의도는 AI가 조문으로", "입력 틀 4종(단어·기한 변경 · 단서 신설 · 조항 삭제 · 용어 정비) · 국산 AI Solar Pro 4가 쓰고 가드가 검증");
+    await wait(1300);
+    await click(page.getByRole("button", { name: /개정안 및 신·구조문대비표 생성/ }));
     const sec = await aiWait(() => page.getByText(/담당자 확인 필요|검증을 통과하지 못해|바꿀 내용을 정하지|연결하지 못했어요/).first().waitFor({ timeout: 80000 }).catch(() => {}), "개정 조문");
-    await page.getByRole("heading", { name: "신·구조문 대비표", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
-    await page.evaluate(() => window.scrollBy({ top: -150 }));
-    await wait(300);
-    await cap("AI 작성 개정안 — 검증 통과분만 신·구조문 대비표로(삭제 취소선·개정 밑줄)", `실제 약 ${sec}초 · 지시에 없는 항 삭제·근거 밖 수치·법령·새 벌칙·의무↔재량 표현 변경은 가드가 차단, 담당자 확인 표시`);
+    await scrollToEl("section[aria-label='개정안과 검토 결과']", 110);
+    await wait(500);
+    await cap("AI 작성 개정안 — 검증 통과분만 신·구조문 대비표로(삭제 취소선·개정 밑줄)", `실제 약 ${sec}초 · 지시에 없는 항 삭제·근거 밖 수치·법령·새 벌칙·의무↔재량 표현 변경은 가드가 차단 · 표 복사 → 한글·Word에 표로`);
   });
   await scene("t08b", async () => {
-    await page.getByRole("heading", { name: "정합성 점검", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
-    await wait(300);
-    await cap("정합성 점검 → 개정이유·주요내용(바뀐 항 자동 정리) · 부칙 · 입법예고문", "기간·금액 변경, 상위법 기준 초과, 인용 조문, 규제 신설·강화 표현 · ‘제2항 삭제’는 법제 관행대로 ‘② 삭제 <날짜>’");
+    await click(page.getByRole("tab", { name: "개정이유" }));
+    await wait(1200);
+    await click(page.getByRole("button", { name: "개정 보고서 바로 만들기" }));
+    await wait(600);
+    await cap("개정 보고서 바로 만들기 — 일부개정(안) 보고 · 기안문 · 붙임(신·구조문대비표·개정문·부칙)", "개정 사유·주요 내용·정합성 점검·시행·추진 절차를 결재 서식으로 · Word 한 번에");
+    await wait(2800);
+    await click(page.getByRole("tab", { name: /붙임/ }));
+    await wait(2200);
+    await page.keyboard.press("Escape");
   });
   await scene("t09", async () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
@@ -659,8 +672,16 @@ await scene("s18", async () => {
     await wait(400);
     await click(page.getByRole("tab", { name: /상위법 개정 반영/ }));
     await cap("⑤ 상위법 개정 반영 — 상위법이 바뀌면 우리 규정 어디를 고쳐야 할까?", "국가법령정보 ‘신구법 비교’에서 최근 개정 전·후 조문을 실시간으로");
+    await wait(700);
+    const lawBox = page.getByRole("combobox", { name: "개정된 상위법 검색" });
+    await click(lawBox);
     await wait(900);
-    await click(page.getByRole("button", { name: /개정 전후 보기/ }));
+    await lawBox.type("근로기준", { delay: 60 });
+    await cap("모든 현행 법령을 검색해 고르기 — 국가법령정보 ‘법령 목록’ → 고른 법령의 신구법 비교", "자주 쓰는 법령 추천 · 약칭(청탁금지법)도 검색 · 최근 개정 내역이 없으면 안내");
+    const opt = page.getByRole("option", { name: /^근로기준법/ }).first();
+    await opt.waitFor({ timeout: 20000 }).catch(() => {});
+    await wait(900);
+    await click(opt);
     await page.getByText(/신·구조문 대비 \(/).waitFor({ timeout: 40000 }).catch(() => {});
     await page.getByRole("heading", { name: /일부개정|타법개정/ }).first().scrollIntoViewIfNeeded().catch(() => {});
     await page.evaluate(() => window.scrollBy({ top: -120 }));
@@ -678,10 +699,10 @@ await scene("s18", async () => {
     await wait(4200);
     await click(page.getByRole("button", { name: /개정안 만들기/ }).first());
     await wait(900);
-    await click(page.getByRole("button", { name: /개정안 작성/ }));
-    await wait(900);
-    await page.getByRole("heading", { name: "신·구조문 대비표", exact: true }).scrollIntoViewIfNeeded().catch(() => {});
-    await page.evaluate(() => window.scrollBy({ top: -60 }));
+    await click(page.getByRole("button", { name: /개정안 및 신·구조문대비표 생성/ }));
+    await page.getByText(/담당자 확인 필요|개정안이 만들어졌어요|검증을 통과하지 못해/).first().waitFor({ timeout: 80000 }).catch(() => {});
+    await wait(400);
+    await scrollToEl("section[aria-label='개정안과 검토 결과']", 110);
     await cap("개정 방향이 채워진 개정 화면 → 신구조문대비표 · 삭제 조문 인용 경고", "개정이유: “「근로기준법」 일부개정(2026. 4. 7. 공포, 2026. 10. 8. 시행)에 맞추어 …” · 부칙·입법예고문까지");
   });
   await scene("t10", async () => {
@@ -699,7 +720,7 @@ await scene("s18", async () => {
     await aiWait(() => page.getByText(/AI 검토 완료|AI 검토를 하지 못했어요/).first().waitFor({ timeout: 150000 }).catch(() => {}), "조문별 대조 의견");
     await scrollToEl("#compliance-result");
     await wait(500);
-    await cap("AI 검토 완료 — 판정은 AI 의견과 법정 기준 규칙 중 더 엄격한 쪽", "근거 조문·수치가 확인되지 않은 AI 지적은 가드가 버림 · 상위법 개정 알림 → 개정안 → 제·개정 지원으로");
+    await cap("AI 검토 완료 — 판정은 AI 의견과 법정 기준 규칙 중 더 엄격한 쪽", "조문을 동시에 검토(규정당 평균 14초 · 모의데이터는 미리 검토해 바로) · 근거 미확인 지적은 가드가 버림 · 규칙 지적 20개 중 20개 AI 동일 판단");
   });
   await scene("t11", async () => {
     await page.evaluate(() => {
@@ -709,12 +730,25 @@ await scene("s18", async () => {
     await wait(700);
     await cap("AI 검토 · 상충 — 1주 45시간은 법정 40시간 초과(「근로기준법」 제50조) · 고칠 방향", "근거 조문 버튼으로 원문 확인 · 수치 위반은 개정안 자동 제안");
   });
+  await scene("t11b", async () => {
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+    await scrollToEl("#compliance-result");
+    await wait(400);
+    await click(page.getByRole("button", { name: "보고서 바로 만들기" }));
+    await wait(600);
+    await cap("점검 결과도 보고서 바로 만들기 — 상위법령 정합성 점검 결과 보고 · 기안문", "점검 개요 → 결과 요약(상충·검토 필요·적합) → 주요 지적·근거 → 개선 계획 → 행정사항");
+    await wait(3200);
+    await click(page.getByRole("tab", { name: /붙임/ }));
+    await cap("붙임 — 조문별 점검표 · 신·구조문대비표(자동 개정안)", "표 복사 → 한글·Word에 표로 · 보고서+붙임 Word 저장");
+    await wait(2400);
+    await page.keyboard.press("Escape");
+  });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 205건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 281건</li></ul>`);
   });
   await scene("t13", async () => {
-    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 전후 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안</li></ul>`);
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 모든 현행 법령 신구법 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상위법 대조 → 개정안 · 결재 보고서·기안문 바로 만들기</li></ul>`);
   });
 }
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
