@@ -1,13 +1,13 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
-import { ClipboardCopy, FileDown, FilePen, Lock, Printer, Send } from "lucide-react";
+import { ClipboardCopy, FilePen, Lock, Printer, Send } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import { citeFrom, formForTopic, todayKo } from "@/lib/citizen-forms";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
-import { downloadWord } from "@/lib/word-export";
 
 /** 국민 모드 서류 초안 — 상황에 맞는 진정서·내용증명·신청서를 근거 조문을 넣어 작성(입력값은 저장·전송하지 않음) */
 export function FormDraft({ result }: { result: AskResult }) {
@@ -91,9 +91,7 @@ export function FormDraft({ result }: { result: AskResult }) {
                 <Button size="sm" variant="accent" onClick={async () => toast((await copyText(text)) ? "초안을 복사했습니다" : "복사하지 못했습니다")}>
                   <ClipboardCopy /> 복사
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => downloadWord(form.title, [{ body: text }])}>
-                  <FileDown /> Word로 저장
-                </Button>
+                <DocSaveButtons name={form.title} sections={() => [{ body: text }]} label="저장 " />
                 <Button size="sm" variant="outline" onClick={print}>
                   <Printer /> 인쇄
                 </Button>

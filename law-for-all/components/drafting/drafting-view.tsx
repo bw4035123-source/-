@@ -1,7 +1,8 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, Info, Loader2, Sparkles, Table2, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FilePenLine, Info, Loader2, Sparkles, Table2, Wand2 } from "lucide-react";
 import type { LawArticle, LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import {
@@ -23,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { copyRich, copyText } from "@/lib/clipboard";
-import { downloadWord, escapeHtml } from "@/lib/word-export";
+import { escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { fetchJson } from "@/lib/fetch-json";
 import { EnactPanel } from "./enact-panel";
@@ -299,8 +300,7 @@ export function DraftingView() {
   ];
   const buildReport = (o: Parameters<typeof amendDocs>[1]) =>
     amendDocs({ lawName: meta.lawName, kind: meta.kind, label: meta.label, current, amended, reason, addenda: addendaDraft(dmeta), checks, effectiveDays: days, upperBasis: fromUpper?.basis }, o);
-  const exportAll = () =>
-    downloadWord(`${meta.lawName} ${meta.label} 개정안`, [{ title: "신·구조문 대비표", html: diffTableHtml(meta.label, diff) }, ...docs.map((d) => ({ title: d.label, body: d.body }))]);
+  const exportSections = () => [{ title: "신·구조문 대비표", html: diffTableHtml(meta.label, diff) }, ...docs.map((d) => ({ title: d.label, body: d.body }))];
 
   const lawGroups = laws.filter((l) => !l.parentId);
 
@@ -524,9 +524,7 @@ export function DraftingView() {
               <div className="rounded-2xl border bg-card p-5 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="font-extrabold">부칙·입법예고문·절차</h2>
-                  <Button size="sm" variant="outline" onClick={exportAll}>
-                    <FileDown /> 대비표 포함 전체 Word 저장
-                  </Button>
+                  <DocSaveButtons name={`${meta.lawName} ${meta.label} 개정안`} sections={exportSections} label="대비표 포함 저장 " />
                 </div>
                 <Tabs defaultValue="addenda">
                   <TabsList>

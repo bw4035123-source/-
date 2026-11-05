@@ -22,6 +22,7 @@
 | 구성요소 | 라이선스 | 비고 |
 |---|---|---|
 | Pretendard GOV (orioncactus/pretendard) | SIL Open Font License 1.1 | `public/fonts/pretendard-gov/LICENSE.txt` 동봉 |
+| 한글(HWPX) 빈 문서 틀 — python-hwpx `Skeleton.hwpx` (airmang) | Apache-2.0 | `lib/doc-export/hwpx-template.ts` 에 header·section 틀을 옮겨 글자 모양·표 테두리를 더함(수정 사실 표시). Copyright 2025-2026 airmang |
 | 법령·판례 원문(국가법령정보센터) | 저작권법 제7조(보호받지 못하는 저작물) | 법령·판결 원문은 저작권 보호 대상 아님. 출처 표시 |
 | 국가법령정보 공동활용 Open API | 이용약관에 따름 | 인증키는 이용 기관(서버)별 발급, 산출물에 미포함 |
 | LLM 모델(EXAONE·Gemma·Llama 등, 선택) | 각 모델 라이선스 | 산출물에 포함하지 않음 — 사용자가 Ollama 등으로 별도 설치 |

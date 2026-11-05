@@ -1,6 +1,7 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
-import { ClipboardCopy, FileDown, FileStack, Loader2, Printer, RefreshCw } from "lucide-react";
+import { ClipboardCopy, FileStack, Loader2, Printer, RefreshCw } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import type { CaseItem } from "@/lib/law-api/types";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -8,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { attachmentArticles, civilReply, defaultTitle, draftDocument, reviewReport } from "@/lib/documents";
-import { downloadWord } from "@/lib/word-export";
+
 import { copyText } from "@/lib/clipboard";
 import { fetchJson } from "@/lib/fetch-json";
 
@@ -157,20 +158,14 @@ export function DocumentPack({ result }: { result: AskResult }) {
                       <Button size="sm" variant="accent" onClick={() => copy(texts[d.id], `${d.label}을(를) 복사했습니다`)}>
                         <ClipboardCopy /> 복사
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => downloadWord(`${title}_${d.label}`, [{ body: texts[d.id] }])}>
-                        <FileDown /> Word로 저장
-                      </Button>
+                      <DocSaveButtons name={`${title}_${d.label}`} sections={() => [{ body: texts[d.id] }]} label="저장 " />
                       <Button size="sm" variant="outline" onClick={() => print(texts[d.id])}>
                         <Printer /> 인쇄
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-auto"
-                        onClick={() => downloadWord(title, DOCS.map((x) => ({ title: x.label, body: texts[x.id] })))}
-                      >
-                        <FileStack /> 4종 한 파일로 저장
-                      </Button>
+                      <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                        <FileStack className="h-4 w-4" /> 4종 한 파일
+                        <DocSaveButtons name={title} sections={() => DOCS.map((x) => ({ title: x.label, body: texts[x.id] }))} />
+                      </span>
                     </div>
                   </TabsContent>
                 ))}

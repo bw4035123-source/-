@@ -90,10 +90,13 @@ export function AnalyzeView() {
         </div>
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">법률 상황 분석실</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-          겪고 있는 상황을 이야기하면 <strong className="text-foreground">관련 법령을 추천</strong>하고,<br className="hidden sm:block" /> <strong className="text-foreground">AI 변호사·AI 검사·AI 판사</strong>의 시각으로 각각 검토해 드려요.
+          겪고 있는 상황을 이야기하면 <strong className="text-foreground">관련 법령을 추천</strong>하고,<br className="hidden sm:block" /> <strong className="keep-phrase text-foreground">AI 변호사·AI 검사·AI 판사</strong>의 시각으로 각각 검토해 드려요.
         </p>
         <p className="mx-auto mt-3 inline-flex max-w-full items-start gap-1.5 rounded-lg border border-amber-300 lg:whitespace-nowrap bg-amber-50 px-3 py-2 text-left text-xs font-semibold leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-          ⚠️ AI가 만든 참고용 검토예요. 결과를 맹신하지 말고, 중요한 결정 전에는 반드시 변호사 등 전문가의 자문을 받으세요(대한법률구조공단 ☎132).
+          <span aria-hidden>⚠️</span>
+          <span>
+            AI가 만든 참고용 검토예요. 결과를 맹신하지 말고, 중요한 결정 전에는 반드시 변호사 등 전문가의 자문을 받으세요<span className="keep-phrase">(대한법률구조공단 ☎132)</span>.
+          </span>
         </p>
       </header>
 

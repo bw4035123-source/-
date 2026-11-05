@@ -1,12 +1,13 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
-import { ClipboardCopy, FileDown, FileStack, Printer, RefreshCw } from "lucide-react";
+import { ClipboardCopy, FileStack, Printer, RefreshCw } from "lucide-react";
 import type { RegDocs, ReportProfile } from "@/lib/reg-report";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { downloadWord } from "@/lib/word-export";
+
 import { copyRich, copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
@@ -57,11 +58,7 @@ export function RegReportPack({ build, label = "보고서 바로 만들기", dis
     toast("입력한 정보로 다시 만들었어요");
   };
   const copy = async (t: string, m: string) => toast((await copyText(t)) ? m : "복사하지 못했어요");
-  const saveWord = (which: "report" | "draft") => {
-    if (!docs) return;
-    if (which === "draft") return downloadWord(`${title} (기안문)`, [{ body: text.draft }]);
-    downloadWord(title, [{ body: text.report }, ...docs.attachments.map((a) => ({ title: a.title, html: a.html }))]);
-  };
+  const reportSections = () => (docs ? [{ body: text.report }, ...docs.attachments.map((a) => ({ title: a.title, html: a.html }))] : []);
   const print = () => {
     if (!docs) return;
     const w = window.open("", "_blank");
@@ -138,12 +135,8 @@ export function RegReportPack({ build, label = "보고서 바로 만들기", dis
             )}
           </div>
           <div className="flex flex-wrap gap-2 border-t p-4">
-            <Button variant="accent" onClick={() => saveWord("report")}>
-              <FileDown /> 보고서+붙임 Word 저장
-            </Button>
-            <Button variant="outline" onClick={() => saveWord("draft")}>
-              <FileDown /> 기안문 Word
-            </Button>
+            <DocSaveButtons name={title} sections={reportSections} label="보고서+붙임 " size="default" accent="hwpx" />
+            <DocSaveButtons name={`${title} (기안문)`} sections={() => [{ body: text.draft }]} label="기안문 " size="default" />
             <Button variant="outline" onClick={() => copy(tab === "draft" ? text.draft : text.report, tab === "draft" ? "기안문을 복사했어요" : "보고서를 복사했어요")}>
               <ClipboardCopy /> {tab === "draft" ? "기안문" : "보고서"} 복사
             </Button>

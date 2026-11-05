@@ -101,7 +101,7 @@ export function LawsCatalog() {
                   {childrenOf(l.id).map((c) => (
                     <li key={c.id}>
                       <Link href={`/laws/${c.id}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-accent">
-                        <CornerDownRight className="h-4 w-4" /> {c.name} <span className="text-xs">({c.kind})</span>
+                        <CornerDownRight className="h-4 w-4 shrink-0" /> <span>{c.name} <span className="whitespace-nowrap text-xs">({c.kind})</span></span>
                       </Link>
                     </li>
                   ))}

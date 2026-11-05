@@ -1,7 +1,8 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, FileDown, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, Sparkles, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, FilePenLine, FileText, FileUp, History, Info, Loader2, ScanSearch, ShieldCheck, Sparkles, X } from "lucide-react";
 import type { Citation, LawDoc } from "@/lib/law-api/types";
 import { articleLabel, toCitation } from "@/lib/law-api/util";
 import {
@@ -31,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { LawViewerSheet } from "@/components/law-search/law-viewer-sheet";
 import { copyText } from "@/lib/clipboard";
-import { downloadWord, escapeHtml } from "@/lib/word-export";
+import { escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { complianceDocs, type CheckItem, type Verdict } from "@/lib/reg-report";
 import { RegReportPack } from "@/components/drafting/reg-report-pack";
@@ -256,8 +257,8 @@ export function ComplianceView() {
       : "";
   const reportText = merged ? complianceReport(merged, lawName) + aiText : "";
   const copy = async (t: string, msg: string) => toast((await copyText(t)) ? msg : "복사하지 못했습니다. 직접 선택해 복사해 주세요.");
-  const saveWord = () => {
-    if (!report) return;
+  const wordSections = () => {
+    if (!report) return [];
     const rows = report.results
       .map((r) => {
         const fs = r.findings.filter((f) => f.severity !== "info");
@@ -266,10 +267,10 @@ export function ComplianceView() {
         return `<tr><td>${escapeHtml(regArticleLabel(r.article))}</td><td>${SEVERITY_LABEL[r.status]}</td><td>${items}</td><td>${am ? escapeHtml(am) : ""}</td></tr>`;
       })
       .join("");
-    downloadWord(`${report.regName}_교차검증`, [
+    return [
       { title: "교차 검증 결과 보고", body: reportText },
       { title: "조문별 대조표", html: `<table border="1" cellspacing="0" cellpadding="4"><tr><th>규정 조문</th><th>판정</th><th>검토 내용·근거</th><th>개정안</th></tr>${rows}</table>` },
-    ]);
+    ];
   };
 
   // 보고서 바로 만들기: 화면의 판정(규칙+AI 합친 것)·지적·근거·자동 개정안을 그대로 보고서 서식에
@@ -348,8 +349,8 @@ export function ComplianceView() {
           <div>
             <p className="mb-1.5 text-sm font-bold">규정 원문</p>
             <div className="mb-2 rounded-xl border border-accent/40 bg-accent/5 p-2.5">
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-foreground">
-                <ScanSearch className="h-3.5 w-3.5 text-accent" /> 모의데이터로 바로 체험 <span className="font-normal text-muted-foreground">— 누르면 파일 읽기부터 검증까지 한 번에</span>
+              <p className="mb-1.5 text-xs font-bold leading-5 text-foreground">
+                <ScanSearch className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-accent" />모의데이터로 바로 체험 <span className="font-normal text-muted-foreground">— 누르면 파일 읽기부터 검증까지 한 번에</span>
               </p>
               <div className="grid grid-cols-1 gap-1">
                 {MOCK_FILES.map((m, i) => (
@@ -474,9 +475,7 @@ export function ComplianceView() {
                     <Button size="sm" variant="outline" onClick={() => copy(reportText, "검토 보고서를 복사했어요.")}>
                       <ClipboardCopy /> 보고서 복사
                     </Button>
-                    <Button size="sm" variant="outline" onClick={saveWord}>
-                      <FileDown /> Word 저장
-                    </Button>
+                    <DocSaveButtons name={`${report.regName}_교차검증`} sections={wordSections} />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" role="tablist" aria-label="판정별 보기">

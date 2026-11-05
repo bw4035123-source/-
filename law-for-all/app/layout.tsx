@@ -4,6 +4,7 @@ import { SettingsProvider } from "@/components/providers/settings-provider";
 import { ToastProvider } from "@/components/ui/toast";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { KoreanWrap } from "@/components/layout/korean-wrap";
 
 export const metadata: Metadata = {
   title: { default: "법이음 · LAW:ON", template: "%s · 법이음" },
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
             <SiteFooter />
+            <KoreanWrap />
           </ToastProvider>
         </SettingsProvider>
       </body>

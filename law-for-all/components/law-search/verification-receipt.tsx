@@ -1,13 +1,13 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
-import { CheckCircle2, ClipboardCopy, FileDown, Fingerprint, Printer, ReceiptText, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ClipboardCopy, Fingerprint, Printer, ReceiptText, TriangleAlert } from "lucide-react";
 import type { AskResult } from "@/lib/answer/types";
 import { buildReceipt, receiptText, type Receipt } from "@/lib/receipt";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
-import { downloadWord } from "@/lib/word-export";
 
 /** 답변 검증 영수증 — 근거 원문의 출처·시각·지문과 인용 검증 결과를 한 장으로(보고서·기안문 붙임용) */
 export function VerificationReceipt({ result }: { result: AskResult }) {
@@ -103,9 +103,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
                 <Button size="sm" variant="accent" onClick={async () => toast((await copyText(text)) ? "검증 영수증을 복사했습니다" : "복사하지 못했습니다")}>
                   <ClipboardCopy /> 복사
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => downloadWord(`검증영수증_${rc.query}`, [{ body: text }])}>
-                  <FileDown /> Word로 저장
-                </Button>
+                <DocSaveButtons name={`검증영수증_${rc.query}`} sections={() => [{ body: text }]} label="저장 " />
                 <Button size="sm" variant="outline" onClick={print}>
                   <Printer /> 인쇄
                 </Button>

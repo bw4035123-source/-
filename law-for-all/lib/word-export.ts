@@ -1,15 +1,21 @@
-/** Word(.doc) 내려받기 — HTML 기반 Word 문서(MS Word·한글에서 열림). 외부 라이브러리 불필요 */
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/**
+ * 문서 내려받기 — 한글(HWPX)·Word(DOCX) 둘 다. 화면의 { title, body(글), html(표) } 묶음을 같은 내용으로 만듦(외부 라이브러리 없음)
+ *   downloadHwp(이름, 묶음) → 이름.hwpx (한글 2014 이상)  ·  downloadWord(이름, 묶음) → 이름.docx (MS Word·한글·LibreOffice)
+ * 만드는 코드는 누를 때만 불러옴(lib/doc-export)
+ */
+import type { DocSection } from "./doc-export/model";
 
-export function downloadWord(filename: string, sections: { title?: string; body?: string; html?: string }[]): void {
-  const html = `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(filename)}</title>
-<style>body{font-family:'맑은 고딕','Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6}pre{font-family:inherit;white-space:pre-wrap;margin:0}h2{font-size:13pt;margin:18pt 0 6pt}table{border-collapse:collapse;width:100%}td,th{border:1px solid #333;padding:6pt;vertical-align:top;font-size:10pt;white-space:pre-wrap}th{background:#eee}u{text-decoration:underline;font-weight:bold}br.pb{page-break-before:always}</style></head><body>
-${sections.map((s, i) => `${i ? '<br class="pb" style="page-break-before:always">' : ""}${s.title ? `<h2>${esc(s.title)}</h2>` : ""}${s.html ?? `<pre>${esc(s.body ?? "")}</pre>`}`).join("\n")}
-</body></html>`;
-  const blob = new Blob(["﻿", html], { type: "application/msword" });
+export type DocFormat = "hwpx" | "docx";
+const MIME: Record<DocFormat, string> = { hwpx: "application/hwp+zip", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+
+export async function downloadDoc(filename: string, sections: DocSection[], format: DocFormat): Promise<void> {
+  const { sectionsToBlocks } = await import("./doc-export/model");
+  const blocks = sectionsToBlocks(sections);
+  const bytes = format === "hwpx" ? (await import("./doc-export/hwpx")).blocksToHwpx(blocks, filename) : (await import("./doc-export/docx")).blocksToDocx(blocks, filename);
+  const blob = new Blob([bytes as BlobPart], { type: MIME[format] });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `${filename.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80)}.doc`;
+  a.download = `${filename.replace(/[\\/:*?"<>|]/g, "_").slice(0, 80)}.${format}`;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {
@@ -17,5 +23,8 @@ ${sections.map((s, i) => `${i ? '<br class="pb" style="page-break-before:always"
     a.remove();
   }, 1000);
 }
+export const downloadWord = (filename: string, sections: DocSection[]) => downloadDoc(filename, sections, "docx");
+export const downloadHwp = (filename: string, sections: DocSection[]) => downloadDoc(filename, sections, "hwpx");
 
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export { esc as escapeHtml };

@@ -1,6 +1,7 @@
 "use client";
+import { DocSaveButtons } from "@/components/ui/doc-save";
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, FileDown, Info, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCopy, ExternalLink, Info, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import type { LawDoc, LawSummary } from "@/lib/law-api/types";
 import { articleLabel } from "@/lib/law-api/util";
 import type { DraftKind } from "@/lib/drafting";
@@ -14,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { copyText } from "@/lib/clipboard";
-import { downloadWord } from "@/lib/word-export";
+
 import { enactDocs } from "@/lib/reg-report";
 import { RegReportPack } from "./reg-report-pack";
 import { cn } from "@/lib/utils";
@@ -271,7 +272,7 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
   }, [pendingFill, d.fullText]);
 
   const buildReport = (o: Parameters<typeof enactDocs>[1]) => enactDocs({ name, kind, fullText: shownText, reason: d.reason, basis: basis.map((b) => b.label), effectiveDays: days, org: org || undefined }, o);
-  const exportAll = () => downloadWord(`${name.trim() || "제정안"} 제정안`, [{ title: "제정안", body: shownText }, ...docs.map((x) => ({ title: x.label, body: x.body }))]);
+  const exportSections = () => [{ title: "제정안", body: shownText }, ...docs.map((x) => ({ title: x.label, body: x.body }))];
   const lawGroups = laws.filter((l) => !l.parentId);
 
   return (
@@ -618,9 +619,7 @@ export function EnactPanel({ laws, initialOne }: { laws: LawSummary[]; initialOn
                 <h2 className="font-extrabold">제정 문서 초안</h2>
                 <div className="flex flex-wrap gap-1.5">
                   <RegReportPack build={buildReport} label="제정 보고서 바로 만들기" />
-                  <Button size="sm" variant="outline" onClick={exportAll}>
-                    <FileDown /> 제정안 포함 전체 Word 저장
-                  </Button>
+                  <DocSaveButtons name={`${name.trim() || "제정안"} 제정안`} sections={exportSections} label="전체 저장 " />
                 </div>
               </div>
               <Tabs defaultValue="reason">
