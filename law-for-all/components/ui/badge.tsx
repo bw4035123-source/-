@@ -11,6 +11,7 @@ const badgeVariants = cva("inline-flex items-center gap-1 rounded-full border px
       outline: "text-foreground",
       warning: "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100",
       success: "border-transparent bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100",
+      danger: "border-transparent bg-rose-100 text-rose-900 dark:bg-rose-900/40 dark:text-rose-100",
     },
   },
   defaultVariants: { variant: "default" },

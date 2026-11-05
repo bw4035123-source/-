@@ -50,3 +50,23 @@ describe("보고서 바로 만들기", () => {
     expect(oldNewTableHtml([{ label: "<x>", current: "a<b", amended: "a<c" }])).not.toContain("<x>");
   });
 });
+
+describe("점검 → 한 번에 개정 보고", () => {
+  it("바뀐 말 요약", async () => {
+    const { changeSummary } = await import("@/lib/reg-report");
+    expect(changeSummary("1일 9시간, 1주 45시간으로 한다.", "1일 8시간, 1주 40시간으로 한다.")).toBe("‘9시간’ → ‘8시간’, ‘45시간으로’ → ‘40시간으로’");
+  });
+  it("일부개정(안) 보고: 여러 조문·근거·부칙", async () => {
+    const { batchAmendDocs } = await import("@/lib/reg-report");
+    const d = batchAmendDocs({ regName: "복무 규정", kind: "행정규칙", effectiveDays: 0, items: [
+      { label: "제8조(근무시간)", current: "1주 45시간", amended: "1주 40시간", verdict: "상충", basis: ["「근로기준법」 제50조"] },
+      { label: "제35조(규정의 개정)", current: "이사장이 정한다.", amended: "근로자 과반수의 의견을 들어 이사장이 정한다.", verdict: "검토 필요", basis: ["「근로기준법」 제94조"] },
+    ] }, { date: new Date(2026, 10, 6) });
+    expect(d.title).toBe("「복무 규정」 일부개정(안) 보고");
+    expect(d.report).toContain("2개 조문(제8조, 제35조)");
+    expect(d.report).toContain("상충 1건·검토 필요 1건");
+    expect(d.report).toContain("가. 제8조(근무시간): ‘45시간’ → ‘40시간’ (근거: 「근로기준법」 제50조)");
+    expect(d.attachments[1].html).toContain("공포(발령)한 날부터 시행한다.");
+    expect(d.attachments[0].html.match(/<tr>/g)).toHaveLength(3);
+  });
+});

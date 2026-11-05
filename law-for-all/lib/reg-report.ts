@@ -267,3 +267,103 @@ export function enactDocs(x: EnactInput, o: ReportProfile = {}): RegDocs {
   ].join("\n");
   return { title, report, draft, attachments: [{ title: "붙임. 제정안 전문", html: `<p>${br(x.fullText)}</p>` }] };
 }
+
+// ─────────────────────────────── 4) 자체규정 점검 → 한 번에 개정: 일부개정(안) 보고(여러 조문)
+/** 바뀐 말 요약: ‘9시간’ → ‘8시간’, ‘…’ 신설, ‘…’ 삭제 (길면 '문구 정비') */
+export function changeSummary(current: string, amended: string): string {
+  const d = diffWords(current, amended);
+  const clean = (t: string) => t.trim().replace(/[,.·]+$/, "");
+  const del = d.old.filter((p) => p.op === "del").map((p) => clean(p.text)).filter(Boolean);
+  const ins = d.new.filter((p) => p.op === "ins").map((p) => clean(p.text)).filter(Boolean);
+  const short = (s: string) => s.length <= 24;
+  const out: string[] = [];
+  const n = Math.max(del.length, ins.length);
+  for (let i = 0; i < n && out.length < 4; i++) {
+    const a = del[i];
+    const b = ins[i];
+    if (a && b && short(a) && short(b)) out.push(`‘${a}’ → ‘${b}’`);
+    else if (b && !a && short(b)) out.push(`‘${b}’ 신설`);
+    else if (a && !b && short(a)) out.push(`‘${a}’ 삭제`);
+  }
+  if (n > out.length) out.push("문구 정비");
+  return out.join(", ") || "문구 정비";
+}
+
+export interface BatchAmendItem {
+  label: string;
+  current: string;
+  amended: string;
+  verdict: Verdict;
+  /** 근거 상위 조문(「법」 제N조) */
+  basis: string[];
+}
+export interface BatchAmendInput {
+  regName: string;
+  kind: DraftKind;
+  items: BatchAmendItem[];
+  effectiveDays: number;
+}
+
+const ADDENDA = (days: number) =>
+  ["부      칙", `이 규정은 ${days ? `공포(발령) 후 ${days === 90 ? "3개월" : days === 180 ? "6개월" : `${days}일`}이 경과한 날부터` : "공포(발령)한 날부터"} 시행한다.`].join("\n");
+
+export function batchAmendDocs(x: BatchAmendInput, o: ReportProfile = {}): RegDocs {
+  const title = o.title || `「${x.regName}」 일부개정(안) 보고`;
+  const n = x.items.length;
+  const conflict = x.items.filter((i) => i.verdict === "상충").length;
+  const laws = Array.from(new Set(x.items.flatMap((i) => i.basis.map((b) => b.match(/「[^」]+」/)?.[0] ?? b)))).slice(0, 6);
+  const basisAll = Array.from(new Set(x.items.flatMap((i) => i.basis)));
+  const steps = procedureChecklist(x.kind, "개정");
+  const report = [
+    ...head(title, o),
+    "1. 개정 개요",
+    `  가. 개정 대상: 「${x.regName}」 ${n}개 조문(${x.items.map((i) => i.label.replace(/\(.*\)$/, "")).join(", ")})`,
+    `  나. 개정 사유: 상위법령 정합성 점검 결과 상위법령과 상충${conflict ? ` ${conflict}건` : ""}·검토 필요${n - conflict ? ` ${n - conflict}건` : ""} 조문을 ${laws.join(", ") || "상위법령"} 기준에 맞게 정비하려는 것임`,
+    "",
+    "2. 주요 개정 내용",
+    ...x.items.map((i, k) => `  ${ga(k)}. ${i.label}: ${changeSummary(i.current, i.amended)}${i.basis.length ? ` (근거: ${i.basis.slice(0, 2).join(", ")})` : ""}`),
+    "",
+    "3. 근거 상위법령",
+    ...(basisAll.length ? basisAll.slice(0, 10).map((b, k) => `  ${ga(k)}. ${b}`) : ["  가. 점검 근거 상위 조문(붙임 참조)"]),
+    "",
+    "4. 시행 및 경과조치",
+    `  가. 시행: ${EFFECT[x.effectiveDays] ?? "공포(발령)한 날부터 시행"}`,
+    "  나. 경과조치: 부칙(붙임) 참조",
+    "",
+    "5. 추진 절차(안)",
+    ...steps.map((s, i) => `  ${ga(i)}. ${s}`),
+    "",
+    "6. 행정사항",
+    "  가. 개정 조문은 자동 점검·생성형 AI 작성안(근거·수치 자동 검증)을 담당자가 확인·수정한 것으로, 관계 부서 협의와 법무 검토를 거쳐 확정",
+    "",
+    "붙임  1. 신·구조문대비표 1부.",
+    "      2. 개정문 및 부칙 1부.  끝.",
+  ].join("\n");
+  const draft = [
+    "수신  내부결재",
+    "(경유)",
+    `제목  ${title}`,
+    "",
+    `1. 상위법령 정합성 점검 결과에 따라 「${x.regName}」을(를) 다음과 같이 개정하고자 합니다.`,
+    `  가. 개정 사유: 상위법령(${laws.join(", ") || "관계 법령"}) 기준에 맞게 ${n}개 조문 정비`,
+    `  나. 주요 내용: ${x.items.map((i) => `${i.label.replace(/\(.*\)$/, "")} ${changeSummary(i.current, i.amended)}`).join(" / ")}`,
+    `  다. 시행: ${EFFECT[x.effectiveDays] ?? "공포(발령)한 날부터 시행"}`,
+    "",
+    "2. 향후 관계 부서 협의 및 입법예고 등 개정 절차를 추진하겠습니다.",
+    "",
+    "붙임  1. 일부개정(안) 보고 1부.",
+    "      2. 신·구조문대비표 1부.  끝.",
+    "",
+    sign(o),
+  ].join("\n");
+  const full = `「${x.regName}」 일부를 다음과 같이 개정한다.\n\n${x.items.map((i) => `${i.label} ${i.amended}`).join("\n\n")}\n\n${ADDENDA(x.effectiveDays)}`;
+  return {
+    title,
+    report,
+    draft,
+    attachments: [
+      { title: "붙임 1. 신·구조문대비표", html: oldNewTableHtml(x.items.map((i) => ({ label: i.label, current: i.current, amended: i.amended }))) },
+      { title: "붙임 2. 개정문 및 부칙", html: `<p>${br(full)}</p>` },
+    ],
+  };
+}

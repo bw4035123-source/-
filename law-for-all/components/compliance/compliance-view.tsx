@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { complianceDocs, type CheckItem, type Verdict } from "@/lib/reg-report";
 import { RegReportPack } from "@/components/drafting/reg-report-pack";
 import { WatchButton } from "@/components/officer-view/law-watch";
+import { BatchAmendPanel, type BatchSource } from "./batch-amend";
 import { citedLaws } from "@/lib/law-watch";
 
 const TONE: Record<Severity, string> = {
@@ -315,6 +316,47 @@ export function ComplianceView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merged, ai, text]);
 
+  // 한 번에 개정: 상충·검토 필요 조문마다 지적(규칙+AI)·고칠 방향·근거 상위 조문 원문을 개정 방향으로
+  const batchSources = React.useMemo<BatchSource[]>(() => {
+    if (!merged || ai.status === "loading") return [];
+    const out: BatchSource[] = [];
+    for (const r of merged.results) {
+      if (r.status !== "conflict" && r.status !== "review") continue;
+      const a = ai.status === "done" ? ai.byNo.get(r.article.no) : undefined;
+      const lines: string[] = [];
+      const basis: string[] = [];
+      const upper: { label: string; text: string }[] = [];
+      const addUp = (c: Citation | null | undefined) => {
+        if (!c) return;
+        const label = `「${c.lawName}」 ${articleLabel(c.articleNo)}(${c.title})`;
+        if (!upper.some((u) => u.label === label)) upper.push({ label, text: c.text.slice(0, 2000) });
+        const b = `「${c.lawName}」 ${articleLabel(c.articleNo)}`;
+        if (!basis.includes(b)) basis.push(b);
+      };
+      for (const f of r.findings.filter((f) => f.severity !== "info")) {
+        lines.push(`- ${f.title}: ${f.detail}`);
+        f.basis.forEach((b) => addUp(citationOf(b)));
+      }
+      for (const it of a?.issues ?? []) {
+        lines.push(`- ${it.point}${it.suggestion ? ` → ${it.suggestion}` : ""}`);
+        it.basis.forEach((k) => addUp(a!.upper.find((u) => u.key === k)));
+      }
+      if (!lines.length) continue;
+      out.push({
+        no: r.article.no,
+        label: regArticleLabel(r.article),
+        current: r.article.text,
+        ruleFixed: amendedText(r),
+        instruction: `상위법령 정합성 점검에서 다음 문제가 지적되었다. 근거 상위 조문의 기준에 맞게 이 조문을 개정하라(상위 조문에 없는 기준은 만들지 말 것).\n${lines.join("\n")}`,
+        upper: upper.slice(0, 6),
+        verdict: r.status === "conflict" ? "상충" : "검토 필요",
+        basis,
+      });
+    }
+    return out.slice(0, 15);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merged, ai]);
+
   const shown = merged?.results.filter((r) => filter === "all" || r.status === filter) ?? [];
 
   return (
@@ -523,6 +565,8 @@ export function ComplianceView() {
                 )}
               </div>
 
+              {batchSources.length > 0 && <BatchAmendPanel sources={batchSources} regName={merged!.regName} kind={orgType === "지방자치단체" ? "자치법규" : "행정규칙"} />}
+
               {shown.map((r) => (
                 <ArticleCard key={r.article.no + r.article.title} r={r} ai={ai.status === "done" || ai.status === "loading" ? ai.byNo.get(r.article.no) : undefined} aiPending={ai.status === "loading" && !ai.byNo.has(r.article.no)} aiLabel={ai.status === "done" ? ai.label : "업스테이지 Solar"} lawName={lawName} citationOf={citationOf} onOpen={setViewing} onCopy={copy} />
               ))}
@@ -690,9 +734,9 @@ function ArticleCard({
                 <ClipboardCopy /> 복사
               </Button>
               <Button size="sm" variant="ghost" asChild>
-                <Link href="/drafting?mode=amend">
-                  <FilePenLine /> 제·개정 지원
-                </Link>
+                <a href="#batch-amend">
+                  <FilePenLine /> 한 번에 개정으로
+                </a>
               </Button>
             </div>
           </div>

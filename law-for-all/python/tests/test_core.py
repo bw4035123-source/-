@@ -1066,3 +1066,41 @@ class LawWatchTest(unittest.TestCase):
             s._WATCH_CACHE.clear()
         self.assertEqual([(x["name"], x["promulgated"]) for x in r["laws"]], [("근로기준법", "20260407")])
         self.assertEqual(r["missing"], ["없는법"])
+
+
+class AmendBatchTest(unittest.TestCase):
+    """점검 → 한 번에 개정: 통과·응답 지연(그 조문만 실패)·지어낸 수치(가드가 막음)"""
+
+    def test_batch(self):
+        import json as _j
+        import law_for_all.server as s
+        from law_for_all.llm import LLMError
+
+        class P:
+            kind, label, model, id = "llm", "t", "m", "openai"
+
+            def generate(self, messages, **_):
+                u = messages[0]["content"]
+                if "제9조" in u:
+                    raise LLMError("busy", "openai")
+                if "제8조" in u:
+                    return {"text": _j.dumps({"amended": "① 직원의 근무시간은 휴게시간을 제외하고 1일 8시간, 1주 40시간으로 한다."}), "model": "m"}
+                return {"text": _j.dumps({"amended": "① 직원의 근무시간은 1일 12시간으로 한다."}), "model": "m"}
+
+        orig, sleep = s.resolve_provider, s.time.sleep
+        s.resolve_provider = lambda *a, **k: (P(), None)
+        s.time.sleep = lambda *_: None
+        try:
+            inp = s._validate_amend_batch({"lawName": "규정", "kind": "행정규칙", "items": [
+                {"id": "8", "label": "제8조(근무시간)", "current": "① 직원의 근무시간은 휴게시간을 제외하고 1일 9시간, 1주 45시간으로 한다.", "instruction": "1일 8시간, 1주 40시간 상한에 맞게",
+                 "upper": [{"label": "「근로기준법」 제50조", "text": "1주 간의 근로시간은 40시간을 초과할 수 없다. 1일의 근로시간은 8시간을 초과할 수 없다."}]},
+                {"id": "9", "label": "제9조", "current": "1주 16시간 이내에서 명할 수 있다.", "instruction": "상위법에 맞게"},
+                {"id": "10", "label": "제10조", "current": "① 근무시간은 1일 9시간으로 한다.", "instruction": "상위법에 맞게"}]})
+            code, body = s.amend_batch(inp)
+        finally:
+            s.resolve_provider, s.time.sleep = orig, sleep
+        self.assertEqual(code, 200)
+        r = {x["id"]: x for x in body["results"]}
+        self.assertTrue(r["8"]["ok"])
+        self.assertIn("응답 지연", r["9"]["reason"])
+        self.assertFalse(r["10"]["ok"])

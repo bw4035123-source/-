@@ -164,6 +164,61 @@ def _validate_amend_ai(body: dict) -> dict:
     return {"lawName": s("lawName", 100), "kind": s("kind", 20) or "행정규칙", "label": s("label", 120), "current": cur, "original": orig, "instruction": ins, "upper": upper, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
 
 
+def _validate_amend_batch(body: dict) -> dict:
+    """한 번에 개정 입력(크기 제한) — app/api/amend-batch/route.ts 와 같은 한도"""
+    bad = ApiError(400, "요청 형식이 올바르지 않습니다.")
+    items = body.get("items")
+    if not isinstance(items, list) or not 1 <= len(items) <= 15:
+        raise bad
+    out = []
+    for it in items:
+        if not isinstance(it, dict) or not isinstance(it.get("id"), str) or len(it["id"]) > 20:
+            raise bad
+        one = _validate_amend_ai({**it, "lawName": body.get("lawName"), "kind": body.get("kind"), "instruction": (it.get("instruction") or "")[:1000] if isinstance(it.get("instruction"), str) else it.get("instruction")})
+        out.append({**one, "id": it["id"]})
+    prov = body.get("provider")
+    s = lambda k, n: (body.get(k) if isinstance(body.get(k), str) else "")[:n]  # noqa: E731
+    return {"lawName": s("lawName", 100), "kind": s("kind", 20) or "행정규칙", "items": out, "provider": prov if isinstance(prov, str) and len(prov) <= 20 else None}
+
+
+def amend_batch(inp: dict) -> tuple[int, dict]:
+    """자체규정 점검 → 상충·검토 필요 조문 한 번에 개정(app/api/amend-batch/route.ts 와 같음) — 조문마다 개정안 AI·가드를 동시에"""
+    import concurrent.futures as cf
+
+    p, _ = resolve_provider(config.llm, inp["provider"])
+    if p.kind == "rule":
+        return 503, {"error": "생성형 AI가 연결되어 있지 않아 개정안을 쓸 수 없어요. 조문별 ‘고칠 방향’을 보고 직접 고쳐 주세요."}
+    started = time.time()
+    model = [p.model]
+
+    def one(it: dict) -> dict:
+        messages = [{"role": "user", "content": build_amend_prompt(it)}]
+        result: dict = {"ok": False, "reason": "응답 없음"}
+        for attempt in range(2):
+            try:
+                res = p.generate(system=AMEND_SYSTEM, messages=messages, json_mode=True, temperature=0.1, max_tokens=2000, timeout_ms=60000)
+            except LLMError:
+                if attempt == 0:
+                    time.sleep(1.5)
+                    continue
+                return {"id": it["id"], "ok": False, "reason": "AI 응답 지연 — 다시 시도하거나 직접 고쳐 주세요"}
+            model[0] = res.get("model") or model[0]
+            try:
+                raw = parse_loose_json(res["text"])
+            except Exception:  # noqa: BLE001 — 형식이 깨진 응답 → 가드에서 '비어 있음'
+                raw = None
+            result = guard_amend(raw, it)
+            if result["ok"]:
+                return {"id": it["id"], **result, "retried": attempt > 0}
+            messages += [{"role": "assistant", "content": res["text"]}, {"role": "user", "content": amend_retry(result["reason"])}]
+        return {"id": it["id"], **result, "retried": True}
+
+    items = [{**it, "lawName": inp["lawName"], "kind": inp["kind"]} for it in inp["items"]]
+    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+        results = list(ex.map(one, items))
+    return 200, {"results": results, "model": model[0], "label": p.label, "elapsedMs": int((time.time() - started) * 1000)}
+
+
 def _validate_compliance_ai(body: dict) -> dict:
     """자체규정 AI 검토 입력(크기 제한) — app/api/compliance-ai/route.ts 와 같은 한도"""
     bad = ApiError(400, "요청 형식이 올바르지 않습니다.")
@@ -676,6 +731,12 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
             code, payload = compliance_ai(_validate_compliance_ai(self._body()))
+            return self._json(code, payload)
+        if method == "POST" and path == "/api/amend-batch":
+            ok, retry = rate_limit(f"{path}:{self._client()}", 4)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            code, payload = amend_batch(_validate_amend_batch(self._body()))
             return self._json(code, payload)
         if method == "POST" and path == "/api/amend-ai":
             ok, retry = rate_limit(f"{path}:{self._client()}", 10)
