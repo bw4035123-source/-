@@ -1,26 +1,23 @@
 "use client";
 import * as React from "react";
+import { koreanWrap, unwrapKorean } from "@/lib/korean-wrap";
 
 /**
  * 한국어 줄바꿈 다듬기(화면 표시만) — keep-all 에서 '괴롭힘·성희롱'처럼 가운뎃점으로 이은 긴 말은 한 낱말로 취급돼
  * 좁은 화면에서 낱말 중간이나 '·' 앞에서 끊기므로, 가운뎃점 뒤에 보이지 않는 줄바꿈 자리(U+200B), 앞에 줄바꿈 금지(U+2060)를 넣고
- * '2026. 3. 12.' 같은 날짜는 붙여 둔다(U+00A0). 입력칸·코드·원문 서식(pre)은 건드리지 않고,
+ * '2026. 3. 12.' 같은 날짜와 '맹신하지 말고'·'변호사 등'처럼 앞말에 기대는 짧은 말은 붙여 둔다(U+00A0, lib/korean-wrap.ts). 입력칸·코드·원문 서식(pre)은 건드리지 않고,
  * 사용자가 끌어 선택해 복사할 때는 넣은 문자를 다시 빼 원래 글이 복사되게 한다.
  */
 // 단추·탭 등 짧은 조작 요소는 줄바꿈 문제가 드물고, 바꾸면 접근성 이름(화면낭독기·자동 시험)이 달라지므로 건드리지 않음
 const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "PRE", "CODE", "NOSCRIPT", "BUTTON", "LABEL"]);
-// '·' 앞(U+2060 줄바꿈 금지)·뒤(U+200B 줄바꿈 자리) — 한국어 문서에서 가운뎃점은 앞에서도 끊길 수 있어 앞쪽도 막음
-const DOT = /(?<=[^\s\u2060])·(?=[^\s\u200B·])/g;
-const DATE = /(\d{4}\.) (\d{1,2}\.) (\d{1,2}\.)/g;
-
 function fix(node: Text) {
   const v = node.nodeValue;
-  if (!v || (v.indexOf("·") < 0 && !/\d{4}\. \d/.test(v))) return;
+  if (!v || (v.indexOf("·") < 0 && v.indexOf(" ") < 0)) return;
   for (let p = node.parentElement; p; p = p.parentElement) {
     if (SKIP.has(p.tagName) || p.isContentEditable || p.dataset.noWrapFix !== undefined || (p.getAttribute("role") ?? "") !== "") return;
     if (p === document.body) break;
   }
-  const next = v.replace(DOT, "\u2060·\u200B").replace(DATE, "$1\u00A0$2\u00A0$3");
+  const next = koreanWrap(v);
   if (next !== v) node.nodeValue = next;
 }
 function walk(root: Node) {
@@ -51,7 +48,7 @@ export function KoreanWrap() {
     const onCopy = (e: ClipboardEvent) => {
       const s = window.getSelection()?.toString() ?? "";
       if (!/[\u200B\u2060\u00A0]/.test(s) || !e.clipboardData) return;
-      e.clipboardData.setData("text/plain", s.replace(/[\u200B\u2060]/g, "").replace(/\u00A0/g, " "));
+      e.clipboardData.setData("text/plain", unwrapKorean(s));
       e.preventDefault();
     };
     document.addEventListener("copy", onCopy);
