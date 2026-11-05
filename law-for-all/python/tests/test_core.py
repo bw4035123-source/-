@@ -1192,7 +1192,7 @@ class LlmTotalTimeoutTest(unittest.TestCase):
 class AnalyzeRolesTest(unittest.TestCase):
     """3관점 동시 작성: 관점마다 따로 부르고, 늦은 관점만 규칙기반으로 채움 · 셋 다 실패면 규칙기반 대체"""
 
-    def _run(self, fail_roles):
+    def _run(self, fail_roles, bad_number=()):
         import json as _j
         import law_for_all.analyze as an
         from law_for_all.llm import LLMError
@@ -1213,7 +1213,10 @@ class AnalyzeRolesTest(unittest.TestCase):
                 calls.append(role)
                 if role in fail_roles:
                     raise LLMError("busy", "openai")
-                return {"text": _j.dumps({role: body[role], "citations": ["housing-lease:3"]}), "model": "m"}
+                part = dict(body[role])
+                if role in bad_number:
+                    part["stance"] = part["stance"] + " 99일 안에 해결 가능"
+                return {"text": _j.dumps({role: part, "citations": ["housing-lease:3"]}), "model": "m"}
 
         orig = an.resolve_provider
         an.resolve_provider = lambda *a, **k: (P(), None)
@@ -1239,3 +1242,10 @@ class AnalyzeRolesTest(unittest.TestCase):
     def test_all_slow(self):
         r, _ = self._run({"lawyer", "prosecutor", "judge"})
         self.assertEqual(r["provider"]["kind"], "rule")
+
+    def test_one_invents_number(self):
+        r, _ = self._run(set(), bad_number=("judge",))
+        self.assertEqual(r["provider"]["kind"], "llm")  # 나머지 두 관점은 AI 그대로
+        self.assertTrue(any("판사 관점은 AI 답변이 근거 검증을 통과하지 못해" in n for n in r["notices"]))
+        self.assertNotIn("99일", str(r["analyses"]))
+        self.assertIn("임차권등기명령", r["analyses"][0]["perspectives"]["lawyer"]["stance"])

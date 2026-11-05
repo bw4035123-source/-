@@ -86,22 +86,39 @@ export async function analyze({ situation: raw, provider: requested }: { situati
         };
         const outs = await Promise.all(ANALYSIS_ROLES.map(one));
         if (outs.every((o) => !o)) throw new LLMError("세 관점 모두 응답 없음", provider.id);
+        // 관점별로 합쳐 가드 — 검증에 걸린 관점만 규칙기반으로 바꿔 다시 확인(근거 밖 수치 하나로 세 관점을 다 버리지 않음)
         const rule = analyses[0]?.perspectives as Record<AnalysisRole, unknown> | undefined;
-        const merged: Record<string, unknown> = { citations: outs.flatMap((o) => (Array.isArray(o?.cites) ? o.cites : [])) };
-        const missed: AnalysisRole[] = [];
-        ANALYSIS_ROLES.forEach((r, i) => {
-          if (outs[i]) merged[r] = outs[i]!.part;
-          else {
-            missed.push(r);
-            if (rule) merged[r] = rule[r];
-          }
-        });
-        const g = guardAnalysisOutput(merged, citations, [situation]);
+        const slow = ANALYSIS_ROLES.filter((_, i) => !outs[i]);
+        const build = (ai: AnalysisRole[]) => {
+          const m: Record<string, unknown> = { citations: ai.flatMap((r) => { const c = outs[ANALYSIS_ROLES.indexOf(r)]?.cites; return Array.isArray(c) ? c : []; }) };
+          for (const r of ANALYSIS_ROLES) m[r] = ai.includes(r) ? outs[ANALYSIS_ROLES.indexOf(r)]!.part : rule?.[r];
+          return m;
+        };
+        const ai = ANALYSIS_ROLES.filter((_, i) => outs[i]);
+        let bad: AnalysisRole[] = [];
+        let g: ReturnType<typeof guardAnalysisOutput>;
+        try {
+          g = guardAnalysisOutput(build(ai), citations, [situation]);
+        } catch (e) {
+          if (!rule) throw e;
+          bad = ai.filter((r) => {
+            try {
+              guardAnalysisOutput(build([r]), citations, [situation]);
+              return false;
+            } catch {
+              return true;
+            }
+          });
+          const keep = ai.filter((r) => !bad.includes(r));
+          if (!keep.length) throw new Error("세 관점 모두 근거 검증을 통과하지 못했습니다");
+          g = guardAnalysisOutput(build(keep), citations, [situation]);
+        }
         usedProvider = { ...usedProvider, model };
         analyses = [{ issue: { id: "ai", label: issues.length ? `종합 분석(${issues.map((i) => i.topic.label).join("·")})` : "종합 분석" }, perspectives: g.perspectives }];
         removed = g.removed;
         unverified = g.unverified;
-        if (missed.length) notices.push(`${missed.map((r) => ROLE_LABEL[r]).join("·")} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.`);
+        if (slow.length) notices.push(`${slow.map((r) => ROLE_LABEL[r]).join("·")} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.`);
+        if (bad.length) notices.push(`${bad.map((r) => ROLE_LABEL[r]).join("·")} 관점은 AI 답변이 근거 검증을 통과하지 못해 규칙기반 분석으로 보여 드려요.`);
       } catch (e) {
         ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e, "분석"));
         usedProvider = { id: "mock", label: "규칙기반 엔진(AI 답변 대체)", model: "law-rule-engine-v1", kind: "rule" };

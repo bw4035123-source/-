@@ -9,7 +9,7 @@ from .ask import now_iso
 from .config import config
 from .data import PERSPECTIVES, article_key, article_label, get_law, get_topic, parse_key
 from .facts import extract_facts
-from .guard import find_unverified_mentions, guard_analysis_output, parse_loose_json
+from .guard import GuardError, find_unverified_mentions, guard_analysis_output, parse_loose_json
 from .llm import LLMError, resolve_provider
 from .privacy import mask_notice, mask_pii
 from .prompts import ANALYSIS_ROLES, ANALYSIS_SYSTEM, ROLE_LABEL, role_prompt, role_schema
@@ -179,8 +179,8 @@ def build_rule_analyses(text: str, issues: list[dict], citations: list[dict]) ->
     return out
 
 
-def _write_roles(p, situation: str, citations: list[dict], analyses: list[dict]) -> tuple[dict, list[str], str]:
-    """변호사·검사·판사를 동시에 따로 씀(한 번에 쓰면 20~65초) — 늦은 관점만 규칙기반 분석으로 채움. 셋 다 실패면 LLMError"""
+def _write_roles(p, situation: str, citations: list[dict]) -> tuple[dict, str]:
+    """변호사·검사·판사를 동시에 따로 씀(한 번에 쓰면 20~65초). 관점별 결과(늦으면 None)와 모델 — 셋 다 실패면 LLMError"""
     import concurrent.futures as cf
 
     deadline = time.time() + ANALYSIS_DEADLINE_S
@@ -206,17 +206,39 @@ def _write_roles(p, situation: str, citations: list[dict], analyses: list[dict])
         outs = list(ex.map(one, ANALYSIS_ROLES))
     if not any(outs):
         raise LLMError("세 관점 모두 응답 없음", p.id)
-    rule = analyses[0]["perspectives"] if analyses else None
-    merged: dict = {"citations": [c for o in outs if o for c in o["cites"]]}
-    missed: list[str] = []
-    for r, o in zip(ANALYSIS_ROLES, outs):
-        if o:
-            merged[r] = o["part"]
-        else:
-            missed.append(r)
-            if rule:
-                merged[r] = rule[r]
-    return merged, missed, model[0]
+    return dict(zip(ANALYSIS_ROLES, outs)), model[0]
+
+
+def _guard_roles(outs: dict, rule: dict | None, citations: list[dict], situation: str) -> tuple[dict, list[str], list[str]]:
+    """관점별 결과를 합쳐 가드 — 검증에 걸린 관점만 규칙기반으로 바꿔 다시 확인(근거 밖 수치 하나로 세 관점을 다 버리지 않음).
+    반환: (가드 결과, 늦은 관점, 검증에 걸린 관점). 규칙기반으로 채울 수 없으면 GuardError 그대로"""
+    slow = [r for r in ANALYSIS_ROLES if not outs.get(r)]
+
+    def build(ai: list[str]) -> dict:
+        m: dict = {"citations": [c for r in ai for c in outs[r]["cites"]]}
+        for r in ANALYSIS_ROLES:
+            if r in ai:
+                m[r] = outs[r]["part"]
+            elif rule:
+                m[r] = rule[r]
+        return m
+
+    ai = [r for r in ANALYSIS_ROLES if outs.get(r)]
+    try:
+        return guard_analysis_output(build(ai), citations, [situation]), slow, []
+    except GuardError:
+        if not rule:
+            raise
+    bad = []
+    for r in ai:
+        try:
+            guard_analysis_output(build([r]), citations, [situation])
+        except GuardError:
+            bad.append(r)
+    keep = [r for r in ai if r not in bad]
+    if not keep:
+        raise GuardError("세 관점 모두 근거 검증을 통과하지 못했습니다")
+    return guard_analysis_output(build(keep), citations, [situation]), slow, bad
 
 
 def analyze(situation: str, provider: str | None = None) -> dict:
@@ -249,14 +271,16 @@ def analyze(situation: str, provider: str | None = None) -> dict:
             fallback = NO_EVIDENCE
         else:
             try:
-                merged, missed, model = _write_roles(p, situation, citations, analyses)
-                g = guard_analysis_output(merged, citations, [situation])
+                outs, model = _write_roles(p, situation, citations)
+                g, slow, bad = _guard_roles(outs, analyses[0]["perspectives"] if analyses else None, citations, situation)
                 used["model"] = model
                 label = f"종합 분석({'·'.join(i['topic']['label'] for i in issues)})" if issues else "종합 분석"
                 analyses = [{"issue": {"id": "ai", "label": label}, "perspectives": g["perspectives"]}]
                 removed, unverified = g["removed"], g["unverified"]
-                if missed:
-                    notices.append(f"{'·'.join(ROLE_LABEL[r] for r in missed)} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.")
+                if slow:
+                    notices.append(f"{'·'.join(ROLE_LABEL[r] for r in slow)} 관점은 AI 응답이 늦어 규칙기반 분석으로 보여 드려요.")
+                if bad:
+                    notices.append(f"{'·'.join(ROLE_LABEL[r] for r in bad)} 관점은 AI 답변이 근거 검증을 통과하지 못해 규칙기반 분석으로 보여 드려요.")
             except Exception as e:  # noqa: BLE001
                 fallback = llm_fallback(p.label, e, "분석")
                 used = {"id": "mock", "label": "규칙기반 엔진(AI 답변 대체)", "model": "law-rule-engine-v1", "kind": "rule"}

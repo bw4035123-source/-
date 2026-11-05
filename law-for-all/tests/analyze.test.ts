@@ -149,6 +149,25 @@ describe("analyze 파이프라인(LLM 모킹)", () => {
     expect(r.analyses[0].perspectives.lawyer.stance).toContain("임차권등기명령");
     expect(r.analyses[0].perspectives.prosecutor.stance.startsWith("사기죄 검토")).toBe(false);
   });
+
+  it("관점 하나가 근거 밖 수치를 쓰면 그 관점만 규칙기반으로", async () => {
+    const analyze = await load({ OPENAI_API_KEY: "sk-test", LLM_PROVIDER: "openai" });
+    const content = (judgeExtra: string) =>
+      JSON.stringify({
+        lawyer: { stance: "임차권등기명령으로 권리 보전 [[housing-lease:3의3]]", arguments: [], evidence: ["계약서"], strategy: [] },
+        prosecutor: { stance: "형사 검토 [[criminal-act:347]]", violations: [], sanctions: [], proofPoints: [] },
+        judge: { stance: `요건 대조 [[housing-lease:3의2]]${judgeExtra}`, issues: [], requirements: [], outlook: "가능성" },
+        citations: ["housing-lease:3"],
+      });
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (_u: unknown, init?: RequestInit) =>
+      new Response(JSON.stringify({ model: "gpt-test", choices: [{ message: { content: content(String(init?.body).includes("judge) 관점") ? " 99일 안에 해결 가능" : "") } }] }), { status: 200 }),
+    );
+    const r = await analyze({ situation: JEONSE });
+    expect(r.provider.id).toBe("openai");
+    expect(r.notices.join(" ")).toContain("판사 관점은 AI 답변이 근거 검증을 통과하지 못해");
+    expect(JSON.stringify(r.analyses)).not.toContain("99일");
+    expect(r.analyses[0].perspectives.lawyer.stance).toContain("임차권등기명령");
+  });
 });
 
 describe("임금체불 사례 정밀도", () => {
