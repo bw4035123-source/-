@@ -189,6 +189,45 @@ _ASK_CACHE: dict[str, tuple[float, dict]] = {}
 _COMP_TTL = 6 * 3600
 
 
+_WATCH_CACHE: dict[str, tuple[float, dict | None]] = {}
+
+
+def law_watch(names: list[str]) -> dict:
+    """상위법 개정 알림 — 지켜보는 법령마다 현행 최근 공포일·제개정 구분(app/api/law-watch/route.ts 와 같음).
+    비교(우리 규정 기준일 이후 개정됐는지)는 화면에서 — 지켜보는 목록은 서버에 저장하지 않음"""
+    import concurrent.futures as cf
+    from datetime import datetime as _dt
+
+    from .search import search_law_names
+
+    norm = lambda x: re.sub(r"\s", "", x)  # noqa: E731
+    now = time.time()
+    warnings: list[str] = []
+
+    def one(q: str):
+        c = _WATCH_CACHE.get(q)
+        if c and now - c[0] < 3600:
+            return q, c[1]
+        svc = LawService(config.law_access)
+        hits = svc.search_change_laws(q)
+        off = search_law_names(q)
+        official = off[0]["name"] if off else None
+        hit = next((h for h in hits if norm(h["name"]) == norm(q)), None) or (next((h for h in hits if norm(h["name"]) == norm(official)), None) if official else None)
+        warnings.extend(svc.warnings)
+        if (hit and hit.get("promulgated")) or not svc.warnings:
+            _WATCH_CACHE[q] = (now, hit)
+        return q, hit
+
+    with cf.ThreadPoolExecutor(max_workers=8) as ex:
+        found = list(ex.map(one, names))
+    return {
+        "laws": [{"query": q, **h} for q, h in found if h and h.get("promulgated")],
+        "missing": [q for q, h in found if not (h and h.get("promulgated"))],
+        "checkedAt": _dt.now(timezone.utc).isoformat(),
+        "warnings": list(dict.fromkeys(warnings))[:3],
+    }
+
+
 def warm_compliance() -> None:
     """서버가 뜬 직후 모의데이터 3종(한글·Word·PDF) 규정의 AI 검토를 미리 해 캐시에 넣어 둠 — 심사·시연에서 모의데이터 버튼은 바로 결과.
     요청 본문은 화면이 실제로 보내는 것과 같음(scripts/capture-warmup.cjs 로 만든 data/compliance_warmup.json)"""
@@ -555,6 +594,12 @@ class Handler(BaseHTTPRequestHandler):
             if not detail:
                 raise ApiError(404, svc.warnings[0] if svc.warnings else "판례를 찾을 수 없습니다.")
             return self._json(200, {"detail": detail})
+        if method == "GET" and path == "/api/law-watch":
+            ok, retry = rate_limit(f"law-watch:{self._client()}", 30)
+            if not ok:
+                raise ApiError(429, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", {"Retry-After": str(retry)})
+            names = list(dict.fromkeys(x.strip()[:60] for x in (qs.get("names") or [""])[0].split("|") if x.strip()))[:20]
+            return self._json(200, law_watch(names))
         if method == "GET" and path == "/api/law-changes/search":
             ok, retry = rate_limit(f"law-changes-search:{self._client()}", 60)
             if not ok:

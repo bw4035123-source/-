@@ -35,6 +35,8 @@ import { downloadWord, escapeHtml } from "@/lib/word-export";
 import { cn } from "@/lib/utils";
 import { complianceDocs, type CheckItem, type Verdict } from "@/lib/reg-report";
 import { RegReportPack } from "@/components/drafting/reg-report-pack";
+import { WatchButton } from "@/components/officer-view/law-watch";
+import { citedLaws } from "@/lib/law-watch";
 
 const TONE: Record<Severity, string> = {
   conflict: "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
@@ -298,6 +300,20 @@ export function ComplianceView() {
     return complianceDocs({ regName: merged?.regName ?? regName, orgType: merged?.orgType ?? orgType, items, laws: Array.from(laws), aiLabel: ai.status === "done" ? ai.label : undefined }, o);
   };
 
+  // 개정 알림: 규정이 「」로 인용한 법령 + 점검 근거가 된 상위 법령(규칙·AI 인용)
+  const watchNames = React.useMemo(() => {
+    if (!merged) return [] as string[];
+    const out = citedLaws(text);
+    const add = (n: string) => n && !out.some((x) => x.replace(/\s/g, "") === n.replace(/\s/g, "")) && out.push(n);
+    for (const r of merged.results) {
+      r.findings.filter((f) => f.severity !== "info").forEach((f) => f.basis.forEach((b) => add(lawName(b.lawId))));
+      const a = ai.status === "done" ? ai.byNo.get(r.article.no) : undefined;
+      a?.issues.forEach((it) => it.basis.forEach((k) => { const c = a.upper.find((u) => u.key === k); if (c) add(c.lawName); }));
+    }
+    return out.slice(0, 20);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merged, ai, text]);
+
   const shown = merged?.results.filter((r) => filter === "all" || r.status === filter) ?? [];
 
   return (
@@ -453,6 +469,7 @@ export function ComplianceView() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
+                    <WatchButton names={watchNames} source={`「${report.regName}」`} label="상위법 개정 알림 받기" />
                     <RegReportPack build={buildReport} disabled={ai.status === "loading"} label={ai.status === "loading" ? "AI 확인 후 보고서" : "보고서 바로 만들기"} />
                     <Button size="sm" variant="outline" onClick={() => copy(reportText, "검토 보고서를 복사했어요.")}>
                       <ClipboardCopy /> 보고서 복사

@@ -1043,3 +1043,26 @@ class QuickAmendSplitTest(unittest.TestCase):
         w = quantity_warning("개정해줘", "1년 미만이면 주지 않는다", "1년 미만이면 1개월 개근 시 1일을 준다", [{"label": "「근로기준법」 제60조(연차 유급휴가)", "text": "1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 주어야 한다"}])
         self.assertIn("「근로기준법」 제60조", w)
         self.assertIn("추가 1개월, 1일", w)
+
+
+class LawWatchTest(unittest.TestCase):
+    """상위법 개정 알림 — 이름이 같은 법령만(시행령으로 잘못 붙지 않게), 약칭은 정식 이름으로"""
+
+    def test_watch(self):
+        import law_for_all.server as s
+        from law_for_all.service import LawService
+
+        def fake(self, q):
+            return [{"name": "근로기준법 시행령", "mst": "2", "promulgated": "20250408", "revision": "일부개정"},
+                    {"name": "근로기준법", "mst": "1", "promulgated": "20260407", "revision": "일부개정"}] if "근로" in q else []
+
+        orig = LawService.search_change_laws
+        LawService.search_change_laws = fake
+        s._WATCH_CACHE.clear()
+        try:
+            r = s.law_watch(["근로기준법", "없는법"])
+        finally:
+            LawService.search_change_laws = orig
+            s._WATCH_CACHE.clear()
+        self.assertEqual([(x["name"], x["promulgated"]) for x in r["laws"]], [("근로기준법", "20260407")])
+        self.assertEqual(r["missing"], ["없는법"])

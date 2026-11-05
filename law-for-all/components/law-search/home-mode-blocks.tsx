@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Briefcase, Building2, FilePenLine, FileStack, FileText, Gavel, Landmark, Layers3, ScanSearch, Shield, ShieldCheck, Users } from "lucide-react";
 import { useSettings } from "@/components/providers/settings-provider";
 import { OFFICER_REG_TEMPLATES } from "@/lib/suggestions";
+import { LawWatchPanel } from "@/components/officer-view/law-watch";
 
 /** 메인 화면 큰 바로가기 — 국민: 법률 상황 분석실 / 공직자: 자체규정 점검 */
 export function ModeCta() {
@@ -11,7 +12,9 @@ export function ModeCta() {
   const cls = "group mt-6 flex w-full max-w-3xl items-center gap-4 rounded-2xl border-2 border-dashed border-accent/40 bg-card/80 p-4 text-left shadow-sm transition hover:border-accent hover:shadow-md";
   if (mode === "officer")
     return (
-      <section className="mt-8 w-full max-w-3xl rounded-2xl border bg-card/90 p-5 text-left shadow-sm" aria-label="규정 바로 만들기">
+      <>
+      <LawWatchPanel />
+      <section className="mt-6 w-full max-w-3xl rounded-2xl border bg-card/90 p-5 text-left shadow-sm" aria-label="규정 바로 만들기">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="flex items-center gap-1.5 font-extrabold">
@@ -36,6 +39,7 @@ export function ModeCta() {
           ))}
         </div>
       </section>
+      </>
     );
   return (
     <Link href="/analyze" className={cls}>

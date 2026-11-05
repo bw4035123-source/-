@@ -2,6 +2,7 @@
 import * as React from "react";
 import { AlertTriangle, ArrowRight, FileSearch, History, Info, Loader2, Replace, SearchX } from "lucide-react";
 import { LawCombobox, type LawPick } from "./law-combobox";
+import { WatchButton } from "@/components/officer-view/law-watch";
 import { impactOn, type ImpactHit, type Part, type UpperChange } from "@/lib/upper-change";
 import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
@@ -214,6 +215,7 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <h2 className="font-extrabold">「{c.law}」 {c.after.type}</h2>
                 <Badge variant="outline">{data!.source === "live" ? "국가법령정보 실시간" : "내장 스냅샷"}</Badge>
+                <WatchButton names={[c.law]} source="상위법 개정 반영" label="다음 개정도 알림 받기" className="ml-auto" />
               </div>
               <p className="text-sm text-muted-foreground">
                 공포 {c.after.promulgated} · 시행 {c.after.effective} ({c.after.kind} 제{c.after.number}호) ← 개정 전: {c.before.type} 공포 {c.before.promulgated}
