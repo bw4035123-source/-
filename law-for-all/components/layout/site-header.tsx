@@ -74,6 +74,9 @@ export function SiteHeader() {
             <ScanSearch className="h-3.5 w-3.5" aria-hidden /> 규정 점검
           </Link>
         </OnlyMode>
+        <Link href="/laws" className="flex shrink-0 items-center gap-1 rounded-full border bg-card px-3 py-1.5 text-xs font-bold md:hidden">
+          <BookOpenText className="h-3.5 w-3.5" aria-hidden /> 법령
+        </Link>
         <ModelSelect className="2xl:hidden" />
         <A11yControls className="ml-auto" />
       </div>
