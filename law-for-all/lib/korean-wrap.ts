@@ -25,10 +25,63 @@ const UNIT = /(?<=\d) (?=(?:개월|개|건|명|일|년|월|시간|분|초|조|�
 /** dots=false: 가운뎃점은 그대로(입력칸 이름표처럼 글자가 곧 이름인 곳 — 공백만 줄바꿈 없는 공백으로) */
 export function koreanWrap(v: string, dots = true): string {
   let s = v;
+  // 닫는 괄호·따옴표 바로 뒤 조사는 떼지 않음: '조문(신구법 비교)을' → ')' 와 '을' 사이 줄바꿈 금지(U+2060)
+  s = s.replace(/([)\]」』’”])(?=[을를이가은는에의와과로도만])/g, "$1\u2060");
   if (dots && s.indexOf("·") >= 0) s = s.replace(DOT, "⁠·​");
   if (s.indexOf(" ") < 0) return s;
   return s.replace(DATE, `$1${NB}$2${NB}$3`).replace(AUX_NEG, NB).replace(SU, NB).replace(SU_AUX, NB).replace(BOUND, NB).replace(UNIT, NB);
 }
 
 /** 복사·내보내기용 — 넣은 문자를 빼고 원래 글로 */
-export const unwrapKorean = (s: string) => s.replace(/[​⁠]/g, "").replace(/ /g, " ");
+export const unwrapKorean = (s: string) => s.replace(/[​⁠]/g, "").replace(/ /g, " ").replace(/,\n/g, ", ");
+
+/**
+ * 안내·설명 글의 쉼표 뒤 줄바꿈 — ', ' 를 ',\n' 으로(요소에는 white-space: pre-line). 화면 표시만, 복사하면 원래 글.
+ * 괄호·낫표·따옴표 안의 쉼표, 숫자 사이(1, 2), 짧은 나열(‘한글, Word’ 같은 몇 글자짜리)은 그대로 둔다 — 낱말 하나가 한 줄이 되지 않게.
+ */
+const OPEN = "([「『‘“<〈《";
+const CLOSE = ")]」』’”>〉》";
+const MIN_BEFORE = 8; // 쉼표 앞 구절 최소 글자 수(공백 제외)
+const MIN_AFTER = 6; // 쉼표 뒤 남은 글자 수
+const letters = (t: string) => t.replace(/[\s ​⁠]/g, "").length;
+
+/** before: 같은 문단에서 이 글 앞에 있는 글(굵은 글씨 등 다른 요소로 나뉜 앞부분) — 쉼표 앞 구절 길이에 함께 셈 */
+export function commaBreak(v: string, before = ""): string {
+  if (v.indexOf(",") < 0) return v;
+  let out = "";
+  let depth = 0;
+  let seg = before.slice(before.lastIndexOf("\n") + 1);
+  // 짧은 말을 쉼표로 늘어놓은 나열(‘초안, 위임 사항 대조, 입법예고문’)은 그 문장 끝까지 줄을 바꾸지 않음
+  let inList = false;
+  // 쉼표 뒤 구절 — 다음 쉼표(괄호 밖)나 문장 끝까지
+  const nextClause = (from: number) => {
+    let d = 0;
+    for (let j = from; j < v.length; j++) {
+      const c = v[j];
+      if (OPEN.includes(c)) d++;
+      else if (CLOSE.includes(c)) d = Math.max(0, d - 1);
+      else if (d === 0 && (c === "," || c === "\n" || (c === "." && /\s|$/.test(v[j + 1] ?? "")))) return v.slice(from, j);
+    }
+    return v.slice(from);
+  };
+  for (let i = 0; i < v.length; i++) {
+    const ch = v[i];
+    if (OPEN.includes(ch)) depth++;
+    else if (CLOSE.includes(ch)) depth = Math.max(0, depth - 1);
+    const next = v[i + 1];
+    if (ch === "," && depth === 0 && (next === " " || next === "\u00A0") && !/\d/.test(v[i - 1] ?? "")) {
+      const after = nextClause(i + 2);
+      if (letters(after) < MIN_BEFORE) inList = true;
+      if (!inList && letters(seg) >= MIN_BEFORE && letters(after) >= MIN_AFTER) {
+        out += ",\n";
+        seg = "";
+        i++; // 쉼표 뒤 공백을 줄바꿈으로 바꿈
+        continue;
+      }
+    }
+    out += ch;
+    if (ch === "\n" || (ch === "." && /\s/.test(next ?? ""))) inList = false;
+    seg = ch === "\n" ? "" : seg + ch; // 이미 바꾼 줄(다시 다듬을 때)에서 구절 길이를 새로 셈
+  }
+  return out;
+}

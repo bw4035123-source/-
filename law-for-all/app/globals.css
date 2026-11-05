@@ -91,9 +91,15 @@
   * { @apply border-border; }
   body {
     @apply bg-background text-foreground antialiased;
-    word-break: keep-all;
-    overflow-wrap: anywhere;
   }
+  /* 한국어 줄바꿈: 낱말(어절) 단위로만 끊고, 한 낱말이 줄보다 길 때만 그 안에서 끊음.
+     overflow-wrap: anywhere 는 좁은 칸(flex·grid)에서 한글 낱말을 글자 중간에서 쪼개므로 break-word 로 */
+  body, p, span, div, a, li, dt, dd, h1, h2, h3, h4, h5, h6, label, td, th, caption, figcaption, blockquote, summary, small, strong, em, b, button {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  /* 안내·설명 글의 쉼표 뒤 줄바꿈(components/layout/korean-wrap.tsx 가 ', ' → ',\n' 으로 바꾸고 표시) */
+  [data-ko-br] { white-space: pre-line; }
   /* 한국어 줄바꿈 가독성: 제목·가운데 정렬 글은 줄 길이를 고르게, 본문은 마지막 줄에 한 낱말만 남지 않게 */
   h1, h2, h3, h4, .text-center, [class*="text-center"] p { text-wrap: balance; }
   p, li, dd, td, th, figcaption, blockquote, label, summary { text-wrap: pretty; }
