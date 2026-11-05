@@ -121,7 +121,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         try:
             res, g, _ = generate_guarded(p, lambda raw: guard_llm_output(raw, mode, context, [query]), system=system_prompt(mode), messages=[{"role": "user", "content": user_prompt(query, context)}], json_mode=True, temperature=0.1, max_tokens=1800, schema=schema_for(mode))
             used["model"] = res["model"] or p.model
-            out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"])
+            out.update(summary=g["summary"], citizen=g["citizen"], officer=g["officer"], removed=g["removed"], unverified=g["unverified"], cited=g["citationKeys"])
             citation_keys = g["citationKeys"] + [k for k in citation_keys if k not in g["citationKeys"]]
         except Exception as e:  # noqa: BLE001 — 어떤 실패든 규칙엔진으로 안전 대체
             fallback = llm_fallback(p.label, e)
@@ -144,7 +144,7 @@ def ask(query: str, mode: str = "citizen", provider: str | None = None) -> dict:
         # 판례 검색어: 화면이 /api/cases 로 따로 불러옴(답변 속도 보호)
         "caseQuery": topic.get("caseQuery") if topic else (live_case_query(query) if live_keys else None),
         "relatedLaws": related_laws_of([c["key"] for c in citations]) + list({c["lawId"]: {"id": c["lawId"], "name": c["lawName"]} for c in citations if c["key"] in live_keys}.values()),
-        "guard": {"removedCitations": removed, "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback["reason"], "fallbackKind": fallback["kind"]} if fallback else {})},
+        "guard": {"removedCitations": removed, **({"citedKeys": out["cited"]} if out.get("cited") else {}), "unverifiedMentions": out["unverified"], "passed": not out["unverified"], **({"fallbackReason": fallback["reason"], "fallbackKind": fallback["kind"]} if fallback else {})},
         "dataSource": "live" if any(c["source"] == "live" for c in citations) else "mock",
         "notices": list(dict.fromkeys(notices)),
         "elapsedMs": int((time.time() - started) * 1000), "generatedAt": now_iso(),

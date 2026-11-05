@@ -9,18 +9,20 @@ import { koreanWrap, unwrapKorean } from "@/lib/korean-wrap";
  * 사용자가 끌어 선택해 복사할 때는 넣은 문자를 다시 빼 원래 글이 복사되게 한다.
  */
 // 단추·탭 등 짧은 조작 요소는 줄바꿈 문제가 드물고, 바꾸면 접근성 이름(화면낭독기·자동 시험)이 달라지므로 건드리지 않음
-const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "PRE", "CODE", "NOSCRIPT", "BUTTON", "LABEL"]);
+const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "SELECT", "OPTION", "PRE", "CODE", "NOSCRIPT", "BUTTON"]);
 // 조작 요소 역할만 건너뜀(note·alert·status·region 같은 안내 글은 다듬음)
 const INTERACTIVE = /^(button|tab|menuitem\w*|option|link|switch|checkbox|radio|combobox|textbox|searchbox|slider|spinbutton|treeitem|gridcell)$/;
 
 function fix(node: Text) {
   const v = node.nodeValue;
   if (!v || (v.indexOf("·") < 0 && v.indexOf(" ") < 0)) return;
+  let dots = true;
   for (let p = node.parentElement; p; p = p.parentElement) {
+    if (p.tagName === "LABEL") dots = false;
     if (SKIP.has(p.tagName) || p.isContentEditable || p.dataset.noWrapFix !== undefined || INTERACTIVE.test(p.getAttribute("role") ?? "")) return;
     if (p === document.body) break;
   }
-  const next = koreanWrap(v);
+  const next = koreanWrap(v, dots);
   if (next !== v) node.nodeValue = next;
 }
 function walk(root: Node) {

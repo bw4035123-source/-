@@ -20,3 +20,11 @@ describe("koreanWrap", () => {
     expect(unwrapKorean(koreanWrap(s))).toBe(s);
   });
 });
+
+describe("koreanWrap 이름표", () => {
+  it("dots=false 면 가운뎃점은 그대로, 공백 규칙만", () => {
+    const out = koreanWrap("협약과 어긋나지 않는지·작성", false);
+    expect(out).not.toMatch(/[⁠​]/);
+    expect(out).toContain("어긋나지 않는지");
+  });
+});

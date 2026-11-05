@@ -78,6 +78,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
   let officer: AskResult["officer"];
   let citationKeys = context.map((c) => c.key);
   let removed: string[] = [];
+  let citedKeys: string[] | undefined;
   let unverified: string[] = [];
   let fallbackReason: string | undefined;
   let fallbackNotice: string | undefined;
@@ -116,6 +117,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
       removed = g.removed;
       unverified = g.unverified;
       // 실제 인용한 조문을 앞에, 나머지 검색 근거는 뒤에
+      citedKeys = g.citationKeys;
       citationKeys = [...g.citationKeys, ...context.map((c) => c.key).filter((k) => !g.citationKeys.includes(k))];
     } catch (e) {
       ({ kind: fallbackKind, notice: fallbackNotice, reason: fallbackReason } = llmFallback(provider.label, e));
@@ -149,7 +151,7 @@ export async function ask({ query: rawQuery, mode, provider: requested }: AskInp
       ...relatedLawsOf(citations.map((c) => c.key)),
       ...Array.from(new Map(citations.filter((c) => liveKeys.includes(c.key)).map((c) => [c.lawId, { id: c.lawId, name: c.lawName }])).values()),
     ],
-    guard: { removedCitations: removed, unverifiedMentions: unverified, fallbackReason, fallbackKind, passed: unverified.length === 0 },
+    guard: { removedCitations: removed, ...(citedKeys ? { citedKeys } : {}), unverifiedMentions: unverified, fallbackReason, fallbackKind, passed: unverified.length === 0 },
     dataSource: citations.some((c) => c.source === "live") ? "live" : "mock",
     notices: Array.from(new Set(notices)),
     elapsedMs: Date.now() - started,

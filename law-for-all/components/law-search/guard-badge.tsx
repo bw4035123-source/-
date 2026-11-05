@@ -9,7 +9,8 @@ export function GuardBadge({ result }: { result: AskResult }) {
   const [open, setOpen] = React.useState(false);
   const g = result.guard;
   const ok = g.passed;
-  const cited = new Set(Array.from(JSON.stringify([result.summary, result.citizen, result.officer]).matchAll(/\[\[([^\]]+)\]\]/g), (m) => m[1])).size;
+  // 본문 [[표식]] + 가드가 확인한 인용(행동 단계 근거 등) — 본문에 표식이 없어도 확인된 근거는 셈
+  const cited = new Set([...Array.from(JSON.stringify([result.summary, result.citizen, result.officer]).matchAll(/\[\[([^\]]+)\]\]/g), (m) => m[1]), ...(g.citedKeys ?? [])]).size;
   // 답변 방식에 맞게: 근거 없음 / 사람이 검수한 규칙기반 답변 / 생성형 AI 답변(검증을 통과했을 때만 '검증 통과')
   const none = result.citations.length === 0;
   const llm = result.provider.kind === "llm";

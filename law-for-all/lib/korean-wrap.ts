@@ -22,9 +22,10 @@ const BOUND = new RegExp(`(?<=[가-힣A-Za-z0-9)」』]) (?=(?:등|것|때|뿐|�
 // 숫자 + 단위: 30 일 · 3 개월 (붙여 쓰지 않은 경우)
 const UNIT = /(?<=\d) (?=(?:개월|개|건|명|일|년|월|시간|분|초|조|항|호|원|만원|억원|%|퍼센트|배|회|차|세)(?:$|[\s.,)이가을를은는도에의와과로만부까]))/g;
 
-export function koreanWrap(v: string): string {
+/** dots=false: 가운뎃점은 그대로(입력칸 이름표처럼 글자가 곧 이름인 곳 — 공백만 줄바꿈 없는 공백으로) */
+export function koreanWrap(v: string, dots = true): string {
   let s = v;
-  if (s.indexOf("·") >= 0) s = s.replace(DOT, "⁠·​");
+  if (dots && s.indexOf("·") >= 0) s = s.replace(DOT, "⁠·​");
   if (s.indexOf(" ") < 0) return s;
   return s.replace(DATE, `$1${NB}$2${NB}$3`).replace(AUX_NEG, NB).replace(SU, NB).replace(SU_AUX, NB).replace(BOUND, NB).replace(UNIT, NB);
 }

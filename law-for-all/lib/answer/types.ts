@@ -22,6 +22,8 @@ export interface OfficerAnswer {
 export interface GuardReport {
   /** 근거 목록에 없어 제거된 인용 키 */
   removedCitations: string[];
+  /** 가드가 확인한 인용 근거 키(본문 [[표식]]·행동 단계 근거·답변이 밝힌 근거) — 없으면 본문 표식으로 셈 */
+  citedKeys?: string[];
   /** 본문에 언급됐지만 근거 조문에서 확인되지 않은 조문 표현 */
   unverifiedMentions: string[];
   /** LLM 응답을 쓰지 못해 규칙엔진으로 대체한 사유 */
