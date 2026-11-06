@@ -8,6 +8,7 @@ import { fetchJson } from "@/lib/fetch-json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
+import { RegFileDrop } from "@/components/ui/reg-file-drop";
 import { cn } from "@/lib/utils";
 
 /** 개정 탭으로 넘길 내용(우리 규정 조문 + 개정 방향) */
@@ -132,7 +133,17 @@ export function UpperPanel({ onAmend, initialLaw }: { onAmend: (h: AmendHandoff)
               예시 채우기
             </button>
           </div>
-          <textarea value={reg} onChange={(e) => setReg(e.target.value)} rows={9} placeholder={"규정 전문을 붙여 넣으세요(첫 줄은 규정명).\n제1조(목적) …\n제2조(…) …"} className="w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="우리 기관 규정 전문" />
+          <RegFileDrop
+            compact
+            className="mb-2"
+            hint="규정 전문을 이 브라우저에서 읽어요(서버로 보내지 않음)"
+            onLoaded={({ info }) => {
+              setReg(info.text.trim());
+              const n = (info.text.match(/^\s*제\s*\d+\s*조/gm) ?? []).length;
+              toast(`${info.format} 문서에서 ${n ? `조문 ${n}개를` : "내용을"} 불러왔어요 — ‘개정 영향 점검’을 누르세요`);
+            }}
+          />
+          <textarea value={reg} onChange={(e) => setReg(e.target.value)} rows={9} placeholder={"규정 파일을 올리거나 전문을 붙여 넣으세요(첫 줄은 규정명).\n제1조(목적) …\n제2조(…) …"} className="w-full rounded-md border bg-card p-2.5 text-sm leading-6" aria-label="우리 기관 규정 전문" />
           <Button variant="accent" size="lg" className="mt-2 w-full" onClick={check} disabled={!c || c.noTable || !reg.trim()}>
             <FileSearch /> 개정 영향 점검
           </Button>

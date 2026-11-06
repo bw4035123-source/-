@@ -4,6 +4,7 @@ import { AlertTriangle, ClipboardCopy, Info, ListOrdered } from "lucide-react";
 import { renumber, type RefFix } from "@/lib/renumber";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { RegFileDrop } from "@/components/ui/reg-file-drop";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,16 @@ export function RenumberPanel() {
             예시 채우기
           </button>
         </div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12} placeholder={"규정 전문을 붙여 넣으세요.\n제1조(목적) …\n제2조(정의) …"} className="w-full rounded-md border bg-card p-2.5 font-serif text-sm leading-6" aria-label="규정 전문" />
+        <RegFileDrop
+          compact
+          hint="규정 전문을 이 브라우저에서 읽어요(서버로 보내지 않음)"
+          onLoaded={({ info }) => {
+            setText(info.text.trim());
+            const n = (info.text.match(/^\s*제\s*\d+\s*조/gm) ?? []).length;
+            toast(`${info.format} 문서에서 ${n ? `조문 ${n}개를` : "내용을"} 불러왔어요 — 신설·삭제할 조를 고르세요`);
+          }}
+        />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={12} placeholder={"규정 파일을 올리거나 전문을 붙여 넣으세요.\n제1조(목적) …\n제2조(정의) …"} className="w-full rounded-md border bg-card p-2.5 font-serif text-sm leading-6" aria-label="규정 전문" />
         <div>
           <p className="mb-2 text-sm font-bold">② 바꿀 내용</p>
           <div className="flex flex-wrap items-center gap-2 text-sm">
