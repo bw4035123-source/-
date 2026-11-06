@@ -395,7 +395,7 @@ await scene("s09", async () => {
 if (mobShots.length) await scene("sMob", async () => {
   await cap("");
   const phones = mobShots
-    .map((src, i) => `<div style="display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:186px;height:403px;border-radius:28px;border:7px solid #0b1431;background:#0b1431;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.35)"><img src="${src}" style="width:100%;display:block"></div><span style="font-size:17px;font-weight:700;opacity:.95">${["① 앱 설치 없이 주소만", "② 말하듯 묻고 근거 있는 답", "③ 지금 할 일 · 전화 바로 걸기"][i] ?? ""}</span></div>`)
+    .map((src, i) => `<div style="display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:236px;height:402px;border-radius:26px;border:7px solid #0b1431;background:#0b1431;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.35)"><img src="${src}" style="width:100%;display:block"></div><span style="font-size:17px;font-weight:700;opacity:.95">${["① 앱 설치 없이 주소만", "② 말하듯 묻고 근거 있는 답", "③ 지금 할 일 · 전화 바로 걸기"][i] ?? ""}</span></div>`)
     .join("");
   await card(`<span class="chip">대국민 서비스 향상</span><h1 style="font-size:40px">국민 모드는 휴대폰에서도 간편하게</h1><p style="font-size:20px">앱 설치·회원가입 없이 휴대폰 브라우저로 바로 · PC와 같은 기능 · 글자 크기 3단계·뜻 단위 줄바꿈</p><div style="display:flex;gap:34px;margin-top:6px">${phones}</div>`);
 });
