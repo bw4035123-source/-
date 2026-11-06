@@ -205,7 +205,7 @@ export function SearchResults({ q }: { q: string }) {
           )}
         </aside>
       </div>
-      <p className="mt-10 text-center text-xs text-muted-foreground">
+      <p className="ko-sentences mt-10 text-center text-xs text-muted-foreground">
         본 답변은 법률 정보 제공을 위한 AI 보조 결과로 법률 자문이 아닙니다. 개별 사안은 원문 확인 및 전문가 상담을 권장합니다.
       </p>
     </CitationProvider>

@@ -96,7 +96,7 @@ export function FormDraft({ result }: { result: AskResult }) {
                   <Printer /> 인쇄
                 </Button>
               </div>
-              <p className="text-xs leading-5 text-muted-foreground">※ 근거 조문으로 만든 초안이며 법률 자문이 아닙니다. 사실관계·금액·날짜를 확인하고, 필요하면 대한법률구조공단(☎132) 상담을 받아 보세요.</p>
+              <p className="ko-sentences text-xs leading-5 text-muted-foreground">※ 근거 조문으로 만든 초안이며 법률 자문이 아닙니다. 사실관계·금액·날짜를 확인하고, 필요하면 대한법률구조공단(☎132) 상담을 받아 보세요.</p>
             </div>
           </div>
         </SheetContent>

@@ -100,6 +100,8 @@
   }
   /* 의미 단위 묶음 — 짧은 구는 한 덩어리로 다음 줄에 넘어가고(줄보다 길면 안에서 자연스럽게 줄바꿈), 강제 줄바꿈은 쓰지 않음 */
   .ko-phrase { display: inline-block; max-width: 100%; }
+  /* 여러 문장짜리 안내·면책 문구 — 문장(마침표)마다 새 줄, 문장 안은 화면 너비에 맞춰 자연스럽게(korean-wrap.tsx) */
+  .ko-sentences { white-space: pre-line; }
   /* 한국어 줄바꿈 가독성: 제목·가운데 정렬 글은 줄 길이를 고르게, 본문은 마지막 줄에 한 낱말만 남지 않게 */
   h1, h2, h3, h4, .text-center, [class*="text-center"] p { text-wrap: balance; }
   p, li, dd, td, th, figcaption, blockquote, label, summary { text-wrap: pretty; }

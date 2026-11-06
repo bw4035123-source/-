@@ -163,7 +163,7 @@ export function ReportView() {
             ))}
           </ol>
         </section>
-        <footer className="mt-8 border-t border-slate-300 pt-3 text-[11px] leading-5 text-slate-500">
+        <footer className="ko-sentences mt-8 border-t border-slate-300 pt-3 text-[11px] leading-5 text-slate-500">
           본 리포트는 법률 정보 제공 목적의 AI 보조 결과이며 법률 자문이 아닙니다. 법령은 개정될 수 있으므로 국가법령정보센터(www.law.go.kr)에서 현행 원문을 확인하시기 바랍니다.
         </footer>
       </article>

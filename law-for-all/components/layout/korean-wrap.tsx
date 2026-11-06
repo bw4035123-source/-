@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { koreanWrap, unwrapKorean } from "@/lib/korean-wrap";
+import { koreanWrap, sentenceBreak, unwrapKorean } from "@/lib/korean-wrap";
 
 /**
  * 한국어 줄바꿈 다듬기(화면 표시만) — keep-all 에서 '괴롭힘·성희롱'처럼 가운뎃점으로 이은 긴 말은 한 낱말로 취급돼
@@ -17,12 +17,28 @@ function fix(node: Text) {
   const v = node.nodeValue;
   if (!v || (v.indexOf("·") < 0 && v.indexOf(" ") < 0 && v.indexOf("\u00A0") < 0)) return;
   let dots = true;
+  let sentences = false;
   for (let p = node.parentElement; p; p = p.parentElement) {
     if (p.tagName === "LABEL") dots = false;
+    if (p.classList.contains("ko-sentences")) sentences = true;
     if (SKIP.has(p.tagName) || p.isContentEditable || p.dataset.noWrapFix !== undefined || INTERACTIVE.test(p.getAttribute("role") ?? "")) return;
     if (p === document.body) break;
   }
-  const next = koreanWrap(v, dots);
+  let next = koreanWrap(v, dots);
+  // 여러 문장짜리 안내·면책 문구: 마침표 뒤에서 새 줄(.ko-sentences 는 white-space: pre-line)
+  if (sentences) {
+    next = sentenceBreak(next);
+    // 앞 문장이 다른 요소(굵은 글씨·묶음)에서 마침표로 끝났으면 이 글 앞 공백을 새 줄로
+    if (/^[ \u00A0]+\S/.test(next)) {
+      const block = node.parentElement?.closest(".ko-sentences");
+      if (block) {
+        const r = document.createRange();
+        r.setStart(block, 0);
+        r.setEnd(node, 0);
+        if (/[가-힣)」』’”]\.$/.test(r.toString())) next = next.replace(/^[ \u00A0]+/, "\n");
+      }
+    }
+  }
   if (next !== v) node.nodeValue = next;
 }
 function walk(root: Node) {
@@ -52,7 +68,7 @@ export function KoreanWrap() {
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });
     const onCopy = (e: ClipboardEvent) => {
       const s = window.getSelection()?.toString() ?? "";
-      if (!/[\u200B\u2060\u00A0]/.test(s) || !e.clipboardData) return;
+      if (!/[\u200B\u2060\u00A0]|\.\n/.test(s) || !e.clipboardData) return;
       e.clipboardData.setData("text/plain", unwrapKorean(s));
       e.preventDefault();
     };

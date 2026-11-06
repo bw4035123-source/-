@@ -95,8 +95,8 @@ export function AnalyzeView() {
         </p>
         <p className="mx-auto mt-3 block max-w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-center text-xs font-semibold leading-5 text-amber-950 sm:inline-flex sm:items-start sm:gap-1.5 sm:text-left lg:whitespace-nowrap dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
           <span aria-hidden className="hidden sm:inline">⚠️</span>
-          {/* 강제 줄바꿈 없이 화면 너비에 맞춰 흐르게 — 뜻 덩어리(ko-phrase)만 갈라지지 않게 묶음 */}
-          <span>
+          {/* 문장마다 새 줄(ko-sentences), 문장 안은 화면 너비에 맞춰 흐르게 — 뜻 덩어리(ko-phrase)만 묶음 */}
+          <span className="ko-sentences">
             <span aria-hidden className="sm:hidden">⚠️ </span>AI가 만든 참고용 검토예요. <span className="ko-phrase">결과를 맹신하지 말고,</span> 중요한 결정 전에는 반드시{" "}
             <span className="ko-phrase">변호사 등 전문가의 자문을 받으세요</span>
             <span className="keep-phrase">(대한법률구조공단 ☎132)</span>.
@@ -180,7 +180,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
 
         <div className="flex items-start gap-2 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" role="note">
           <span aria-hidden>⚠️</span>
-          <p>
+          <p className="ko-sentences">
             <strong className="block">아래는 AI 변호사·검사·판사의 역할 시뮬레이션입니다.</strong>
             {/* 강제 줄바꿈 없이 화면 너비에 맞춰 흐르게 — 뜻 덩어리(ko-phrase)만 갈라지지 않게 묶음 */}
             실제 변호사의 자문, 검사의 처분, 법원의 판결이 아니므로 <span className="ko-phrase">결과를 맹신하지 마세요.</span> 실제 결과는 증거와 구체적 사정에 따라{" "}
@@ -195,7 +195,7 @@ function Result({ r, onCopy }: { r: AnalyzeResult; onCopy: () => void }) {
           <ContactsCard contacts={r.contacts} />
         </div>
 
-        <p className="rounded-xl border border-dashed p-4 text-center text-xs leading-5 text-muted-foreground">
+        <p className="ko-sentences rounded-xl border border-dashed p-4 text-center text-xs leading-5 text-muted-foreground">
           ⚖️ 이 화면은 법률가의 사고방식을 보여 주는 <strong>AI 역할 시뮬레이션</strong>이며 실제 변호사의 법률 자문, 검사의 처분, 법원의 판결이 아닙니다. AI 결과를 맹신하지 말고, 중요한 결정 전에는 반드시 전문가의 자문을 받으세요(대한법률구조공단 ☎132).
         </p>
       </div>

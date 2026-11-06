@@ -57,5 +57,8 @@ export function koreanWrap(v: string, dots = true): string {
   return bindListItems(s);
 }
 
+/** 문장 끝(마침표) 뒤 줄바꿈 — 여러 문장짜리 안내·면책 문구(.ko-sentences)에서 문장마다 새 줄로. 소수점·주소(www.law.go.kr)는 그대로 */
+export const sentenceBreak = (s: string) => s.replace(/(?<=[가-힣)」』’”])\.[ \u00A0]+(?=\S|$)/g, ".\n"); // 글 끝의 '. '(다음 문장이 다른 요소에 있을 때)도
+
 /** 복사·내보내기용 — 넣은 문자를 빼고 원래 글로 */
-export const unwrapKorean = (s: string) => s.replace(/[​⁠]/g, "").replace(/ /g, " ");
+export const unwrapKorean = (s: string) => s.replace(/[\u200B\u2060]/g, "").replace(/\u00A0/g, " ").replace(/\.\n/g, ". ");

@@ -59,3 +59,12 @@ describe("강제 줄바꿈 없음 · 쉼표 나열 항목 묶기", () => {
     expect(unwrapKorean(koreanWrap(t))).toBe(t);
   });
 });
+
+describe("sentenceBreak 문장마다 새 줄", () => {
+  it("마침표 뒤에서만, 소수점·주소는 그대로", async () => {
+    const { sentenceBreak } = await import("@/lib/korean-wrap");
+    expect(sentenceBreak("법원의 판결이 아닙니다. AI 결과를 맹신하지 말고, 자문을 받으세요(대한법률구조공단 ☎132).")).toBe("법원의 판결이 아닙니다.\nAI 결과를 맹신하지 말고, 자문을 받으세요(대한법률구조공단 ☎132).");
+    expect(sentenceBreak("EXAONE 3.5 모델과 www.law.go.kr 에서 확인")).not.toContain("\n");
+    expect(unwrapKorean(sentenceBreak("아닙니다. 확인하세요."))).toBe("아닙니다. 확인하세요.");
+  });
+});

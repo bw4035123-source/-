@@ -98,7 +98,7 @@ export function VerificationReceipt({ result }: { result: AskResult }) {
                   ))}
                 </ul>
               </div>
-              <p className="text-xs leading-5 text-muted-foreground">원문 지문은 조문 원문 전체를 SHA-256으로 계산한 값의 앞 16자리예요. 같은 원문으로 다시 계산하면 같은 값이 나와, 답변 당시 근거가 바뀌지 않았는지 확인할 수 있어요.</p>
+              <p className="ko-sentences text-xs leading-5 text-muted-foreground">원문 지문은 조문 원문 전체를 SHA-256으로 계산한 값의 앞 16자리예요. 같은 원문으로 다시 계산하면 같은 값이 나와, 답변 당시 근거가 바뀌지 않았는지 확인할 수 있어요.</p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="accent" onClick={async () => toast((await copyText(text)) ? "검증 영수증을 복사했습니다" : "복사하지 못했습니다")}>
                   <ClipboardCopy /> 복사

@@ -34,7 +34,7 @@ export function SiteFooter() {
         </div>
         <div className="leading-6 text-navy-200">
           <p className="font-semibold text-white">안내</p>
-          <p>본 서비스는 법률 정보 제공 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 중요한 결정 전에는 반드시 원문과 전문가 상담을 확인하세요.</p>
+          <p className="ko-sentences">본 서비스는 법률 정보 제공 목적이며 개별 사안에 대한 법률 자문이 아닙니다. 중요한 결정 전에는 반드시 원문과 전문가 상담을 확인하세요.</p>
           <p className="mt-2">
             <Link href="/about" className="underline">서비스 구조·AI 검증 방식</Link>
           </p>
