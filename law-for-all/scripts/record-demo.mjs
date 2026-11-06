@@ -668,10 +668,16 @@ await scene("s18", async () => {
     await click(page.getByRole("tab", { name: /개정\(조문/ }));
     await cap("③ 개정 — 규정 파일(한글·PDF·Word)을 끌어다 놓으면 조문을 읽어", "파일은 서버로 보내지 않고 브라우저에서만 읽음 · 붙여 넣기·법령에서 고르기도 가능");
     // 모의데이터 한글 규정 파일을 끌어다 놓기(녹화에서는 파일 선택으로 같은 동작)
-    const regFile = path.join(tmp, "가상시설관리공단_복무및보수규정(모의).hwpx");
-    fs.copyFileSync(path.resolve("public/mock/mock-1.hwpx"), regFile);
+    // (한글 파일 이름은 Playwright 파일 선택에서 깨지므로, 브라우저에서 고른 것과 같은 File 을 만들어 넣음)
     await point(page.locator("section[aria-label='개정 대상과 방향'] [aria-label^='규정 파일 올리기']").first());
-    await page.locator("section[aria-label='개정 대상과 방향'] input[type=file]").first().setInputFiles(regFile);
+    await page.evaluate(([b64, name]) => {
+      const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const dt = new DataTransfer();
+      dt.items.add(new File([bin], name));
+      const inp = document.querySelector("section[aria-label='개정 대상과 방향'] input[type=file]");
+      inp.files = dt.files;
+      inp.dispatchEvent(new Event("change", { bubbles: true }));
+    }, [fs.readFileSync(path.resolve("public/mock/mock-1.hwpx")).toString("base64"), "가상시설관리공단_복무및보수규정(모의).hwpx"]);
     const pick = page.getByRole("combobox", { name: "고칠 조문 선택" });
     await pick.waitFor({ timeout: 20000 });
     await wait(900);
