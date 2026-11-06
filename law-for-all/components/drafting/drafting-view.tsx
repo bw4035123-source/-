@@ -32,6 +32,8 @@ import { RegReportPack } from "./reg-report-pack";
 import { amendDocs } from "@/lib/reg-report";
 import { RenumberPanel } from "./renumber-panel";
 import { UpperPanel, type AmendHandoff } from "./upper-panel";
+import { RegFileDrop } from "@/components/ui/reg-file-drop";
+import { splitArticles, type OurArticle } from "@/lib/upper-change";
 
 type Hier = { root: LawDoc; children: LawDoc[] };
 const kindOf = (k?: string): DraftKind => (k === "행정규칙" ? "행정규칙" : k === "자치법규" ? "자치법규" : "법령");
@@ -166,6 +168,27 @@ export function DraftingView() {
   const [no, setNo] = React.useState(params.get("no") ?? "");
   // 직접 입력(자체 규정·조례)
   const [custom, setCustom] = React.useState({ name: "", kind: "행정규칙" as DraftKind, label: "", text: "" });
+  // 규정 파일(한글·PDF·Word)을 끌어다 놓으면 조 단위로 나눠 고칠 조문을 고르게 함(파일은 브라우저에서만 읽음)
+  const [fileDoc, setFileDoc] = React.useState<{ name: string; format: string; arts: OurArticle[] } | null>(null);
+  const [picked, setPicked] = React.useState("");
+  const onRegFile = ({ name, info }: { name: string; info: { text: string; format: string } }) => {
+    const arts = splitArticles(info.text);
+    // 규정명: 문서 첫머리 제목(…규정·규칙·지침 등) → 없으면 파일 이름
+    // (끝의 '(모의데이터)'·'<개정 …>' 같은 덧붙임은 뺌). 새 파일을 올리면 규정명도 그 파일 것으로
+    const head = info.text.split("\n").map((l) => l.trim()).find((l) => l && !/^제\s*\d+\s*조/.test(l));
+    const clean = head?.replace(/\s*(\([^)]*\)|<[^>]*>|\[[^\]]*\])\s*$/, "").trim();
+    const title = clean && clean.length <= 40 && /(규정|규칙|지침|요령|조례|예규|훈령|기준|정관|강령|내규|세칙)$/.test(clean) ? clean : name.replace(/\.[^.]+$/, "").replace(/_+/g, " ").trim();
+    setCustom((c) => ({ ...c, name: title, label: "", text: arts.length ? c.text : info.text.trim().slice(0, 4000) }));
+    setFileDoc({ name, format: info.format, arts });
+    setPicked("");
+    toast(arts.length ? `${info.format} 문서에서 조문 ${arts.length}개를 읽었어요 — 고칠 조문을 고르세요` : "조문(제N조)을 찾지 못해 글 전체를 넣었어요 — 고칠 부분만 남겨 주세요");
+  };
+  const pickArticle = (v: string) => {
+    setPicked(v);
+    const a = fileDoc?.arts[Number(v)];
+    // PDF처럼 줄 끝에서 문장이 잘린 경우 이어 붙임 — 항(①)·호(1.)·목(가.)으로 시작하는 줄만 새 줄로 둠
+    if (a) setCustom((c) => ({ ...c, label: "", text: a.text.replace(/\n(?![①-⑳]|\d+\.\s|[가-하]\.\s)/g, " ").replace(/ {2,}/g, " ") }));
+  };
   // 결과는 '생성'을 누른 조문에서만 보여 줌(그 전에는 결과물 예시)
   const [ranFor, setRanFor] = React.useState<string | null>(null);
   const [instruction, setInstruction] = React.useState("");
@@ -375,13 +398,39 @@ export function DraftingView() {
               </div>
             ) : (
               <div className="space-y-2">
+                <RegFileDrop compact onLoaded={onRegFile} hint="파일은 서버로 보내지 않고 이 브라우저에서 조문만 읽어요" />
+                {fileDoc && fileDoc.arts.length > 0 && (
+                  <div className="space-y-1.5 rounded-lg border border-accent/30 bg-accent/5 p-2.5">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0 truncate font-semibold">
+                        {fileDoc.format} · {fileDoc.name} · 조문 {fileDoc.arts.length}개
+                      </span>
+                      <button type="button" onClick={() => (setFileDoc(null), setPicked(""))} className="shrink-0 text-muted-foreground hover:text-foreground">
+                        닫기
+                      </button>
+                    </div>
+                    <select value={picked} onChange={(e) => pickArticle(e.target.value)} className="h-10 w-full rounded-md border bg-card px-2 text-sm" aria-label="고칠 조문 선택">
+                      <option value="">고칠 조문을 고르세요</option>
+                      {fileDoc.arts.map((a, i) => {
+                        const head = a.text.match(/^제\s*\d+\s*조(?:\s*의\s*\d+)?\s*(?:\([^)]*\))?/)?.[0] ?? a.label;
+                        const body = a.text.slice(head.length).replace(/\s+/g, " ").trim();
+                        return (
+                          <option key={i} value={i}>
+                            {head} {body.slice(0, 28)}
+                            {body.length > 28 ? "…" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground">현행 조문 원문</span>
                   <button type="button" onClick={() => { setCustom({ ...custom, label: "", text: EXAMPLE_TEXT }); setInstruction(EXAMPLE_INSTRUCTION); }} className="rounded-full border bg-card px-2.5 py-0.5 text-[11px] font-semibold hover:border-accent hover:text-accent">
                     예시 채우기
                   </button>
                 </div>
-                <textarea value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} rows={7} placeholder="기존 조문을 그대로 붙여넣으세요." className="w-full rounded-md border bg-card p-2.5 font-serif text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring" aria-label="현행 조문 원문" />
+                <textarea value={custom.text} onChange={(e) => setCustom({ ...custom, text: e.target.value })} rows={7} placeholder="위에서 규정 파일을 올려 조문을 고르거나, 기존 조문을 그대로 붙여넣으세요." className="w-full rounded-md border bg-card p-2.5 font-serif text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring" aria-label="현행 조문 원문" />
                 <details className="text-xs">
                   <summary className="cursor-pointer font-semibold text-muted-foreground">규정명·규범 종류 (선택 — 개정이유·부칙에 들어가요)</summary>
                   <div className="mt-2 grid grid-cols-2 gap-2">
