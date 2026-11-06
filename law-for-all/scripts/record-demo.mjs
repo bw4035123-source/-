@@ -32,8 +32,8 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 14, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
-  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8 };
+  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 18, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
+  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8, sMob: 11 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -103,6 +103,35 @@ if (!casesLive) (PLAN.s05 += 6), (PLAN.s11 += 5); // 판례 장면이 없으면 
 await fetch(`${BASE}/api/ask`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query: "퇴사했는데 마지막 월급을 안 줘요", mode: "citizen" }) }).catch(() => {});
 
 const b = await chromium.launch({ executablePath: fs.existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined });
+// 세션 1: 국민 모드 휴대폰 화면(아이폰 크기)을 녹화 전에 실제 서비스에서 찍어 두고 장면 카드에 보여 줌
+const mobShots = [];
+if (SESSION === 1) {
+  const { devices } = require(pwPath);
+  const mctx = await b.newContext({ ...devices["iPhone 13"] });
+  const mp = await mctx.newPage();
+  const shot = async () => `data:image/jpeg;base64,${(await mp.screenshot({ type: "jpeg", quality: 82 })).toString("base64")}`;
+  try {
+    await mp.goto(BASE + "/");
+    await mp.waitForLoadState("networkidle").catch(() => {});
+    await mp.waitForTimeout(1200);
+    mobShots.push(await shot());
+    await mp.goto(BASE + "/search?q=" + encodeURIComponent("퇴사했는데 마지막 월급을 안 줘요"));
+    await mp.locator("button[aria-expanded]", { hasText: /근거 검증 통과|검수된 답변/ }).first().waitFor({ timeout: 90000 }).catch(() => {});
+    await mp.waitForTimeout(800);
+    await mp.evaluate(() => window.scrollTo({ top: 260 }));
+    await mp.waitForTimeout(600);
+    mobShots.push(await shot());
+    const tel = mp.locator("a[href^='tel:']").first();
+    if (await tel.count()) {
+      await tel.evaluate((e) => e.scrollIntoView({ block: "center" }));
+      await mp.waitForTimeout(700);
+      mobShots.push(await shot());
+    }
+  } catch (e) {
+    console.log("휴대폰 화면을 찍지 못함:", e.message);
+  }
+  await mctx.close();
+}
 const ctx = await b.newContext({ viewport: { width: W, height: H }, recordVideo: { dir: tmp, size: { width: W, height: H } } });
 await ctx.addInitScript(OVERLAY);
 // 시연용 음성 입력 재현 — 녹화 환경에는 마이크가 없어, 브라우저 음성 인식 자리에 '말하는 동안 글이 늘어나다 확정되는' 결과를 넣는다.
@@ -363,7 +392,15 @@ await scene("s09", async () => {
   await wait(2300);
   await click(page.locator("[aria-label='기본 글자 크기']:visible").first());
 });
+if (mobShots.length) await scene("sMob", async () => {
+  await cap("");
+  const phones = mobShots
+    .map((src, i) => `<div style="display:flex;flex-direction:column;align-items:center;gap:8px"><div style="width:186px;height:403px;border-radius:28px;border:7px solid #0b1431;background:#0b1431;overflow:hidden;box-shadow:0 18px 40px rgba(0,0,0,.35)"><img src="${src}" style="width:100%;display:block"></div><span style="font-size:17px;font-weight:700;opacity:.95">${["① 앱 설치 없이 주소만", "② 말하듯 묻고 근거 있는 답", "③ 지금 할 일 · 전화 바로 걸기"][i] ?? ""}</span></div>`)
+    .join("");
+  await card(`<span class="chip">대국민 서비스 향상</span><h1 style="font-size:40px">국민 모드는 휴대폰에서도 간편하게</h1><p style="font-size:20px">앱 설치·회원가입 없이 휴대폰 브라우저로 바로 · PC와 같은 기능 · 글자 크기 3단계·뜻 단위 줄바꿈</p><div style="display:flex;gap:34px;margin-top:6px">${phones}</div>`);
+});
 await scene("s10", async () => {
+  await card("");
   await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
   await wait(300);
   await cap("③ 공직자 모드 — 같은 엔진, 실무용 화면", "자주 찾는 법령 12개(계약·재정·청렴·정보공개·안전·노무) · 규정 바로 만들기 15종");
@@ -516,7 +553,7 @@ await scene("sE", async () => {
 });
 await scene("s18", async () => {
   await cap("");
-  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 실서비스 93/94 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
+  await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 국민 모드 · 공직자 모드 한 엔진 두 화면 · 이어서 묻기</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 휴대폰에서도 앱 설치 없이 간편하게 — 대국민 서비스 향상</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 실서비스 93/94 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
 });
 } else {
   // ───────────── 세션 2 — 지정과제 ③ 규정 제·개정 에이전트
@@ -629,17 +666,25 @@ await scene("s18", async () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     await wait(400);
     await click(page.getByRole("tab", { name: /개정\(조문/ }));
-    await cap("③ 개정 — 기존 조문을 붙여 넣고 바꿀 내용을 말하듯 적으면", "왼쪽 입력 · 오른쪽 결과(생성 전에는 결과물 예시) · 법령에서 고를 수도 있음");
-    const src = page.getByRole("textbox", { name: "현행 조문 원문" });
-    await click(src);
-    await src.fill("제5조(처리기간) ① 질의민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 민원인이 요청하면 처리 결과를 문서로 알려야 한다.");
-    await page.getByText(/규정명\u2060?·\u200B?규범 종류/).click();
-    await page.getByRole("textbox", { name: "규정명" }).fill("○○공단 민원 처리 규정");
+    await cap("③ 개정 — 규정 파일(한글·PDF·Word)을 끌어다 놓으면 조문을 읽어", "파일은 서버로 보내지 않고 브라우저에서만 읽음 · 붙여 넣기·법령에서 고르기도 가능");
+    // 모의데이터 한글 규정 파일을 끌어다 놓기(녹화에서는 파일 선택으로 같은 동작)
+    const regFile = path.join(tmp, "가상시설관리공단_복무및보수규정(모의).hwpx");
+    fs.copyFileSync(path.resolve("public/mock/mock-1.hwpx"), regFile);
+    await point(page.locator("section[aria-label='개정 대상과 방향'] [aria-label^='규정 파일 올리기']").first());
+    await page.locator("section[aria-label='개정 대상과 방향'] input[type=file]").first().setInputFiles(regFile);
+    const pick = page.getByRole("combobox", { name: "고칠 조문 선택" });
+    await pick.waitFor({ timeout: 20000 });
+    await wait(900);
+    await cap("고칠 조문 고르기 — 조 단위로 나눠 보여 줌 · 규정명도 문서 제목에서 자동", "가상시설관리공단 복무 및 보수 규정(모의) · 11개 조문");
+    await point(pick);
+    const idx = await pick.locator("option").evaluateAll((os) => os.findIndex((o) => /제8조/.test(o.textContent)));
+    await pick.selectOption({ index: Math.max(1, idx) });
+    await wait(900);
     const ins = page.getByRole("textbox", { name: "개정 방향" });
     await point(page.getByRole("button", { name: "단어·기한 변경" }));
-    await wait(500);
+    await wait(400);
     await click(ins);
-    await ins.type("7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경\n처리 결과는 전자우편으로도 알릴 수 있도록", { delay: 14 });
+    await ins.type("9시간에서 8시간으로 변경\n45시간에서 40시간으로 변경\n연장근무는 직원과 합의한 경우에만 하도록", { delay: 14 });
     await cap("정해진 문형(‘A에서 B로’)은 규칙으로 정확히 · 말하듯 쓴 의도는 AI가 조문으로", "입력 틀 4종(단어·기한 변경 · 단서 신설 · 조항 삭제 · 용어 정비) · 국산 AI Solar Pro 4가 쓰고 가드가 검증");
     await wait(1300);
     await click(page.getByRole("button", { name: /개정안 및 신·구조문대비표 생성/ }));
@@ -782,10 +827,10 @@ await scene("s18", async () => {
   });
   await scene("t12", async () => {
     await cap("");
-    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 293건</li></ul>`);
+    await card(`<h1>전 기관 공통 · 바로 이관</h1><ul><li>✔ 규범 종류·기관명·소관 부서만 바꾸면 문형·절차·입법예고가 맞춰짐</li><li>✔ 점검 기준·법령은 코드와 분리된 데이터 — 기관 규정 추가로 확장</li><li>✔ 모델 비종속: 뼈대는 AI 없이 동작, 빈칸·상담만 Solar·EXAONE 등으로 교체</li><li>✔ 추가 설치 없는 Python 실행판(폐쇄망) · Next.js판 · 자동 시험 319건</li></ul>`);
   });
   await scene("t13", async () => {
-    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 개정 의도 → 규칙+AI(가드 검증) 수정안·신구조문대비표·정합성 점검</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · Word 한 번에</li><li>✔ 상위법 개정 알림 · 모든 현행 법령 신구법 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상충 조문 한 번에 개정 → 일부개정(안) 보고·기안문(한글·Word)</li></ul>`);
+    await card(`<h1>법이음 규정 제·개정 지원</h1><ul><li>✔ (제정) 한 줄 요청 → 상위법령 검색 → AI 설계·조문 작성(가드 검증) · 표준 조문·빈칸 채우기</li><li>✔ (개정) 규정 파일 끌어다 놓기 → 고칠 조문 → 규칙+AI(가드 검증) 수정안·신구조문대비표</li><li>✔ 유사 규정 찾기·조문 구성 비교 · 조 번호 정리(인용 정정)</li><li>✔ 제정·개정이유 · 부칙 · 입법예고문 · 절차 · 한글·Word 한 번에</li><li>✔ 상위법 개정 알림 · 모든 현행 법령 신구법 비교 → 우리 규정 영향 조문 → 개정안</li><li>✔ 자체규정 점검 → 상충 조문 한 번에 개정 → 일부개정(안) 보고·기안문(한글·Word)</li></ul>`);
   });
 }
 // 마지막 장면은 목표 길이(TARGET)까지 채우되 최소 6초는 보여 주고, 내레이션이 있으면 그 끝까지
