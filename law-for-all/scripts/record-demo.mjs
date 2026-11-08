@@ -32,7 +32,7 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, tHome: 7, tCit1: 7, tCit2: 14, tBack: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 18, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
+  ? { t00: 4, tHome: 7, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 18, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, tA: 10, tCit1: 6, tCit2: 13, t12: 9, t13: 8 }
   : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8, sMob: 11 };
 const W = 1280;
 const H = 720;
@@ -579,47 +579,34 @@ await scene("s18", async () => {
     await wait(1200);
     await point(page.locator("[aria-label='공직자 모드 전환']:visible").first());
     await wait(1600);
-    const nav = page.locator("header a[href='/drafting']:visible").first();
-    if (await has(nav)) await point(nav);
     await wait(600);
   });
-  // 듀얼 모드 — 공직자도 국민: 같은 서비스의 국민 모드를 짧게 보여 주고 다시 공직자 모드로
-  await scene("tCit1", async () => {
-    await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
-    await page.locator("main [aria-label='음성으로 질문하기']").first().waitFor({ timeout: 20000 }).catch(() => {});
-    await wait(300);
-    await cap("듀얼 모드 — 스위치 한 번으로 국민 모드(공직자도 국민)", "생활 속 법률 문제를 말하듯 묻는 대국민 화면 · 음성 질문 · 휴대폰에서도 앱 설치 없이");
-    await wait(1500);
-    const mic = page.locator("main [aria-label='음성으로 질문하기']").first();
-    if (await has(mic)) await point(mic);
-  });
-  await scene("tCit2", async () => {
-    await page.goto(BASE + "/search?q=" + encodeURIComponent("퇴사했는데 마지막 월급을 안 줘요"));
-    const sec = await aiWait(() => page.locator("[aria-label^='근거 1:']").first().waitFor({ timeout: 60000 }).catch(() => {}));
-    await cap("국민 모드 답변 — 쉬운 말 풀이 · 문장마다 근거 조문 · 지금 해야 할 일", `${took(sec)} · 공직자 모드와 같은 근거 검증(가드)을 거칩니다`);
-    await wait(1200);
-    await point(page.locator("[aria-label^='근거 1:']").first()).catch(() => {});
-    await wait(1500);
+  await scene("tL", async () => {
+    // 공직자 첫 화면의 '규정 바로 만들기' 15종 → 누르면 제정 화면에서 한 줄 제정이 바로 시작
+    const tiles = page.locator("section[aria-label='규정 바로 만들기']");
+    await tiles.scrollIntoViewIfNeeded().catch(() => {});
+    await page.evaluate(() => window.scrollBy({ top: 120 }));
+    await cap("① 제정 — 공직자 첫 화면 ‘규정 바로 만들기’ 15종에서 골라 누르면 바로 시작", "국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 작성");
+    await wait(1600);
+    await click(tiles.getByRole("link", { name: /산업안전보건 관리 규정/ }));
+    await cap("규정 제·개정 지원 화면으로 넘어가 — 국가법령정보에서 상위법령 검색 → AI가 조문 구성 설계", "고른 규정 요청 한 줄이 그대로 입력되어 자동 시작");
+    await page.waitForURL(/drafting/).catch(() => {});
+    const sec = await aiWait(() => page.getByText(/조문 [0-9]+개를 썼어요|AI 작성에 실패|연결하지 못했어요/).first().waitFor({ timeout: 220000 }).catch(() => {}), "제정안");
+    // AI가 쓴 조문 본문이 보이게(작성안 상자를 화면 위쪽으로)
     await page.evaluate(() => {
-      const h = [...document.querySelectorAll("h2,h3")].find((x) => x.textContent.includes("도움받을 수 있는 곳"));
-      if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 220, behavior: "smooth" });
+      const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건"));
+      if (p) window.scrollTo({ top: p.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
     });
-    await wait(800);
-    await cap("관련 기관 전화·누리집 바로 연결 — 행동까지 안내", "고용노동부 ☎1350 · 대한법률구조공단 ☎132 · 이어서 묻기 · 서류 초안 7종 · 법률 상황 분석실");
-    const tel = page.locator("a[href^='tel:']:visible").first();
-    if (await has(tel)) await point(tel);
-  });
-  await scene("tBack", async () => {
-    await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
-    await wait(300);
-    await cap("다시 스위치 한 번 → 공직자 모드 — 이제 규정 제·개정", "");
-    await page.evaluate(() => sessionStorage.setItem("law-for-all:mode", "officer"));
+    await wait(500);
+    await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `${took(sec)} · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
+    await wait(3500);
+    await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건")); if (p) p.scrollTo({ top: p.scrollHeight * 0.4, behavior: "smooth" }); });
   });
   await scene("t01", async () => {
     await page.goto(BASE + "/drafting?mode=enact");
     await page.waitForLoadState("networkidle").catch(() => {});
     await card("");
-    await cap("① 제정 — 새 지침을 만들 때 ‘무엇부터?’", "규정명·종류·기관·제정 목적·상위법 근거 조문·담을 내용을 넣으면");
+    await cap("직접 입력해 만들 때도 — 새 지침을 만들 때 ‘무엇부터?’", "규정명·종류·기관·제정 목적·상위법 근거 조문·담을 내용을 넣으면");
     await wait(1500);
     await click(page.getByRole("button", { name: "예시 채우기" }));
     await page.getByRole("heading", { name: "조문 체계 · 제정안 초안", exact: true }).waitFor({ timeout: 20000 }).catch(() => {});
@@ -653,28 +640,6 @@ await scene("s18", async () => {
   await scene("t04", async () => {
     await scrollBy(380, 14);
     await cap("채운 값이 기관 실정에 맞는지는 담당자가 확인 — ‘표준 초안’과 바로 비교", "AI 채운 안 ↔ 표준 초안 전환 · 복사·Word 저장은 보고 있는 쪽으로");
-  });
-  await scene("tL", async () => {
-    // 공직자 첫 화면의 '규정 바로 만들기' 15종 → 누르면 제정 화면에서 한 줄 제정이 바로 시작
-    await page.goto(BASE + "/");
-    await page.waitForLoadState("networkidle").catch(() => {});
-    const tiles = page.locator("section[aria-label='규정 바로 만들기']");
-    await tiles.scrollIntoViewIfNeeded().catch(() => {});
-    await page.evaluate(() => window.scrollBy({ top: 120 }));
-    await cap("한 줄로 만들기 — 공직자 첫 화면 ‘규정 바로 만들기’ 15종, 누르면 바로 시작", "국가법령정보에서 상위법령을 찾아 AI가 조문 구성을 설계하고, 상위 조문 원문에 맞춰 조문까지 작성");
-    await wait(1600);
-    await click(tiles.getByRole("link", { name: /산업안전보건 관리 규정/ }));
-    await page.waitForURL(/drafting/).catch(() => {});
-    const sec = await aiWait(() => page.getByText(/조문 [0-9]+개를 썼어요|AI 작성에 실패|연결하지 못했어요/).first().waitFor({ timeout: 220000 }).catch(() => {}), "제정안");
-    // AI가 쓴 조문 본문이 보이게(작성안 상자를 화면 위쪽으로)
-    await page.evaluate(() => {
-      const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건"));
-      if (p) window.scrollTo({ top: p.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
-    });
-    await wait(500);
-    await cap("「산업안전보건법」 목차에서 근거를 골라 조문 작성 — 안전보건관리책임자·위원회·안전보건교육", `${took(sec)} · 근거 밖 법령·새 벌칙·항 번호 오류는 가드가 차단 · AI 작성안 ↔ 표준 초안 전환 · 담당자 확인`);
-    await wait(3500);
-    await page.evaluate(() => { const p = [...document.querySelectorAll("pre")].find((x) => x.textContent.includes("안전보건")); if (p) p.scrollTo({ top: p.scrollHeight * 0.4, behavior: "smooth" }); });
   });
   await scene("t05", async () => {
     await page.getByLabel("규정명").fill("○○공단 재택근무 운영 지침");
@@ -882,6 +847,50 @@ await scene("s18", async () => {
     await cap("공직자 첫 화면을 열면 — 기준일 이후 개정된 상위법을 바로 알림", "국가법령정보 법령 목록에서 최근 공포일 확인 · ‘개정 전후 보기·영향 점검’ → 신구법 비교 → 우리 규정 정비 · ‘확인함’이면 다음 개정부터");
     await wait(2500);
     await point(panel.getByRole("link", { name: /개정 전후 보기/ }).first());
+  });
+  await scene("tA", async () => {
+    // 법령 둘러보기 — 개정 알리미: 핵심 법령 + 지켜보는 법령 중 최근 90일 안에 공포된 개정
+    await page.goto(BASE + "/laws");
+    const board = page.locator("section[aria-label='개정 알리미']");
+    await board.waitFor({ timeout: 30000 }).catch(() => {});
+    await scrollToEl("section[aria-label='개정 알리미']", 150);
+    await cap("개정 알리미 — 최근 90일 안에 공포된 개정을 한눈에", "핵심 법령 + 지켜보는 법령 · 국가법령정보 법령 목록 기준 · 공포 후 90일 동안 계속 표시");
+    await page.waitForFunction(() => { const t = document.querySelector("section[aria-label='개정 알리미']")?.innerText ?? ""; return /공포|개정된 법령이 없어요|연결하지 못했어요/.test(t) && !/확인하는 중/.test(t); }, null, { timeout: 45000 }).catch(() => {});
+    await scrollToEl("section[aria-label='개정 알리미']", 150);
+    await wait(1500);
+    const cmp = board.getByRole("link", { name: /개정 전후 비교/ }).first();
+    if (await has(cmp)) {
+      await point(cmp);
+      await cap("‘개정 전후 비교’ 한 번으로 신구법 비교 → 우리 규정 영향 조문 → 개정안", "시행 예정 · 타법개정(자구 수정) 구분 표시 · ‘현행 원문’ 바로 열기");
+    }
+  });
+  // 듀얼 모드 — 공직자도 국민: 같은 서비스의 국민 모드를 짧게 보여 주고 다시 공직자 모드로
+  await scene("tCit1", async () => {
+    await page.goto(BASE + "/");
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
+    await page.locator("main [aria-label='음성으로 질문하기']").first().waitFor({ timeout: 20000 }).catch(() => {});
+    await wait(300);
+    await cap("듀얼 모드 — 스위치 한 번으로 국민 모드(공직자도 국민)", "생활 속 법률 문제를 말하듯 묻는 대국민 화면 · 음성 질문 · 휴대폰에서도 앱 설치 없이");
+    await wait(1500);
+    const mic = page.locator("main [aria-label='음성으로 질문하기']").first();
+    if (await has(mic)) await point(mic);
+  });
+  await scene("tCit2", async () => {
+    await page.goto(BASE + "/search?q=" + encodeURIComponent("퇴사했는데 마지막 월급을 안 줘요"));
+    const sec = await aiWait(() => page.locator("[aria-label^='근거 1:']").first().waitFor({ timeout: 60000 }).catch(() => {}));
+    await cap("국민 모드 답변 — 쉬운 말 풀이 · 문장마다 근거 조문 · 지금 해야 할 일", `${took(sec)} · 공직자 모드와 같은 근거 검증(가드)을 거칩니다`);
+    await wait(1200);
+    await point(page.locator("[aria-label^='근거 1:']").first()).catch(() => {});
+    await wait(1500);
+    await page.evaluate(() => {
+      const h = [...document.querySelectorAll("h2,h3")].find((x) => x.textContent.includes("도움받을 수 있는 곳"));
+      if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 220, behavior: "smooth" });
+    });
+    await wait(800);
+    await cap("관련 기관 전화·누리집 바로 연결 — 행동까지 안내", "고용노동부 ☎1350 · 대한법률구조공단 ☎132 · 이어서 묻기 · 서류 초안 7종 · 법률 상황 분석실 — 공직자도 국민, 한 서비스로 업무와 생활 모두(세션 1 출품)");
+    const tel = page.locator("a[href^='tel:']:visible").first();
+    if (await has(tel)) await point(tel);
   });
   await scene("t12", async () => {
     await cap("");
