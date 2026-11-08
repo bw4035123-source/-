@@ -241,8 +241,14 @@ await scene("s00", async () => {
   introAt = (Date.now() - t0) / 1000;
 });
 await scene("s10", async () => {
+  // 첫 화면이 늦게 뜨면(서버 깨어나는 중) 스위치가 보일 때까지 기다림 — 안 보이면 한 번 새로고침
+  const sw = page.locator("[aria-label='공직자 모드 전환']:visible").first();
+  if (!(await sw.waitFor({ timeout: 45000 }).then(() => true).catch(() => false))) {
+    await page.reload();
+    await sw.waitFor({ timeout: 60000 });
+  }
   await card("");
-  await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
+  await click(sw);
   await wait(300);
   await cap("① 공직자 모드 메인 — 실무용 첫 화면", "자주 찾는 법령 12개(계약·재정·청렴·정보공개·안전·노무) · 규정 바로 만들기 15종");
   await wait(2500);
