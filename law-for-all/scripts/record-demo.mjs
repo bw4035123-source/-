@@ -32,8 +32,8 @@ const TARGET = Number(process.env.TARGET_SEC ?? 210);
 const SESSION = Number(process.env.SESSION ?? 1);
 // 자막만 녹화할 때 장면별 길이(초) — 자막을 읽을 시간 + 화면 동작. 마지막 장면(s18)은 남은 시간을 채운다
 const PLAN = SESSION === 2
-  ? { t00: 4, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 18, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
-  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8, sMob: 11, sDual: 7 };
+  ? { t00: 4, tHome: 8, t01: 11, t02: 9, t03: 12, t04: 7.5, tL: 17, t05: 13, t06: 8.5, t07: 12, t08: 18, t08b: 10, t09: 11, tU1: 11, tU2: 15, t10: 12, t11: 9, t11c: 17, tW: 13, t12: 9, t13: 8 }
+  : { s00: 3.5, s01: 8, s02: 7, s03: 6, s04: 5.5, sF1: 9, sF2: 9.5, s05: 8, s06: 12, s07: 12, s07b: 6, s08: 7, s09: 4.5, s10: 5.5, s11: 7.5, sM: 9, sR: 7, s12: 7, sC: 11, s13: 10, s14: 12, s15: 8, s16: 9.5, s17: 8, sE: 8, sAI: 8, sMob: 11 };
 const W = 1280;
 const H = 720;
 const tmp = fs.mkdtempSync(path.join(path.dirname(OUT), ".rec-"));
@@ -240,177 +240,10 @@ await scene("s00", async () => {
   await wait(150);
   introAt = (Date.now() - t0) / 1000;
 });
-await scene("s10", async () => {
-  // 첫 화면이 늦게 뜨면(서버 깨어나는 중) 스위치가 보일 때까지 기다림 — 안 보이면 한 번 새로고침
-  const sw = page.locator("[aria-label='공직자 모드 전환']:visible").first();
-  if (!(await sw.waitFor({ timeout: 45000 }).then(() => true).catch(() => false))) {
-    await page.reload();
-    await sw.waitFor({ timeout: 60000 });
-  }
-  await card("");
-  await click(sw);
-  await wait(300);
-  await cap("① 공직자 모드 메인 — 실무용 첫 화면", "자주 찾는 법령 12개(계약·재정·청렴·정보공개·안전·노무) · 규정 바로 만들기 15종");
-  await wait(2500);
-  await point(page.locator("button", { hasText: "부정청탁금지법" }).first());
-});
-await scene("s11", async () => {
-  await page.locator("button", { hasText: "부정청탁금지법" }).first().click();
-  await page.waitForURL(/search/);
-  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
-  await cap("검토 결론 → 법적 근거 체계 → 주요 쟁점 → 업무 유의사항 → 체크리스트", "보고서체로 정리 · 인용문 복사로 공문서에 바로 활용");
-  await wait(3500);
-  await scrollBy(480, 14);
-});
-await scene("sM", async () => {
-  await page.goto(BASE + "/search?q=" + encodeURIComponent("공무원 외부강의 사례금 상한은?"));
-  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
-  await wait(300);
-  await cap("금액 기준은 시행령 별표 원문으로 — 공무원 외부강의 1시간당 40만원(총액 60만원)", "청탁금지법 시행령 제25조·별표 2 · 음식물·선물 가액(별표 1)도 원문 그대로");
-  await wait(3800);
-  const badge = page.getByText(/최근 개정 \d{4}\./).first();
-  if (await has(badge)) {
-    await point(badge);
-    await cap("최근 1년 안에 바뀐 근거 조문은 ‘최근 개정’ 표시 — 예전 기준으로 판단하지 않게", "검증 영수증에도 조문별 최종 개정일 기록");
-  }
-});
-await scene("sR", async () => {
-  await click(page.locator("button:visible", { hasText: "검증 영수증" }).first());
-  await page.locator("[role=dialog] >> text=No.").first().waitFor().catch(() => {});
-  await wait(300);
-  await cap("검증 영수증 — 근거 원문의 출처·시각·SHA-256 지문과 인용 검증 결과", "AI를 활용한 행정의 근거를 보고서·기안문에 남깁니다");
-});
-await scene("s12", async () => {
-  await page.keyboard.press("Escape").catch(() => {});
-  await wait(300);
-  const pack = page.locator("button", { hasText: "보고서 한 번에 작성" }).first();
-  if (await has(pack)) {
-    await click(pack);
-    await page.locator("[role=dialog]").first().waitFor().catch(() => {});
-    await wait(300);
-  }
-  await cap("보고서 한 번에 작성 — 검토 보고서 · 기안문 · 민원 회신문 · 붙임 4종", "검증된 답변·근거 원문만 공문서 서식에 배치 · Word 저장");
-});
-if (casesLive && process.env.WITH_OFFICER_EXTRA) {
-  // 공직자 모드의 판례 보기 — 업무 분야별 쟁점, 법제처 법령해석례(유권해석) 먼저, 검토보고서용 요지 복사
-  await scene("sC", async () => {
-    await page.keyboard.press("Escape").catch(() => {});
-    await page.goto(BASE + "/cases");
-    await page.getByText(/판례\u2060?·\u200B?법령해석례 검토/).first().waitFor().catch(() => {});
-    await cap("공직자 판례 보기 — 판례·법령해석례 검토, 업무 분야별 쟁점으로 바로 찾기", "인사·복무 · 청렴·선거 · 재산·계약 · 행정·민원");
-    await wait(1800);
-    await click(page.locator("main button", { hasText: /^\s*#\s*부정청탁\s*$/ }).first());
-    const item = page.locator("button", { hasText: "해석례 보기" }).first();
-    await item.waitFor({ timeout: 30000 }).catch(() => {});
-    // 결과 목록 머리(해석례 묶음 제목)가 화면 위쪽에 오도록
-    await item.evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 300, behavior: "smooth" })).catch(() => {});
-    await wait(1000);
-    await cap("법제처 법령해석례(유권해석)를 먼저, 이어서 판례 — 제목이 쟁점과 맞는 것만", "본문에 낱말만 스친 엉뚱한 사건은 걸러 냄");
-    await wait(2600);
-    if (await has(item)) {
-      const brief = page.locator("[role=dialog]").getByText("검토보고서용 요지 복사").first();
-      // 부드러운 스크롤이 끝난 뒤 누르고, 보기 창이 안 열렸으면 한 번 더
-      for (let i = 0; i < 2 && !(await has(brief)); i++) {
-        await click(item);
-        await brief.waitFor({ timeout: 8000 }).catch(() => {});
-      }
-      await wait(300);
-      if (await has(brief)) await point(brief);
-      await cap("업무 처리 기준인 회답·이유를 강조 · 검토보고서용 요지 복사", "질의 당시와 현행 법령이 같은지 확인 안내 · 인용 표기 복사 · 원문 링크");
-      await wait(2500);
-    }
-  });
-}
-await scene("s13", async () => {
-  await cap("");
-  await page.keyboard.press("Escape");
-  await page.goto(BASE + "/compliance");
-  await cap("② 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일 원본은 브라우저에서만 읽음 · AI 검토에는 조문 글만(개인정보 가림) · 끌어다 놓기 또는 모의데이터 버튼");
-  await point(page.locator("[aria-label^='규정 파일 올리기']").first());
-  await wait(1200);
-  const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
-  await point(mock);
-  await cap("모의데이터로 바로 체험 — 버튼 한 번에 한글(HWPX) 규정 파일 읽기부터 검증까지", "가상시설관리공단 복무 및 보수 규정 · 조문 11개 인식");
-  await wait(1500);
-  await mock.click();
-  await page.mouse.move(W - 260, 300, { steps: 14 }); // 결과로 화면이 옮겨 가므로 커서도 결과 쪽으로
-  await page.waitForFunction(() => document.querySelector("#compliance-result")?.innerText.includes("교차 검증 결과"), null, { timeout: 30000 }).catch(() => {});
-});
-await scene("s14", async () => {
-  await wait(300);
-  await scrollToEl("#compliance-result");
-  await wait(700);
-  await cap("법정 기준 규칙 점검이 먼저 — 이어서 AI가 조문마다 상위법을 찾아 대조", "국가법령정보(법제처 Open API)에서 전체 현행 법령 검색 → 국산 AI Solar Pro 4가 원문과 대조");
-  const sec = await aiWait(() => page.getByText(/AI 검토 완료|AI 검토를 하지 못했어요/).first().waitFor({ timeout: 150000 }).catch(() => {}), "조문별 대조 의견");
-  await page.evaluate(() => {
-    const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
-    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 140, behavior: "smooth" });
-  });
-  await wait(600);
-  await cap("AI 검토 — 조문마다 상위 조문 원문과 대조해 판정 · 이유 · 고칠 방향", `${took(sec)} · 근거 조문·수치는 가드가 검증 · 참고 의견, 최종 판단은 담당자`);
-});
-if (process.env.WITH_OFFICER_EXTRA) {
-await scene("s15", async () => {
-  await page.evaluate(() => {
-    const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
-    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
-  });
-  await wait(700);
-  await cap("1주 45시간 → 법정 40시간 초과 · 근거 조문 버튼으로 원문 확인", "근로시간·연차·가산수당·출산휴가·퇴직금품·해고예고까지 점검");
-  await wait(3500);
-  await page.evaluate(() => {
-    const h = [...document.querySelectorAll("#compliance-result p")].find((x) => x.textContent.includes("개정안(상위법 기준 반영)"));
-    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 220, behavior: "smooth" });
-  });
-  await wait(600);
-  await cap("수치 위반은 개정안 자동 제안 — 현행 ↔ 개정안 대비", "보고서 복사 · 제·개정 지원으로 이어서 작성");
-});
-await scene("s16", async () => {
-  await page.goto(BASE + "/drafting");
-  await cap("③ 규정 제·개정 지원 — 바꾸고 싶은 내용을 말하듯 적으면", "예: 처리기간을 7일에서 5일로 단축 · ‘민원인’을 ‘신청인’으로 변경");
-  await click(page.locator("button", { hasText: "직접 입력" }).first());
-  await page.locator("input[placeholder^='규정명']").first().fill("가상시 민원 처리 규정");
-  await page.locator("input[placeholder='제5조(처리기간)']").first().fill("제5조(처리기간)");
-  await page.locator("textarea[placeholder^='현행 조문']").first().fill("① 민원인이 신청한 민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 처리기간을 연장하는 경우에는 민원인에게 알려야 한다.");
-  const ins = page.locator("textarea[placeholder^='예) 처리기간']").first();
-  await click(ins);
-  await ins.type("처리기간을 7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경", { delay: 18 });
-  await click(page.locator("button", { hasText: "개정안 작성" }).first());
-  await wait(500);
-  await scrollToEl("section[aria-label='개정안과 검토 결과']");
-  await wait(700);
-  await cap("신·구조문 대비표 · 정합성 점검이 자동으로", "개정이유·주요내용 · 부칙 · 입법예고문 · 절차 체크리스트 초안 · Word 저장");
-});
-}
-await scene("s17", async () => {
-  await page.goto(BASE + "/laws/labor-standards");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await cap("법제처 형식 조문 뷰어 · 상위법–시행령–시행규칙 3단 대조", "법령·행정규칙·자치법규·판례 실시간 조회 — 실행판·공유판도 클라우드 중계로 키 입력 없이");
-  await wait(5000);
-  await page.goto(BASE + "/about");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await cap("시연 주소는 국산 AI 업스테이지 Solar Pro 4 — 설정만 바꿔 EXAONE·Gemma 등 공통기반 모델로 교체", "어떤 모델이든 같은 인용·수치 검증 가드 · AI가 끊기거나 검증에 걸리면 검수된 답변으로 자동 대체");
-  await wait(1500);
-  await scrollBy(420, 14);
-});
-await scene("sE", async () => {
-  await scrollToEl("#eval", 90);
-  await wait(700);
-  await cap("정확도 성적표 공개 — 국산 AI Solar 답변 93/94 검증 통과 · 근거 밖 인용 0건", "가짜 인용 1516/1516 차단 · 독립 작성자(EXAONE) 블라인드 이력·틀린 문항 모두 공개 · npm run eval 로 누구나 재현");
-});
-// 듀얼 모드: 공직자 화면에서 스위치 한 번으로 국민 모드 — 공직자도 국민
-await scene("sDual", async () => {
-  await card("");
-  await page.goto(BASE + "/");
-  await page.waitForLoadState("networkidle").catch(() => {});
-  await cap("듀얼 모드 — 공직자도 국민입니다 · 스위치 한 번으로 국민 모드", "업무(근거·보고서)와 생활(내 권리·지금 할 일)을 한 서비스·같은 근거로");
-  await wait(1100);
-  await click(page.locator("[aria-label='공직자 모드 전환']:visible").first());
-  await wait(1500);
-});
 await scene("s01", async () => {
+  await page.locator("main [aria-label='음성으로 질문하기']").first().waitFor({ timeout: 60000 }).catch(() => page.reload());
   await card("");
-  await cap("④ 국민 모드 첫 화면 — 궁금한 상황을 말로 물어봅니다", "마이크 버튼 → 말하기 (시연용 음성 입력 재현 · 녹화 환경에 마이크가 없어 인식 결과를 넣어 보여 줌)");
+  await cap("① 국민 모드 첫 화면 — 궁금한 상황을 말로 물어봅니다", "마이크 버튼 → 말하기 (시연용 음성 입력 재현 · 녹화 환경에 마이크가 없어 인식 결과를 넣어 보여 줌)");
   await wait(1200);
   await click(page.locator("main [aria-label='음성으로 질문하기']").first());
   await page.getByText("곧 검색해요").first().waitFor({ timeout: 8000 }).catch(() => {});
@@ -517,7 +350,7 @@ await scene("s07", async () => {
     const t = document.querySelector("main textarea");
     if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 200 });
   });
-  await cap("⑤ 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절 — 사연을 적다 보면 전화번호 같은 개인정보도 들어가곤 합니다");
+  await cap("② 법률 상황 분석실 — 겪은 일을 이야기하듯 적으면", "예시: 전세 보증금·연락 두절 — 사연을 적다 보면 전화번호 같은 개인정보도 들어가곤 합니다");
   await wait(400);
   await click(page.locator("button", { hasText: "전세 보증금" }).first());
   await wait(400);
@@ -567,6 +400,164 @@ if (mobShots.length) await scene("sMob", async () => {
     .join("");
   await card(`<span class="chip">대국민 서비스 향상</span><h1 style="font-size:40px">국민 모드는 휴대폰에서도 간편하게</h1><p style="font-size:20px">앱 설치·회원가입 없이 휴대폰 브라우저로 바로 · PC와 같은 기능 · 글자 크기 3단계·뜻 단위 줄바꿈</p><div style="display:flex;gap:34px;margin-top:6px">${phones}</div>`);
 });
+await scene("s10", async () => {
+  // 첫 화면이 늦게 뜨면(서버 깨어나는 중) 스위치가 보일 때까지 기다림 — 안 보이면 한 번 새로고침
+  const sw = page.locator("[aria-label='공직자 모드 전환']:visible").first();
+  if (!(await sw.waitFor({ timeout: 45000 }).then(() => true).catch(() => false))) {
+    await page.reload();
+    await sw.waitFor({ timeout: 60000 });
+  }
+  await card("");
+  await click(sw);
+  await wait(300);
+  await cap("③ 듀얼 모드 — 스위치 한 번으로 공직자 모드(공직자도 국민)", "공직자 메인: 자주 찾는 법령 12개(계약·재정·청렴·정보공개·안전·노무) · 규정 바로 만들기 15종");
+  await wait(2500);
+  await point(page.locator("button", { hasText: "부정청탁금지법" }).first());
+});
+await scene("s11", async () => {
+  await page.locator("button", { hasText: "부정청탁금지법" }).first().click();
+  await page.waitForURL(/search/);
+  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
+  await cap("검토 결론 → 법적 근거 체계 → 주요 쟁점 → 업무 유의사항 → 체크리스트", "보고서체로 정리 · 인용문 복사로 공문서에 바로 활용");
+  await wait(3500);
+  await scrollBy(480, 14);
+});
+await scene("sM", async () => {
+  await page.goto(BASE + "/search?q=" + encodeURIComponent("공무원 외부강의 사례금 상한은?"));
+  await aiWait(() => page.getByText("검토 결론").first().waitFor({ timeout: 60000 }).catch(() => {}), "검토 보고서");
+  await wait(300);
+  await cap("금액 기준은 시행령 별표 원문으로 — 공무원 외부강의 1시간당 40만원(총액 60만원)", "청탁금지법 시행령 제25조·별표 2 · 음식물·선물 가액(별표 1)도 원문 그대로");
+  await wait(3800);
+  const badge = page.getByText(/최근 개정 \d{4}\./).first();
+  if (await has(badge)) {
+    await point(badge);
+    await cap("최근 1년 안에 바뀐 근거 조문은 ‘최근 개정’ 표시 — 예전 기준으로 판단하지 않게", "검증 영수증에도 조문별 최종 개정일 기록");
+  }
+});
+await scene("sR", async () => {
+  await click(page.locator("button:visible", { hasText: "검증 영수증" }).first());
+  await page.locator("[role=dialog] >> text=No.").first().waitFor().catch(() => {});
+  await wait(300);
+  await cap("검증 영수증 — 근거 원문의 출처·시각·SHA-256 지문과 인용 검증 결과", "AI를 활용한 행정의 근거를 보고서·기안문에 남깁니다");
+});
+await scene("s12", async () => {
+  await page.keyboard.press("Escape").catch(() => {});
+  await wait(300);
+  const pack = page.locator("button", { hasText: "보고서 한 번에 작성" }).first();
+  if (await has(pack)) {
+    await click(pack);
+    await page.locator("[role=dialog]").first().waitFor().catch(() => {});
+    await wait(300);
+  }
+  await cap("보고서 한 번에 작성 — 검토 보고서 · 기안문 · 민원 회신문 · 붙임 4종", "검증된 답변·근거 원문만 공문서 서식에 배치 · Word 저장");
+});
+if (casesLive && process.env.WITH_OFFICER_EXTRA) {
+  // 공직자 모드의 판례 보기 — 업무 분야별 쟁점, 법제처 법령해석례(유권해석) 먼저, 검토보고서용 요지 복사
+  await scene("sC", async () => {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.goto(BASE + "/cases");
+    await page.getByText(/판례\u2060?·\u200B?법령해석례 검토/).first().waitFor().catch(() => {});
+    await cap("공직자 판례 보기 — 판례·법령해석례 검토, 업무 분야별 쟁점으로 바로 찾기", "인사·복무 · 청렴·선거 · 재산·계약 · 행정·민원");
+    await wait(1800);
+    await click(page.locator("main button", { hasText: /^\s*#\s*부정청탁\s*$/ }).first());
+    const item = page.locator("button", { hasText: "해석례 보기" }).first();
+    await item.waitFor({ timeout: 30000 }).catch(() => {});
+    // 결과 목록 머리(해석례 묶음 제목)가 화면 위쪽에 오도록
+    await item.evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 300, behavior: "smooth" })).catch(() => {});
+    await wait(1000);
+    await cap("법제처 법령해석례(유권해석)를 먼저, 이어서 판례 — 제목이 쟁점과 맞는 것만", "본문에 낱말만 스친 엉뚱한 사건은 걸러 냄");
+    await wait(2600);
+    if (await has(item)) {
+      const brief = page.locator("[role=dialog]").getByText("검토보고서용 요지 복사").first();
+      // 부드러운 스크롤이 끝난 뒤 누르고, 보기 창이 안 열렸으면 한 번 더
+      for (let i = 0; i < 2 && !(await has(brief)); i++) {
+        await click(item);
+        await brief.waitFor({ timeout: 8000 }).catch(() => {});
+      }
+      await wait(300);
+      if (await has(brief)) await point(brief);
+      await cap("업무 처리 기준인 회답·이유를 강조 · 검토보고서용 요지 복사", "질의 당시와 현행 법령이 같은지 확인 안내 · 인용 표기 복사 · 원문 링크");
+      await wait(2500);
+    }
+  });
+}
+await scene("s13", async () => {
+  await cap("");
+  await page.keyboard.press("Escape");
+  await page.goto(BASE + "/compliance");
+  await cap("④ 자체규정 점검 — 우리 기관 규정 파일(한글·PDF·Word)을 넣으면", "파일 원본은 브라우저에서만 읽음 · AI 검토에는 조문 글만(개인정보 가림) · 끌어다 놓기 또는 모의데이터 버튼");
+  await point(page.locator("[aria-label^='규정 파일 올리기']").first());
+  await wait(1200);
+  const mock = page.locator("main button:visible", { hasText: "HWPX" }).first();
+  await point(mock);
+  await cap("모의데이터로 바로 체험 — 버튼 한 번에 한글(HWPX) 규정 파일 읽기부터 검증까지", "가상시설관리공단 복무 및 보수 규정 · 조문 11개 인식");
+  await wait(1500);
+  await mock.click();
+  await page.mouse.move(W - 260, 300, { steps: 14 }); // 결과로 화면이 옮겨 가므로 커서도 결과 쪽으로
+  await page.waitForFunction(() => document.querySelector("#compliance-result")?.innerText.includes("교차 검증 결과"), null, { timeout: 30000 }).catch(() => {});
+});
+await scene("s14", async () => {
+  await wait(300);
+  await scrollToEl("#compliance-result");
+  await wait(700);
+  await cap("법정 기준 규칙 점검이 먼저 — 이어서 AI가 조문마다 상위법을 찾아 대조", "국가법령정보(법제처 Open API)에서 전체 현행 법령 검색 → 국산 AI Solar Pro 4가 원문과 대조");
+  const sec = await aiWait(() => page.getByText(/AI 검토 완료|AI 검토를 하지 못했어요/).first().waitFor({ timeout: 150000 }).catch(() => {}), "조문별 대조 의견");
+  await page.evaluate(() => {
+    const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
+    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 140, behavior: "smooth" });
+  });
+  await wait(600);
+  await cap("AI 검토 — 조문마다 상위 조문 원문과 대조해 판정 · 이유 · 고칠 방향", `${took(sec)} · 근거 조문·수치는 가드가 검증 · 참고 의견, 최종 판단은 담당자`);
+});
+if (process.env.WITH_OFFICER_EXTRA) {
+await scene("s15", async () => {
+  await page.evaluate(() => {
+    const h = [...document.querySelectorAll("#compliance-result h3")].find((x) => x.textContent.includes("제8조"));
+    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 150, behavior: "smooth" });
+  });
+  await wait(700);
+  await cap("1주 45시간 → 법정 40시간 초과 · 근거 조문 버튼으로 원문 확인", "근로시간·연차·가산수당·출산휴가·퇴직금품·해고예고까지 점검");
+  await wait(3500);
+  await page.evaluate(() => {
+    const h = [...document.querySelectorAll("#compliance-result p")].find((x) => x.textContent.includes("개정안(상위법 기준 반영)"));
+    if (h) window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - 220, behavior: "smooth" });
+  });
+  await wait(600);
+  await cap("수치 위반은 개정안 자동 제안 — 현행 ↔ 개정안 대비", "보고서 복사 · 제·개정 지원으로 이어서 작성");
+});
+await scene("s16", async () => {
+  await page.goto(BASE + "/drafting");
+  await cap("⑤ 규정 제·개정 지원 — 바꾸고 싶은 내용을 말하듯 적으면", "예: 처리기간을 7일에서 5일로 단축 · ‘민원인’을 ‘신청인’으로 변경");
+  await click(page.locator("button", { hasText: "직접 입력" }).first());
+  await page.locator("input[placeholder^='규정명']").first().fill("가상시 민원 처리 규정");
+  await page.locator("input[placeholder='제5조(처리기간)']").first().fill("제5조(처리기간)");
+  await page.locator("textarea[placeholder^='현행 조문']").first().fill("① 민원인이 신청한 민원은 접수한 날부터 7일 이내에 처리하여야 한다.\n② 처리기간을 연장하는 경우에는 민원인에게 알려야 한다.");
+  const ins = page.locator("textarea[placeholder^='예) 처리기간']").first();
+  await click(ins);
+  await ins.type("처리기간을 7일에서 5일로 단축\n‘민원인’을 ‘신청인’으로 변경", { delay: 18 });
+  await click(page.locator("button", { hasText: "개정안 작성" }).first());
+  await wait(500);
+  await scrollToEl("section[aria-label='개정안과 검토 결과']");
+  await wait(700);
+  await cap("신·구조문 대비표 · 정합성 점검이 자동으로", "개정이유·주요내용 · 부칙 · 입법예고문 · 절차 체크리스트 초안 · Word 저장");
+});
+}
+await scene("s17", async () => {
+  await page.goto(BASE + "/laws/labor-standards");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await cap("법제처 형식 조문 뷰어 · 상위법–시행령–시행규칙 3단 대조", "법령·행정규칙·자치법규·판례 실시간 조회 — 실행판·공유판도 클라우드 중계로 키 입력 없이");
+  await wait(5000);
+  await page.goto(BASE + "/about");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await cap("시연 주소는 국산 AI 업스테이지 Solar Pro 4 — 설정만 바꿔 EXAONE·Gemma 등 공통기반 모델로 교체", "어떤 모델이든 같은 인용·수치 검증 가드 · AI가 끊기거나 검증에 걸리면 검수된 답변으로 자동 대체");
+  await wait(1500);
+  await scrollBy(420, 14);
+});
+await scene("sE", async () => {
+  await scrollToEl("#eval", 90);
+  await wait(700);
+  await cap("정확도 성적표 공개 — 국산 AI Solar 답변 93/94 검증 통과 · 근거 밖 인용 0건", "가짜 인용 1516/1516 차단 · 독립 작성자(EXAONE) 블라인드 이력·틀린 문항 모두 공개 · npm run eval 로 누구나 재현");
+});
 await scene("s18", async () => {
   await cap("");
   await card(`<h1>법이음 (LAW:ON)</h1><ul><li>✔ 근거 조문을 먼저 찾고 인용 — 가짜 조문·판례 차단</li><li>✔ 듀얼 모드: 공직자도 국민 — 스위치 한 번으로 업무와 생활 모두</li><li>✔ 국민: 쉬운 말 풀이·지금 할 일·전화·서식·이어서 묻기·상황 분석실</li><li>✔ 서류 초안 7종 · 답변 검증 영수증(원문 지문·개정일)</li><li>✔ 휴대폰에서도 앱 설치 없이 간편하게 — 대국민 서비스 향상</li><li>✔ 개인정보 자동 가림 · 음성 질문 · 정확도 성적표 공개</li><li>✔ 판례·법령해석례 실시간 — 국민은 쉬운 설명, 공직자는 유권해석 우선 검토</li><li>✔ 국산 AI Solar가 답하고 가드가 검증 — 답변 93/94 통과</li><li>✔ 자체규정 점검 → 제·개정 문서까지(세션 2 출품) · LLM 비종속 · 실행판</li></ul><p style="font-size:20px;margin-top:10px">다른 기관 규정·법령은 데이터 추가만으로 확산</p>`);
@@ -578,6 +569,18 @@ await scene("s18", async () => {
     await card(`<span class="chip">2026 공공 AI 대전환 챌린지 · 세션 2 · 지정과제 ③</span><h1>법이음 규정 제·개정 지원</h1><p>제정·개정 문서 세트부터 유사 규정 비교, 인용 정정, 상위법 대조까지<br>틀리면 안 되는 부분은 결정적으로 · 기관마다 다른 빈칸은 국산 AI가 채우고 가드가 검증</p>`);
     await wait(150);
     introAt = (Date.now() - t0) / 1000;
+  });
+  await scene("tHome", async () => {
+    await page.goto(BASE + "/");
+    await page.locator("[aria-label='공직자 모드 전환']:visible").first().waitFor({ timeout: 60000 }).catch(() => page.reload());
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await card("");
+    await cap("공직자 모드 메인 — 근거 조문·판례 검토부터 우리 기관 규정 검증·제·개정까지 한 곳에서", "듀얼 모드: 오른쪽 위 스위치 한 번으로 국민 모드도 — 공직자도 국민");
+    await wait(1200);
+    await point(page.locator("[aria-label='공직자 모드 전환']:visible").first());
+    await wait(1600);
+    await point(page.locator("header a", { hasText: /제·개정/ }).first()).catch(() => {});
+    await wait(900);
   });
   await scene("t01", async () => {
     await page.goto(BASE + "/drafting?mode=enact");
