@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2026 공공 AI 대전환 챌린지 테마 적용기 — law_for_all/web/ 의 모든 .html 에 테마 CSS·배너 JS 삽입
+"""공공 웹 테마 적용기 — law_for_all/web/ 의 모든 .html 에 테마 CSS·배너 JS 삽입
 
   python patch_gov_theme.py              # 적용(이미 적용된 파일은 건너뜀 — 여러 번 실행해도 안전)
   python patch_gov_theme.py --dry-run    # 바꿀 파일만 보여 주고 저장하지 않음
@@ -104,7 +104,7 @@ def run(web: Path, dry: bool = False, revert: bool = False, quiet: bool = False)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="2026 공공 AI 대전환 챌린지 테마 적용기")
+    ap = argparse.ArgumentParser(description="공공 웹 테마 적용기")
     ap.add_argument("--web", default=str(Path(__file__).resolve().parent / "law_for_all" / "web"))
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--revert", action="store_true")

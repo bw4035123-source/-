@@ -28,7 +28,7 @@ try {
 const web = path.join(root, "python/law_for_all/web");
 fs.rmSync(web, { recursive: true, force: true });
 fs.cpSync(path.join(root, "out"), web, { recursive: true });
-// 3-1) 2026 공공 AI 대전환 챌린지 테마(CSS·배너 JS)를 모든 HTML에 적용 — 이미 들어 있으면 건너뜀
+// 3-1) 공공 웹 테마(CSS·배너 JS)를 모든 HTML에 적용 — 이미 들어 있으면 건너뜀
 execSync("python3 patch_gov_theme.py", { cwd: path.join(root, "python"), stdio: "inherit" });
 
 // 3-2) 단일 파일 공유판을 web/downloads/ 에 넣어 사이트(Render)에서 내려받게 함(주소는 영문, 저장 이름은 한글)

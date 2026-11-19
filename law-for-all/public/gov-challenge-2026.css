@@ -1,5 +1,5 @@
 /*!
- * 법이음(LAW:ON) — 2026 공공 AI 대전환 챌린지 테마 (화이트 & 블루 단일 테마)
+ * 법이음(LAW:ON) — 공공 웹 테마 (화이트 & 블루 단일 테마)
  * - 기존 화면 구조·동작(React 번들)은 그대로 두고 글꼴·간격·입체감·가독성만 덧입히는 독립 스타일시트
  * - 정부·공공 웹 글꼴: Pretendard GOV(SIL OFL 1.1, fonts/pretendard-gov/LICENSE.txt) — 앱에 포함되어 폐쇄망에서도 동작
  * - 기본 색(흰 바탕·블루)은 app/globals.css 변수에서 정의, 고대비 모드([data-contrast="high"])는 그대로 유지
@@ -172,7 +172,7 @@ header :is(.rounded-2xl, .rounded-xl).border.bg-card:hover,
   outline: none;
 }
 
-/* ───────────────────────── 8. 챌린지 배너(gov-challenge-2026.js 가 주입) */
+/* ───────────────────────── 8. 상단 배너(gov-challenge-2026.js 가 주입) */
 #gc2026-banner {
   position: fixed;
   inset: 0 0 auto 0;

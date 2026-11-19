@@ -543,7 +543,7 @@ class RuleParserTest(unittest.TestCase):
 
 
 class GovThemePatchTest(unittest.TestCase):
-    """2026 챌린지 테마 적용기: </head>·</body> 바로 앞 삽입, 중복 없음, 되돌리면 원본과 동일"""
+    """공공 웹 테마 적용기: </head>·</body> 바로 앞 삽입, 중복 없음, 되돌리면 원본과 동일"""
 
     def test_patch_idempotent_and_revert(self):
         import tempfile
